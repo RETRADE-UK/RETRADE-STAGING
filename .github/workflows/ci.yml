@@ -100,6 +100,7 @@ jobs:
           for forbidden in ('function _buildPreviewDB(){','function startPreviewMode(){','PREVIEW_STORAGE_KEY','LEGACY_PREVIEW_STORAGE_KEYS','_previewParam','_previewStored'):
               assert forbidden not in core, f'legacy browser preview mechanism returned: {forbidden}'
           assert 'preview-btn' not in index and 'startPreviewMode()' not in index, 'legacy preview login UI returned'
+          assert not re.search(r'^\s*disablePreviewMode\(\);\s*$', core, re.M), 'orphan disablePreviewMode boot call returned'
 
           app_build=re.search(r"\bvar\s+v='([^']+)'",app)
           sw_build=re.search(r"\bconst\s+BUILD='([^']+)'",sw)
