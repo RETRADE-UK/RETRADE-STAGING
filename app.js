@@ -11,7 +11,7 @@
  */
 (function(){
   'use strict';
-  var v='20260911-v1468-staging';
+  var v='20260911-v1467';
   var motionReady=false;
   var motionFallbackTimer=0;
 
