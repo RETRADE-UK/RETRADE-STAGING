@@ -18,7 +18,7 @@ jobs:
         run: |
           set -euo pipefail
           for file in \
-            app.js app-core.js accounting.js reports.js sw.js staging-supabase.js \
+            app.js app-core.js accounting.js reports.js sw.js staging-supabase.js staging-dev-auth.js \
             launch-experience.js performance-system.js interaction-system.js sales-defaults.js \
             bundle-orders.js bundle-panel.js bundle-row-polish.js \
             cashflow-liabilities.js partner-item-navigation.js partner-statements.js \
@@ -71,8 +71,10 @@ jobs:
 
           index=Path('index.html').read_text(encoding='utf-8')
           app=Path('app.js').read_text(encoding='utf-8')
+          core=Path('app-core.js').read_text(encoding='utf-8')
           sw=Path('sw.js').read_text(encoding='utf-8')
           staging=Path('staging-supabase.js').read_text(encoding='utf-8')
+          staging_auth=Path('staging-dev-auth.js').read_text(encoding='utf-8')
           cname=Path('CNAME').read_text(encoding='utf-8').strip()
           for required in ('app.js','app.css'):
               assert required in index, f'{required} is not referenced by index.html'
@@ -80,17 +82,28 @@ jobs:
           assert "'./interaction-system.js'" in app, 'interaction-system.js is not loaded by app.js'
           assert "'interaction-system.js'" in sw, 'interaction-system.js is not in the service-worker child cache'
           assert "'./staging-supabase.js'" in app, 'staging Supabase binding is not loaded before app core'
+          assert "'./staging-dev-auth.js'" in app, 'staging development auth helper is not loaded'
           assert 'dvnrxmdejxfuazmpnudj.supabase.co' in staging, 'staging Supabase project reference is missing'
           assert 'hqyglehtssgnlrfndwpy.supabase.co' not in staging, 'production Supabase project leaked into staging binding'
+          assert 'signInAnonymously' in staging_auth, 'staging bypass must use authenticated Supabase staging sessions'
+          assert '__RETRADE_STAGING__' in staging_auth, 'staging auth helper is missing its environment guard'
           assert cname == 'test.retrade-uk.com', f'Unexpected staging CNAME: {cname}'
 
           staging_pos=app.find("'./staging-supabase.js'")
           core_pos=app.find("'./app-core.js'")
+          auth_pos=app.find("'./staging-dev-auth.js'")
           assert staging_pos != -1 and core_pos != -1 and staging_pos < core_pos, 'staging Supabase binding must load before app-core.js'
+          assert auth_pos > core_pos, 'staging auth helper must load after app-core.js'
+
+          # Old browser-memory dummy data must never come back. Staging fixtures
+          # belong in the isolated Supabase project, not the shipped app bundle.
+          for forbidden in ('function _buildPreviewDB(){','function startPreviewMode(){','PREVIEW_STORAGE_KEY','LEGACY_PREVIEW_STORAGE_KEYS','_previewParam','_previewStored'):
+              assert forbidden not in core, f'legacy browser preview mechanism returned: {forbidden}'
+          assert 'preview-btn' not in index and 'startPreviewMode()' not in index, 'legacy preview login UI returned'
 
           app_build=re.search(r"\bvar\s+v='([^']+)'",app)
           sw_build=re.search(r"\bconst\s+BUILD='([^']+)'",sw)
           assert app_build and sw_build, 'Could not resolve app/SW build identifiers'
           assert app_build.group(1)==sw_build.group(1), f'Build mismatch: app.js={app_build.group(1)} sw.js={sw_build.group(1)}'
-          print('Core references, build alignment and staging isolation passed:',app_build.group(1))
+          print('Core references, build alignment, staging isolation and preview cleanup passed:',app_build.group(1))
           PY
