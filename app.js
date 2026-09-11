@@ -11,7 +11,7 @@
  */
 (function(){
   'use strict';
-  var v='20260911-v1467';
+  var v='20260911-v1468-staging';
   var motionReady=false;
   var motionFallbackTimer=0;
 
@@ -91,6 +91,9 @@
   append('./staging-supabase.js','high',function(){
     append('./app-core.js','high',function(){
       try{if(typeof window.__rtInstallLaunchCoreHooks==='function')window.__rtInstallLaunchCoreHooks();}catch(_){}
+      /* Staging auth is deliberately loaded after the core so it can reuse the
+         core Supabase client/session listener. It never exists in production. */
+      append('./staging-dev-auth.js','high');
       /* A frame boundary is deliberate: let the real shell/chrome reach the
          screen before evaluating interaction/chart presentation layers. */
       requestAnimationFrame(function(){loadEnhancements();});
