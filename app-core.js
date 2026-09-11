@@ -23742,11 +23742,11 @@ function _restoreAuthInputs(){
 
   if(session && _pwRecovery){
     // v2.21.28 — arrived via a reset link: set a new password, do NOT enter the app
-    disablePreviewMode();
+    if(typeof disablePreviewMode==='function') disablePreviewMode();
     _currentUserId = session.user.id;
     showNewPasswordScreen();
   } else if(session){
-    disablePreviewMode();
+    if(typeof disablePreviewMode==='function') disablePreviewMode();
     _currentUserId = session.user.id;
     showApp();
     // Set avatar initial
