@@ -85,13 +85,15 @@
     });
   }
 
-  /* Only two scripts sit on the first critical execution path. Dynamic classic
-     scripts with async=false retain insertion order. */
+  /* Staging bootstrap must run before the production core creates its client.
+     It only swaps the Supabase endpoint/key; the production core stays intact. */
   append('./launch-experience.js','high');
-  append('./app-core.js','high',function(){
-    try{if(typeof window.__rtInstallLaunchCoreHooks==='function')window.__rtInstallLaunchCoreHooks();}catch(_){}
-    /* A frame boundary is deliberate: let the real shell/chrome reach the
-       screen before evaluating interaction/chart presentation layers. */
-    requestAnimationFrame(function(){loadEnhancements();});
+  append('./staging-supabase.js','high',function(){
+    append('./app-core.js','high',function(){
+      try{if(typeof window.__rtInstallLaunchCoreHooks==='function')window.__rtInstallLaunchCoreHooks();}catch(_){}
+      /* A frame boundary is deliberate: let the real shell/chrome reach the
+         screen before evaluating interaction/chart presentation layers. */
+      requestAnimationFrame(function(){loadEnhancements();});
+    });
   });
 })();
