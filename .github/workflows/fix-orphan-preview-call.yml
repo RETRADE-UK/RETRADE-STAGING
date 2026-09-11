@@ -1,0 +1,44 @@
+name: Fix orphan staging preview boot call
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-orphan-preview-call.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Remove orphan disablePreviewMode boot call
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('app-core.js')
+          s = p.read_text(encoding='utf-8')
+          needle = 'disablePreviewMode();'
+          count = s.count(needle)
+          if count != 1:
+              raise SystemExit(f'Expected exactly one orphan {needle} call, found {count}')
+          s = s.replace(needle, "if(typeof disablePreviewMode==='function') disablePreviewMode();", 1)
+          p.write_text(s, encoding='utf-8')
+
+      - name: Verify JavaScript parses
+        run: node --check app-core.js
+
+      - name: Commit fix and remove one-time workflow
+        run: |
+          git config user.name "RETRADE staging maintenance"
+          git config user.email "actions@users.noreply.github.com"
+          git add app-core.js
+          git rm .github/workflows/fix-orphan-preview-call.yml
+          git commit -m "Fix staging boot after legacy preview removal"
+          git push
