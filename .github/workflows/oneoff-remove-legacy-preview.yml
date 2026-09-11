@@ -28,9 +28,9 @@ jobs:
           core=core_path.read_text(encoding='utf-8')
 
           # The legacy preview dataset pre-dates real staging. Keep a permanently
-          # false compatibility flag because a few generic save/sync guards read
-          # it, but remove the localStorage/query activation state and all fixture
-          # records/functions that manufactured fake stock in browser memory.
+          # false compatibility flag because generic save/sync guards still read
+          # it, but remove the localStorage/query activation state and the entire
+          # browser-memory preview database builder.
           old="""let _previewMode = false;
           const _previewParam = new URLSearchParams(window.location.search).get('preview');
           const PREVIEW_STORAGE_KEY='retrade_preview_mode';
@@ -52,8 +52,6 @@ jobs:
           fixture=core.find('function _buildPreviewDB(){')
           if start < 0 or fixture < 0 or fixture <= start:
               raise SystemExit('Could not locate preview storage/bootstrap block')
-          # Drop local preview storage cleanup + preview-button bootstrap; the
-          # staging helper owns removal of stale keys from old browsers.
           core=core[:start]+core[fixture:]
 
           fixture=core.find('function _buildPreviewDB(){')
@@ -74,16 +72,18 @@ jobs:
               raise SystemExit('Could not locate preview sign-out branch')
           core=core[:start]+'async function doSignOut(){\n'+core[end:]
 
-          # Remove the now-useless login-screen preview button toggler.
           gate="""  // Gate: hide dev bypass button unless this is a dev build
             const _pb = document.getElementById('preview-btn');
             if(_pb) _pb.style.display = PREVIEW_MODE_ENABLED ? 'block' : 'none';
           """
           core=core.replace(gate,'',1)
 
-          for forbidden in ('function _buildPreviewDB(){','function startPreviewMode(){',"id:'pv-run-1'","id:'pv-item-'","Taplow Car Boot"):
+          # These symbols define the old browser fixture feature itself. Other
+          # regression tests may legitimately contain place names or pv-like
+          # labels, so don't reject unrelated test strings globally.
+          for forbidden in ('function _buildPreviewDB(){','function startPreviewMode(){','PREVIEW_STORAGE_KEY','LEGACY_PREVIEW_STORAGE_KEYS','_previewParam','_previewStored'):
               if forbidden in core:
-                  raise SystemExit('Legacy preview fixture still present: '+forbidden)
+                  raise SystemExit('Legacy preview mechanism still present: '+forbidden)
           core_path.write_text(core,encoding='utf-8')
 
           index_path=Path('index.html')
