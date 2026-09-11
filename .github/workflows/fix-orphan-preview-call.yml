@@ -26,12 +26,10 @@ jobs:
           s = p.read_text(encoding='utf-8')
           needle = 'disablePreviewMode();'
           count = s.count(needle)
-          if count < 1:
-              raise SystemExit(f'Expected at least one orphan {needle} call, found {count}')
+          if count != 2:
+              raise SystemExit(f'Expected exactly two legacy calls, found {count}')
           guarded = "if(typeof disablePreviewMode==='function') disablePreviewMode();"
           s = s.replace(needle, guarded)
-          if needle in s:
-              raise SystemExit('Orphan disablePreviewMode call remains after patch')
           p.write_text(s, encoding='utf-8')
           print(f'Guarded {count} legacy preview cleanup calls')
 
