@@ -18,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Remove orphan disablePreviewMode boot call
+      - name: Guard orphan disablePreviewMode calls
         shell: python
         run: |
           from pathlib import Path
@@ -26,10 +26,14 @@ jobs:
           s = p.read_text(encoding='utf-8')
           needle = 'disablePreviewMode();'
           count = s.count(needle)
-          if count != 1:
-              raise SystemExit(f'Expected exactly one orphan {needle} call, found {count}')
-          s = s.replace(needle, "if(typeof disablePreviewMode==='function') disablePreviewMode();", 1)
+          if count < 1:
+              raise SystemExit(f'Expected at least one orphan {needle} call, found {count}')
+          guarded = "if(typeof disablePreviewMode==='function') disablePreviewMode();"
+          s = s.replace(needle, guarded)
+          if needle in s:
+              raise SystemExit('Orphan disablePreviewMode call remains after patch')
           p.write_text(s, encoding='utf-8')
+          print(f'Guarded {count} legacy preview cleanup calls')
 
       - name: Verify JavaScript parses
         run: node --check app-core.js
