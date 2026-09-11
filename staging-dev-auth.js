@@ -53,18 +53,16 @@
     }catch(err){
       var raw=String((err&&err.message)||err||'');
       var msg=/anonymous|provider.*disabled|not enabled/i.test(raw)
-        ? 'Development bypass is ready, but Anonymous Sign-Ins still need enabling in the RETRADE-STAGING Supabase project.'
+        ? 'Developer bypass is ready, but Anonymous Sign-Ins still need enabling in the RETRADE-STAGING Supabase project.'
         : 'Could not open the staging workspace. '+(raw||'Please try again.');
       showError(msg);
-      if(btn){btn.disabled=false;btn.textContent='Enter test workspace';btn.style.opacity='1';}
+      if(btn){btn.disabled=false;btn.textContent='Developer bypass';btn.style.opacity='1';}
     }
   }
 
   function install(){
     clearLegacyPreviewState();
 
-    // Remove the old local-only preview entry point. Staging now uses real
-    // Supabase-backed test users and seeded rows instead of in-code fixtures.
     var old=document.getElementById('preview-btn');
     if(old)old.remove();
 
@@ -79,14 +77,14 @@
     var btn=document.createElement('button');
     btn.type='button';
     btn.id='staging-dev-btn';
-    btn.textContent='Enter test workspace';
+    btn.textContent='Developer bypass';
     btn.setAttribute('aria-label','Enter isolated RETRADE staging workspace');
     btn.style.cssText='width:100%;padding:12px;background:var(--surface2);color:var(--text);border:1px solid var(--accent);border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background .15s,opacity .15s;margin-top:10px';
     btn.addEventListener('click',enterStagingWorkspace);
 
     var note=document.createElement('div');
     note.id='staging-dev-note';
-    note.textContent='Uses isolated Supabase staging data — never production.';
+    note.textContent='One-click access to isolated Supabase staging data — never production.';
     note.style.cssText='font-size:10px;line-height:1.35;color:var(--muted);text-align:center;margin-top:7px';
 
     signIn.insertAdjacentElement('afterend',divider);
