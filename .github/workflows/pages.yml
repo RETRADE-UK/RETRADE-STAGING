@@ -29,10 +29,28 @@ jobs:
         with:
           enablement: true
 
+      - name: Build staging site artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf _site
+          mkdir _site
+          for file in CNAME *.html *.js *.css *.png *.webmanifest; do
+            if [ -f "$file" ]; then
+              cp "$file" _site/
+            fi
+          done
+          test -f _site/index.html
+          test -f _site/app.js
+          test -f _site/app-core.js
+          test -f _site/staging-supabase.js
+          test -f _site/staging-dev-auth.js
+          test "$(cat _site/CNAME)" = "test.retrade-uk.com"
+
       - name: Upload static site
         uses: actions/upload-pages-artifact@v4
         with:
-          path: .
+          path: _site
 
       - name: Deploy to GitHub Pages
         id: deployment
