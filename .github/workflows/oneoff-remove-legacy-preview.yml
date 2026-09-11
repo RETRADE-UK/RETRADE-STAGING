@@ -27,10 +27,6 @@ jobs:
           core_path=Path('app-core.js')
           core=core_path.read_text(encoding='utf-8')
 
-          # The legacy preview dataset pre-dates real staging. Keep a permanently
-          # false compatibility flag because generic save/sync guards still read
-          # it, but remove the localStorage/query activation state and the entire
-          # browser-memory preview database builder.
           old="""let _previewMode = false;
           const _previewParam = new URLSearchParams(window.location.search).get('preview');
           const PREVIEW_STORAGE_KEY='retrade_preview_mode';
@@ -44,6 +40,21 @@ jobs:
           if old not in core:
               raise SystemExit('Could not locate legacy preview declaration block')
           core=core.replace(old,new,1)
+
+          # Remove the old general->RETRADE preview localStorage migration.
+          preview_storage_migration="""    const hasPreview = localStorage.getItem(PREVIEW_STORAGE_KEY) === '1';
+              if(!hasPreview){
+                for(const key of LEGACY_PREVIEW_STORAGE_KEYS){
+                  if(localStorage.getItem(key) === '1'){
+                    localStorage.setItem(PREVIEW_STORAGE_KEY,'1');
+                    break;
+                  }
+                }
+              }
+          """
+          if preview_storage_migration not in core:
+              raise SystemExit('Could not locate legacy preview localStorage migration')
+          core=core.replace(preview_storage_migration,'',1)
 
           cleanup_start="""if(!PREVIEW_MODE_ENABLED){
             try{
@@ -78,9 +89,6 @@ jobs:
           """
           core=core.replace(gate,'',1)
 
-          # These symbols define the old browser fixture feature itself. Other
-          # regression tests may legitimately contain place names or pv-like
-          # labels, so don't reject unrelated test strings globally.
           for forbidden in ('function _buildPreviewDB(){','function startPreviewMode(){','PREVIEW_STORAGE_KEY','LEGACY_PREVIEW_STORAGE_KEYS','_previewParam','_previewStored'):
               if forbidden in core:
                   raise SystemExit('Legacy preview mechanism still present: '+forbidden)
