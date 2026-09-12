@@ -11,7 +11,7 @@
  */
 (function(){
   'use strict';
-  var v='20260912-v1500';
+  var v='20260912-v2000';
   var motionReady=false;
   var motionFallbackTimer=0;
 
@@ -64,7 +64,7 @@
        place before a fast Supabase response causes the hydrated render. */
     var files=[
       './performance-system.js',
-      './interaction-system.js',
+      './interaction-system-v2.js',
       './sales-defaults.js',
       './bundle-orders.js',
       './bundle-panel.js',
