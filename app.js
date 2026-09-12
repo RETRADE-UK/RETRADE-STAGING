@@ -11,16 +11,13 @@
  */
 (function(){
   'use strict';
-  var v='20260912-v3000';
+  var v='20260912-v3001';
   var motionReady=false;
   var motionFallbackTimer=0;
 
   window.__rtMotionStackReady=false;
   document.documentElement.classList.add('rt-app-cold','rt-motion-prep');
 
-  /* Base chart CSS intentionally shares timing tokens between line and donut
-     reveals. Keep that useful relationship, but make the shared sequence much
-     shorter and remove the old pronounced spring/bounce tail. */
   (function installMotionTokens(){
     if(document.getElementById('rt-motion-token-preflight'))return;
     var s=document.createElement('style');s.id='rt-motion-token-preflight';
@@ -37,8 +34,6 @@
     try{window.dispatchEvent(new CustomEvent('retrade:motion-ready',{detail:{reason:reason||'ready'}}));}catch(_){}
   }
 
-  // Presentation failure must never affect app availability. This fallback only
-  // marks optional motion enhancement as unavailable/complete for diagnostics.
   motionFallbackTimer=setTimeout(function(){motionFallbackTimer=0;markMotionReady('fallback');},2200);
   setTimeout(function(){
     if(!document.body||!document.body.classList.contains('rt-real-layout-loading'))document.documentElement.classList.remove('rt-app-cold');
@@ -60,11 +55,10 @@
   }
 
   function loadEnhancements(){
-    /* Interaction/navigation wrappers first: they are cheap and should be in
-       place before a fast Supabase response causes the hydrated render. */
     var files=[
       './performance-system.js',
       './gesture-native-v3.js',
+      './gesture-native-v3-actions.js',
       './gesture-live-tracking.js',
       './interaction-system-v2.js',
       './surface-gestures-v2.js',
@@ -85,21 +79,15 @@
       './motion-system.js'
     ];
     files.forEach(function(src,index){
-      append(src,index<5?'auto':'low',index===files.length-1?function(){markMotionReady('stack-loaded');}:null);
+      append(src,index<6?'auto':'low',index===files.length-1?function(){markMotionReady('stack-loaded');}:null);
     });
   }
 
-  /* Staging bootstrap must run before the production core creates its client.
-     It only swaps the Supabase endpoint/key; the production core stays intact. */
   append('./launch-experience.js','high');
   append('./staging-supabase.js','high',function(){
     append('./app-core.js','high',function(){
       try{if(typeof window.__rtInstallLaunchCoreHooks==='function')window.__rtInstallLaunchCoreHooks();}catch(_){}
-      /* Staging auth is deliberately loaded after the core so it can reuse the
-         core Supabase client/session listener. It never exists in production. */
       append('./staging-dev-auth.js','high');
-      /* A frame boundary is deliberate: let the real shell/chrome reach the
-         screen before evaluating interaction/chart presentation layers. */
       requestAnimationFrame(function(){loadEnhancements();});
     });
   });
