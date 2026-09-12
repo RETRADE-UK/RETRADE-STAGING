@@ -11,7 +11,7 @@
  */
 (function(){
   'use strict';
-  var v='20260912-v2000';
+  var v='20260912-v2001';
   var motionReady=false;
   var motionFallbackTimer=0;
 
@@ -65,6 +65,7 @@
     var files=[
       './performance-system.js',
       './interaction-system-v2.js',
+      './surface-gestures-v2.js',
       './sales-defaults.js',
       './bundle-orders.js',
       './bundle-panel.js',
@@ -81,7 +82,7 @@
       './motion-system.js'
     ];
     files.forEach(function(src,index){
-      append(src,index<2?'auto':'low',index===files.length-1?function(){markMotionReady('stack-loaded');}:null);
+      append(src,index<3?'auto':'low',index===files.length-1?function(){markMotionReady('stack-loaded');}:null);
     });
   }
 
