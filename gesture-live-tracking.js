@@ -40,8 +40,8 @@
     var s=document.createElement('style');s.id='rt-gesture-live-tracking-css';
     s.textContent=[
       /* Reserve horizontal row movement for RETRADE while leaving vertical page
-         scrolling native. This is intentionally the same axis policy as v2. */
-      ROW_SELECTOR+'{touch-action:pan-y!important}',
+         scrolling and accessibility pinch-zoom native. */
+      ROW_SELECTOR+'{touch-action:pan-y pinch-zoom!important}',
 
       /* The rails must sit above the row background but below the translated
          foreground content. z-index:-1 put them behind the row's own paint. */
