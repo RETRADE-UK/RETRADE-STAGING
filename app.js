@@ -11,7 +11,7 @@
  */
 (function(){
   'use strict';
-  var v='20260912-v2003';
+  var v='20260912-v2004';
   var motionReady=false;
   var motionFallbackTimer=0;
 
