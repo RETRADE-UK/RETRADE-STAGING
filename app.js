@@ -11,7 +11,7 @@
  */
 (function(){
   'use strict';
-  var v='20260912-v2004';
+  var v='20260912-v3000';
   var motionReady=false;
   var motionFallbackTimer=0;
 
@@ -64,6 +64,7 @@
        place before a fast Supabase response causes the hydrated render. */
     var files=[
       './performance-system.js',
+      './gesture-native-v3.js',
       './gesture-live-tracking.js',
       './interaction-system-v2.js',
       './surface-gestures-v2.js',
@@ -84,7 +85,7 @@
       './motion-system.js'
     ];
     files.forEach(function(src,index){
-      append(src,index<4?'auto':'low',index===files.length-1?function(){markMotionReady('stack-loaded');}:null);
+      append(src,index<5?'auto':'low',index===files.length-1?function(){markMotionReady('stack-loaded');}:null);
     });
   }
 
