@@ -1,22 +1,20 @@
-/* RETRADE gesture live-tracking correction v2.0.3
+/* RETRADE gesture live-tracking correction v2.0.4
  *
  * This small layer deliberately loads BEFORE interaction-system-v2.js.
  * The interaction system still owns recognition, actions, thresholds and safety;
- * this layer only fixes the visual coupling between an already-recognised gesture
- * and the physical pointer position.
+ * this layer fixes visual coupling and browser gesture ownership.
  *
- * Why this exists:
- * - v2.0.0 intentionally added resistance after the reveal point and capped a
- *   dragged row at 164px. On a phone that makes the finger keep travelling while
- *   the row visibly stops, which feels like the gesture has broken.
- * - the global page-enter animation uses transform with animation-fill-mode:both
- *   and !important. That can keep ownership of transform after entry has finished,
- *   preventing the interactive back gesture's inline transform from being seen.
+ * v2.0.4:
+ * - active pages explicitly reserve horizontal touch movement for RETRADE while
+ *   keeping vertical scrolling and pinch zoom native. Without this, iOS can emit
+ *   pointercancel after an edge-back has already begun, which makes the page
+ *   spring back even though the recogniser correctly detected the gesture.
+ * - rows retain the same axis policy and 1:1 finger tracking introduced in 2.0.3.
  */
 (function(){
   'use strict';
 
-  var VERSION='2.0.3';
+  var VERSION='2.0.4';
   var ROW_SELECTOR=[
     '.item-row',
     '.expense-item',
@@ -39,12 +37,17 @@
     var old=document.getElementById('rt-gesture-live-tracking-css');if(old)old.remove();
     var s=document.createElement('style');s.id='rt-gesture-live-tracking-css';
     s.textContent=[
-      /* Reserve horizontal row movement for RETRADE while leaving vertical page
-         scrolling and accessibility pinch-zoom native. */
+      /* RETRADE owns horizontal movement inside the active page. The browser is
+         still free to perform vertical page scrolling and accessibility zoom.
+         touch-action must be declared BEFORE pointerdown; changing it after a
+         swipe locks is too late to stop Safari cancelling the pointer stream. */
+      'html body .page.on{touch-action:pan-y pinch-zoom!important}',
+
+      /* Same axis ownership for swipeable rows. */
       ROW_SELECTOR+'{touch-action:pan-y pinch-zoom!important}',
 
       /* The rails must sit above the row background but below the translated
-         foreground content. z-index:-1 put them behind the row's own paint. */
+         foreground content. z-index:-1 put them behind the row\'s own paint. */
       '.rt-gesture-row>.rt-swipe-actions{z-index:0!important}',
       '.rt-gesture-row>*:not(.rt-swipe-actions){position:relative;z-index:1}',
 
