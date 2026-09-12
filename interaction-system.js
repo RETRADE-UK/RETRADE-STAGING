@@ -1,33 +1,21 @@
-/* RETRADE interaction system v1.4.68
+/* RETRADE interaction system v1.5.0
  *
- * A single gesture language for RETRADE's touch surfaces:
- * - row swipe left/right reveals contextual actions
- * - deliberate full swipe may execute an explicitly safe/default row action
- * - touch-and-hold / desktop secondary click reveals a compact context menu
- * - swipe right from the leading screen edge navigates back/dismisses
+ * One gesture language for RETRADE touch surfaces. Gestures are shortcuts;
+ * canonical buttons and workflows remain the source of truth.
  *
- * Gestures are shortcuts only. Existing buttons, menus and canonical app
- * functions remain the accessible source of truth. Vertical scrolling wins
- * whenever direction is ambiguous. No accounting, lifecycle, persistence,
- * forecast or sync semantics are duplicated here.
- *
- * Interaction model (kept here beside the implementation so later features do
- * not invent competing gesture semantics):
- *   Item row leading swipe  : next lifecycle action (List / Sold / Return / Relist)
- *   Item row trailing swipe : Delete (canonical confirmation still applies)
- *   Other rows              : derive Open/Edit/Undo/Delete from existing controls
- *   Hold / secondary click  : up to six contextual actions, destructive last
- *   Leading-edge page swipe : hierarchical Back / dismiss, never root-tab paging
- *
- * A short swipe only exposes the action rail. Full-swipe execution is opt-in per
- * action and reserved for canonical flows that either open a workflow or retain
- * their existing confirmation guard. Charts, form controls and explicit buttons
- * are excluded from row gesture capture. Reduced Motion keeps state changes but
- * removes the ornamental transition.
+ * Recognition model:
+ * - contact gives immediate visual feedback, but performs no action
+ * - vertical intent wins while direction is ambiguous
+ * - horizontal row intent locks only after touch slop + directional dominance
+ * - a short swipe reveals one contextual action
+ * - a deliberate full swipe can execute only a non-destructive default action
+ * - hold opens context actions after a native-like delay and movement tolerance
+ * - destructive actions are reveal/tap only; a drag can never delete by itself
  */
 (function(){
   'use strict';
 
+  var VERSION='1.5.0';
   var ROW_SELECTOR=[
     '.item-row',
     '.expense-item',
@@ -37,15 +25,28 @@
     '.cashflow-ledger-row',
     '.mcard'
   ].join(',');
-  var INTERACTIVE='button,input,select,textarea,a,[contenteditable="true"],[role="button"],.ddmenu,.rt-swipe-actions';
-  var AXIS_LOCK=9;
-  var HOLD_MS=430;
-  var HOLD_SLOP=8;
-  var REVEAL_PX=76;
-  var FULL_COMMIT_PX=136;
-  var EDGE_PX=34;
-  var BACK_COMMIT_PX=82;
-  var MAX_DRAG=118;
+  var INTERACTIVE='button,input,select,textarea,a,[contenteditable="true"],[role="button"],.ddmenu,.rt-swipe-actions,[data-no-gesture]';
+
+  // Native-like intent thresholds. CSS px closely approximate pt/dp at default zoom.
+  var AXIS_LOCK=11;
+  var AXIS_DOMINANCE=1.24;
+  var VERTICAL_BIAS=1.10;
+  var HOLD_MS=500;
+  var HOLD_SLOP=10;
+  var REVEAL_PX=78;
+  var REVEAL_COMMIT_PX=54;
+  var REVEAL_FLICK_PX=38;
+  var REVEAL_FLICK_V=0.55;     // px/ms, measured from the recent tail of the stroke
+  var FULL_COMMIT_MIN=138;
+  var FULL_COMMIT_RATIO=0.40;
+  var FULL_FLICK_MIN_PX=96;
+  var FULL_FLICK_V=0.90;
+  var MAX_DRAG=158;
+  var EDGE_PX=26;
+  var BACK_COMMIT_PX=86;
+  var BACK_FLICK_MIN_PX=48;
+  var BACK_FLICK_V=0.68;
+  var VELOCITY_WINDOW_MS=110;
   var EASE='cubic-bezier(.22,.61,.36,1)';
 
   var gesture=null;
@@ -92,10 +93,11 @@
     s.textContent=[
       ROW_SELECTOR+'{touch-action:pan-y pinch-zoom;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}',
       '.rt-gesture-row{position:relative!important;overflow:hidden!important;--rt-swipe-x:0px}',
-      '.rt-gesture-row.rt-swipe-dragging>*:not(.rt-swipe-actions){transition:none!important}',
-      '.rt-gesture-row>*:not(.rt-swipe-actions){translate:var(--rt-swipe-x) 0;transition:translate 185ms '+EASE+';will-change:translate}',
+      '.rt-gesture-row.rt-gesture-pressing>*:not(.rt-swipe-actions){opacity:.965}',
+      '.rt-gesture-row.rt-swipe-dragging>*:not(.rt-swipe-actions){transition:none!important;opacity:1!important}',
+      '.rt-gesture-row>*:not(.rt-swipe-actions){translate:var(--rt-swipe-x) 0;transition:translate 190ms '+EASE+',opacity 80ms ease-out;will-change:translate}',
       '.rt-swipe-actions{position:absolute;inset:0;z-index:8;pointer-events:none;border-radius:inherit;overflow:hidden}',
-      '.rt-swipe-action{position:absolute;top:0;bottom:0;width:82px;border:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:700 11px/1.1 var(--font-body);letter-spacing:.01em;opacity:0;pointer-events:none;transition:opacity 90ms ease-out,filter 110ms ease-out;user-select:none;-webkit-user-select:none}',
+      '.rt-swipe-action{position:absolute;top:0;bottom:0;width:84px;min-width:48px;border:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:700 11px/1.1 var(--font-body);letter-spacing:.01em;opacity:0;pointer-events:none;transition:opacity 90ms ease-out,filter 110ms ease-out,transform 110ms ease-out;user-select:none;-webkit-user-select:none}',
       '.rt-swipe-action svg{flex:none}',
       '.rt-swipe-action.leading{left:0}',
       '.rt-swipe-action.trailing{right:0}',
@@ -104,18 +106,18 @@
       '.rt-swipe-action.tone-undo{background:var(--purple);color:#fff}',
       '.rt-swipe-action.tone-neutral{background:var(--text-secondary);color:var(--surface)}',
       '.rt-gesture-row.rt-swipe-open-leading .rt-swipe-action.leading,.rt-gesture-row.rt-swipe-open-trailing .rt-swipe-action.trailing{opacity:1;pointer-events:auto}',
-      '.rt-gesture-row.rt-swipe-committing .rt-swipe-action{filter:brightness(1.08)}',
+      '.rt-gesture-row.rt-swipe-committing .rt-swipe-action{filter:brightness(1.1);transform:scale(1.04)}',
       '#rt-gesture-context-backdrop{position:fixed;inset:0;z-index:11990;background:rgba(7,10,16,.34);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity 140ms ease-out}',
       '#rt-gesture-context-backdrop.on{opacity:1;pointer-events:auto}',
       '#rt-gesture-context{position:fixed;z-index:12000;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));max-width:520px;margin:0 auto;padding:7px;background:color-mix(in srgb,var(--surface) 96%,transparent);border:1px solid var(--border);border-radius:18px;box-shadow:0 18px 54px rgba(0,0,0,.28);transform:translate3d(0,18px,0) scale(.985);opacity:0;pointer-events:none;transition:transform 185ms '+EASE+',opacity 130ms ease-out}',
       '#rt-gesture-context.on{transform:translate3d(0,0,0) scale(1);opacity:1;pointer-events:auto}',
       '.rt-context-handle{width:34px;height:4px;border-radius:3px;background:var(--border2);margin:2px auto 7px;opacity:.8}',
       '.rt-context-title{padding:6px 11px 8px;font-size:12px;font-weight:700;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-      '.rt-context-action{width:100%;min-height:46px;padding:10px 12px;border:0;border-radius:11px;background:transparent;color:var(--text);display:flex;align-items:center;gap:11px;text-align:left;font:650 13px/1.2 var(--font-body);cursor:pointer}',
+      '.rt-context-action{width:100%;min-height:48px;padding:10px 12px;border:0;border-radius:11px;background:transparent;color:var(--text);display:flex;align-items:center;gap:11px;text-align:left;font:650 13px/1.2 var(--font-body);cursor:pointer;touch-action:manipulation}',
       '.rt-context-action:active{background:var(--surface2)}',
       '.rt-context-action.destructive{color:var(--red)}',
       '.rt-context-action+.rt-context-action{border-top:1px solid color-mix(in srgb,var(--border) 68%,transparent)}',
-      '#rt-edge-back-indicator{position:fixed;left:8px;top:50%;z-index:11800;width:38px;height:38px;margin-top:-19px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--border);box-shadow:0 6px 24px rgba(0,0,0,.18);color:var(--text);opacity:0;translate:-12px 0;scale:.9;pointer-events:none;transition:opacity 100ms ease-out,translate 100ms ease-out,scale 100ms ease-out}',
+      '#rt-edge-back-indicator{position:fixed;left:8px;top:50%;z-index:11800;width:40px;height:40px;margin-top:-20px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--surface) 92%,transparent);border:1px solid var(--border);box-shadow:0 6px 24px rgba(0,0,0,.18);color:var(--text);opacity:0;translate:-12px 0;scale:.9;pointer-events:none;transition:opacity 100ms ease-out,translate 100ms ease-out,scale 100ms ease-out}',
       '#rt-edge-back-indicator.on{opacity:1;translate:0 0;scale:1}',
       '.rt-back-dragging{transition:none!important;will-change:translate,opacity}',
       '.rt-back-settling{transition:translate 170ms '+EASE+',opacity 140ms ease-out!important}',
@@ -132,7 +134,6 @@
     if(target.closest(INTERACTIVE)&&!target.closest('.item-row-name,.item-name,.expense-main,.act-card'))return null;
     return row;
   }
-
   function invokeSynthetic(el){
     if(!el)return;
     allowSyntheticClick=true;
@@ -141,9 +142,8 @@
   }
   function action(label,iconName,run,opts){
     opts=opts||{};
-    return {label:label,icon:iconName||'open',run:run,tone:opts.tone||'neutral',destructive:!!opts.destructive,fullSwipe:!!opts.fullSwipe};
+    return {label:label,icon:iconName||'open',run:run,tone:opts.tone||'neutral',destructive:!!opts.destructive,fullSwipe:!!opts.fullSwipe&&!opts.destructive};
   }
-
   function parseItemIdentity(row){
     if(!row||!row.classList.contains('item-row')||row.classList.contains('joblot-row'))return null;
     var id='',month='';
@@ -180,20 +180,19 @@
   }
   function deleteItemAction(info){
     if(!info||!info.id||typeof deleteItem!=='function')return null;
-    return action('Delete','trash',function(){deleteItem(info.month,info.id);},{tone:'danger',destructive:true,fullSwipe:true});
+    return action('Delete','trash',function(){deleteItem(info.month,info.id);},{tone:'danger',destructive:true,fullSwipe:false});
   }
   function openItemAction(info){
     if(!info||!info.id||typeof openItemPage!=='function')return null;
     return action('Open Details','open',function(){var p=document.querySelector('.page.on');openItemPage(info.month,info.id,p?p.id:'p-stock');},{tone:'neutral'});
   }
-
   function buttonAction(button,opts){
     if(!button||button.disabled)return null;
     opts=opts||{};
     var label=cleanText(button.textContent)||opts.label||'Action';
     var destructive=isDangerButton(button);
     var iconName=destructive?'trash':(/undo|reverse/i.test(label)?'undo':(/edit/i.test(label)?'edit':'open'));
-    return action(label,iconName,function(){invokeSynthetic(button);},{tone:destructive?'danger':(iconName==='undo'?'undo':(opts.tone||'neutral')),destructive:destructive,fullSwipe:!!opts.fullSwipe});
+    return action(label,iconName,function(){invokeSynthetic(button);},{tone:destructive?'danger':(iconName==='undo'?'undo':(opts.tone||'neutral')),destructive:destructive,fullSwipe:!!opts.fullSwipe&&!destructive});
   }
   function rowMenuButtons(row){
     return Array.prototype.slice.call(row.querySelectorAll('.ddmenu button,.act-actions button,.expense-actions .ddmenu button')).filter(function(b){return !b.disabled;});
@@ -219,14 +218,13 @@
     }
     var buttons=rowMenuButtons(row);
     var danger=buttons.find(isDangerButton);
-    return danger?buttonAction(danger,{fullSwipe:true}):null;
+    return danger?buttonAction(danger,{fullSwipe:false}):null;
   }
   function swipeActionsForRow(row){
     var info=parseItemIdentity(row);
     if(info)return {leading:primaryItemAction(info),trailing:deleteItemAction(info),info:info};
     return {leading:genericPrimary(row),trailing:genericTrailing(row),info:null};
   }
-
   function itemContext(info){
     var out=[],open=openItemAction(info),primary=primaryItemAction(info),state=itemState(info);
     if(open)out.push(open);if(primary)out.push(primary);
@@ -271,14 +269,20 @@
     }
     out.leading=add(actions.leading,'leading');out.trailing=add(actions.trailing,'trailing');return out;
   }
-  function setRowOffset(row,x,rails){
+  function fullCommitDistance(row){
+    var w=0;try{w=row.getBoundingClientRect().width||0;}catch(_){}
+    return Math.max(FULL_COMMIT_MIN,Math.min(176,w*FULL_COMMIT_RATIO||FULL_COMMIT_MIN));
+  }
+  function setRowOffset(row,x,rails,rawAbs,action){
     row.style.setProperty('--rt-swipe-x',x.toFixed(1)+'px');
     if(rails&&rails.leading)rails.leading.style.opacity=String(clamp(x/REVEAL_PX,0,1));
     if(rails&&rails.trailing)rails.trailing.style.opacity=String(clamp((-x)/REVEAL_PX,0,1));
+    var ready=!!(action&&action.fullSwipe&&!action.destructive&&rawAbs>=fullCommitDistance(row));
+    row.classList.toggle('rt-swipe-committing',ready);
   }
   function closeRow(row,immediate){
     if(!row)return;
-    row.classList.remove('rt-swipe-dragging','rt-swipe-open-leading','rt-swipe-open-trailing','rt-swipe-committing');
+    row.classList.remove('rt-gesture-pressing','rt-swipe-dragging','rt-swipe-open-leading','rt-swipe-open-trailing','rt-swipe-committing');
     if(immediate||reducedMotion())row.style.setProperty('--rt-swipe-x','0px');
     else requestAnimationFrame(function(){row.style.setProperty('--rt-swipe-x','0px');});
     var layer=row.querySelector(':scope > .rt-swipe-actions');
@@ -287,14 +291,15 @@
   }
   function openRowAt(row,dir,rails){
     if(openRow&&openRow!==row)closeRow(openRow,false);
-    openRow=row;row.classList.remove('rt-swipe-dragging','rt-swipe-open-leading','rt-swipe-open-trailing');
-    row.classList.add(dir==='leading'?'rt-swipe-open-leading':'rt-swipe-open-trailing');setRowOffset(row,dir==='leading'?REVEAL_PX:-REVEAL_PX,rails);
+    openRow=row;row.classList.remove('rt-gesture-pressing','rt-swipe-dragging','rt-swipe-open-leading','rt-swipe-open-trailing','rt-swipe-committing');
+    row.classList.add(dir==='leading'?'rt-swipe-open-leading':'rt-swipe-open-trailing');setRowOffset(row,dir==='leading'?REVEAL_PX:-REVEAL_PX,rails,0,null);
     var b=rails&&(dir==='leading'?rails.leading:rails.trailing);if(b){b.style.opacity='1';b.style.pointerEvents='auto';}
   }
   function commitSwipe(row,a,dir,rails){
-    if(!a)return closeRow(row,false);
-    suppressClickUntil=Date.now()+500;row.classList.remove('rt-swipe-dragging');row.classList.add('rt-swipe-committing');setRowOffset(row,dir==='leading'?96:-96,rails);
-    setTimeout(function(){closeRow(row,true);try{a.run();}catch(e){console.warn('[RETRADE] gesture action failed',e);}},reducedMotion()?0:90);
+    if(!a||a.destructive)return closeRow(row,false);
+    suppressClickUntil=Date.now()+500;row.classList.remove('rt-gesture-pressing','rt-swipe-dragging');row.classList.add('rt-swipe-committing');
+    setRowOffset(row,dir==='leading'?Math.min(118,MAX_DRAG):-Math.min(118,MAX_DRAG),rails,fullCommitDistance(row),a);
+    setTimeout(function(){closeRow(row,true);try{a.run();}catch(e){console.warn('[RETRADE] gesture action failed',e);}},reducedMotion()?0:95);
   }
 
   function ensureContextUI(){
@@ -310,6 +315,7 @@
     var model=contextActionsForRow(row);if(!model.actions.length)return;
     if(openRow)closeRow(openRow,true);
     var ui=ensureContextUI();contextOpen=true;suppressClickUntil=Date.now()+650;
+    row.classList.remove('rt-gesture-pressing');
     ui.sheet.innerHTML='<div class="rt-context-handle" aria-hidden="true"></div><div class="rt-context-title">'+escapeHtml(model.title)+'</div>';
     model.actions.forEach(function(a){
       var b=document.createElement('button');b.type='button';b.className='rt-context-action'+(a.destructive?' destructive':'');b.innerHTML=iconHtml(a.icon)+(a.label?'<span>'+escapeHtml(a.label)+'</span>':'');
@@ -338,7 +344,7 @@
     backIndicator=document.createElement('div');backIndicator.id='rt-edge-back-indicator';backIndicator.innerHTML=iconHtml('back');document.body.appendChild(backIndicator);return backIndicator;
   }
   function updateBackVisual(state,dx){
-    var ind=ensureBackIndicator(),p=clamp(dx/BACK_COMMIT_PX,0,1);ind.classList.toggle('on',dx>4);ind.style.opacity=String(.2+.8*p);ind.style.scale=String(.88+.12*p);
+    var ind=ensureBackIndicator(),p=clamp(dx/BACK_COMMIT_PX,0,1);ind.classList.toggle('on',dx>6);ind.style.opacity=String(.18+.82*p);ind.style.scale=String(.88+.12*p);
     if(state.surface&&state.surface.classList&&state.surface.classList.contains('page')){state.surface.classList.add('rt-back-dragging');state.surface.style.translate=(Math.min(112,dx*.58)).toFixed(1)+'px 0';state.surface.style.opacity=String(1-.08*p);}
   }
   function resetBackVisual(state,commit){
@@ -350,19 +356,37 @@
   }
 
   function clearHold(){if(holdTimer){clearTimeout(holdTimer);holdTimer=0;}}
+  function addVelocitySample(g,x,t){
+    if(!g.samples)g.samples=[];
+    g.samples.push({x:x,t:t});
+    var cutoff=t-VELOCITY_WINDOW_MS;
+    while(g.samples.length>2&&g.samples[0].t<cutoff)g.samples.shift();
+  }
+  function recentVelocity(g,endX,endT){
+    addVelocitySample(g,endX,endT);
+    if(!g.samples||g.samples.length<2)return 0;
+    var first=g.samples[0],last=g.samples[g.samples.length-1],dt=Math.max(1,last.t-first.t);
+    return (last.x-first.x)/dt;
+  }
+  function clearPress(g){if(g&&g.row)g.row.classList.remove('rt-gesture-pressing');}
   function cancelGesture(){
     clearHold();
-    if(gesture&&gesture.kind==='row'&&gesture.row){gesture.row.classList.remove('rt-swipe-dragging');if(!gesture.keptOpen)closeRow(gesture.row,false);}
-    if(gesture&&gesture.kind==='back')resetBackVisual(gesture.back,false);gesture=null;
+    if(gesture&&gesture.kind==='row'&&gesture.row){clearPress(gesture);gesture.row.classList.remove('rt-swipe-dragging','rt-swipe-committing');if(!gesture.keptOpen)closeRow(gesture.row,false);}
+    if(gesture&&gesture.kind==='back')resetBackVisual(gesture.back,false);
+    gesture=null;
   }
   function beginRowGesture(e,row){
     var actions=swipeActionsForRow(row);if(!actions.leading&&!actions.trailing)return;
-    if(openRow)closeRow(openRow,true);
-    var rails=ensureRails(row,actions);
-    gesture={kind:'row',id:e.pointerId,row:row,actions:actions,rails:rails,x0:e.clientX,y0:e.clientY,t0:now(),mode:'pending',held:false,keptOpen:false};
-    clearHold();holdTimer=setTimeout(function(){if(!gesture||gesture.kind!=='row'||gesture.mode!=='pending')return;gesture.held=true;openContext(row);},HOLD_MS);
+    if(openRow&&openRow!==row)closeRow(openRow,true);
+    var rails=ensureRails(row,actions),t=now();
+    gesture={kind:'row',id:e.pointerId,row:row,actions:actions,rails:rails,x0:e.clientX,y0:e.clientY,t0:t,mode:'pending',held:false,keptOpen:false,samples:[{x:e.clientX,t:t}]};
+    row.classList.add('rt-gesture-pressing');
+    clearHold();holdTimer=setTimeout(function(){
+      if(!gesture||gesture.kind!=='row'||gesture.mode!=='pending')return;
+      gesture.held=true;clearPress(gesture);openContext(row);
+    },HOLD_MS);
   }
-  function beginBackGesture(e,back){gesture={kind:'back',id:e.pointerId,x0:e.clientX,y0:e.clientY,t0:now(),mode:'pending',back:back};}
+  function beginBackGesture(e,back){var t=now();gesture={kind:'back',id:e.pointerId,x0:e.clientX,y0:e.clientY,t0:t,mode:'pending',back:back,samples:[{x:e.clientX,t:t}]};}
 
   document.addEventListener('pointerdown',function(e){
     if(!pointerIsTouch(e)||e.isPrimary===false||contextOpen)return;
@@ -372,23 +396,33 @@
 
   document.addEventListener('pointermove',function(e){
     if(!gesture||e.pointerId!==gesture.id)return;
-    var dx=e.clientX-gesture.x0,dy=e.clientY-gesture.y0,ax=Math.abs(dx),ay=Math.abs(dy);
+    var t=now(),dx=e.clientX-gesture.x0,dy=e.clientY-gesture.y0,ax=Math.abs(dx),ay=Math.abs(dy);
+    addVelocitySample(gesture,e.clientX,t);
     if(gesture.kind==='row'){
       if(gesture.held)return;
       if(gesture.mode==='pending'){
-        if(ax<HOLD_SLOP&&ay<HOLD_SLOP)return;clearHold();
-        if(ay>ax*1.12){gesture=null;return;}
-        if(ax>ay*1.12&&ax>=AXIS_LOCK){gesture.mode='swipe';gesture.row.classList.add('rt-swipe-dragging');try{gesture.row.setPointerCapture(e.pointerId);}catch(_){}}else return;
+        if(ax<HOLD_SLOP&&ay<HOLD_SLOP)return;
+        clearHold();clearPress(gesture);
+        // Scrolling gets first refusal. Once vertical intent is clear, abandon.
+        if(ay>=AXIS_LOCK&&ay>ax*VERTICAL_BIAS){gesture=null;return;}
+        // Stay pending through the diagonal ambiguity band; do not hijack scroll.
+        if(ax>=AXIS_LOCK&&ax>ay*AXIS_DOMINANCE){
+          gesture.mode='swipe';gesture.row.classList.add('rt-swipe-dragging');
+          try{gesture.row.setPointerCapture(e.pointerId);}catch(_){}
+        }else return;
       }
       if(e.cancelable)e.preventDefault();
       if(dx>0&&!gesture.actions.leading)dx=0;if(dx<0&&!gesture.actions.trailing)dx=0;
-      var abs=Math.abs(dx),resisted=abs>REVEAL_PX?REVEAL_PX+(abs-REVEAL_PX)*.38:abs;dx=(dx<0?-1:1)*Math.min(MAX_DRAG,resisted);setRowOffset(gesture.row,dx,gesture.rails);return;
+      var rawAbs=Math.abs(dx),dir=dx>=0?'leading':'trailing',a=dir==='leading'?gesture.actions.leading:gesture.actions.trailing;
+      var resisted=rawAbs>REVEAL_PX?REVEAL_PX+(rawAbs-REVEAL_PX)*.46:rawAbs;
+      dx=(dx<0?-1:1)*Math.min(MAX_DRAG,resisted);
+      setRowOffset(gesture.row,dx,gesture.rails,rawAbs,a);return;
     }
     if(gesture.kind==='back'){
       if(gesture.mode==='pending'){
         if(ax<AXIS_LOCK&&ay<AXIS_LOCK)return;
-        if(ay>ax*1.08||dx<=0){gesture=null;return;}
-        if(ax>ay*1.08)gesture.mode='swipe';else return;
+        if(dx<=0||(ay>=AXIS_LOCK&&ay>ax*VERTICAL_BIAS)){gesture=null;return;}
+        if(ax>=AXIS_LOCK&&ax>ay*AXIS_DOMINANCE)gesture.mode='swipe';else return;
       }
       if(e.cancelable)e.preventDefault();updateBackVisual(gesture.back,Math.max(0,dx));
     }
@@ -396,24 +430,33 @@
 
   document.addEventListener('pointerup',function(e){
     if(!gesture||e.pointerId!==gesture.id)return;
-    clearHold();var g=gesture;gesture=null;
+    clearHold();var g=gesture;gesture=null;var t=now();
     if(g.kind==='row'){
+      clearPress(g);
       if(g.held){suppressClickUntil=Date.now()+650;return;}
       if(g.mode!=='swipe'){closeRow(g.row,false);return;}
-      var dx=e.clientX-g.x0,elapsed=Math.max(1,now()-g.t0),velocity=dx/elapsed,abs=Math.abs(dx),dir=dx>0?'leading':'trailing',a=dir==='leading'?g.actions.leading:g.actions.trailing;
-      g.row.classList.remove('rt-swipe-dragging');suppressClickUntil=Date.now()+420;
-      if(a&&a.fullSwipe&&(abs>=FULL_COMMIT_PX||(abs>=92&&Math.abs(velocity)>.72))){commitSwipe(g.row,a,dir,g.rails);return;}
-      if(a&&abs>=52){g.keptOpen=true;openRowAt(g.row,dir,g.rails);return;}
+      var dx=e.clientX-g.x0,abs=Math.abs(dx),velocity=recentVelocity(g,e.clientX,t),speed=Math.abs(velocity),dir=dx>=0?'leading':'trailing',a=dir==='leading'?g.actions.leading:g.actions.trailing;
+      g.row.classList.remove('rt-swipe-dragging','rt-swipe-committing');suppressClickUntil=Date.now()+420;
+      var fullDistance=fullCommitDistance(g.row);
+      var fullByDistance=a&&a.fullSwipe&&!a.destructive&&abs>=fullDistance;
+      var fullByFlick=a&&a.fullSwipe&&!a.destructive&&abs>=FULL_FLICK_MIN_PX&&speed>=FULL_FLICK_V;
+      if(fullByDistance||fullByFlick){commitSwipe(g.row,a,dir,g.rails);return;}
+      var revealByDistance=a&&abs>=REVEAL_COMMIT_PX;
+      var revealByFlick=a&&abs>=REVEAL_FLICK_PX&&speed>=REVEAL_FLICK_V;
+      if(revealByDistance||revealByFlick){g.keptOpen=true;openRowAt(g.row,dir,g.rails);return;}
       closeRow(g.row,false);return;
     }
     if(g.kind==='back'){
       if(g.mode!=='swipe'){resetBackVisual(g.back,false);return;}
-      var bdx=Math.max(0,e.clientX-g.x0),belapsed=Math.max(1,now()-g.t0),bvel=bdx/belapsed,commit=bdx>=BACK_COMMIT_PX||(bdx>=48&&bvel>.68);
-      suppressClickUntil=Date.now()+350;resetBackVisual(g.back,commit);if(commit)setTimeout(function(){try{g.back.run();}catch(err){console.warn('[RETRADE] back gesture failed',err);}},reducedMotion()?0:105);
+      var bdx=Math.max(0,e.clientX-g.x0),bvel=Math.max(0,recentVelocity(g,e.clientX,t));
+      var commit=bdx>=BACK_COMMIT_PX||(bdx>=BACK_FLICK_MIN_PX&&bvel>=BACK_FLICK_V);
+      suppressClickUntil=Date.now()+350;resetBackVisual(g.back,commit);
+      if(commit)setTimeout(function(){try{g.back.run();}catch(err){console.warn('[RETRADE] back gesture failed',err);}},reducedMotion()?0:105);
     }
   },true);
 
   document.addEventListener('pointercancel',cancelGesture,true);
+  document.addEventListener('lostpointercapture',function(e){if(gesture&&e.pointerId===gesture.id)cancelGesture();},true);
   document.addEventListener('click',function(e){
     if(allowSyntheticClick)return;
     if(Date.now()<suppressClickUntil&&e.target.closest&&e.target.closest(ROW_SELECTOR)){e.preventDefault();e.stopImmediatePropagation();return;}
@@ -429,5 +472,12 @@
   },true);
   window.addEventListener('scroll',function(){if(openRow&&!gesture)closeRow(openRow,false);},{capture:true,passive:true});
 
-  window.__rtInteractionSystem={version:'1.4.68',selector:ROW_SELECTOR,closeOpenRow:function(){if(openRow)closeRow(openRow,false);},closeContext:closeContext,openContextForRow:openContext};
+  window.__rtInteractionSystem={
+    version:VERSION,
+    selector:ROW_SELECTOR,
+    config:{axisLock:AXIS_LOCK,axisDominance:AXIS_DOMINANCE,holdMs:HOLD_MS,holdSlop:HOLD_SLOP,revealPx:REVEAL_PX,revealCommitPx:REVEAL_COMMIT_PX,edgePx:EDGE_PX,backCommitPx:BACK_COMMIT_PX},
+    closeOpenRow:function(){if(openRow)closeRow(openRow,false);},
+    closeContext:closeContext,
+    openContextForRow:openContext
+  };
 })();
