@@ -11,7 +11,7 @@
  */
 (function(){
   'use strict';
-  var v='20260912-v2001';
+  var v='20260912-v2002';
   var motionReady=false;
   var motionFallbackTimer=0;
 
@@ -76,6 +76,7 @@
       './chart-polish.js',
       './chart-motion.js',
       './chart-finalize.js',
+      './chart-gesture-v2.js',
       './chart-reveal.js',
       './sales-chart-sequence.js',
       './chart-forecast-sequence.js',
