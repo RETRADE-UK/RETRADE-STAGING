@@ -11,7 +11,7 @@
  */
 (function(){
   'use strict';
-  var v='20260915-v3101';
+  var v='20260915-v3102';
   var motionReady=false;
   var motionFallbackTimer=0;
 
@@ -57,6 +57,7 @@
   function loadEnhancements(){
     var files=[
       './performance-system.js',
+      './navigation-stability.js',
       './accounts-performance.js',
       './gesture-back-v31.js',
       './gesture-native-v3.js',
@@ -81,7 +82,7 @@
       './motion-system.js'
     ];
     files.forEach(function(src,index){
-      append(src,index<8?'auto':'low',index===files.length-1?function(){markMotionReady('stack-loaded');}:null);
+      append(src,index<9?'auto':'low',index===files.length-1?function(){markMotionReady('stack-loaded');}:null);
     });
   }
 
