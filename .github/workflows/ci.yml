@@ -19,11 +19,13 @@ jobs:
           set -euo pipefail
           for file in \
             app.js app-core.js accounting.js reports.js sw.js staging-supabase.js staging-dev-auth.js \
-            launch-experience.js performance-system.js interaction-system.js sales-defaults.js \
+            launch-experience.js performance-system.js accounts-performance.js \
+            gesture-back-v31.js gesture-native-v3.js gesture-native-v3-actions.js gesture-live-tracking.js \
+            interaction-system-v2.js surface-gestures-v2.js sales-defaults.js \
             bundle-orders.js bundle-panel.js bundle-row-polish.js \
             cashflow-liabilities.js partner-item-navigation.js partner-statements.js \
             item-account-adjustments.js \
-            chart-polish.js chart-motion.js chart-finalize.js chart-reveal.js \
+            chart-polish.js chart-motion.js chart-finalize.js chart-gesture-v2.js chart-reveal.js \
             sales-chart-sequence.js chart-forecast-sequence.js motion-system.js
           do
             echo "Checking $file"
@@ -79,8 +81,10 @@ jobs:
           for required in ('app.js','app.css'):
               assert required in index, f'{required} is not referenced by index.html'
 
-          assert "'./interaction-system.js'" in app, 'interaction-system.js is not loaded by app.js'
-          assert "'interaction-system.js'" in sw, 'interaction-system.js is not in the service-worker child cache'
+          assert "'./interaction-system-v2.js'" in app, 'interaction-system-v2.js is not loaded by app.js'
+          assert "'interaction-system-v2.js'" in sw, 'interaction-system-v2.js is not in the service-worker child cache'
+          assert "'./accounts-performance.js'" in app, 'accounts-performance.js is not loaded by app.js'
+          assert "'accounts-performance.js'" in sw, 'accounts-performance.js is not in the service-worker child cache'
           assert "'./staging-supabase.js'" in app, 'staging Supabase binding is not loaded before app core'
           assert "'./staging-dev-auth.js'" in app, 'staging development auth helper is not loaded'
           assert 'dvnrxmdejxfuazmpnudj.supabase.co' in staging, 'staging Supabase project reference is missing'
