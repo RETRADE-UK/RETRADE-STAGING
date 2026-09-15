@@ -20,6 +20,7 @@ jobs:
           for file in \
             app.js app-core.js accounting.js reports.js sw.js staging-supabase.js staging-dev-auth.js \
             launch-experience.js performance-system.js navigation-stability.js accounts-performance.js \
+            account-detail-stability.js \
             gesture-back-v31.js gesture-native-v3.js gesture-native-v3-actions.js gesture-live-tracking.js \
             interaction-system-v2.js surface-gestures-v2.js sales-defaults.js \
             bundle-orders.js bundle-panel.js bundle-row-polish.js \
@@ -85,6 +86,8 @@ jobs:
           assert "'interaction-system-v2.js'" in sw, 'interaction-system-v2.js is not in the service-worker child cache'
           assert "'./navigation-stability.js'" in app, 'navigation-stability.js is not loaded by app.js'
           assert "'navigation-stability.js'" in sw, 'navigation-stability.js is not in the service-worker child cache'
+          assert "'./account-detail-stability.js'" in app, 'account-detail-stability.js is not loaded by app.js'
+          assert "'account-detail-stability.js'" in sw, 'account-detail-stability.js is not in the service-worker child cache'
           assert "'./accounts-performance.js'" in app, 'accounts-performance.js is not loaded by app.js'
           assert "'accounts-performance.js'" in sw, 'accounts-performance.js is not in the service-worker child cache'
           assert "'./staging-supabase.js'" in app, 'staging Supabase binding is not loaded before app core'
