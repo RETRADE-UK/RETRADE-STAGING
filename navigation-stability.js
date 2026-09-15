@@ -1,10 +1,10 @@
-/* RETRADE navigation / spatial stability v1.0.0
+/* RETRADE navigation / spatial stability v1.0.1
  *
  * This layer deliberately makes ordinary navigation visually boring.
  * Pages should appear in their final geometry, not animate themselves into
  * place, and the browser must not second-guess scroll position while a route is
  * rebuilding. Purpose-built motion (sheets, confirmations, charts, explicit
- * collapsibles and the future gesture layer) remains owned by those components.
+ * collapsibles and the gesture layer) remains owned by those components.
  *
  * No accounting, lifecycle, persistence, sync or Supabase behaviour is changed.
  */
@@ -33,15 +33,12 @@
     'html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-behavior:auto!important;}',
     'body{overscroll-behavior-y:none;}',
     '.rt .page{overflow-anchor:none;}',
-    // Belt-and-braces: a normal route becoming .on must never translate/fade.
-    // Component motion remains free to animate descendants intentionally.
-    '.rt .page.on{animation:none!important;transform:none!important;}',
-    // Re-entering the shared account/item surface must not inherit a transform
-    // from a previous route frame. This also keeps fixed descendants anchored.
-    '.rt #p-item.on{transform:none!important;}',
-    '@media(max-width:760px){.rt .page{contain:layout style;}}'
+    // Normal route activation must not translate/fade the entire page. We only
+    // suppress the route animation itself; transforms used by explicit swipe /
+    // gesture handling are intentionally left alone.
+    '.rt .page.on{animation:none!important;}'
   ].join('\n');
   document.head.appendChild(style);
 
-  console.info('[RETRADE] navigation spatial stability v1.0.0 loaded');
+  console.info('[RETRADE] navigation spatial stability v1.0.1 loaded');
 })();
