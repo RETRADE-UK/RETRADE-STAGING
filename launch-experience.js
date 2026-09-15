@@ -1,4 +1,4 @@
-/* RETRADE cold-start / wake coordinator v1.4.67
+/* RETRADE cold-start / wake coordinator v1.4.68
  *
  * Launch principle: the real responsive application renders underneath its own
  * loading state and is revealed as soon as the cloud/database load has finished
@@ -12,7 +12,7 @@
 (function(){
   'use strict';
 
-  var VERSION='20260911-v1467';
+  var VERSION='20260915-v1468';
   var root=document.documentElement;
   var t0=(window.performance&&performance.now)?performance.now():Date.now();
   var bodyObserver=null;
@@ -42,6 +42,8 @@
   perf.finishReleasedAt=null;
   perf.dataReadyAt=null;
   perf.motionReadyAt=null;
+  perf.dataReadyRetries=0;
+  perf.dataReadyWaitMs=0;
 
   function stamp(){return ((window.performance&&performance.now)?performance.now():Date.now())-t0;}
   function reducedMotion(){
@@ -163,10 +165,17 @@
       var pending=null;
       var releaseScheduled=false;
       var released=false;
+      var readinessTimer=0;
+      var readinessWaitStartedAt=0;
+
+      function clearReadinessTimer(){
+        if(readinessTimer){clearTimeout(readinessTimer);readinessTimer=0;}
+      }
 
       function callBase(req){
         if(!req||released)return;
-        released=true;pending=null;releaseScheduled=false;
+        released=true;pending=null;releaseScheduled=false;clearReadinessTimer();
+        if(readinessWaitStartedAt){perf.dataReadyWaitMs=Math.max(0,stamp()-readinessWaitStartedAt);}
         try{
           if(typeof _realLayoutLoadingStartedAt!=='undefined'&&_realLayoutLoadingStartedAt){
             var n=(window.performance&&performance.now)?performance.now():Date.now();
@@ -179,13 +188,33 @@
         return baseFinish.apply(req.ctx,req.args);
       }
 
+      function queueReadinessCheck(){
+        if(released||releaseScheduled||!pending||readinessTimer)return;
+        if(!readinessWaitStartedAt)readinessWaitStartedAt=stamp();
+        var waited=Math.max(0,stamp()-readinessWaitStartedAt);
+        var delay=waited<1500?64:140;
+        readinessTimer=setTimeout(function(){
+          readinessTimer=0;
+          perf.dataReadyRetries++;
+          afterCurrentTask();
+        },delay);
+      }
+
       function schedulePaintStableRelease(){
         if(releaseScheduled||released||!pending)return;
-        if(!dataLoadFinished())return;
+        if(!dataLoadFinished()){queueReadinessCheck();return;}
         releaseScheduled=true;
         perf.dataReadyAt=perf.dataReadyAt==null?stamp():perf.dataReadyAt;
         var req=pending;
-        requestAnimationFrame(function(){requestAnimationFrame(function(){callBase(req);});});
+        requestAnimationFrame(function(){requestAnimationFrame(function(){
+          if(released)return;
+          if(!dataLoadFinished()){
+            releaseScheduled=false;
+            queueReadinessCheck();
+            return;
+          }
+          callBase(req);
+        });});
       }
 
       function afterCurrentTask(){
@@ -204,6 +233,12 @@
       finishRealLayoutLoading=wrapped;
       perf.bootHoldPatched=true;
 
+      /* Mobile Safari can finish the data request on a later task (or after a
+         foreground resume). A pending finish request must be re-checked rather
+         than being abandoned because _dbLoading happened to be true once. */
+      window.addEventListener('pageshow',afterCurrentTask);
+      document.addEventListener('visibilitychange',function(){if(!document.hidden)afterCurrentTask();});
+      window.addEventListener('retrade:data-ready',afterCurrentTask);
       window.addEventListener('retrade:motion-ready',function(){perf.motionReadyAt=perf.motionReadyAt==null?stamp():perf.motionReadyAt;});
       return true;
     }catch(_){return false;}
