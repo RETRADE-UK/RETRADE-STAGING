@@ -1,4 +1,4 @@
-// RETRADE service worker — immutable child-script cache v20260911-v1467.
+// RETRADE service worker — immutable child-script cache v20260915-v3101.
 //
 // Startup rule: NEVER bulk-fetch the application again while the first page is
 // already trying to launch. The old install handler fetched every child script
@@ -12,14 +12,20 @@
 //
 // Navigation HTML, app.js, CSS, Supabase/auth/data and cross-origin requests
 // remain network-owned. A new build can never receive an older cached script.
-const BUILD='20260911-v1467';
+const BUILD='20260915-v3101';
 const CACHE_PREFIX='retrade-static-';
 const CACHE_NAME=CACHE_PREFIX+BUILD;
 const CHILD_SCRIPTS=[
   'launch-experience.js',
   'app-core.js',
   'performance-system.js',
-  'interaction-system.js',
+  'accounts-performance.js',
+  'gesture-back-v31.js',
+  'gesture-native-v3.js',
+  'gesture-native-v3-actions.js',
+  'gesture-live-tracking.js',
+  'interaction-system-v2.js',
+  'surface-gestures-v2.js',
   'sales-defaults.js',
   'bundle-orders.js',
   'bundle-panel.js',
@@ -30,6 +36,7 @@ const CHILD_SCRIPTS=[
   'chart-polish.js',
   'chart-motion.js',
   'chart-finalize.js',
+  'chart-gesture-v2.js',
   'chart-reveal.js',
   'sales-chart-sequence.js',
   'chart-forecast-sequence.js',
