@@ -1,4 +1,4 @@
-/* RETRADE partner item navigation v1.4.64
+/* RETRADE partner item navigation v1.4.65
  * Partner/account item rows are primary navigation, not popup previews.
  *
  * Flow:
@@ -7,10 +7,12 @@
  * Selection mode keeps its existing bulk-select behaviour. Buttons inside a row
  * (settle, edit split, relist, etc.) keep their own actions and do not navigate.
  *
- * v1.4.64: Statement is an account-navigation action beside Back to accounts.
- * The account page can already exist before this late enhancement loads and can
- * also rebuild its DOM later, so a small page-scoped observer repairs the action
- * whenever the account detail surface changes. It never watches the whole app.
+ * v1.4.65: account -> item -> back now restores the exact DOM surface that was
+ * already on screen instead of rebuilding the account and then teleporting its
+ * scroll position two frames later. Collapsed groups, row geometry, focusable
+ * controls and scroll position therefore return in the same state. If relevant
+ * account data genuinely changed while the item was open, the normal renderer
+ * is used so changed figures are never hidden behind a stale snapshot.
  */
 (function(){
   'use strict';
@@ -31,6 +33,60 @@
     return !!target.closest('button,a,input,select,textarea,[contenteditable="true"]');
   }
 
+  // A small account-scoped state key lets us distinguish simple navigation from
+  // a real edit. Background sync outside this account does not force a rebuild.
+  function accountStateKey(accountId){
+    try{
+      var acct=accountById(accountId);
+      var items=[];
+      if(typeof allDBKeys==='function'){
+        allDBKeys().forEach(function(month){
+          (DB[month]||[]).forEach(function(item){
+            if(item&&String(item.accountId)===String(accountId))items.push({month:month,item:item});
+          });
+        });
+      }
+      return JSON.stringify({account:acct||null,items:items});
+    }catch(_){return null;}
+  }
+
+  function captureAccountSurface(page,acct){
+    if(!page||!acct)return null;
+    var fragment=document.createDocumentFragment();
+    while(page.firstChild)fragment.appendChild(page.firstChild);
+    return {
+      fragment:fragment,
+      accountId:acct.id,
+      scrollY:window.scrollY||0,
+      stateKey:accountStateKey(acct.id)
+    };
+  }
+
+  function restoreCapturedSurface(ctx,acct){
+    var page=document.getElementById('p-item');
+    if(!page||!ctx||!ctx.fragment||!acct)return false;
+    var nowKey=accountStateKey(acct.id);
+    if(ctx.stateKey!==null&&nowKey!==null&&ctx.stateKey!==nowKey)return false;
+
+    try{if(typeof window._resetNavScrollState==='function')window._resetNavScrollState();}catch(_){}
+    try{if(typeof _deactivatePages==='function')_deactivatePages();}catch(_){}
+    document.querySelectorAll('.tab,.bnt').forEach(function(el){el.classList.remove('on');});
+
+    // Restore the already-rendered nodes before the browser paints another frame.
+    // Existing event listeners are preserved because the nodes were detached, not
+    // cloned or recreated.
+    while(page.firstChild)page.removeChild(page.firstChild);
+    page.appendChild(ctx.fragment);
+    page.classList.add('on');
+    _itemPageOrigin='p-accounts';
+    activeAccountId=acct.id;
+    try{window.scrollTo({top:ctx.scrollY||0,left:0,behavior:'auto'});}catch(_){window.scrollTo(0,ctx.scrollY||0);}
+    try{if(typeof handleNavResize==='function')handleNavResize();}catch(_){}
+    try{if(typeof _syncFabVisibility==='function')_syncFabVisibility();}catch(_){}
+    scheduleStatementRepair();
+    return true;
+  }
+
   function openAccountItemPage(month,itemId,accountId){
     var acct=accountById(accountId);
     if(!acct){
@@ -39,20 +95,32 @@
     }
 
     activeAccountId=acct.id;
-    returnContext={
+    var page=document.getElementById('p-item');
+    var captured=captureAccountSurface(page,acct);
+    returnContext=captured||{
       accountId:acct.id,
-      scrollY:window.scrollY||0
+      scrollY:window.scrollY||0,
+      stateKey:accountStateKey(acct.id),
+      fragment:null
     };
 
     try{if(typeof closeSearchDropdown==='function')closeSearchDropdown();}catch(_){}
     try{if(typeof closeMoreSheet==='function')closeMoreSheet();}catch(_){}
     try{if(typeof window._resetNavScrollState==='function')window._resetNavScrollState();}catch(_){}
 
-    // The partner detail and item detail intentionally reuse #p-item. Swap the
-    // contents in-place so there is no intermediate list page or slide-over.
+    // The partner detail and item detail intentionally reuse #p-item. The account
+    // nodes have already been detached into returnContext, so render the item into
+    // the same page container without destroying the surface we may restore.
     _itemPageOrigin='p-account-detail';
     window.scrollTo(0,0);
-    renderItemPage(month,itemId);
+    try{
+      renderItemPage(month,itemId);
+    }catch(err){
+      // Rendering failure must never strand the user on a blank shared surface.
+      var ctx=returnContext;returnContext=null;
+      if(ctx&&captured){restoreCapturedSurface(ctx,acct);}
+      throw err;
+    }
     try{if(typeof _syncFabVisibility==='function')_syncFabVisibility();}catch(_){}
   }
   window.openAccountItemPage=openAccountItemPage;
@@ -276,6 +344,12 @@
         returnContext=null;
         var acct=accountById(ctx.accountId);
         if(acct){
+          // Fast path: pure navigation restores the exact account surface with no
+          // renderer, no collapse replay and no two-frame scroll correction.
+          if(restoreCapturedSurface(ctx,acct))return;
+
+          // The account genuinely changed while the item was open. Re-rendering
+          // is correct in this case because the user must see the new values.
           activeAccountId=acct.id;
           try{if(typeof window._resetNavScrollState==='function')window._resetNavScrollState();}catch(_){}
           try{if(typeof _deactivatePages==='function')_deactivatePages();}catch(_){}
@@ -284,9 +358,7 @@
           if(page)page.classList.add('on');
           _itemPageOrigin='p-accounts';
           _renderAccountPage(acct);
-          requestAnimationFrame(function(){
-            requestAnimationFrame(function(){window.scrollTo(0,ctx.scrollY||0);});
-          });
+          try{window.scrollTo({top:ctx.scrollY||0,left:0,behavior:'auto'});}catch(_){window.scrollTo(0,ctx.scrollY||0);}
           try{if(typeof handleNavResize==='function')handleNavResize();}catch(_){}
           try{if(typeof _syncFabVisibility==='function')_syncFabVisibility();}catch(_){}
           return;
@@ -300,5 +372,5 @@
   }
 
   installStatementRepairObserver();
-  console.info('[RETRADE] v1.4.64 partner item navigation + persistent statements loaded');
+  console.info('[RETRADE] v1.4.65 partner item navigation + stable account restore loaded');
 })();
