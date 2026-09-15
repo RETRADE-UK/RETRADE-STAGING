@@ -1,11 +1,12 @@
-/* RETRADE global motion coherence v1.4.67
+/* RETRADE global motion coherence v1.4.68
  * Presentation-only layer loaded last.
  *
  * Motion language:
  * - acknowledgement is immediate; travel is short and composited
- * - navigation/sheets feel continuous rather than theatrical
- * - chart storytelling is allowed, but secondary motion must not keep the UI
- *   visually unfinished long after the data is readable
+ * - ordinary route navigation is spatially stable: the whole page never fades
+ *   or translates into place
+ * - sheets, confirmations, charts and explicit component state changes may move
+ *   when that motion explains what changed
  * - reduced-motion remains a first-class path
  *
  * No accounting, sync, lifecycle, forecast maths or persisted data is touched.
@@ -21,24 +22,25 @@
   }
 
   function installStyles(){
-    ['rt-global-motion-v1447','rt-global-motion-v1455','rt-global-motion-v1466','rt-global-motion-v1467'].forEach(function(id){
+    ['rt-global-motion-v1447','rt-global-motion-v1455','rt-global-motion-v1466','rt-global-motion-v1467','rt-global-motion-v1468'].forEach(function(id){
       var old=document.getElementById(id);if(old)old.remove();
     });
     var s=document.createElement('style');
-    s.id='rt-global-motion-v1467';
+    s.id='rt-global-motion-v1468';
     s.textContent=[
       ':root{--rt-motion-ease:'+EASE+';--rt-motion-fast:135ms;--rt-motion-med:190ms;}',
-      '@keyframes rtPageEnterV1467{from{opacity:.84;transform:translate3d(0,2px,0)}to{opacity:1;transform:translate3d(0,0,0)}}',
-      '@keyframes rtSurfaceEnterV1467{from{opacity:.88;transform:translate3d(0,3px,0)}to{opacity:1;transform:translate3d(0,0,0)}}',
-      '@keyframes rtOverlayInV1467{from{opacity:0}to{opacity:1}}',
-      '@keyframes rtConfirmInV1467{from{opacity:0;transform:translate3d(0,3px,0) scale(.995)}to{opacity:1;transform:translate3d(0,0,0) scale(1)}}',
-      '.page.on:not(.rt-boot-noanim){animation:rtPageEnterV1467 165ms var(--rt-motion-ease) both!important;}',
-      '#panel-content{animation:rtSurfaceEnterV1467 155ms var(--rt-motion-ease) both!important;}',
+      '@keyframes rtSurfaceEnterV1468{from{opacity:.88;transform:translate3d(0,3px,0)}to{opacity:1;transform:translate3d(0,0,0)}}',
+      '@keyframes rtOverlayInV1468{from{opacity:0}to{opacity:1}}',
+      '@keyframes rtConfirmInV1468{from{opacity:0;transform:translate3d(0,3px,0) scale(.995)}to{opacity:1;transform:translate3d(0,0,0) scale(1)}}',
+      // Route activation is intentionally static. This prevents the same page
+      // from appearing to reload whenever its .on class is restored.
+      '.page.on:not(.rt-boot-noanim){animation:none!important;}',
+      '#panel-content{animation:rtSurfaceEnterV1468 155ms var(--rt-motion-ease) both!important;}',
       '.slide-panel{transition:transform 220ms var(--rt-motion-ease)!important;}',
       '#more-sheet{transition:transform 220ms var(--rt-motion-ease)!important;}',
       '.country-panel{transition:opacity 135ms ease-out,transform 185ms var(--rt-motion-ease)!important;}',
-      '#confirm-modal.open{animation:rtOverlayInV1467 125ms ease-out both!important;}',
-      '#confirm-modal.open .confirm-box{animation:rtConfirmInV1467 180ms var(--rt-motion-ease) both!important;}',
+      '#confirm-modal.open{animation:rtOverlayInV1468 125ms ease-out both!important;}',
+      '#confirm-modal.open .confirm-box{animation:rtConfirmInV1468 180ms var(--rt-motion-ease) both!important;}',
       '.fab-dial-item{transition:opacity 130ms ease-out,transform 180ms var(--rt-motion-ease)!important;}',
       '#fab-dial,#search-fab{transition-property:opacity,scale,transform,bottom!important;transition-duration:130ms,175ms,175ms,175ms!important;transition-timing-function:ease-out,var(--rt-motion-ease),var(--rt-motion-ease),var(--rt-motion-ease)!important;}',
       '#fab-dial.rt-fab-motion-hidden,#search-fab.rt-fab-motion-hidden{opacity:0!important;scale:.97;pointer-events:none!important;}',
@@ -51,7 +53,7 @@
       '#p-summary svg.rt-chart-draw .rt-chart-refund-dot{animation-duration:170ms!important;}',
       '#p-monthly .mf-fill{transition-duration:340ms!important;transition-delay:0ms!important;}',
       '@media(prefers-reduced-motion:reduce){',
-      ' .page.on:not(.rt-boot-noanim),#panel-content,#confirm-modal.open,#confirm-modal.open .confirm-box{animation:none!important;}',
+      ' #panel-content,#confirm-modal.open,#confirm-modal.open .confirm-box{animation:none!important;}',
       ' .slide-panel,#more-sheet,.country-panel,.fab-dial-item,#fab-dial,#search-fab,.tab,.bnt,.nav-more-btn,.more-sheet-row,.tab svg,.bnt svg,.nav-more-btn svg,#p-monthly .mf-fill{transition:none!important;}',
       ' #fab-dial.rt-fab-motion-hidden,#search-fab.rt-fab-motion-hidden{scale:1;}',
       '}'
