@@ -112,6 +112,15 @@
   function feeText(v){
     try{return typeof fmt==='function'?fmt(v):'£'+n(v).toFixed(2);}catch(_){return '£'+n(v).toFixed(2);}
   }
+  function manualRelistFeesForSale(i,saleNo){
+    var target=Math.max(1,n(saleNo)||1),total=0;
+    (i&&i.refreshHistory||[]).forEach(function(e){
+      if(!e||e.type!=='relist'||e._fromReturn)return;
+      if(Math.max(1,n(e._saleNo)||1)!==target)return;
+      total+=Math.max(0,n(e._listingFee));
+    });
+    return round(total);
+  }
 
   /* Exact total of RELIST fees only (original first-list insertion excluded).
      Return-driven relists are authoritative on returnHistory; manual relists are
@@ -128,6 +137,26 @@
     });
     return round(total);
   };
+
+  /* The accounting engine deliberately prefers the immutable fee captured on
+     the preceding return when it reconstructs Sale 2/3/4+. That is right for
+     the first return-driven listing, but a later MANUAL relist before that same
+     sale is completed is an additional charge. Add only those manual events to
+     live/non-archived resale snapshots. Once the sale itself is returned, its
+     `_listingFeeAtReturn` already contains the cumulative live fee, so archived
+     cycles are left untouched and cannot be double-counted. */
+  if(typeof window._saleCycleSnapshot==='function'){
+    var baseSaleCycleSnapshot=window._saleCycleSnapshot;
+    window._saleCycleSnapshot=function(i,saleNo){
+      var snap=baseSaleCycleSnapshot.apply(this,arguments);
+      if(!snap)return snap;
+      var sn=Math.max(1,n(saleNo)||1);
+      if(sn>=2&&!snap.fullReturnEntry){
+        snap.listingFee=round(Math.max(0,n(snap.listingFee))+manualRelistFeesForSale(i,sn));
+      }
+      return snap;
+    };
+  }
 
   /* Replace only the manual maintenance relist. Return-driven confirmRelist()
      remains untouched, preventing a second charge on that path. */
