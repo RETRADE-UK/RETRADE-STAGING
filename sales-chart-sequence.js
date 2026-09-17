@@ -1,4 +1,4 @@
-/* RETRADE Sales yearly chart sequence v3.1 (v1.4.67)
+/* RETRADE Sales yearly chart sequence v3.2 (v1.4.68)
  *
  * One presentation owner for the Sales yearly chart.
  *
@@ -23,16 +23,16 @@
   }
 
   var EASE='cubic-bezier(.22,.61,.36,1)';
-  var START_DELAY=35;
-  var HISTORY_MIN=480;
-  var HISTORY_MAX=760;
-  var HISTORY_PER_MONTH=55;
-  var POINT_LAG=12;
-  var FORECAST_GAP=65;
-  var DASH_STEP=38;
-  var DASH_MAX=360;
-  var ENDPOINT_GAP=45;
-  var ENDPOINT_MS=165;
+  var START_DELAY=45;
+  var HISTORY_MIN=900;
+  var HISTORY_MAX=1350;
+  var HISTORY_PER_MONTH=110;
+  var POINT_LAG=14;
+  var FORECAST_GAP=90;
+  var DASH_STEP=55;
+  var DASH_MAX=520;
+  var ENDPOINT_GAP=65;
+  var ENDPOINT_MS=185;
   var active=null;
   var pendingBootListener=null;
   var serial=0;
@@ -40,7 +40,7 @@
 
   window.__rtSalesChartSequence=window.__rtSalesChartSequence||{};
   var diag=window.__rtSalesChartSequence;
-  diag.version='3.1';
+  diag.version='3.2';
   window.__rtSalesSequenceArmed=true;
 
   function reduced(){
@@ -77,8 +77,8 @@
   }
 
   function installStyles(){
-    ['rt-sales-sequence-v2-css','rt-sales-sequence-v3-css','rt-sales-sequence-v31-css','rt-sales-forecast-hard-gate-css','rt-line-motion-v1455'].forEach(function(id){var n=document.getElementById(id);if(n)n.remove();});
-    var s=document.createElement('style');s.id='rt-sales-sequence-v31-css';
+    ['rt-sales-sequence-v2-css','rt-sales-sequence-v3-css','rt-sales-sequence-v31-css','rt-sales-sequence-v32-css','rt-sales-forecast-hard-gate-css','rt-line-motion-v1455'].forEach(function(id){var n=document.getElementById(id);if(n)n.remove();});
+    var s=document.createElement('style');s.id='rt-sales-sequence-v32-css';
     s.textContent='\
 /* Sales layout: keep the plot wide on desktop, stack before it becomes cramped, and give each viewport a deliberate chart height. */\
 #p-monthly .monthly-charts-row{align-items:start!important}\
