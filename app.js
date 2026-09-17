@@ -11,7 +11,7 @@
  */
 (function(){
   'use strict';
-  var v='20260917-v3107';
+  var v='20260917-v3108';
   var motionReady=false;
   var motionFallbackTimer=0;
 
@@ -22,6 +22,22 @@
     if(document.getElementById('rt-motion-token-preflight'))return;
     var s=document.createElement('style');s.id='rt-motion-token-preflight';
     s.textContent=':root{--ease-spring:cubic-bezier(.22,.61,.36,1);--dur-draw:580ms;--dur-donut-sweep:420ms;--dur-bounce:160ms;}';
+    document.head.appendChild(s);
+  })();
+
+  /* This lands before app-core paints the Sales chart, so its responsive box is
+     correct on first render rather than changing size when late enhancements load. */
+  (function installSalesLayoutPreflight(){
+    if(document.getElementById('rt-sales-layout-preflight'))return;
+    var s=document.createElement('style');s.id='rt-sales-layout-preflight';
+    s.textContent='\
+#p-monthly .monthly-charts-row{align-items:start!important}\
+#p-monthly .monthly-profitability-card{align-self:start!important;position:relative}\
+#p-monthly #monthly-profitability-svg{flex:0 0 auto!important;min-height:0!important;max-height:none!important;height:clamp(285px,26vw,350px)!important}\
+@media(min-width:861px){#p-monthly .monthly-charts-row{grid-template-columns:minmax(0,1.72fr) minmax(310px,.92fr)!important}}\
+@media(max-width:860px){#p-monthly .monthly-charts-row{grid-template-columns:minmax(0,1fr)!important;gap:14px!important}#p-monthly #monthly-profitability-svg{height:clamp(280px,39vw,360px)!important}}\
+@media(max-width:700px){#p-monthly .monthly-charts-row{gap:12px!important}#p-monthly #monthly-profitability-svg{height:clamp(225px,62vw,280px)!important}}\
+@media(max-width:430px){#p-monthly #monthly-profitability-svg{height:clamp(220px,68vw,255px)!important}}';
     document.head.appendChild(s);
   })();
 
