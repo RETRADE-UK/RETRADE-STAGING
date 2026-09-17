@@ -1,4 +1,4 @@
-/* RETRADE Sales yearly chart sequence v3.2 (v1.4.68)
+/* RETRADE Sales yearly chart sequence v3.3 (v1.4.69)
  *
  * One presentation owner for the Sales yearly chart.
  *
@@ -23,16 +23,16 @@
   }
 
   var EASE='cubic-bezier(.22,.61,.36,1)';
-  var START_DELAY=45;
-  var HISTORY_MIN=900;
-  var HISTORY_MAX=1350;
-  var HISTORY_PER_MONTH=110;
-  var POINT_LAG=14;
-  var FORECAST_GAP=90;
-  var DASH_STEP=55;
-  var DASH_MAX=520;
-  var ENDPOINT_GAP=65;
-  var ENDPOINT_MS=185;
+  var START_DELAY=70;
+  var HISTORY_MIN=1300;
+  var HISTORY_MAX=2000;
+  var HISTORY_PER_MONTH=165;
+  var POINT_LAG=18;
+  var FORECAST_GAP=130;
+  var DASH_STEP=78;
+  var DASH_MAX=760;
+  var ENDPOINT_GAP=90;
+  var ENDPOINT_MS=220;
   var active=null;
   var pendingBootListener=null;
   var serial=0;
@@ -40,7 +40,7 @@
 
   window.__rtSalesChartSequence=window.__rtSalesChartSequence||{};
   var diag=window.__rtSalesChartSequence;
-  diag.version='3.2';
+  diag.version='3.3';
   window.__rtSalesSequenceArmed=true;
 
   function reduced(){
