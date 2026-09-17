@@ -84,8 +84,8 @@
 #p-monthly .monthly-charts-row{align-items:start!important}\
 #p-monthly .monthly-profitability-card{align-self:start!important;position:relative}\
 #p-monthly #monthly-profitability-svg{flex:0 0 auto!important;min-height:0!important;max-height:none!important;height:clamp(285px,26vw,350px)!important}\
-@media(min-width:1040px){#p-monthly .monthly-charts-row{grid-template-columns:minmax(0,1.72fr) minmax(310px,.92fr)!important}}\
-@media(max-width:1039px){\
+@media(min-width:861px){#p-monthly .monthly-charts-row{grid-template-columns:minmax(0,1.72fr) minmax(310px,.92fr)!important}}\
+@media(max-width:860px){\
  #p-monthly .monthly-charts-row{grid-template-columns:minmax(0,1fr)!important;gap:14px!important}\
  #p-monthly #monthly-profitability-svg{height:clamp(280px,39vw,360px)!important}\
 }\
