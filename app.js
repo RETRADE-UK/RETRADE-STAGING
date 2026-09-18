@@ -4,33 +4,32 @@
  *   1) launch coordinator + production core
  *   2) give the browser one real paint opportunity
  *   3) load feature/presentation refinements in deterministic order
- *   4) let presentation layers enhance the already-usable app when ready
+ *   4) release the boot skeleton only after the final motion layer is installed
  *
- * Data/render readiness owns the loading handoff. Motion is progressive
- * enhancement and must never sit on the critical path to usable UI.
+ * This keeps the large core authoritative while avoiding a long back-to-back
+ * chain of secondary JavaScript evaluation before the first useful frame.
  */
 (function(){
   'use strict';
-  var v='20260917-v3110';
+  var v='20260918-v3200';
+  window.__rtBuildId=v;
   var motionReady=false;
   var motionFallbackTimer=0;
 
   window.__rtMotionStackReady=false;
   document.documentElement.classList.add('rt-app-cold','rt-motion-prep');
 
-  (function installMotionTokens(){
-    if(document.getElementById('rt-motion-token-preflight'))return;
-    var s=document.createElement('style');s.id='rt-motion-token-preflight';
-    s.textContent=':root{--ease-spring:cubic-bezier(.22,.61,.36,1);--dur-draw:580ms;--dur-donut-sweep:420ms;--dur-bounce:160ms;}';
-    document.head.appendChild(s);
-  })();
+  if(!document.getElementById('rt-motion-preflight')){
+    var pre=document.createElement('style');pre.id='rt-motion-preflight';
+    pre.textContent='html.rt-motion-prep #monthly-profitability-svg{opacity:0!important}#monthly-profitability-svg{transition:opacity 120ms cubic-bezier(.22,.61,.36,1)}@media(prefers-reduced-motion:reduce){html.rt-motion-prep #monthly-profitability-svg{opacity:1!important}#monthly-profitability-svg{transition:none!important}}';
+    document.head.appendChild(pre);
+  }
 
-  /* This lands before app-core paints the Sales chart, so its responsive box is
-     correct on first render rather than changing size when late enhancements load. */
-  (function installSalesLayoutPreflight(){
-    if(document.getElementById('rt-sales-layout-preflight'))return;
-    var s=document.createElement('style');s.id='rt-sales-layout-preflight';
-    s.textContent='\
+  /* Keep the Sales chart at its final responsive dimensions from first paint so
+     production gets the same zero-shift desktop/tablet/mobile handoff as staging. */
+  if(!document.getElementById('rt-sales-layout-preflight')){
+    var salesPre=document.createElement('style');salesPre.id='rt-sales-layout-preflight';
+    salesPre.textContent='\
 #p-monthly .monthly-charts-row{align-items:start!important}\
 #p-monthly .monthly-profitability-card{align-self:start!important;position:relative}\
 #p-monthly #monthly-profitability-svg{flex:0 0 auto!important;min-height:0!important;max-height:none!important;height:clamp(285px,26vw,350px)!important}\
@@ -38,8 +37,8 @@
 @media(max-width:860px){#p-monthly .monthly-charts-row{grid-template-columns:minmax(0,1fr)!important;gap:14px!important}#p-monthly #monthly-profitability-svg{height:clamp(280px,39vw,360px)!important}}\
 @media(max-width:700px){#p-monthly .monthly-charts-row{gap:12px!important}#p-monthly #monthly-profitability-svg{height:clamp(225px,62vw,280px)!important}}\
 @media(max-width:430px){#p-monthly #monthly-profitability-svg{height:clamp(220px,68vw,255px)!important}}';
-    document.head.appendChild(s);
-  })();
+    document.head.appendChild(salesPre);
+  }
 
   function markMotionReady(reason){
     if(motionReady)return;
@@ -50,7 +49,7 @@
     try{window.dispatchEvent(new CustomEvent('retrade:motion-ready',{detail:{reason:reason||'ready'}}));}catch(_){}
   }
 
-  motionFallbackTimer=setTimeout(function(){motionFallbackTimer=0;markMotionReady('fallback');},2200);
+  motionFallbackTimer=setTimeout(function(){motionFallbackTimer=0;markMotionReady('fallback');},3000);
   setTimeout(function(){
     if(!document.body||!document.body.classList.contains('rt-real-layout-loading'))document.documentElement.classList.remove('rt-app-cold');
   },5000);
@@ -81,6 +80,7 @@
       './gesture-live-tracking.js',
       './interaction-system-v2.js',
       './surface-gestures-v2.js',
+      './app-lifecycle.js',
       './sales-defaults.js',
       './bundle-orders.js',
       './bundle-panel.js',
@@ -88,8 +88,40 @@
       './cashflow-liabilities.js',
       './relist-fee-integrity.js',
       './account-detail-stability.js',
+      './cashflow-dashboard-v2.js',
+      './cashflow-movement-card-polish.js',
+      './cashflow-performance-v1509.js',
       './partner-item-navigation.js',
+      './partner-actions-v2.js',
+      './partner-statement-action.js',
+      './partner-account-ui-v3.js',
+      './partner-account-ui-v4.js',
+      './partner-account-cleanup.js',
+      './partner-row-menu-popover.js',
       './item-account-adjustments.js',
+      './partner-arrangements-v2.js',
+      './partner-account-finalise.js',
+      './partner-account-legacy-hero-cleanup.js',
+      './partner-account-adjustments.js',
+      './partner-account-adjustments-hardening.js',
+      './partner-payment-allocations-v2.js',
+      './partner-account-transaction-ui.js',
+      './partner-transaction-breakdown-guard.js',
+      './partner-collapse-defaults.js',
+      './accounts-operations-dashboard.js',
+      './accounts-sort-polish.js',
+      './accounts-operations-compact-v2.js',
+      './partner-account-experience-v2.js',
+      './partner-page-unified-v1503.js',
+      './partners-list-transition-v1504.js',
+      './partners-loading-dwell-v1505.js',
+      './main-page-loading-motion-v1506.js',
+      './main-page-truth-gate-v1507.js',
+      './sales-loading-mask-v1508.js',
+      './sales-month-loading-v1509.js',
+      './main-kpi-count-motion-v1510.js',
+      './skeleton-truth-exclusivity-v1511.js',
+      './document-exports.js',
       './chart-polish.js',
       './chart-motion.js',
       './chart-finalize.js',
@@ -100,7 +132,7 @@
       './motion-system.js'
     ];
     files.forEach(function(src,index){
-      append(src,index<9?'auto':'low',index===files.length-1?function(){markMotionReady('stack-loaded');}:null);
+      append(src,index<3?'auto':'low',index===files.length-1?function(){markMotionReady('stack-loaded');}:null);
     });
   }
 

@@ -67,6 +67,53 @@
   requestAnimationFrame(function(){var p=document.getElementById('p-cash');if(p&&p.children.length)enhanceCashflow();});
 })();
 
+/* Production settlement reconstruction guard — merged into staging 2026-09-18. */
+(function(){
+  'use strict';
+  function historicalSettlementEventIds(){
+    var ids=Object.create(null);
+    try{
+      (typeof _accounts!=='undefined'?_accounts:[]).forEach(function(account){
+        (account&&Array.isArray(account.settlements)?account.settlements:[]).forEach(function(tx){
+          if(!tx||tx.paid!==true||tx.historicalReconstruction!==true||tx.id==null)return;
+          ids['settlement:'+String(tx.id)]=true;
+        });
+      });
+    }catch(_){}
+    return ids;
+  }
+  function historicalReconstructionTotal(){
+    var total=0;
+    try{
+      (typeof _accounts!=='undefined'?_accounts:[]).forEach(function(account){
+        (account&&Array.isArray(account.settlements)?account.settlements:[]).forEach(function(tx){
+          if(!tx||tx.paid!==true||tx.historicalReconstruction!==true)return;
+          total+=Math.max(0,Number(tx.partnerAmount)||0);
+        });
+      });
+    }catch(_){}
+    return Math.round(total*100)/100;
+  }
+  function installHistoricalSettlementGuard(){
+    if(window.__rtCashHistoricalSettlementGuardInstalled)return;
+    var base=window._cashEventsAll;
+    if(typeof base!=='function')return;
+    window._cashEventsAll=function(){
+      var events=base.apply(this,arguments);
+      if(!Array.isArray(events)||!events.length)return events;
+      var ids=historicalSettlementEventIds(),hasAny=false;
+      Object.keys(ids).some(function(){hasAny=true;return true;});
+      if(!hasAny)return events;
+      return events.filter(function(ev){
+        return !(ev&&ev.type==='partner_settlement'&&ids[String(ev.id)]===true);
+      });
+    };
+    window.__rtCashHistoricalSettlementGuardInstalled=true;
+  }
+  installHistoricalSettlementGuard();
+  window._rtCashHistoricalReconstructionTotal=historicalReconstructionTotal;
+})();
+
 /* Relist fee integrity — 2026-09-16
  *
  * Return -> Relist is already a billable listing in app-core: confirmRelist()
