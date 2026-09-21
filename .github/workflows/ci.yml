@@ -24,8 +24,9 @@ jobs:
             gesture-back-v31.js gesture-native-v3.js gesture-native-v3-actions.js gesture-live-tracking.js \
             interaction-system-v2.js surface-gestures-v2.js sales-defaults.js \
             bundle-orders.js bundle-panel.js bundle-row-polish.js \
-            cashflow-liabilities.js partner-item-navigation.js partner-statements.js \
-            item-account-adjustments.js \
+            cashflow-liabilities.js cashflow-dashboard-v2.js cashflow-movement-card-polish.js cashflow-performance-v1509.js \
+            partner-item-navigation.js partner-statements.js partner-account-experience-v2.js partner-page-unified-v1503.js \
+            accounts-operations-dashboard.js accounts-operations-compact-v2.js item-account-adjustments.js \
             chart-polish.js chart-motion.js chart-finalize.js chart-gesture-v2.js chart-reveal.js \
             sales-chart-sequence.js chart-forecast-sequence.js motion-system.js
           do
@@ -116,4 +117,72 @@ jobs:
           assert app_build and sw_build, 'Could not resolve app/SW build identifiers'
           assert app_build.group(1)==sw_build.group(1), f'Build mismatch: app.js={app_build.group(1)} sw.js={sw_build.group(1)}'
           print('Core references, build alignment, staging isolation and preview cleanup passed:',app_build.group(1))
+          PY
+
+
+      - name: Loading and reveal architecture invariants
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          app=Path('app.js').read_text(encoding='utf-8')
+          core=Path('app-core.js').read_text(encoding='utf-8')
+          launch=Path('launch-experience.js').read_text(encoding='utf-8')
+          perf=Path('performance-system.js').read_text(encoding='utf-8')
+          defaults=Path('sales-defaults.js').read_text(encoding='utf-8')
+          partner=Path('partner-page-unified-v1503.js').read_text(encoding='utf-8')
+          partner_exp=Path('partner-account-experience-v2.js').read_text(encoding='utf-8')
+          chart=Path('chart-motion.js').read_text(encoding='utf-8')
+          skeleton=Path('skeleton-motion-polish-v1512.css').read_text(encoding='utf-8')
+
+          # Cold boot has one owner. In-memory page navigation must not invent
+          # route-wide skeleton latency once the DB is already resident.
+          forbidden_runtime=(
+              'partners-loading-v1517.js',
+              'partners-list-transition-v1504.js',
+              'partners-loading-dwell-v1505.js',
+              'sales-loading-v1517.js',
+              'sales-loading-mask-v1508.js',
+              'sales-month-loading-v1509.js',
+              'main-page-loading-motion-v1506.js',
+              'main-page-truth-gate-v1507.js',
+              'main-kpi-count-motion-v1510.js',
+          )
+          for name in forbidden_runtime:
+              assert f"'./{name}'" not in app, f'legacy/competing loading owner returned to runtime: {name}'
+
+          # Branded cold start -> exact real-layout skeleton (only when needed)
+          # -> truth reveal, with motion modules ready before the mask leaves.
+          for marker in ('rt-launch-brand','BRAND_TO_SKELETON_MS','MOTION_WAIT_MAX_MS','retrade:motion-ready'):
+              assert marker in launch, f'launch-stage marker missing: {marker}'
+
+          # Dashboard must replay modern bars as well as legacy line paths.
+          for marker in (".rt-chart-primary-bar", "rtTruthChartReveal1520"):
+              assert marker in core, f'Dashboard boot replay regression: {marker} missing'
+          assert 'rt-motion-hold .rt-chart-primary-bar' in skeleton, 'Dashboard bars are not held at frame zero during boot reveal'
+
+          # Sales sub-route has one persisted state owner: app-core.
+          assert 'const _bootMonthlyRoute=' in core, 'core Sales boot-route snapshot missing'
+          assert 'rt-sales-route-v1' not in perf and 'restoreSalesState()' not in perf, 'duplicate Sales route cache returned'
+          startup_guard=defaults.split('/* Do not mutate anything on module load.',1)
+          assert len(startup_guard)==2, 'Sales startup non-mutation guard missing'
+          before_nav=startup_guard[1].split('try{',1)[0]
+          assert 'forceMonthly();' not in before_nav and 'renderMonthlyIfVisible();' not in before_nav, 'Sales defaults mutate the route during boot'
+
+          # Resident Partner/account data renders directly; no two-frame fake wait.
+          assert 'renderLoadingShell(a);' not in partner, 'Partner account synthetic loading shell returned'
+          assert 'installPaintFirstNavigation();' not in partner_exp, 'legacy Partner paint-first navigation wrapper returned'
+
+          # Truthful numeric values are never reset to zero after hydration.
+          assert 'el.textContent=money(0' not in chart, 'post-load Sales money count-up returned'
+
+          # Static UI copy stays static; only data-bearing regions skeletonise.
+          mark_start=core.find('function _markLoadingRegions(root)')
+          mark_end=core.find('function _clearLoadingRegions(page)',mark_start)
+          assert mark_start!=-1 and mark_end!=-1
+          mark=core[mark_start:mark_end]
+          assert "'.page-title'" not in mark and "'.summary-title'" not in mark, 'static page labels are being skeletonised again'
+
+          print('Loading/reveal architecture invariants passed')
           PY
