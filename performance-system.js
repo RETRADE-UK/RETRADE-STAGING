@@ -65,6 +65,36 @@
     }
   }catch(_){}
 
+  // v1.5.37 — quietly pre-build common Dashboard sale-event ranges while idle
+  // so later period taps hit the short render path instead of rebuilding ranges.
+  var _dashboardWarmStarted=false;
+  var _dashboardWarmPeriods=['30d','60d','90d','current_fy','prev_fy'];
+  function _warmDashboardRanges(){
+    if(_dashboardWarmStarted)return;
+    try{if(typeof _dbLoading!=='undefined'&&_dbLoading){setTimeout(_warmDashboardRanges,320);return;}}catch(_){}
+    if(typeof _periodDateRange!=='function'||typeof getSaleEventsInRange!=='function')return;
+    _dashboardWarmStarted=true;
+    var idx=0;
+    function next(deadline){
+      if(idx>=_dashboardWarmPeriods.length)return;
+      if(deadline&&typeof deadline.timeRemaining==='function'&&deadline.timeRemaining()<4&&!deadline.didTimeout){
+        requestIdleCallback(next,{timeout:700});return;
+      }
+      try{
+        var range=_periodDateRange(_dashboardWarmPeriods[idx]);
+        getSaleEventsInRange(range.from,range.to);
+      }catch(_){}
+      idx++;
+      if(idx>=_dashboardWarmPeriods.length)return;
+      try{if('requestIdleCallback' in window){requestIdleCallback(next,{timeout:850});return;}}catch(_){}
+      setTimeout(function(){next(null);},70);
+    }
+    try{if('requestIdleCallback' in window){requestIdleCallback(next,{timeout:1400});return;}}catch(_){}
+    setTimeout(function(){next(null);},900);
+  }
+  try{window.addEventListener('retrade:motion-ready',function(){setTimeout(_warmDashboardRanges,240);},{once:true});}catch(_){}
+  setTimeout(_warmDashboardRanges,1600);
+
   // v1.5.20 — Sales route state has ONE owner: app-core's _saveUIState /
   // _loadUIState. A second JSON route cache could restore a different grid/detail
   // value after the boot layout was already painted, creating the wrong skeleton.

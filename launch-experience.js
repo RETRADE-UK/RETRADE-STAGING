@@ -1,4 +1,4 @@
-/* RETRADE cold-start / wake coordinator v1.5.34
+/* RETRADE cold-start / wake coordinator v1.5.37
  *
  * Launch principle: the real responsive application renders underneath its own
  * loading state and is only revealed when BOTH contracts are true:
@@ -13,7 +13,7 @@
 (function(){
   'use strict';
 
-  var VERSION=String(window.__rtBuildId||'20260921-v1536');
+  var VERSION=String(window.__rtBuildId||'20260921-v1537');
   var root=document.documentElement;
   var t0=(window.performance&&performance.now)?performance.now():Date.now();
   var bodyObserver=null;
@@ -26,7 +26,7 @@
   var lastRevealing=false;
   var warmScheduled=false;
   var brandEl=null,brandShownAt=0,brandTimer=0,finishRequested=false,skeletonVisibleAt=0;
-  var BRAND_MIN_MS=300,BRAND_TO_SKELETON_MS=420,BRAND_FADE_MS=160,SKELETON_MIN_MS=220;
+  var BRAND_MIN_MS=760,BRAND_TO_SKELETON_MS=790,BRAND_FADE_MS=170,SKELETON_MIN_MS=260;
 
   root.classList.add('rt-app-cold');
 
@@ -82,19 +82,7 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
   if(document.body)createBrand();else document.addEventListener('DOMContentLoaded',createBrand,{once:true});
 
   function installBrandStyles(){
-    if(document.getElementById('rt-launch-brand-style'))return;
-    var s=document.createElement('style');s.id='rt-launch-brand-style';
-    s.textContent='\
-#rt-launch-brand{position:fixed;inset:0;z-index:13050;display:grid;place-items:center;background:var(--bg);opacity:1;pointer-events:auto;transition:opacity 160ms ease-out;contain:strict}\
-#rt-launch-brand.rt-launch-brand-out{opacity:0;pointer-events:none}\
-#rt-launch-brand .rt-launch-lockup{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;opacity:0;animation:rtLaunchLockupIn1534 180ms ease-out 35ms both}\
-#rt-launch-brand .rt-launch-mark{display:block;width:72px;height:84px}\
-#rt-launch-brand .rt-launch-word{font-family:var(--font-body);font-size:25px;font-weight:900;font-style:italic;letter-spacing:.035em;line-height:1;color:var(--text-primary);white-space:nowrap}\
-#rt-launch-brand .rt-launch-word span{color:var(--brand)}\
-@keyframes rtLaunchLockupIn1534{from{opacity:0}to{opacity:1}}\
-@media(max-width:600px){#rt-launch-brand .rt-launch-mark{width:64px;height:75px}#rt-launch-brand .rt-launch-word{font-size:22px}}\
-@media(prefers-reduced-motion:reduce){#rt-launch-brand{transition:none!important}#rt-launch-brand .rt-launch-lockup{animation:none!important;opacity:1!important}}';
-    document.head.appendChild(s);
+    if(document.getElementById('rt-launch-first-frame-style')||document.getElementById('rt-launch-brand-style'))return;
   }
   function createBrand(){
     if(brandEl)return;
@@ -102,28 +90,35 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
     var existing=document.getElementById('rt-launch-brand');
     if(existing){
       brandEl=existing;
-      brandShownAt=clock();
+      brandShownAt=Number(window.__rtLaunchSourceAt)||clock();
       perf.brandShownAt=perf.brandShownAt==null?stamp():perf.brandShownAt;
       return;
     }
     brandEl=document.createElement('div');brandEl.id='rt-launch-brand';brandEl.setAttribute('aria-hidden','true');
-    brandEl.innerHTML='<div class="rt-launch-lockup"><svg class="rt-launch-mark" viewBox="0 0 811 946" aria-hidden="true"><use href="#rt-mark"></use></svg><div class="rt-launch-word">RE<span>TRADE</span></div></div>';
-    document.body.appendChild(brandEl);brandShownAt=clock();perf.brandShownAt=stamp();
+    brandEl.innerHTML='<div class="rt-launch-lockup"><span class="rt-launch-mark-wrap"><svg class="rt-launch-mark" viewBox="0 0 811 946" aria-hidden="true"><use href="#rt-mark"></use></svg></span><div class="rt-launch-word">RE<span>TRADE</span></div></div>';
+    document.body.appendChild(brandEl);brandShownAt=Number(window.__rtLaunchSourceAt)||clock();perf.brandShownAt=stamp();
   }
   function removeBrand(mode){
-    if(!brandEl)return;if(brandTimer){clearTimeout(brandTimer);brandTimer=0;}
+    root.classList.remove('rt-launch-sealed');
+    if(!brandEl)return;
+    if(brandTimer){clearTimeout(brandTimer);brandTimer=0;}
     var el=brandEl;brandEl=null;perf.brandHandoff=mode||'content';perf.brandDismissedAt=stamp();
-    if(mode==='skeleton'){
-      skeletonVisibleAt=clock()+BRAND_FADE_MS;
-      perf.skeletonVisibleAt=stamp()+BRAND_FADE_MS;
-    }
-    if(reducedMotion()){if(el.parentNode)el.remove();return;}
-    el.classList.add('rt-launch-brand-out');setTimeout(function(){if(el&&el.parentNode)el.remove();},BRAND_FADE_MS+40);
+    if(mode==='skeleton'){skeletonVisibleAt=clock()+BRAND_FADE_MS;perf.skeletonVisibleAt=stamp()+BRAND_FADE_MS;}
+    el.classList.remove('rt-launch-snapshot','rt-launch-brand-dormant');
+    if(reducedMotion()){el.classList.add('rt-launch-brand-out','rt-launch-brand-dormant');return;}
+    el.classList.add('rt-launch-brand-out');
+    setTimeout(function(){if(el)el.classList.add('rt-launch-brand-dormant');},BRAND_FADE_MS+35);
   }
   function scheduleBrandToSkeleton(){
     if(brandTimer)clearTimeout(brandTimer);
     var remaining=brandShownAt?Math.max(0,(brandShownAt+BRAND_TO_SKELETON_MS)-clock()):BRAND_TO_SKELETON_MS;
-    brandTimer=setTimeout(function(){brandTimer=0;var b=document.body;if(b&&b.classList.contains('rt-real-layout-loading'))removeBrand('skeleton');},remaining);
+    brandTimer=setTimeout(function(){
+      brandTimer=0;
+      var b=document.body;
+      if(!b||!b.classList.contains('rt-real-layout-loading'))return;
+      var directReady=finishRequested&&dataLoadFinished()&&motionStackReady();
+      if(!directReady)removeBrand('skeleton');
+    },remaining);
   }
   function authVisible(){
     var el=document.getElementById('auth-overlay');if(!el)return false;

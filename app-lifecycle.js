@@ -1,4 +1,4 @@
-/* RETRADE PWA lifecycle / resume coordinator v1.4.91
+/* RETRADE PWA lifecycle / resume coordinator v1.5.37
  * Keeps an already-booted app visually alive across iOS suspend/resume and
  * asks the service worker to keep the current shell/scripts warm.
  *
@@ -14,6 +14,7 @@
   var hiddenAt=0;
   var resumeTimer=0;
   var warmTimer=0;
+  var snapshotArmed=false;
 
   function now(){return Date.now();}
   function build(){return String(window.__rtBuildId||'');}
@@ -45,7 +46,23 @@
     try{if(typeof _syncFabVisibility==='function')_syncFabVisibility();}catch(_){}
   }
 
+  function launchPlate(){return document.getElementById('rt-launch-brand');}
+  function armSnapshot(){
+    if(genuineBootInProgress()||!hasBooted())return;
+    var el=launchPlate();if(!el)return;
+    snapshotArmed=true;
+    el.classList.remove('rt-launch-brand-out','rt-launch-brand-dormant');
+    el.classList.add('rt-launch-snapshot');
+  }
+  function disarmSnapshot(){
+    var el=launchPlate();if(!el)return;
+    snapshotArmed=false;
+    el.classList.remove('rt-launch-snapshot');
+    el.classList.add('rt-launch-brand-out','rt-launch-brand-dormant');
+  }
+
   function fastResume(reason){
+    disarmSnapshot();
     if(genuineBootInProgress()||!hasBooted()){
       warmSoon(120);
       return;
@@ -87,8 +104,10 @@
   function onVisibility(){
     if(document.visibilityState==='hidden'){
       hiddenAt=now();
+      armSnapshot();
       return;
     }
+    disarmSnapshot();
     var slept=hiddenAt?now()-hiddenAt:0;
     hiddenAt=0;
     fastResume(slept>1500?'foreground':'visible');
@@ -103,9 +122,10 @@
   window.addEventListener('focus',function(){
     if(hiddenAt||document.visibilityState==='visible')fastResume('focus');
   },{passive:true});
-  window.addEventListener('pagehide',function(){hiddenAt=now();},{passive:true});
+  window.addEventListener('pagehide',function(){hiddenAt=now();armSnapshot();},{passive:true});
+  try{document.addEventListener('freeze',armSnapshot,{passive:true});}catch(_){};
   window.addEventListener('retrade:motion-ready',function(){warmSoon(180);},{once:true});
   warmSoon(600);
 
-  console.info('[RETRADE] v1.4.91 PWA lifecycle/resume coordinator loaded');
+  console.info('[RETRADE] v1.5.37 PWA lifecycle + branded snapshot guard loaded');
 })();

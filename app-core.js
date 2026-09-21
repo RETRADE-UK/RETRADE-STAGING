@@ -13020,15 +13020,33 @@ function showFilteredItems(filter){
 }
 
 let _summaryPeriodFrame=0;
+let _summaryPeriodTimer=0;
+let _summaryPeriodToken=0;
 function setSummaryPeriod(p){
   if(p===SUMMARY_PERIOD)return;
   SUMMARY_PERIOD=p;
   _saveUIState();
-  // Dashboard period switching is local, memory-backed state. Render the new
-  // truth immediately; the chart/bar animation supplies the visual transition.
-  // Do not route it through the nav acknowledgement queue.
+
+  // Let the selected option paint once before the heavier Dashboard calculation
+  // and DOM swap. The old truthful Dashboard stays visible for that frame; the
+  // chart/bar motion then explains the new period. No skeleton for local state.
+  const token=++_summaryPeriodToken;
+  const page=document.getElementById('p-summary');
+  if(page)page.setAttribute('data-rt-period-pending',String(p||''));
   if(_summaryPeriodFrame){cancelAnimationFrame(_summaryPeriodFrame);_summaryPeriodFrame=0;}
-  renderSummary();
+  if(_summaryPeriodTimer){clearTimeout(_summaryPeriodTimer);_summaryPeriodTimer=0;}
+  _summaryPeriodFrame=requestAnimationFrame(function(){
+    _summaryPeriodFrame=0;
+    _summaryPeriodTimer=setTimeout(function(){
+      _summaryPeriodTimer=0;
+      if(token!==_summaryPeriodToken)return;
+      const started=(window.performance&&performance.now)?performance.now():Date.now();
+      renderSummary();
+      const current=document.getElementById('p-summary');
+      if(current)current.removeAttribute('data-rt-period-pending');
+      try{window.__rtLastSummaryRenderMs=((window.performance&&performance.now)?performance.now():Date.now())-started;}catch(_){}
+    },0);
+  });
 }
 
 let _stockFromSummary=false;
