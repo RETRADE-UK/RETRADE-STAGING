@@ -1,4 +1,4 @@
-/* RETRADE cold-start / wake coordinator v1.5.37
+/* RETRADE cold-start / wake coordinator v1.5.38
  *
  * Launch principle: the real responsive application renders underneath its own
  * loading state and is only revealed when BOTH contracts are true:
@@ -13,7 +13,7 @@
 (function(){
   'use strict';
 
-  var VERSION=String(window.__rtBuildId||'20260921-v1537');
+  var VERSION=String(window.__rtBuildId||'20260921-v1538');
   var root=document.documentElement;
   var t0=(window.performance&&performance.now)?performance.now():Date.now();
   var bodyObserver=null;
@@ -25,8 +25,8 @@
   var lastLoading=false;
   var lastRevealing=false;
   var warmScheduled=false;
-  var brandEl=null,brandShownAt=0,brandTimer=0,finishRequested=false,skeletonVisibleAt=0;
-  var BRAND_MIN_MS=760,BRAND_TO_SKELETON_MS=790,BRAND_FADE_MS=170,SKELETON_MIN_MS=260;
+  var brandEl=null,brandShownAt=0,brandTimer=0,finishRequested=false,skeletonVisibleAt=0,directRevealReady=false;
+  var BRAND_MIN_MS=330,BRAND_TO_SKELETON_MS=520,BRAND_FADE_MS=150,SKELETON_MIN_MS=280;
 
   root.classList.add('rt-app-cold');
 
@@ -116,8 +116,9 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
       brandTimer=0;
       var b=document.body;
       if(!b||!b.classList.contains('rt-real-layout-loading'))return;
-      var directReady=finishRequested&&dataLoadFinished()&&motionStackReady();
-      if(!directReady)removeBrand('skeleton');
+      // Skip the skeleton only when the complete release gate (data, motion
+      // and settled destination DOM) has already passed.
+      if(!directRevealReady)removeBrand('skeleton');
     },remaining);
   }
   function authVisible(){
@@ -275,7 +276,7 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
 
       function callBase(req){
         if(!req||released)return;
-        released=true;pending=null;releaseScheduled=false;clearRetry();disconnectQuiet();
+        released=true;directRevealReady=true;pending=null;releaseScheduled=false;clearRetry();disconnectQuiet();
         try{
           if(typeof _realLayoutLoadingStartedAt!=='undefined'&&_realLayoutLoadingStartedAt){
             var n=absNow(),elapsed=Math.max(0,n-_realLayoutLoadingStartedAt);
@@ -300,9 +301,11 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
       function schedulePaintStableRelease(){
         if(releaseScheduled||released||!pending)return;
         if(!dataLoadFinished()||!motionStackReady()||!domQuiet()){
+          directRevealReady=false;
           queueCheck(48);
           return;
         }
+        directRevealReady=true;
         var brandRemaining=brandEl&&brandShownAt?Math.max(0,(brandShownAt+BRAND_MIN_MS)-absNow()):0;
         if(brandRemaining>0){queueCheck(Math.min(60,Math.max(16,brandRemaining)));return;}
         var skeletonRemaining=skeletonVisibleAt?Math.max(0,(skeletonVisibleAt+SKELETON_MIN_MS)-absNow()):0;

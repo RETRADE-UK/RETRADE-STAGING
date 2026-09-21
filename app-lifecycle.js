@@ -1,4 +1,4 @@
-/* RETRADE PWA lifecycle / resume coordinator v1.5.37
+/* RETRADE PWA lifecycle / resume coordinator v1.5.38
  * Keeps an already-booted app visually alive across iOS suspend/resume and
  * asks the service worker to keep the current shell/scripts warm.
  *
@@ -18,6 +18,9 @@
 
   function now(){return Date.now();}
   function build(){return String(window.__rtBuildId||'');}
+  function standalone(){
+    try{return navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);}catch(_){return false;}
+  }
   function body(){return document.body||null;}
   function genuineBootInProgress(){
     var b=body();
@@ -123,9 +126,12 @@
     if(hiddenAt||document.visibilityState==='visible')fastResume('focus');
   },{passive:true});
   window.addEventListener('pagehide',function(){hiddenAt=now();armSnapshot();},{passive:true});
+  /* WebKit can capture a standalone app snapshot before pagehide/freeze. Arm
+     on blur in installed mode as well; focus/pageshow immediately disarm it. */
+  window.addEventListener('blur',function(){if(standalone())armSnapshot();},{passive:true});
   try{document.addEventListener('freeze',armSnapshot,{passive:true});}catch(_){};
   window.addEventListener('retrade:motion-ready',function(){warmSoon(180);},{once:true});
   warmSoon(600);
 
-  console.info('[RETRADE] v1.5.37 PWA lifecycle + branded snapshot guard loaded');
+  console.info('[RETRADE] v1.5.38 PWA lifecycle + early branded snapshot guard loaded');
 })();
