@@ -1,4 +1,4 @@
-/* RETRADE app entrypoint.
+/* RETRADE app entrypoint — v1.5.16 smooth-render policy.
  *
  * Cold-start is intentionally staged:
  *   1) launch coordinator + production core
@@ -11,7 +11,7 @@
  */
 (function(){
   'use strict';
-  var v='20260921-v1515';
+  var v='20260921-v1516';
   window.__rtBuildId=v;
   var motionReady=false;
   var motionFallbackTimer=0;

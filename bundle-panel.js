@@ -15,12 +15,14 @@
   if(typeof window.openBundlePage!=='function'||typeof openPanel!=='function')return;
 
   var expandedBundles=new Set();
+  var bundleRowMembers=new Map();
   var bundleReturnContext=null;
   var editTransition=false;
   var originalExitItemPage=typeof window.exitItemPage==='function'?window.exitItemPage:null;
   var originalOpenBundleOrderEdit=typeof window.openBundleOrderEdit==='function'?window.openBundleOrderEdit:null;
 
   function num(v){v=Number(v);return isFinite(v)?v:0;}
+  function reducedMotion(){try{return !!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(_){return false;}}
   function money(v){return typeof fmt==='function'?fmt(num(v)):'£'+num(v).toFixed(2);}
   function html(v){return typeof esc==='function'?esc(String(v==null?'':v)):String(v==null?'':v).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c];});}
   function quote(v){return String(v==null?'':v).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r?\n/g,' ');}
@@ -53,6 +55,7 @@
 .bundle-row .rt-bundle-disclosure svg{width:14px;height:14px;transition:transform 180ms cubic-bezier(.22,.61,.36,1);transform-origin:center}.bundle-row .rt-bundle-disclosure.expanded svg{transform:rotate(90deg)}\
 .rt-bundle-leftslot{display:flex;align-items:center;gap:2px;flex:0 0 auto}.rt-bundle-leftslot .status-dot{margin:0}\
 .rt-bundle-children{overflow:hidden;border-top:1px solid var(--border);background:color-mix(in srgb,var(--surface) 78%,var(--bg))}\
+.rt-bundle-children.rt-bundle-animating{overflow:hidden!important;will-change:height,opacity;pointer-events:none}\
 .rt-bundle-child{position:relative;background:transparent!important;border-top:1px solid color-mix(in srgb,var(--border) 72%,transparent)!important;min-height:66px}\
 .rt-bundle-child:first-child{border-top:0!important}.rt-bundle-child .item-main{padding-left:17px}.rt-bundle-child .item-row-inner{min-height:64px}\
 .rt-bundle-child-branch{width:16px;flex:0 0 16px;color:var(--muted);font-size:15px;line-height:1;text-align:center}.rt-bundle-child .item-row-name{font-size:13px;font-weight:600}\
@@ -184,9 +187,85 @@
     };
   }
 
+  function rowMembersFor(bid){
+    bid=String(bid||'');
+    var cached=bundleRowMembers.get(bid);
+    if(cached&&cached.length)return cached.slice();
+    return itemsFor(bid).map(function(i){
+      var cyc=cycleFor(i,bid);if(!cyc)return null;
+      var ev=eventForCycle(i,cyc)||{};
+      if(!ev.item)ev.item=i;
+      if(ev.salePrice==null)ev.salePrice=num(cyc.price);
+      if(ev.profit==null)ev.profit=memberProfit(i,bid);
+      return ev;
+    }).filter(Boolean);
+  }
+
+  function rowsForBundle(bid){
+    bid=String(bid||'');
+    return Array.prototype.filter.call(document.querySelectorAll('.bundle-row[data-rt-bundle-id]'),function(row){
+      return row.dataset.rtBundleId===bid;
+    });
+  }
+
+  function setDisclosureState(row,open){
+    if(!row)return;
+    var btn=row.querySelector('.rt-bundle-disclosure');if(!btn)return;
+    btn.classList.toggle('expanded',!!open);
+    btn.setAttribute('aria-expanded',open?'true':'false');
+    btn.setAttribute('aria-label',(open?'Collapse':'Expand')+' bundle');
+  }
+
+  function openChildren(row,bid,members){
+    if(!row||!row.isConnected)return;
+    var next=row.nextElementSibling;
+    if(next&&next.classList.contains('rt-bundle-children')&&next.dataset.rtBundleChildren===bid){setDisclosureState(row,true);return;}
+    row.insertAdjacentHTML('afterend',childRows(bid,members));
+    var child=row.nextElementSibling;if(!child||!child.classList.contains('rt-bundle-children'))return;
+    child.dataset.rtBundleChildren=bid;
+    child.setAttribute('aria-hidden','false');
+    setDisclosureState(row,true);
+    if(reducedMotion())return;
+    child.classList.add('rt-bundle-animating');
+    child.style.height='0px';child.style.opacity='0';
+    var target=child.scrollHeight;
+    requestAnimationFrame(function(){
+      if(!child.isConnected)return;
+      child.style.transition='height 190ms cubic-bezier(.22,.61,.36,1),opacity 135ms ease-out';
+      child.style.height=target+'px';child.style.opacity='1';
+    });
+    setTimeout(function(){
+      if(!child.isConnected)return;
+      child.classList.remove('rt-bundle-animating');
+      child.style.removeProperty('height');child.style.removeProperty('opacity');child.style.removeProperty('transition');
+    },230);
+  }
+
+  function closeChildren(row,bid){
+    if(!row)return;
+    setDisclosureState(row,false);
+    var child=row.nextElementSibling;
+    if(!child||!child.classList.contains('rt-bundle-children')||child.dataset.rtBundleChildren!==bid)return;
+    if(reducedMotion()){child.remove();return;}
+    var h=child.getBoundingClientRect().height||child.scrollHeight;
+    child.classList.add('rt-bundle-animating');child.style.height=h+'px';child.style.opacity='1';
+    child.setAttribute('aria-hidden','true');
+    requestAnimationFrame(function(){
+      if(!child.isConnected)return;
+      child.style.transition='height 175ms cubic-bezier(.4,0,.2,1),opacity 120ms ease-in';
+      child.style.height='0px';child.style.opacity='0';
+    });
+    setTimeout(function(){if(child&&child.isConnected)child.remove();},210);
+  }
+
   window.toggleBundleSalesRow=function(bid){
-    if(expandedBundles.has(bid))expandedBundles.delete(bid);else expandedBundles.add(bid);
-    if(typeof renderMonth==='function')renderMonth();
+    bid=String(bid||'');
+    var opening=!expandedBundles.has(bid);
+    if(opening)expandedBundles.add(bid);else expandedBundles.delete(bid);
+    var members=rowMembersFor(bid);
+    rowsForBundle(bid).forEach(function(row){
+      if(opening)openChildren(row,bid,members);else closeChildren(row,bid);
+    });
   };
 
   function childMenu(ev,bid){
@@ -201,14 +280,14 @@
   }
 
   function childRows(bid,members){
-    return '<div class="rt-bundle-children">'+members.map(function(ev){
+    return '<div class="rt-bundle-children" data-rt-bundle-children="'+html(String(bid||''))+'">'+members.map(function(ev){
       var i=ev.item||{},rec=(typeof _findItemRecordById==='function'?_findItemRecordById(i.id):null),m=i._month||(rec&&rec.month)||'',price=num(ev.salePrice),profit=num(ev.profit);
       return '<div class="item-row rt-bundle-child" onclick="openBundleMemberPage(\''+quote(m)+'\',\''+quote(i.id)+'\',\''+quote(bid)+'\')"><div class="item-main"><div class="item-row-inner"><div class="rt-bundle-child-branch">↳</div><div class="item-row-body"><div class="item-row-name">'+html(i.item||'Item')+'</div><div class="item-row-meta"><span class="item-badge bundle">BUNDLE ITEM</span>'+(typeof platBadgeHTML==='function'?platBadgeHTML(i):'')+'</div></div><div class="item-row-right"><div class="item-row-price">'+money(price)+'</div><div class="item-row-profit '+(profit>=0?'pos':'neg')+'">'+money(profit)+'</div></div></div></div><div class="item-actions">'+childMenu(ev,bid)+'</div></div>';
     }).join('')+'</div>';
   }
 
   window.renderBundleSaleRow=function(bid,members){
-    injectStyles();
+    injectStyles();bid=String(bid||'');bundleRowMembers.set(bid,(members||[]).slice());
     var rev=0,profit=0,date='';(members||[]).forEach(function(ev){var post=((num(ev.sale)||1)>=2&&ev.item)?num(ev.item.resalePostage!=null?ev.item.resalePostage:ev.item.postage):num(ev.item&&ev.item.postage);rev+=num(ev.salePrice)+post;profit+=num(ev.profit);if(!date&&ev.saleDate)date=ev.saleDate;});
     var count=(members||[]).length,first=(members&&members[0]&&members[0].item)||{},ref=typeof _eventBundleRef==='function'?_eventBundleRef((members&&members[0])||{}):'',allSel=typeof _bundleAllSelected==='function'?_bundleAllSelected(bid):false,margin=rev>0?profit/rev*100:null,isOpen=expandedBundles.has(bid);
     var disclosure='<button class="rt-bundle-disclosure'+(isOpen?' expanded':'')+'" onclick="event.stopPropagation();toggleBundleSalesRow(\''+quote(bid)+'\')" aria-label="'+(isOpen?'Collapse':'Expand')+' bundle" aria-expanded="'+(isOpen?'true':'false')+'"><svg viewBox="0 0 16 16" fill="none"><path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
@@ -216,7 +295,7 @@
     var left=selection?'<div class="rt-bundle-leftslot">'+disclosure+'<label class="item-checkbox-left" onclick="event.stopPropagation()"><input type="checkbox" '+(allSel?'checked':'')+' onchange="_toggleBundleSelect(\''+quote(bid)+'\')" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;margin-right:4px"></label></div>':'<div class="rt-bundle-leftslot">'+disclosure+'<div class="status-dot sold"></div></div>';
     var click=selection?'onclick="_toggleBundleSelect(\''+quote(bid)+'\')"':'onclick="openBundlePage(\''+quote(bid)+'\')"';
     var dd='<div class="ddwrap" id="bundle-row-dd-'+html(bid)+'"><button class="ddbtn" aria-label="Bundle actions" onclick="event.stopPropagation();toggleDD(\'bundle-row-dd-'+quote(bid)+'\')" title="Actions">⋮</button><div class="ddmenu"><button onclick="event.stopPropagation();openBundlePage(\''+quote(bid)+'\')">'+icon('fullpage',14)+' Open order</button><button onclick="event.stopPropagation();openBundleOrderEdit(\''+quote(bid)+'\')">'+icon('edit',14)+' Edit order / prices</button><button onclick="event.stopPropagation();reverseBundleOrder(\''+quote(bid)+'\')" style="color:var(--warn)">'+icon('revert',14)+' Reverse order</button></div></div>';
-    var row='<div class="item-row bundle-row" '+click+'><div class="item-main"><div class="item-row-inner">'+left+'<div class="item-row-body"><div class="item-row-name">'+html(first.item||'Bundle')+(count>1?' <span style="color:var(--text-secondary);font-weight:600">+ '+(count-1)+' more</span>':'')+'</div><div class="item-row-meta"><span class="item-badge sold">SOLD</span><span class="item-badge bundle">≋ BUNDLE</span>'+(date?'<span class="item-row-meta-sep">·</span><span>sold '+html(date)+'</span>':'')+(ref?'<span class="item-row-meta-sep">·</span><span>'+html(ref)+'</span>':'')+'</div></div><div class="item-row-right"><div class="item-row-price">'+money(rev)+'</div><div class="item-row-profit '+(profit>=0?'pos':'neg')+'">'+money(profit)+'</div>'+(margin!=null?'<div class="item-row-roi">'+margin.toFixed(1)+'% margin</div>':'')+'</div></div></div><div class="item-actions">'+dd+'</div></div>';
+    var row='<div class="item-row bundle-row" data-rt-bundle-id="'+html(bid)+'" '+click+'><div class="item-main"><div class="item-row-inner">'+left+'<div class="item-row-body"><div class="item-row-name">'+html(first.item||'Bundle')+(count>1?' <span style="color:var(--text-secondary);font-weight:600">+ '+(count-1)+' more</span>':'')+'</div><div class="item-row-meta"><span class="item-badge sold">SOLD</span><span class="item-badge bundle">≋ BUNDLE</span>'+(date?'<span class="item-row-meta-sep">·</span><span>sold '+html(date)+'</span>':'')+(ref?'<span class="item-row-meta-sep">·</span><span>'+html(ref)+'</span>':'')+'</div></div><div class="item-row-right"><div class="item-row-price">'+money(rev)+'</div><div class="item-row-profit '+(profit>=0?'pos':'neg')+'">'+money(profit)+'</div>'+(margin!=null?'<div class="item-row-roi">'+margin.toFixed(1)+'% margin</div>':'')+'</div></div></div><div class="item-actions">'+dd+'</div></div>';
     return row+(isOpen?childRows(bid,members||[]):'');
   };
 

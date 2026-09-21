@@ -100,12 +100,11 @@
     if(typeof window.refreshActivePage!=='function'||window.refreshActivePage.__rtTruthGate1507)return;
     var base=window.refreshActivePage;
     function wrapped(){
-      var page=active();
-      if(!page||!topLevel.has(String(page.id||'').replace(/^p-/,'')))return base.apply(this,arguments);
-      var token=gate(page),out;
-      try{out=base.apply(this,arguments);}
-      finally{releaseWhenMasked(page,token);}
-      return out;
+      /* Stale-while-revalidate UI: a same-page refresh keeps the last truthful
+         screen visible while the renderer updates it. Full-page truth gating is
+         reserved for navigation/cold-load boundaries; otherwise a tiny mutation
+         can blank the whole page for up to the defensive timeout. */
+      return base.apply(this,arguments);
     }
     wrapped.__rtTruthGate1507=true;wrapped.__rtBase=base;
     window.refreshActivePage=wrapped;try{refreshActivePage=wrapped;}catch(_){}

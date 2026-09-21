@@ -10,15 +10,18 @@
   if(window.__rtSalesMonthLoading1509)return;
   window.__rtSalesMonthLoading1509=true;
 
-  var MIN_MS=520;
+  var MIN_MS=240;
   var serial=0;
   var session=null;
   var EASE='cubic-bezier(.22,.61,.36,1)';
+  var warmViews=new Set();
+  var lastView=null;
 
   function page(){return document.getElementById('p-monthly');}
   function now(){return (window.performance&&performance.now)?performance.now():Date.now();}
   function reduced(){try{return !!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(_){return false;}}
   function activeSales(){var p=document.querySelector('.page.on');return !!(p&&p.id==='p-monthly');}
+  function salesView(){try{return (typeof MONTHLY_VIEW!=='undefined'&&MONTHLY_VIEW==='detail')?'detail':'yearly';}catch(_){return 'yearly';}}
   function text(el){return String(el&&el.textContent||'').replace(/\s+/g,' ').trim();}
   function cls(el){return String((el&&el.className&&el.className.baseVal)||el&&el.className||'').toLowerCase();}
   function numericLike(t){return !!(t&&t.length<=64&&(/[£$€]\s*[+\-−]?\s*\d/.test(t)||/[+\-−]?\s*\d[\d,.]*\s*%/.test(t)||/^[+\-−]?\s*\d[\d,.]*(?:\s*(?:k|m|items?|orders?|sales?|units?))?$/i.test(t)));}
@@ -94,6 +97,7 @@
         p.classList.remove('rt-sales-route-page-reveal1509');Array.prototype.forEach.call(rows,function(el){el.style.removeProperty('--rt-sales-row-delay');});
       },620);
     }
+    warmViews.add(s.view);lastView=s.view;
     if(session===s)session=null;
     try{window.dispatchEvent(new CustomEvent('retrade:sales-route-reveal',{detail:{elapsed:now()-s.started}}));}catch(_){}
   }
@@ -107,7 +111,7 @@
   function begin(reason,deferInitialMark){
     var p=page();if(!p||!p.classList.contains('on'))return null;
     if(session)finish(session);
-    var view=(typeof MONTHLY_VIEW!=='undefined'&&MONTHLY_VIEW==='detail')?'detail':'yearly';
+    var view=salesView();
     var s=session={id:++serial,page:p,reason:reason||'sales',view:view,started:now(),ended:false,marked:[],primary:[],observer:null};
     p.classList.add('rt-sales-route-loading1509','rt-main-loading1506');
     p.setAttribute('data-rt-sales-skeleton-layout',view);
@@ -132,12 +136,16 @@
   function wrapRender(name){
     var base=window[name];if(typeof base!=='function'||base.__rtSalesRoute1509)return;
     function wrapped(){
-      var own=!session&&activeSales(),s=own?begin(name,true):session,out;
+      var nextView=salesView();
+      var shapeChange=lastView!=null&&nextView!==lastView;
+      var own=!session&&activeSales()&&shapeChange&&!warmViews.has(nextView),s=own?begin(name,true):session,out;
       try{
         out=base.apply(this,arguments);
       }finally{
-        /* The renderer has now produced the destination layout. Mask that exact
-           DOM synchronously so Yearly never borrows Monthly's skeleton. */
+        /* Re-rendering the current Sales view is a soft refresh: keep the real
+           screen visible and update it in place. Only the first transition into
+           a different layout gets a skeleton. */
+        lastView=salesView();
         if(own&&s&&!s.ended){mark(s.page,s);scheduleFinish(s);}
       }
       return out;
@@ -154,15 +162,19 @@
          loader to flash before the Yearly/FY calendar. */
       out=base.apply(this,arguments);
       if(same&&!session){
-        var s=begin('same-route-nav',false);
-        if(s)scheduleFinish(s);
+        var v=salesView();
+        if(!warmViews.has(v)){
+          var s=begin('same-route-nav',false);
+          if(s)scheduleFinish(s);
+        }
+        lastView=v;
       }
       return out;
     }
     wrapped.__rtSalesSameRoute1509=true;wrapped.__rtBase=base;window.goToTab=wrapped;try{goToTab=wrapped;}catch(_){}
   }
 
-  function install(){installStyles();wrapRender('renderMonth');wrapRender('renderMonthlyGrid');wrapRender('renderMonthlyPage');wrapNav();}
+  function install(){installStyles();lastView=salesView();warmViews.add(lastView);wrapRender('renderMonth');wrapRender('renderMonthlyGrid');wrapRender('renderMonthlyPage');wrapNav();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
   console.info('[RETRADE] v1.5.14 Sales target-layout skeleton + reveal loaded');
 })();

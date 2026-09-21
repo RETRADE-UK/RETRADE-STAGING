@@ -25,6 +25,7 @@
   ]);
   var session=null;
   var serial=0;
+  var warmPages=new Set();
   var lastActive=(document.querySelector('.page.on')||{id:''}).id;
 
   function reduced(){
@@ -243,6 +244,7 @@
       page.classList.remove('rt-main-preparing1506','rt-main-loading1506');
       if(page.getAttribute('data-rt-main-busy1506')==='1'){page.removeAttribute('aria-busy');page.removeAttribute('data-rt-main-busy1506');}
       cleanupMarks(page,s.bag,!!animate);
+      warmPages.add(page.id);page.setAttribute('data-rt-page-warm1506','1');
     }
     if(session===s)session=null;
   }
@@ -290,7 +292,7 @@
     if(typeof current!=='function'||current.__rtMainLoading1506)return;
     function wrapped(name,sourceEl){
       var target=pageForName(name),before=activePage();
-      var eligibleTarget=!bootOwned()&&isEligible(target)&&(!before||before.id!==target.id);
+      var eligibleTarget=!bootOwned()&&isEligible(target)&&(!before||before.id!==target.id)&&!warmPages.has(target.id);
       if(eligibleTarget)target.classList.add('rt-main-preparing1506');
       var out;
       try{out=current.apply(this,arguments);}catch(err){if(eligibleTarget)target.classList.remove('rt-main-preparing1506');throw err;}
@@ -310,7 +312,7 @@
         if(id===lastActive)return;
         lastActive=id;
         if(bootOwned())return;
-        if(isEligible(active)&&!active.classList.contains('rt-main-loading1506')&&!active.classList.contains('rt-main-preparing1506')){
+        if(isEligible(active)&&!warmPages.has(active.id)&&!active.classList.contains('rt-main-loading1506')&&!active.classList.contains('rt-main-preparing1506')){
           active.classList.add('rt-main-preparing1506');
           Promise.resolve().then(function(){if(active.classList.contains('on'))begin(active,'route');else active.classList.remove('rt-main-preparing1506');});
         }
@@ -321,6 +323,7 @@
 
   function start(){
     installStyles();installNavigation();installRouteObserver();
+    window.__rtMarkPageCold1506=function(name){var id=String(name||'');if(id.indexOf('p-')!==0)id='p-'+id;warmPages.delete(id);var p=document.getElementById(id);if(p)p.removeAttribute('data-rt-page-warm1506');};
     var active=activePage();
     if(!bootOwned()&&isEligible(active)&&!active.classList.contains('rt-main-loading1506')){
       active.classList.add('rt-main-preparing1506');
