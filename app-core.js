@@ -14273,7 +14273,8 @@ function renderSummary(){
         </div>
       </div>`;
     el.innerHTML=html;
-    _animateKPIs(el);   // v2.18.0 — reveal counts from 0, later renders tween from current
+    // v1.5.39 — values are already truthful in the rendered HTML. Do not replace
+    // them with a 0→target/old→new count-up; charts and the donut own the motion.
     _animateDonut(el, SUMMARY_PERIOD);  // v2.19.15 — sweep on reveal/period, enter-anim new categories
     window.__summaryByCat=stats.byCat||[];
     renderSummaryChart(chartLabels,chartRev,chartProfit,chartReturns,chartReturnCounts,_chartPartialLast);

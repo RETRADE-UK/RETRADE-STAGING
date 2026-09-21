@@ -206,3 +206,18 @@ jobs:
               assert '_queueInteractionRender' not in block, f'{name} is artificially deferred again'
           print('Local filter responsiveness invariants passed')
           PY
+
+
+      - name: Dashboard truthful-value invariant
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          core=Path('app-core.js').read_text(encoding='utf-8')
+          start=core.find('function renderSummary()')
+          end=core.find('\n// monthKey',start)
+          assert start!=-1 and end!=-1
+          block=core[start:end]
+          assert '_animateKPIs(el);' not in block, 'Dashboard is replacing truthful values with a post-render count-up again'
+          assert '_animateDonut(el, SUMMARY_PERIOD);' in block, 'Dashboard explanatory motion unexpectedly disappeared'
+          print('Dashboard truthful-value invariant passed')
+          PY
