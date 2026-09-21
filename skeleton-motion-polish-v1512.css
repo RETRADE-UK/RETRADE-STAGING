@@ -1,0 +1,142 @@
+/* RETRADE skeleton motion polish — v1.5.12
+ * One calm motion language for every data-loading surface.
+ * Geometry remains owned by the existing real-layout skeleton systems.
+ */
+:root{
+  --rt-skel-duration:1.85s;
+  --rt-skel-base:color-mix(in srgb,var(--surface2) 90%,var(--border) 10%);
+  --rt-skel-edge:color-mix(in srgb,var(--surface2) 86%,var(--border) 14%);
+  --rt-skel-sheen:color-mix(in srgb,var(--text) 4.5%,transparent);
+}
+
+/* Legacy/current real-layout placeholders. Keep the base steady; only a soft
+   low-contrast band moves across it. */
+.rt-real-layout-loading .rt-data-loading,
+.rt-real-layout-loading .rt-loading-line{
+  background:linear-gradient(
+    100deg,
+    var(--rt-skel-base) 0%,
+    var(--rt-skel-edge) 39%,
+    color-mix(in srgb,var(--rt-skel-base) 95.5%,var(--text) 4.5%) 50%,
+    var(--rt-skel-edge) 61%,
+    var(--rt-skel-base) 100%
+  )!important;
+  background-size:240% 100%!important;
+}
+
+.rt-real-layout-loading .rt-chart-loading{
+  background:color-mix(in srgb,var(--rt-skel-base) 55%,transparent)!important;
+}
+.rt-real-layout-loading .rt-chart-loading::after{
+  background:linear-gradient(
+    100deg,
+    transparent 20%,
+    var(--rt-skel-sheen) 48%,
+    transparent 76%
+  )!important;
+  background-size:240% 100%!important;
+}
+
+/* Main-page in-place skeletons. */
+.page.rt-main-loading1506{
+  --rt-load-base:var(--rt-skel-base)!important;
+  --rt-load-sheen:var(--rt-skel-sheen)!important;
+}
+.page.rt-main-loading1506 .rt-main-skel-value1506,
+.page.rt-main-loading1506 .rt-main-skel-text1506,
+.page.rt-main-loading1506 .rt-main-chart-mask1506{
+  background:var(--rt-skel-base)!important;
+}
+.page.rt-main-loading1506 .rt-main-skel-value1506::after,
+.page.rt-main-loading1506 .rt-main-skel-text1506::after,
+.page.rt-main-loading1506 .rt-main-chart-mask1506::after{
+  background:linear-gradient(
+    100deg,
+    transparent 22%,
+    var(--rt-skel-sheen) 49%,
+    transparent 76%
+  )!important;
+  transform:translate3d(-112%,0,0)!important;
+}
+
+/* Sales route + truth masks use the same movement and contrast. */
+#p-monthly.rt-main-loading1506 .rt-sales-data-mask1508{
+  background:var(--rt-skel-base)!important;
+}
+#p-monthly.rt-main-loading1506 .rt-sales-data-mask1508::after,
+#p-monthly.rt-sales-route-loading1509 .rt-sales-route-skel1509::after,
+#p-monthly.rt-sales-route-loading1509 .monthly-profitability-card::after{
+  background:linear-gradient(
+    100deg,
+    transparent 22%,
+    var(--rt-skel-sheen) 49%,
+    transparent 76%
+  )!important;
+  transform:translate3d(-112%,0,0)!important;
+}
+#p-monthly.rt-sales-route-loading1509{
+  --rt-sales-load-base:var(--rt-skel-base)!important;
+  --rt-sales-load-sheen:var(--rt-skel-sheen)!important;
+}
+#p-monthly.rt-sales-route-loading1509 .rt-sales-route-skel1509{
+  background:var(--rt-skel-base)!important;
+}
+
+/* Partners previously used the fastest/highest-contrast shimmer in the app.
+   Match the global cadence and keep the pill itself visible at all times. */
+.rt-pd1505-shimmer{
+  background:var(--rt-skel-base)!important;
+}
+.rt-pd1505-shimmer::after{
+  background:linear-gradient(
+    100deg,
+    transparent 24%,
+    var(--rt-skel-sheen) 50%,
+    transparent 76%
+  )!important;
+  transform:translate3d(-112%,0,0)!important;
+}
+
+/* Constant-speed travel avoids the accelerate/decelerate brightness "pop" that
+   read as flashing when many placeholders were animating together. */
+@keyframes rtSkeletonPaint1512{
+  from{background-position:180% 0}
+  to{background-position:-180% 0}
+}
+@keyframes rtSkeletonSheen1512{
+  from{transform:translate3d(-112%,0,0)}
+  to{transform:translate3d(112%,0,0)}
+}
+
+@media (prefers-reduced-motion:no-preference){
+  .rt-real-layout-loading .rt-data-loading,
+  .rt-real-layout-loading .rt-loading-line,
+  .rt-real-layout-loading .rt-chart-loading::after{
+    animation:rtSkeletonPaint1512 var(--rt-skel-duration) linear infinite!important;
+  }
+
+  .page.rt-main-loading1506 .rt-main-skel-value1506::after,
+  .page.rt-main-loading1506 .rt-main-skel-text1506::after,
+  .page.rt-main-loading1506 .rt-main-chart-mask1506::after,
+  #p-monthly.rt-main-loading1506 .rt-sales-data-mask1508::after,
+  #p-monthly.rt-sales-route-loading1509 .rt-sales-route-skel1509::after,
+  #p-monthly.rt-sales-route-loading1509 .monthly-profitability-card::after,
+  .rt-pd1505-shimmer::after{
+    animation:rtSkeletonSheen1512 var(--rt-skel-duration) linear infinite!important;
+  }
+}
+
+@media (prefers-reduced-motion:reduce){
+  .rt-real-layout-loading .rt-data-loading,
+  .rt-real-layout-loading .rt-loading-line,
+  .rt-real-layout-loading .rt-chart-loading::after,
+  .page.rt-main-loading1506 .rt-main-skel-value1506::after,
+  .page.rt-main-loading1506 .rt-main-skel-text1506::after,
+  .page.rt-main-loading1506 .rt-main-chart-mask1506::after,
+  #p-monthly.rt-main-loading1506 .rt-sales-data-mask1508::after,
+  #p-monthly.rt-sales-route-loading1509 .rt-sales-route-skel1509::after,
+  #p-monthly.rt-sales-route-loading1509 .monthly-profitability-card::after,
+  .rt-pd1505-shimmer::after{
+    animation:none!important;
+  }
+}
