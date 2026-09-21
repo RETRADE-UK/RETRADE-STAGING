@@ -3,10 +3,10 @@
  * Geometry remains owned by the existing real-layout skeleton systems.
  */
 :root{
-  --rt-skel-duration:1.85s;
+  --rt-skel-duration:2.7s;
   --rt-skel-base:color-mix(in srgb,var(--surface2) 90%,var(--border) 10%);
   --rt-skel-edge:color-mix(in srgb,var(--surface2) 86%,var(--border) 14%);
-  --rt-skel-sheen:color-mix(in srgb,var(--text) 4.5%,transparent);
+  --rt-skel-sheen:color-mix(in srgb,var(--text) 3.25%,transparent);
 }
 
 /* Legacy/current real-layout placeholders. Keep the base steady; only a soft
@@ -18,7 +18,7 @@
     100deg,
     var(--rt-skel-base) 0%,
     var(--rt-skel-edge) 39%,
-    color-mix(in srgb,var(--rt-skel-base) 95.5%,var(--text) 4.5%) 50%,
+    color-mix(in srgb,var(--rt-skel-base) 96.75%,var(--text) 3.25%) 50%,
     var(--rt-skel-edge) 61%,
     var(--rt-skel-base) 100%
   )!important;
@@ -171,7 +171,7 @@ html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loadi
   }
 
   .rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart::before{
-    animation:rtSkeletonRotate1512 2.8s linear infinite!important;
+    animation:rtSkeletonRotate1512 3.2s linear infinite!important;
   }
 
   html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-data-loading,
@@ -181,7 +181,7 @@ html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loadi
   }
 
   html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart::before{
-    animation:rtSkeletonRotate1512 2.8s linear infinite!important;
+    animation:rtSkeletonRotate1512 3.2s linear infinite!important;
   }
 
   .page.rt-main-loading1506 .rt-main-skel-value1506::after,
