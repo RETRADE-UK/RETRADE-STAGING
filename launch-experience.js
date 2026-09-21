@@ -1,4 +1,4 @@
-/* RETRADE cold-start / wake coordinator v1.5.42
+/* RETRADE cold-start / wake coordinator v1.5.43
  *
  * Launch principle: the real responsive application renders underneath its own
  * loading state and is only revealed when BOTH contracts are true:

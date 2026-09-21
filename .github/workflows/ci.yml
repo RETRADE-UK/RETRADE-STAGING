@@ -150,7 +150,7 @@ jobs:
           app_build=re.search(r"\bvar\s+v='([^']+)'",app)
           sw_build=re.search(r"\bconst\s+BUILD='([^']+)'",sw)
           assert app_build and sw_build and app_build.group(1)==sw_build.group(1)
-          assert 'v1542-staging-g1' in app_build.group(1)
+          assert 'v1543-staging-g1' in app_build.group(1)
           print('Staging isolation/gesture boundary passed:',app_build.group(1))
           PY
 
@@ -255,4 +255,28 @@ jobs:
           assert '_monthlyPeriodRenderToken' in core
           assert "if(MONTHLY_VIEW==='grid')renderMonthlyGrid();" in block
           print('iOS startup and Sales period responsiveness invariants passed')
+          PY
+
+
+      - name: Local Inventory and month-filter responsiveness invariants
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          core=Path('app-core.js').read_text(encoding='utf-8')
+
+          assert 'function _queueLocalControlRender(key,fn)' in core
+          assert "_queueLocalControlRender('stock-filter'" in core
+          assert "_queueLocalControlRender('month-detail-filter'" in core
+          assert 'data-stock-state=' in core
+          assert 'data-stock-filter=' in core
+          assert 'data-stock-sourced-filter=' in core
+          assert 'data-month-filter=' in core
+
+          for fn in ('setStockSort','setStockFilter','setStockSourcedFilter','setStockStateFilter','setMonthFilter','setMonthSort'):
+              start=core.find('function '+fn+'(')
+              assert start!=-1, fn+' missing'
+              end=core.find('\n}',start)
+              block=core[start:end+2]
+              assert 'renderStock();' not in block and 'renderMonth();' not in block, fn+' blocks input with synchronous full render'
+          print('Local Inventory and month-filter responsiveness invariants passed')
           PY

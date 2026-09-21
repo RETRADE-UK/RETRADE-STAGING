@@ -14990,13 +14990,25 @@ document.addEventListener('click',function(e){
   if(el&&!el.contains(e.target))el.classList.remove('open');
 });
 
-function setMonthFilter(f){
-  MONTH_FILTER=f;
-  // Session B: all monthly views are sale-history; default sort is date-sold.
-  if(MONTH_SORT==='date-listed')MONTH_SORT='date-sold';
-  renderMonth();
+function _queueMonthDetailRender(){
+  const page=document.getElementById('p-monthly');if(page)page.setAttribute('data-rt-filter-pending','1');
+  _queueLocalControlRender('month-detail-filter',function(){
+    renderMonth();
+    const current=document.getElementById('p-monthly');if(current)current.removeAttribute('data-rt-filter-pending');
+  });
 }
-function setMonthSort(s){MONTH_SORT=s;renderMonth();}
+function setMonthFilter(f){
+  if(f===MONTH_FILTER)return;
+  MONTH_FILTER=f;
+  if(MONTH_SORT==='date-listed')MONTH_SORT='date-sold';
+  _ackChoice('#p-monthly','month-filter',f,'active');
+  _queueMonthDetailRender();
+}
+function setMonthSort(s){
+  if(s===MONTH_SORT)return;
+  MONTH_SORT=s;
+  _queueMonthDetailRender();
+}
 
 function renderMonth(){
   const m=SELECTED_MONTH;
@@ -15158,9 +15170,9 @@ function renderMonth(){
 
     <div class="filter-row" style="gap:8px;">
       <div class="filter-chips">
-        <button class="chip chip-all ${MONTH_FILTER==='all'?'active':''}" onclick="setMonthFilter('all')">All <span class="chip-count">${cAll}</span></button>
-        ${cReturned>0?`<button class="chip chip-sold ${MONTH_FILTER==='sold'?'active':''}" onclick="setMonthFilter('sold')">Sold <span class="chip-count">${cSold}</span></button>`:''}
-        ${cReturned>0?`<button class="chip chip-returned ${MONTH_FILTER==='returned'?'active':''}" onclick="setMonthFilter('returned')">Returned <span class="chip-count">${cReturned}</span></button>`:''}
+        <button data-month-filter="all" class="chip chip-all ${MONTH_FILTER==='all'?'active':''}" onclick="setMonthFilter('all')">All <span class="chip-count">${cAll}</span></button>
+        ${cReturned>0?`<button data-month-filter="sold" class="chip chip-sold ${MONTH_FILTER==='sold'?'active':''}" onclick="setMonthFilter('sold')">Sold <span class="chip-count">${cSold}</span></button>`:''}
+        ${cReturned>0?`<button data-month-filter="returned" class="chip chip-returned ${MONTH_FILTER==='returned'?'active':''}" onclick="setMonthFilter('returned')">Returned <span class="chip-count">${cReturned}</span></button>`:''}
       </div>
       ${(()=>{
         // Mobile-only custom dropdown (replaces the native select). Coloured
@@ -15171,7 +15183,7 @@ function renderMonth(){
           opts.push({k:'returned',l:'Returned',c:cReturned,dot:'var(--red)'});
         }
         const cur=opts.find(o=>o.k===MONTH_FILTER)||opts[0];
-        const optsHTML=opts.map(o=>`<button class="filter-pill-dd-opt${o.k===MONTH_FILTER?' active':''}" onclick="setMonthFilter('${o.k}');closeFilterPill('mfp-filter')"><span class="filter-pill-dd-opt-dot" style="background:${o.dot}"></span>${o.l}<span class="filter-pill-dd-opt-count">${o.c}</span></button>`).join('');
+        const optsHTML=opts.map(o=>`<button data-month-filter="${o.k}" class="filter-pill-dd-opt${o.k===MONTH_FILTER?' active':''}" onclick="setMonthFilter('${o.k}');closeFilterPill('mfp-filter')"><span class="filter-pill-dd-opt-dot" style="background:${o.dot}"></span>${o.l}<span class="filter-pill-dd-opt-count">${o.c}</span></button>`).join('');
         return `
           <div class="filter-pill-dd" id="mfp-filter">
             <div class="filter-pill-dd-backdrop" onclick="closeFilterPill('mfp-filter')"></div>
@@ -15891,24 +15903,67 @@ async function bulkAction(action){
 }
 
 // STOCK PAGE
-function setStockSort(s){STOCK_SORT=s;_saveUIState();renderStock();}
-function setStockFilter(f){STOCK_FILTER=f;_saveUIState();renderStock();}
+const _rtControlRenderState=Object.create(null);
+function _queueLocalControlRender(key,fn){
+  if(typeof fn!=='function')return;
+  let state=_rtControlRenderState[key];
+  if(!state)state=_rtControlRenderState[key]={token:0,paint:0,render:0};
+  const token=++state.token;
+  if(state.paint){cancelAnimationFrame(state.paint);state.paint=0;}
+  if(state.render){cancelAnimationFrame(state.render);state.render=0;}
+  state.paint=requestAnimationFrame(function(){
+    state.paint=0;
+    state.render=requestAnimationFrame(function(){
+      state.render=0;
+      if(token!==state.token)return;
+      fn();
+    });
+  });
+}
+function _ackChoice(rootSelector,dataName,value,activeClass){
+  const root=document.querySelector(rootSelector);if(!root)return;
+  root.querySelectorAll('[data-'+dataName+']').forEach(function(el){
+    el.classList.toggle(activeClass||'active',el.getAttribute('data-'+dataName)===String(value));
+  });
+}
+function _queueStockRender(){
+  const page=document.getElementById('p-stock');if(page)page.setAttribute('data-rt-filter-pending','1');
+  _queueLocalControlRender('stock-filter',function(){
+    renderStock();
+    const current=document.getElementById('p-stock');if(current)current.removeAttribute('data-rt-filter-pending');
+  });
+}
+function setStockSort(s){
+  if(s===STOCK_SORT)return;
+  STOCK_SORT=s;_saveUIState();_queueStockRender();
+}
+function setStockFilter(f){
+  if(f===STOCK_FILTER)return;
+  STOCK_FILTER=f;_saveUIState();
+  _ackChoice('#p-stock','stock-filter',f,'active');
+  _queueStockRender();
+}
 // Patch A — sourced-age bucket filter setter
-function setStockSourcedFilter(f){STOCK_SOURCED_FILTER=f;renderStock();}
+function setStockSourcedFilter(f){
+  if(f===STOCK_SOURCED_FILTER)return;
+  STOCK_SOURCED_FILTER=f;
+  _ackChoice('#p-stock','stock-sourced-filter',f,'active');
+  _queueStockRender();
+}
 // v1.01 — Inventory population filter. Backend `sourced` remains canonical
 // for compatibility; the operating UI calls that queue “Unlisted”.
 function setStockStateFilter(f){
   if(!['all','listed','sourced','returned'].includes(f))f='listed';
+  if(f===STOCK_STATE_FILTER)return;
   STOCK_STATE_FILTER=f;
-  // Each queue has different useful secondary filters/sorts. Never let a stale
-  // Listed-age filter silently hide Returned/Unlisted rows.
   if(f!=='listed') STOCK_FILTER='all';
   if(f!=='sourced') STOCK_SOURCED_FILTER='all';
   if(f==='sourced'&&!['cost-desc','days-desc','days-asc'].includes(STOCK_SORT))STOCK_SORT='days-desc';
   if((f==='returned'||f==='all')&&!['cost-desc','days-desc','days-asc'].includes(STOCK_SORT))STOCK_SORT='days-desc';
   if(f==='listed'&&STOCK_SORT==='cost-desc')STOCK_SORT='days-asc';
-  renderStock();
   _saveUIState();
+  _ackChoice('#p-stock','stock-state',f,'is-active');
+  _queueStockRender();
 }
 function toggleStockGrouped(){STOCK_GROUPED=!STOCK_GROUPED;_saveUIState();renderStock();}
 // F7: Toggle a specific month group collapsed/expanded
@@ -17232,7 +17287,7 @@ function _renderStockCore(){
       {key:'sourced',label:'Unlisted',count:cAllStock},
       {key:'returned',label:'Returned',count:cAllReturned}
     ];
-    return '<div class="segmented stock-state-seg">'+bk.map(function(b){return '<button class="'+(STOCK_STATE_FILTER===b.key?'is-active':'')+'" onclick="setStockStateFilter(\''+b.key+'\')">'+b.label+'<span class="count">'+b.count+'</span></button>';}).join('')+'</div>';
+    return '<div class="segmented stock-state-seg">'+bk.map(function(b){return '<button data-stock-state="'+b.key+'" class="'+(STOCK_STATE_FILTER===b.key?'is-active':'')+'" onclick="setStockStateFilter(\''+b.key+'\')">'+b.label+'<span class="count">'+b.count+'</span></button>';}).join('')+'</div>';
   })();
   const cStale=_listedAgeEntities.filter(i=>{const d=i.dateListed;return d&&daysBetween(d,today)>=90;}).length;
 
@@ -17519,13 +17574,13 @@ function _renderStockCore(){
           const pct=(sCounts[s.key]/tot)*100;
           if(pct===0)return '';
           const isAct=STOCK_SOURCED_FILTER===s.key;
-          return `<div class="age-bar-seg ${s.cls}${isAct?' active':''}" style="width:${pct}%;background:${s.col};" title="${s.label} (${s.sub}): ${sCounts[s.key]} item${sCounts[s.key]!==1?'s':''} · ${fmt(sCostVal[s.key])}" onclick="setStockSourcedFilter('${s.key}')"></div>`;
+          return `<div data-stock-sourced-filter="${s.key}" class="age-bar-seg ${s.cls}${isAct?' active':''}" style="width:${pct}%;background:${s.col};" title="${s.label} (${s.sub}): ${sCounts[s.key]} item${sCounts[s.key]!==1?'s':''} · ${fmt(sCostVal[s.key])}" onclick="setStockSourcedFilter('${s.key}')"></div>`;
         }).join('');
         const chips=sBuckets.map(b=>{
           const isAct=STOCK_SOURCED_FILTER===b.key;
           const isEmpty=sCounts[b.key]===0;
           const cls='chip chip-'+b.cls+(isAct?' active':'')+(isEmpty?' chip-empty':'');
-          return `<button class="${cls}" ${isEmpty?'disabled':''} onclick="${isEmpty?'':("setStockSourcedFilter('"+b.key+"')")}">${b.label} <span class="chip-count">${sCounts[b.key]}</span></button>`;
+          return `<button data-stock-sourced-filter="${b.key}" class="${cls}" ${isEmpty?'disabled':''} onclick="${isEmpty?'':("setStockSourcedFilter('"+b.key+"')")}">${b.label} <span class="chip-count">${sCounts[b.key]}</span></button>`;
         }).join('');
         // Mobile dropdown for sourced filter
         const curBucket=sBuckets.find(b=>STOCK_SOURCED_FILTER===b.key)||{key:'all',label:'All',col:'var(--muted)'};
@@ -17534,7 +17589,7 @@ function _renderStockCore(){
           const isAct=STOCK_SOURCED_FILTER===k;
           const cnt=k==='all'?_unlistedAgeEntities.length:(sCounts[k]||0);
           const isEmpty=k!=='all'&&cnt===0;
-          return `<button class="filter-pill-dd-opt${isAct?' active':''}${isEmpty?' filter-pill-dd-opt-empty':''}" ${isEmpty?'disabled':''} onclick="${isEmpty?'':("setStockSourcedFilter('"+k+"');closeFilterPill('sfp-sourced')")}"><span class="filter-pill-dd-opt-dot" style="background:${meta.col||'var(--muted)'}"></span>${meta.label}<span class="filter-pill-dd-opt-count">${cnt}</span></button>`;
+          return `<button data-stock-sourced-filter="${k}" class="filter-pill-dd-opt${isAct?' active':''}${isEmpty?' filter-pill-dd-opt-empty':''}" ${isEmpty?'disabled':''} onclick="${isEmpty?'':("setStockSourcedFilter('"+k+"');closeFilterPill('sfp-sourced')")}"><span class="filter-pill-dd-opt-dot" style="background:${meta.col||'var(--muted)'}"></span>${meta.label}<span class="filter-pill-dd-opt-count">${cnt}</span></button>`;
         }).join('');
         const sortOpts=[
           {v:'cost-desc', label:'Highest cost first'},
@@ -17545,7 +17600,7 @@ function _renderStockCore(){
         return `<div class="age-bar-wrap"><div class="age-bar">${barHTML}</div></div>
           <div class="filter-row stock-filter-row" style="margin-bottom:14px;gap:8px;flex-wrap:nowrap;align-items:center;">
             <div class="filter-chips">
-              <button class="chip${STOCK_SOURCED_FILTER==='all'?' active':''}" onclick="setStockSourcedFilter('all')">All <span class="chip-count">${_unlistedAgeEntities.length}</span></button>${chips}
+              <button data-stock-sourced-filter="all" class="chip${STOCK_SOURCED_FILTER==='all'?' active':''}" onclick="setStockSourcedFilter('all')">All <span class="chip-count">${_unlistedAgeEntities.length}</span></button>${chips}
             </div>
             <div class="filter-pill-dd" id="sfp-sourced">
               <div class="filter-pill-dd-backdrop" onclick="closeFilterPill('sfp-sourced')"></div>
@@ -17568,7 +17623,7 @@ function _renderStockCore(){
         const barSegs=segsBar.map(s=>{
           const pct=cAllListed?(s.count/cAllListed)*100:0; if(pct===0)return '';
           const isAct=STOCK_FILTER===s.key;
-          return `<div class="age-bar-seg ${s.key}${isAct?' active':''}" style="width:${pct}%;background:${s.col};" title="${s.label} (${s.sub}): ${s.count} · ${fmt(s.val)}" onclick="setStockFilter('${s.key}')"></div>`;
+          return `<div data-stock-filter="${s.key}" class="age-bar-seg ${s.key}${isAct?' active':''}" style="width:${pct}%;background:${s.col};" title="${s.label} (${s.sub}): ${s.count} · ${fmt(s.val)}" onclick="setStockFilter('${s.key}')"></div>`;
         }).join('');
         const buckets=[
           {key:'all',     label:'All',      count:cAllListed,       dot:'var(--muted)'},
@@ -17579,13 +17634,13 @@ function _renderStockCore(){
         ];
         const chips=buckets.map(b=>{
           const isAct=STOCK_FILTER===b.key; const isEmpty=b.count===0&&b.key!=='all';
-          return `<button class="chip chip-${b.key}${isAct?' active':''}${isEmpty?' chip-empty':''}" ${isEmpty?'disabled':''} onclick="${isEmpty?'':("setStockFilter('"+b.key+"')")}">
+          return `<button data-stock-filter="${b.key}" class="chip chip-${b.key}${isAct?' active':''}${isEmpty?' chip-empty':''}" ${isEmpty?'disabled':''} onclick="${isEmpty?'':("setStockFilter('"+b.key+"')")}">
             ${b.label} <span class="chip-count">${b.count}</span></button>`;
         }).join('');
         const cur=buckets.find(b=>b.key===STOCK_FILTER)||buckets[0];
         const ddOpts=buckets.map(b=>{
           const isAct=STOCK_FILTER===b.key; const isEmpty=b.count===0&&b.key!=='all';
-          return `<button class="filter-pill-dd-opt${isAct?' active':''}${isEmpty?' filter-pill-dd-opt-empty':''}" ${isEmpty?'disabled':''} onclick="${isEmpty?'':("setStockFilter('"+b.key+"');closeFilterPill('sfp-filter')")}">
+          return `<button data-stock-filter="${b.key}" class="filter-pill-dd-opt${isAct?' active':''}${isEmpty?' filter-pill-dd-opt-empty':''}" ${isEmpty?'disabled':''} onclick="${isEmpty?'':("setStockFilter('"+b.key+"');closeFilterPill('sfp-filter')")}">
             <span class="filter-pill-dd-opt-dot" style="background:${b.dot}"></span>${b.label}<span class="filter-pill-dd-opt-count">${b.count}</span></button>`;
         }).join('');
         const sortOpts=[
