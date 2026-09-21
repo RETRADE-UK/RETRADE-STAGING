@@ -4884,7 +4884,7 @@ function _replayDashboardMotionAfterLoading(page){
   if(revealTarget){
     const onEnd=function(ev){
       if(ev.target!==revealTarget)return;
-      if(ev.animationName&&ev.animationName!=='rtHydratedChartReveal')return;
+      if(ev.animationName&&ev.animationName!=='rtHydratedChartReveal'&&ev.animationName!=='rtTruthChartReveal1520')return;
       revealTarget.removeEventListener('animationend',onEnd);
       launch();
     };
