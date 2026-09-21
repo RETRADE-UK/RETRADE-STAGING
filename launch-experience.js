@@ -12,7 +12,7 @@
 (function(){
   'use strict';
 
-  var VERSION='20260921-v1513';
+  var VERSION='20260921-v1514';
   var root=document.documentElement;
   var t0=(window.performance&&performance.now)?performance.now():Date.now();
   var bodyObserver=null;
@@ -54,18 +54,18 @@
     var old=document.getElementById('rt-launch-experience-css');if(old)old.remove();
     var s=document.createElement('style');s.id='rt-launch-experience-css';
     s.textContent=[
-      '@keyframes rtWakeSheen{0%{background-position:180% 0}100%{background-position:-180% 0}}',
+      '@keyframes rtWakeSheen{0%{background-position:155% 0}100%{background-position:-155% 0}}',
       '@keyframes rtWakePulse{from{opacity:.48}to{opacity:.76}}',
       '@keyframes rtWakePage{0%{opacity:.97;transform:translate3d(0,2px,0)}100%{opacity:1;transform:translate3d(0,0,0)}}',
       'html.rt-app-cold .page.on{animation:none!important;}',
       'html.rt-app-cold body.rt-real-layout-loading .rt-label-loading{color:inherit!important;text-shadow:inherit!important;background:none!important;overflow:visible!important;}',
       'html.rt-app-cold body.rt-real-layout-loading .rt-label-loading::after{display:none!important;animation:none!important;}',
-      'html.rt-app-cold body.rt-real-layout-loading .rt-data-loading,html.rt-app-cold body.rt-real-layout-loading .rt-loading-line{background:linear-gradient(100deg,color-mix(in srgb,var(--surface2) 90%,var(--border) 10%) 0%,color-mix(in srgb,var(--surface2) 86%,var(--border) 14%) 39%,color-mix(in srgb,var(--surface2) 95%,var(--text) 5%) 50%,color-mix(in srgb,var(--surface2) 86%,var(--border) 14%) 61%,color-mix(in srgb,var(--surface2) 90%,var(--border) 10%) 100%)!important;background-size:240% 100%!important;animation:rtWakeSheen 2.7s linear infinite!important;}',
+      'html.rt-app-cold body.rt-real-layout-loading .rt-data-loading,html.rt-app-cold body.rt-real-layout-loading .rt-loading-line{background:color-mix(in srgb,var(--surface2) 90%,var(--border) 10%)!important;background-image:none!important;animation:none!important;}',
       'html.rt-app-cold body.rt-real-layout-loading .rt-chart-loading::after,html.rt-app-cold body.rt-real-layout-loading .cat-donut-chart::before,html.rt-app-cold body.rt-real-layout-loading .cat-donut-legend::before{animation:none!important;}',
-      'html.rt-app-cold body.rt-real-layout-loading .rt-chart-loading::after{opacity:.22!important;background:linear-gradient(100deg,transparent 24%,color-mix(in srgb,var(--text) 3.25%,transparent) 50%,transparent 76%)!important;background-size:240% 100%!important;animation:rtWakeSheen 2.7s linear infinite!important;}',
-      'html.rt-app-cold body.rt-launch-long.rt-real-layout-loading .rt-data-loading,html.rt-app-cold body.rt-launch-long.rt-real-layout-loading .rt-loading-line{animation:rtWakeSheen 2.7s linear infinite!important;}',
-      'html.rt-app-cold body.rt-launch-long.rt-real-layout-loading .rt-chart-loading::after{animation:rtWakeSheen 2.7s linear infinite!important;opacity:.22!important;}',
-      'html.rt-app-cold body.rt-launch-long.rt-real-layout-loading .cat-donut-chart::before{animation:rtDonutSkeletonSpin 3.2s linear infinite!important;}html.rt-app-cold body.rt-launch-long.rt-real-layout-loading .cat-donut-legend::before{animation:none!important;opacity:.78!important;}',
+      'html.rt-app-cold body.rt-real-layout-loading .rt-chart-loading::after{opacity:.18!important;background:linear-gradient(100deg,transparent 25%,color-mix(in srgb,var(--text) 2.25%,transparent) 50%,transparent 75%)!important;background-size:240% 100%!important;animation:rtWakeSheen 3.4s linear infinite!important;}',
+      'html.rt-app-cold body.rt-launch-long.rt-real-layout-loading .rt-data-loading,html.rt-app-cold body.rt-launch-long.rt-real-layout-loading .rt-loading-line{animation:none!important;}',
+      'html.rt-app-cold body.rt-launch-long.rt-real-layout-loading .rt-chart-loading::after{animation:rtWakeSheen 3.4s linear infinite!important;opacity:.18!important;}',
+      'html.rt-app-cold body.rt-launch-long.rt-real-layout-loading .cat-donut-chart::before{animation:rtDonutSkeletonSpin 3.8s linear infinite!important;}html.rt-app-cold body.rt-launch-long.rt-real-layout-loading .cat-donut-legend::before{animation:none!important;opacity:.78!important;}',
       'body.rt-launch-waking.rt-real-layout-revealing .page.on{animation:rtWakePage 190ms cubic-bezier(.22,.61,.36,1) both!important;}',
       'body.rt-launch-waking.rt-real-layout-revealing .rt-data-reveal,body.rt-launch-waking.rt-real-layout-revealing .rt-chart-reveal{filter:none!important;animation:none!important;transform:none!important;}',
       'body.rt-launch-waking.rt-real-layout-revealing .rt-loading-overlay-exit{transition:opacity 145ms cubic-bezier(.22,.61,.36,1)!important;}',
