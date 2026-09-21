@@ -14444,7 +14444,7 @@ function _getFYLabelHTML(fyStart){
 
 function toggleFYSection(fyStart){
   _fyCollapsed[fyStart]=!_fyCollapsed[fyStart];
-  _queueInteractionRender(renderMonthlyGrid);
+  renderMonthlyGrid();
 }
 
 
@@ -14527,8 +14527,8 @@ function setMonthlyPeriod(v){
   // renderMonthlyGrid() rebuilds the header/select and ends by calling
   // renderMonthlyProfitabilityChart(), which in turn re-renders the money-flow
   // panel — so the chart, the panel and the FY groups can never disagree.
-  if(MONTHLY_VIEW==='grid')_queueInteractionRender(renderMonthlyGrid);
-  else _queueInteractionRender(renderMonthlyProfitabilityChart);
+  if(MONTHLY_VIEW==='grid')renderMonthlyGrid();
+  else renderMonthlyProfitabilityChart();
 }
 
 function _monthlyPeriodSelectHTML(){
@@ -14928,9 +14928,9 @@ function setMonthFilter(f){
   MONTH_FILTER=f;
   // Session B: all monthly views are sale-history; default sort is date-sold.
   if(MONTH_SORT==='date-listed')MONTH_SORT='date-sold';
-  _queueInteractionRender(renderMonth);
+  renderMonth();
 }
-function setMonthSort(s){MONTH_SORT=s;_queueInteractionRender(renderMonth);}
+function setMonthSort(s){MONTH_SORT=s;renderMonth();}
 
 function renderMonth(){
   const m=SELECTED_MONTH;
@@ -15825,10 +15825,10 @@ async function bulkAction(action){
 }
 
 // STOCK PAGE
-function setStockSort(s){STOCK_SORT=s;_saveUIState();_queueInteractionRender(renderStock);}
-function setStockFilter(f){STOCK_FILTER=f;_saveUIState();_queueInteractionRender(renderStock);}
+function setStockSort(s){STOCK_SORT=s;_saveUIState();renderStock();}
+function setStockFilter(f){STOCK_FILTER=f;_saveUIState();renderStock();}
 // Patch A — sourced-age bucket filter setter
-function setStockSourcedFilter(f){STOCK_SOURCED_FILTER=f;_queueInteractionRender(renderStock);}
+function setStockSourcedFilter(f){STOCK_SOURCED_FILTER=f;renderStock();}
 // v1.01 — Inventory population filter. Backend `sourced` remains canonical
 // for compatibility; the operating UI calls that queue “Unlisted”.
 function setStockStateFilter(f){
@@ -15841,10 +15841,10 @@ function setStockStateFilter(f){
   if(f==='sourced'&&!['cost-desc','days-desc','days-asc'].includes(STOCK_SORT))STOCK_SORT='days-desc';
   if((f==='returned'||f==='all')&&!['cost-desc','days-desc','days-asc'].includes(STOCK_SORT))STOCK_SORT='days-desc';
   if(f==='listed'&&STOCK_SORT==='cost-desc')STOCK_SORT='days-asc';
-  _queueInteractionRender(renderStock);
+  renderStock();
   _saveUIState();
 }
-function toggleStockGrouped(){STOCK_GROUPED=!STOCK_GROUPED;_saveUIState();_queueInteractionRender(renderStock);}
+function toggleStockGrouped(){STOCK_GROUPED=!STOCK_GROUPED;_saveUIState();renderStock();}
 // F7: Toggle a specific month group collapsed/expanded
 function toggleStockGroup(key){
   const collapsed=!STOCK_COLLAPSED.has(key);
@@ -17886,7 +17886,7 @@ function _updateCashflowResults(){
   if(results)results.innerHTML=_cashflowLedgerHTML(led,state.filtered);
 }
 function _scheduleCashflowResultsUpdate(afterPaint){
-  _queueInteractionRender(_updateCashflowResults);
+  _updateCashflowResults();
 }
 function setCashflowFilter(key,value){
   if(key==='direction')_cashflowDirection=value||'all';

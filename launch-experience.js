@@ -13,7 +13,7 @@
 (function(){
   'use strict';
 
-  var VERSION=String(window.__rtBuildId||'20260921-v1535');
+  var VERSION=String(window.__rtBuildId||'20260921-v1536');
   var root=document.documentElement;
   var t0=(window.performance&&performance.now)?performance.now():Date.now();
   var bodyObserver=null;

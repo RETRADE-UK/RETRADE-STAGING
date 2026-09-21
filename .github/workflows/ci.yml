@@ -184,3 +184,24 @@ jobs:
 
           print('Frame-zero launch and Dashboard filter invariants passed')
           PY
+
+
+      - name: Local filter responsiveness invariants
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          core=Path('app-core.js').read_text(encoding='utf-8')
+          names=(
+              'setSummaryPeriod','setMonthlyPeriod','setMonthFilter','setMonthSort',
+              'setStockSort','setStockFilter','setStockSourcedFilter','setStockStateFilter',
+              'toggleStockGrouped','_scheduleCashflowResultsUpdate'
+          )
+          for name in names:
+              start=core.find('function '+name+'(')
+              assert start!=-1, f'{name} missing'
+              nxt=core.find('\nfunction ',start+10)
+              block=core[start:nxt if nxt!=-1 else start+2500]
+              assert '_queueInteractionRender' not in block, f'{name} is artificially deferred again'
+          print('Local filter responsiveness invariants passed')
+          PY
