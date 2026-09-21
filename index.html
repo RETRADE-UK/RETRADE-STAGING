@@ -19,6 +19,9 @@
 <script id="rt-theme-first-paint">
 (function(){
   var root=document.documentElement;
+  root.classList.add('rt-launch-sealed');
+  try{window.__rtLaunchSourceAt=(window.performance&&performance.now)?performance.now():Date.now();}catch(_e){}
+  setTimeout(function(){root.classList.remove('rt-launch-sealed');},6000);
   var resolved='light';
   try{
     var pref=localStorage.getItem('rt-theme');
@@ -40,37 +43,26 @@
 </script>
 
 <style id="rt-launch-first-frame-style">
-/* v1.5.34: frame-zero launch ownership. Nothing in the app can visibly paint
-   before this full-viewport plate because it is part of the source HTML. */
-#rt-launch-brand{
-  --brand:#F2B33D;
-  --text-primary:#172033;
-  position:fixed;inset:0;z-index:13050;display:grid;place-items:center;
-  background:#eef1f7;opacity:1;pointer-events:auto;contain:strict;
-  transition:opacity 160ms ease-out;
-}
-html[data-theme="dark"] #rt-launch-brand{--text-primary:#f4f5f7;background:#0f1724;}
-#rt-launch-brand.rt-launch-brand-out{opacity:0;pointer-events:none;}
-#rt-launch-brand .rt-launch-lockup{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:18px;opacity:0;animation:rtLaunchLockupIn1534 180ms ease-out 35ms both;
-}
-#rt-launch-brand .rt-launch-mark{display:block;width:72px;height:84px;}
-#rt-launch-brand .rt-launch-word{
-  font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  font-size:25px;font-weight:900;font-style:italic;letter-spacing:.035em;
-  line-height:1;color:var(--text-primary);white-space:nowrap;
-}
-#rt-launch-brand .rt-launch-word span{color:var(--brand);}
-@keyframes rtLaunchLockupIn1534{from{opacity:0}to{opacity:1}}
-@media(max-width:600px){
-  #rt-launch-brand .rt-launch-mark{width:64px;height:75px}
-  #rt-launch-brand .rt-launch-word{font-size:22px}
-}
-@media(prefers-reduced-motion:reduce){
-  #rt-launch-brand{transition:none!important}
-  #rt-launch-brand .rt-launch-lockup{animation:none!important;opacity:1!important}
-}
+html.rt-launch-sealed body > *:not(#rt-launch-brand):not(#rt-brand-symbols){visibility:hidden!important}
+#rt-launch-brand{--brand:#F2B33D;--text-primary:#172033;position:fixed;inset:0;z-index:13050;display:grid;place-items:center;background:#eef1f7;opacity:1;pointer-events:auto;contain:strict;transition:opacity 170ms ease-out}
+html[data-theme="dark"] #rt-launch-brand{--text-primary:#f4f5f7;background:#0f1724}
+#rt-launch-brand.rt-launch-brand-out{opacity:0;pointer-events:none}
+#rt-launch-brand.rt-launch-brand-dormant{visibility:hidden!important;opacity:0!important;pointer-events:none!important}
+#rt-launch-brand .rt-launch-lockup{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;perspective:900px;transform-style:preserve-3d}
+#rt-launch-brand .rt-launch-mark-wrap{position:relative;display:block;width:72px;height:84px;opacity:0;transform-style:preserve-3d;will-change:transform,opacity;animation:rtLaunchShieldArc1537 720ms cubic-bezier(.16,.78,.22,1) 34ms both}
+#rt-launch-brand .rt-launch-mark-wrap::after{content:"";position:absolute;inset:-34%;z-index:-1;border-radius:50%;background:radial-gradient(circle,rgba(242,179,61,.24) 0%,rgba(242,179,61,.08) 40%,rgba(242,179,61,0) 72%);opacity:0;transform:scale(.62);animation:rtLaunchShieldImpact1537 330ms ease-out 485ms both}
+#rt-launch-brand .rt-launch-mark{display:block;width:100%;height:100%;filter:drop-shadow(0 10px 20px rgba(0,0,0,.11))}
+#rt-launch-brand .rt-launch-word{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:25px;font-weight:900;font-style:italic;letter-spacing:.035em;line-height:1;color:var(--text-primary);white-space:nowrap;opacity:0;clip-path:inset(0 100% 0 0);transform:translate3d(0,7px,0);animation:rtLaunchWordReveal1537 285ms cubic-bezier(.22,.61,.36,1) 515ms both}
+#rt-launch-brand .rt-launch-word span{color:var(--brand)}
+#rt-launch-brand.rt-launch-brand-out .rt-launch-lockup{opacity:.92;transform:scale(1.012);transition:opacity 170ms ease-out,transform 170ms ease-out}
+#rt-launch-brand.rt-launch-snapshot{visibility:visible!important;opacity:1!important;pointer-events:none!important;transition:none!important}
+#rt-launch-brand.rt-launch-snapshot .rt-launch-mark-wrap,#rt-launch-brand.rt-launch-snapshot .rt-launch-word{animation:none!important;opacity:1!important;transform:none!important;clip-path:none!important}
+#rt-launch-brand.rt-launch-snapshot .rt-launch-mark-wrap::after{animation:none!important;opacity:0!important}
+@keyframes rtLaunchShieldArc1537{0%{opacity:0;transform:translate3d(-46vw,18vh,0) scale(.24) rotateY(-100deg) rotateZ(-24deg)}14%{opacity:1}56%{opacity:1;transform:translate3d(-8vw,-7vh,0) scale(.78) rotateY(-38deg) rotateZ(9deg)}79%{opacity:1;transform:translate3d(1.6vw,1.1vh,0) scale(1.075) rotateY(8deg) rotateZ(-2deg)}100%{opacity:1;transform:translate3d(0,0,0) scale(1) rotateY(0) rotateZ(0)}}
+@keyframes rtLaunchShieldImpact1537{0%{opacity:0;transform:scale(.62)}38%{opacity:1}100%{opacity:0;transform:scale(1.22)}}
+@keyframes rtLaunchWordReveal1537{0%{opacity:0;clip-path:inset(0 100% 0 0);transform:translate3d(0,7px,0);letter-spacing:.13em}100%{opacity:1;clip-path:inset(0 0 0 0);transform:translate3d(0,0,0);letter-spacing:.035em}}
+@media(max-width:600px){#rt-launch-brand .rt-launch-mark-wrap{width:64px;height:75px}#rt-launch-brand .rt-launch-word{font-size:22px}}
+@media(prefers-reduced-motion:reduce){#rt-launch-brand{transition:none!important}#rt-launch-brand .rt-launch-mark-wrap,#rt-launch-brand .rt-launch-word{animation:none!important;opacity:1!important;transform:none!important;clip-path:none!important}#rt-launch-brand .rt-launch-mark-wrap::after{animation:none!important;display:none!important}}
 </style>
 
 <!-- App icon v2.19.25 — there was NO icon of any kind here: no apple-touch-icon,
@@ -104,7 +96,7 @@ html[data-theme="dark"] #rt-launch-brand{--text-primary:#f4f5f7;background:#0f17
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <!-- V2 Session 4a: Chart.js removed — dashboard chart is hand-rolled SVG -->
 <link rel="stylesheet" href="./app.css?v=1.4.37">
-<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./skeleton-motion-polish-v1512.css?v=1.5.36-staging-g1">
+<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./skeleton-motion-polish-v1512.css?v=1.5.37-staging-g1">
 
 <style id="retrade-v145-sync-float">
 /* v1.4.5: global sync state is an overlay, never a header layout participant. */
@@ -236,7 +228,7 @@ html[data-theme="dark"] #rt-launch-brand{--text-primary:#f4f5f7;background:#0f17
      broken 20x18 did -- the 6px is purely the tip and swoosh that were missing,
      so the fix restores the artwork without re-opening the agreed size.
      If the wordmark size ever changes, re-derive: mark_h = (cap * 1.13) / 0.508. -->
-<svg width="0" height="0" style="position:absolute;pointer-events:none;" aria-hidden="true" focusable="false">
+<svg id="rt-brand-symbols" width="0" height="0" style="position:absolute;pointer-events:none;" aria-hidden="true" focusable="false">
   <symbol id="rt-mark" viewBox="0 0 811 946">
     <g transform="translate(0,946) scale(0.1,-0.1)">
       <path fill="var(--brand)" d="M3825 9371 c-305 -110 -738 -264 -1765 -628 -537 -190 -1013 -359
@@ -276,7 +268,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 
 <div id="rt-launch-brand" aria-hidden="true">
   <div class="rt-launch-lockup">
-    <svg class="rt-launch-mark" viewBox="0 0 811 946" aria-hidden="true" focusable="false"><use href="#rt-mark"/></svg>
+    <span class="rt-launch-mark-wrap"><svg class="rt-launch-mark" viewBox="0 0 811 946" aria-hidden="true" focusable="false"><use href="#rt-mark"/></svg></span>
     <div class="rt-launch-word">RE<span>TRADE</span></div>
   </div>
 </div>
@@ -1092,7 +1084,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 <script src="./accounting.js?v=1.4.11"></script>
 <script src="./reports.js?v=1.4.8"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.js" integrity="sha384-OUpie84zd1LdwNlK9uJJQRwab0BLqo3eKYKFh7hSVL58FSk7wPp2l0kfUMIIoaQd" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="./app.js?v=1.5.36-staging-g1"></script>
+<script src="./app.js?v=1.5.37-staging-g1"></script>
 
 <!-- RETRADE dashboard spacing cleanup: mobile/tablet/narrow-desktop rhythm v3 - 2026-06-29 -->
 </body>
