@@ -1,155 +1,179 @@
-/* RETRADE launch experience — v1.5.20
+/* RETRADE cold-start / wake coordinator v1.5.31
  *
- * Premium startup pipeline:
- *   brand plate -> (only if the wait is real) exact-layout skeleton -> truth reveal
+ * Launch principle: the real responsive application renders underneath its own
+ * loading state and is only revealed when BOTH contracts are true:
+ *   1) the cloud/database load has finished and the final page render returned;
+ *   2) the presentation/motion stack is installed and ready to start.
  *
- * The branded plate covers cold-start initialization. If hydration is quick it
- * dissolves directly into truthful content, so users never see a 100 ms skeleton
- * flash. If hydration is slower it hands off once to the real component skeleton.
- * The final reveal waits briefly for the motion stack, guaranteeing first-load
- * Dashboard/Sales chart motion is installed before the masks leave.
+ * This prevents a first-load flash of zero/default values and prevents chart
+ * animation from running underneath the skeleton before the user can see it.
+ * No accounting, lifecycle, sync writes, auth state, forecast maths or Supabase
+ * schema/data is changed by this file.
  */
 (function(){
   'use strict';
 
-  var VERSION=String(window.__rtBuildId||'20260921-v1520');
-  var BRAND_MIN_MS=420;
-  var BRAND_TO_SKELETON_MS=560;
-  var BRAND_FADE_MS=180;
-  var MOTION_WAIT_MAX_MS=900;
-
+  var VERSION=String(window.__rtBuildId||'20260921-v1533');
   var root=document.documentElement;
   var t0=(window.performance&&performance.now)?performance.now():Date.now();
   var bodyObserver=null;
+  var longTimer=0;
+  var releaseTimer=0;
   var loadingSeen=false;
   var revealingSeen=false;
   var readySeen=false;
   var lastLoading=false;
   var lastRevealing=false;
   var warmScheduled=false;
-  var brandEl=null;
-  var brandShownAt=0;
-  var brandTimer=0;
-  var finishRequested=false;
-  var motionReady=!!window.__rtMotionStackReady;
+  var brandEl=null,brandShownAt=0,brandTimer=0,finishRequested=false;
+  var BRAND_MIN_MS=420,BRAND_TO_SKELETON_MS=560,BRAND_FADE_MS=180;
 
   root.classList.add('rt-app-cold');
 
   var perf=window.__rtLaunchPerf=window.__rtLaunchPerf||{};
-  perf.version=VERSION;perf.startedAt=t0;perf.shellAt=null;perf.revealAt=null;perf.readyAt=null;
-  perf.fcp=null;perf.longTasks=0;perf.longTaskMs=0;perf.loaderLongPhase=false;
-  perf.bootHoldPatched=false;perf.finishRequestedAt=null;perf.finishReleasedAt=null;
-  perf.dataReadyAt=null;perf.motionReadyAt=null;perf.dataReadyRetries=0;perf.dataReadyWaitMs=0;
+  perf.version=VERSION;
+  perf.startedAt=t0;
+  perf.shellAt=null;
+  perf.revealAt=null;
+  perf.readyAt=null;
+  perf.fcp=null;
+  perf.longTasks=0;
+  perf.longTaskMs=0;
+  perf.loaderLongPhase=false;
+  perf.bootHoldPatched=false;
+  perf.finishRequestedAt=null;
+  perf.finishReleasedAt=null;
+  perf.dataReadyAt=null;
+  perf.motionReadyAt=null;
+  perf.bootQuietWaitMs=0;
+  perf.bootQuietRetries=0;
   perf.brandShownAt=null;perf.brandDismissedAt=null;perf.brandHandoff=null;
 
   function stamp(){return ((window.performance&&performance.now)?performance.now():Date.now())-t0;}
   function clock(){return (window.performance&&performance.now)?performance.now():Date.now();}
-  function reduced(){try{return !!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(_){return false;}}
+  function reducedMotion(){
+    try{return !!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(_){return false;}
+  }
 
   function installStyles(){
     var old=document.getElementById('rt-launch-experience-css');if(old)old.remove();
     var s=document.createElement('style');s.id='rt-launch-experience-css';
     s.textContent='\
-html.rt-app-cold .page.on{animation:none!important}\
-#rt-launch-brand{position:fixed;inset:0;z-index:13050;display:grid;place-items:center;background:var(--bg);opacity:1;pointer-events:auto;transition:opacity '+BRAND_FADE_MS+'ms ease-out;contain:strict}\
-#rt-launch-brand.rt-launch-brand-out{opacity:0;pointer-events:none}\
-#rt-launch-brand .rt-launch-lockup{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;opacity:0;animation:rtLaunchLockupIn 180ms ease-out 35ms both}\
-#rt-launch-brand .rt-launch-mark{display:block;width:72px;height:84px}\
-#rt-launch-brand .rt-launch-word{font-family:var(--font-body);font-size:25px;font-weight:900;font-style:italic;letter-spacing:.035em;line-height:1;color:var(--text-primary);white-space:nowrap}\
-#rt-launch-brand .rt-launch-word span{color:var(--brand)}\
-@keyframes rtLaunchLockupIn{from{opacity:0}to{opacity:1}}\
-body.rt-launch-waking.rt-real-layout-revealing .rt-data-reveal,body.rt-launch-waking.rt-real-layout-revealing .rt-chart-reveal{filter:none!important;transform:none!important}\
-html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!important}\
-@media(max-width:600px){#rt-launch-brand .rt-launch-mark{width:64px;height:75px}#rt-launch-brand .rt-launch-word{font-size:22px;letter-spacing:.03em}}\
-@media(prefers-reduced-motion:reduce){#rt-launch-brand{transition:none!important}#rt-launch-brand .rt-launch-lockup{animation:none!important;opacity:1!important}html.rt-app-cold .page.on{animation:none!important}}';
+@keyframes rtWakeSheen{0%{background-position:185% 0}100%{background-position:-85% 0}}\
+@keyframes rtWakePulse{from{opacity:.48}to{opacity:.76}}\
+html.rt-app-cold .page.on{animation:none!important;}\
+html.rt-app-cold body.rt-real-layout-loading .rt-label-loading{color:inherit!important;text-shadow:inherit!important;background:none!important;overflow:visible!important;}\
+html.rt-app-cold body.rt-real-layout-loading .rt-label-loading::after{display:none!important;animation:none!important;}\
+/* Cold start keeps the core real-layout skeleton styling continuous from first paint. */\
+/* Cold boot uses the same local reveal philosophy as normal navigation: no whole-page translate. */\
+body.rt-launch-waking.rt-real-layout-revealing .page.on{animation:none!important;transform:none!important;}\
+body.rt-launch-waking.rt-real-layout-revealing .rt-loading-overlay-exit{transition:opacity 150ms cubic-bezier(.22,.61,.36,1)!important;}\
+html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!important;}\
+@media(prefers-reduced-motion:reduce){\
+ html.rt-app-cold body.rt-real-layout-loading .rt-data-loading,html.rt-app-cold body.rt-real-layout-loading .rt-loading-line,html.rt-app-cold body.rt-real-layout-loading .rt-chart-loading::after,html.rt-app-cold body.rt-real-layout-loading .cat-donut-chart::before,html.rt-app-cold body.rt-real-layout-loading .cat-donut-legend::before{animation:none!important;}\
+ body.rt-launch-waking.rt-real-layout-revealing .page.on{animation:none!important;transform:none!important;opacity:1!important;}\
+ body.rt-launch-waking.rt-real-layout-revealing .rt-loading-overlay-exit{transition:none!important;opacity:0!important;}\
+}\
+';
     document.head.appendChild(s);
   }
   installStyles();
+  installBrandStyles();
+  if(document.body)createBrand();else document.addEventListener('DOMContentLoaded',createBrand,{once:true});
 
+  function installBrandStyles(){
+    if(document.getElementById('rt-launch-brand-style'))return;
+    var s=document.createElement('style');s.id='rt-launch-brand-style';
+    s.textContent='\
+#rt-launch-brand{position:fixed;inset:0;z-index:13050;display:grid;place-items:center;background:var(--bg);opacity:1;pointer-events:auto;transition:opacity 180ms ease-out;contain:strict}\
+#rt-launch-brand.rt-launch-brand-out{opacity:0;pointer-events:none}\
+#rt-launch-brand .rt-launch-lockup{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;opacity:0;animation:rtLaunchLockupIn1531 180ms ease-out 35ms both}\
+#rt-launch-brand .rt-launch-mark{display:block;width:72px;height:84px}\
+#rt-launch-brand .rt-launch-word{font-family:var(--font-body);font-size:25px;font-weight:900;font-style:italic;letter-spacing:.035em;line-height:1;color:var(--text-primary);white-space:nowrap}\
+#rt-launch-brand .rt-launch-word span{color:var(--brand)}\
+@keyframes rtLaunchLockupIn1531{from{opacity:0}to{opacity:1}}\
+@media(max-width:600px){#rt-launch-brand .rt-launch-mark{width:64px;height:75px}#rt-launch-brand .rt-launch-word{font-size:22px}}\
+@media(prefers-reduced-motion:reduce){#rt-launch-brand{transition:none!important}#rt-launch-brand .rt-launch-lockup{animation:none!important;opacity:1!important}}';
+    document.head.appendChild(s);
+  }
   function createBrand(){
     if(brandEl||!document.body)return;
-    brandEl=document.createElement('div');
-    brandEl.id='rt-launch-brand';
-    brandEl.setAttribute('aria-hidden','true');
+    brandEl=document.createElement('div');brandEl.id='rt-launch-brand';brandEl.setAttribute('aria-hidden','true');
     brandEl.innerHTML='<div class="rt-launch-lockup"><svg class="rt-launch-mark" viewBox="0 0 811 946" aria-hidden="true"><use href="#rt-mark"></use></svg><div class="rt-launch-word">RE<span>TRADE</span></div></div>';
-    document.body.appendChild(brandEl);
-    brandShownAt=clock();perf.brandShownAt=stamp();
-    document.body.classList.add('rt-brand-launching');
+    document.body.appendChild(brandEl);brandShownAt=clock();perf.brandShownAt=stamp();
   }
-
   function removeBrand(mode){
-    if(!brandEl)return;
-    if(brandTimer){clearTimeout(brandTimer);brandTimer=0;}
-    var el=brandEl;brandEl=null;
-    perf.brandHandoff=mode||'content';perf.brandDismissedAt=stamp();
-    document.body.classList.remove('rt-brand-launching');
-    if(reduced()){if(el.parentNode)el.remove();return;}
-    el.classList.add('rt-launch-brand-out');
-    setTimeout(function(){if(el&&el.parentNode)el.remove();},BRAND_FADE_MS+40);
+    if(!brandEl)return;if(brandTimer){clearTimeout(brandTimer);brandTimer=0;}
+    var el=brandEl;brandEl=null;perf.brandHandoff=mode||'content';perf.brandDismissedAt=stamp();
+    if(reducedMotion()){if(el.parentNode)el.remove();return;}
+    el.classList.add('rt-launch-brand-out');setTimeout(function(){if(el&&el.parentNode)el.remove();},BRAND_FADE_MS+40);
   }
-
   function scheduleBrandToSkeleton(){
     if(brandTimer)clearTimeout(brandTimer);
-    brandTimer=setTimeout(function(){
-      brandTimer=0;
-      var b=document.body;
-      // If hydration has already finished, keep the clean brand plate until the
-      // final content reveal instead of flashing a skeleton for a few frames.
-      if(!finishRequested&&b&&b.classList.contains('rt-real-layout-loading'))removeBrand('skeleton');
-    },BRAND_TO_SKELETON_MS);
+    var remaining=brandShownAt?Math.max(0,(brandShownAt+BRAND_TO_SKELETON_MS)-clock()):BRAND_TO_SKELETON_MS;
+    brandTimer=setTimeout(function(){brandTimer=0;var b=document.body;if(!finishRequested&&b&&b.classList.contains('rt-real-layout-loading'))removeBrand('skeleton');},remaining);
+  }
+  function authVisible(){
+    var el=document.getElementById('auth-overlay');if(!el)return false;
+    try{return getComputedStyle(el).display!=='none'&&getComputedStyle(el).visibility!=='hidden';}catch(_){return el.style.display!=='none';}
   }
 
   try{
     if('PerformanceObserver' in window){
       try{
-        var po=new PerformanceObserver(function(list){list.getEntries().forEach(function(e){if(e.name==='first-contentful-paint'&&perf.fcp==null)perf.fcp=e.startTime;});});
-        po.observe({type:'paint',buffered:true});
+        var paintObserver=new PerformanceObserver(function(list){
+          list.getEntries().forEach(function(e){if(e.name==='first-contentful-paint'&&perf.fcp==null)perf.fcp=e.startTime;});
+        });
+        paintObserver.observe({type:'paint',buffered:true});
       }catch(_){}
       try{
-        var lo=new PerformanceObserver(function(list){if(readySeen)return;list.getEntries().forEach(function(e){perf.longTasks++;perf.longTaskMs+=Number(e.duration)||0;});});
-        lo.observe({type:'longtask',buffered:true});
+        var longObserver=new PerformanceObserver(function(list){
+          if(readySeen)return;
+          list.getEntries().forEach(function(e){perf.longTasks++;perf.longTaskMs+=Number(e.duration)||0;});
+        });
+        longObserver.observe({type:'longtask',buffered:true});
       }catch(_){}
     }
   }catch(_){}
 
+  function clearLongTimer(){if(longTimer){clearTimeout(longTimer);longTimer=0;}}
   function scheduleStaticWarm(){
     if(warmScheduled)return;warmScheduled=true;
     var run=function(){
       try{
         if(!('serviceWorker' in navigator))return;
         navigator.serviceWorker.ready.then(function(reg){
-          try{var target=navigator.serviceWorker.controller||(reg&&reg.active);if(target)target.postMessage({type:'RT_WARM_STATIC',build:VERSION});}catch(_){}
+          try{if(reg&&reg.active)reg.active.postMessage({type:'RT_WARM_STATIC',build:window.__rtBuildId||VERSION});}catch(_){}
         }).catch(function(){});
       }catch(_){}
     };
-    try{if('requestIdleCallback' in window){requestIdleCallback(run,{timeout:1800});return;}}catch(_){}
+    try{
+      if('requestIdleCallback' in window){requestIdleCallback(run,{timeout:1800});return;}
+    }catch(_){}
     setTimeout(run,850);
   }
-
   function beginLoading(body){
     if(loadingSeen)return;
-    loadingSeen=true;perf.shellAt=stamp();
-    body.classList.add('rt-launch-shell');
+    loadingSeen=true;perf.shellAt=stamp();body.classList.add('rt-launch-shell');
     createBrand();scheduleBrandToSkeleton();
+    clearLongTimer();
   }
   function beginReveal(body){
     if(revealingSeen)return;
-    revealingSeen=true;perf.revealAt=stamp();
-    body.classList.add('rt-launch-waking');
+    revealingSeen=true;perf.revealAt=stamp();clearLongTimer();
+    body.classList.remove('rt-launch-long');body.classList.add('rt-launch-waking');
     removeBrand('content');
+    // Motion owners arm while hidden and start from zero exactly as the real
+    // loading surface begins its handoff. This event is boot-only.
     try{window.dispatchEvent(new CustomEvent('retrade:boot-reveal',{detail:{at:perf.revealAt}}));}catch(_){}
   }
   function finishWake(body){
     if(readySeen)return;
-    readySeen=true;perf.readyAt=stamp();
-    body.classList.remove('rt-launch-shell');
-    removeBrand('content');
-    setTimeout(function(){
-      body.classList.remove('rt-launch-waking');
-      root.classList.remove('rt-app-cold','rt-motion-prep');
-      root.classList.add('rt-app-awake');
-      scheduleStaticWarm();
-    },reduced()?0:220);
+    readySeen=true;perf.readyAt=stamp();clearLongTimer();body.classList.remove('rt-launch-long','rt-launch-shell');removeBrand('content');
+    if(releaseTimer)clearTimeout(releaseTimer);
+    releaseTimer=setTimeout(function(){
+      body.classList.remove('rt-launch-waking');root.classList.remove('rt-app-cold');root.classList.add('rt-app-awake');releaseTimer=0;scheduleStaticWarm();
+    },reducedMotion()?0:235);
   }
   function inspectBody(body){
     if(!body)return;
@@ -165,78 +189,155 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
     if(!body){requestAnimationFrame(observeBody);return;}
     inspectBody(body);
     try{bodyObserver=new MutationObserver(function(){inspectBody(body);});bodyObserver.observe(body,{attributes:true,attributeFilter:['class']});}catch(_){}
-    setTimeout(function(){
-      if(!loadingSeen&&!readySeen){
-        readySeen=true;removeBrand('fallback');root.classList.remove('rt-app-cold','rt-motion-prep');root.classList.add('rt-app-awake');scheduleStaticWarm();
-      }
-    },5000);
+    var auth=document.getElementById('auth-overlay');
+    if(auth){try{var ao=new MutationObserver(function(){if(!loadingSeen&&authVisible()){removeBrand('auth');root.classList.remove('rt-app-cold');root.classList.add('rt-app-awake');try{ao.disconnect();}catch(_){}}});ao.observe(auth,{attributes:true,attributeFilter:['style','class']});if(authVisible()){removeBrand('auth');root.classList.remove('rt-app-cold');root.classList.add('rt-app-awake');}}catch(_){}}
+    setTimeout(function(){if(!loadingSeen&&!readySeen){readySeen=true;removeBrand('fallback');root.classList.remove('rt-app-cold');root.classList.add('rt-app-awake');scheduleStaticWarm();}},4200);
   }
   observeBody();
 
-  function dataLoadFinished(){try{if(typeof _dbLoading!=='undefined'&&_dbLoading)return false;}catch(_){}return true;}
+  function dataLoadFinished(){
+    try{
+      if(typeof _dbLoading!=='undefined'&&_dbLoading)return false;
+    }catch(_){}
+    return true;
+  }
+  function motionStackReady(){
+    try{
+      if(window.__rtMotionStackReady===false)return false;
+      if(root.classList.contains('rt-motion-prep'))return false;
+    }catch(_){}
+    return true;
+  }
 
+  /* Cold start now follows the same contract as route loading:
+     one visible skeleton remains authoritative until data, presentation code and
+     the final active-page DOM have all settled. */
   window.__rtInstallLaunchCoreHooks=function(){
     try{
       if(typeof finishRealLayoutLoading!=='function')return false;
       if(finishRealLayoutLoading.__rtWakeWrapped)return true;
 
       var baseFinish=finishRealLayoutLoading;
-      var pending=null,releaseScheduled=false,released=false,readinessTimer=0;
-      var readinessWaitStartedAt=0,motionWaitStartedAt=0;
+      var pending=null;
+      var released=false;
+      var releaseScheduled=false;
+      var retryTimer=0;
+      var quietObserver=null;
+      var quietPage=null;
+      var quietStartedAt=0;
+      var lastMutationAt=(window.performance&&performance.now)?performance.now():Date.now();
+      var QUIET_MS=110;
+      var MAX_QUIET_WAIT=1800;
 
-      function clearTimer(){if(readinessTimer){clearTimeout(readinessTimer);readinessTimer=0;}}
+      function absNow(){return (window.performance&&performance.now)?performance.now():Date.now();}
+      function clearRetry(){if(retryTimer){clearTimeout(retryTimer);retryTimer=0;}}
+      function disconnectQuiet(){if(quietObserver){try{quietObserver.disconnect();}catch(_){}quietObserver=null;}quietPage=null;}
+
+      function armQuietObserver(){
+        var page=document.querySelector('.page.on');
+        if(page===quietPage&&quietObserver)return;
+        disconnectQuiet();
+        quietPage=page||null;
+        lastMutationAt=absNow();
+        if(!quietPage)return;
+        try{
+          quietObserver=new MutationObserver(function(muts){
+            for(var i=0;i<muts.length;i++){
+              var m=muts[i];
+              if(m.type==='characterData'||
+                 (m.type==='childList'&&((m.addedNodes&&m.addedNodes.length)||(m.removedNodes&&m.removedNodes.length)))||
+                 m.type==='attributes'){
+                lastMutationAt=absNow();
+                break;
+              }
+            }
+          });
+          quietObserver.observe(quietPage,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class','style','hidden','aria-busy']});
+        }catch(_){}
+      }
+
+      function domQuiet(){
+        armQuietObserver();
+        if(!quietStartedAt)quietStartedAt=absNow();
+        var waited=absNow()-quietStartedAt;
+        var quiet=absNow()-lastMutationAt>=QUIET_MS;
+        if(!quiet&&waited<MAX_QUIET_WAIT)return false;
+        perf.bootQuietWaitMs=Math.max(0,waited);
+        return true;
+      }
+
       function callBase(req){
         if(!req||released)return;
-        released=true;pending=null;releaseScheduled=false;clearTimer();
-        if(readinessWaitStartedAt)perf.dataReadyWaitMs=Math.max(0,stamp()-readinessWaitStartedAt);
+        released=true;pending=null;releaseScheduled=false;clearRetry();disconnectQuiet();
+        try{
+          if(typeof _realLayoutLoadingStartedAt!=='undefined'&&_realLayoutLoadingStartedAt){
+            var n=absNow(),elapsed=Math.max(0,n-_realLayoutLoadingStartedAt);
+            var desiredRemaining=Math.max(0,90-elapsed);
+            _realLayoutLoadingStartedAt=n-(440-desiredRemaining);
+          }
+        }catch(_){}
         perf.finishReleasedAt=stamp();
+        removeBrand('content');
         return baseFinish.apply(req.ctx,req.args);
       }
-      function queueCheck(delay){
-        if(released||!pending||readinessTimer)return;
-        if(!readinessWaitStartedAt)readinessWaitStartedAt=stamp();
-        readinessTimer=setTimeout(function(){readinessTimer=0;perf.dataReadyRetries++;afterCurrentTask();},delay==null?48:delay);
-      }
-      function releaseWhenStable(){
-        if(released||releaseScheduled||!pending)return;
-        if(!dataLoadFinished()){queueCheck(56);return;}
-        perf.dataReadyAt=perf.dataReadyAt==null?stamp():perf.dataReadyAt;
-        if(!motionReady){
-          if(!motionWaitStartedAt)motionWaitStartedAt=clock();
-          if(clock()-motionWaitStartedAt<MOTION_WAIT_MAX_MS){queueCheck(38);return;}
-        }
 
-        var minRemaining=brandEl?Math.max(0,(brandShownAt+BRAND_MIN_MS)-clock()):0;
-        releaseScheduled=true;
-        setTimeout(function(){
-          requestAnimationFrame(function(){requestAnimationFrame(function(){
-            releaseScheduled=false;
-            if(released||!pending)return;
-            if(!dataLoadFinished()){queueCheck(40);return;}
-            if(!motionReady&&motionWaitStartedAt&&clock()-motionWaitStartedAt<MOTION_WAIT_MAX_MS){queueCheck(38);return;}
-            callBase(pending);
-          });});
-        },minRemaining);
+      function queueCheck(delay){
+        if(released||!pending||retryTimer)return;
+        retryTimer=setTimeout(function(){
+          retryTimer=0;
+          perf.bootQuietRetries++;
+          afterCurrentTask();
+        },delay||48);
       }
-      function afterCurrentTask(){if(!released&&pending)releaseWhenStable();}
+
+      function schedulePaintStableRelease(){
+        if(releaseScheduled||released||!pending)return;
+        if(!dataLoadFinished()||!motionStackReady()||!domQuiet()){
+          queueCheck(48);
+          return;
+        }
+        var brandRemaining=brandEl&&brandShownAt?Math.max(0,(brandShownAt+BRAND_MIN_MS)-absNow()):0;
+        if(brandRemaining>0){queueCheck(Math.min(60,Math.max(16,brandRemaining)));return;}
+        releaseScheduled=true;
+        perf.dataReadyAt=perf.dataReadyAt==null?stamp():perf.dataReadyAt;
+        perf.motionReadyAt=perf.motionReadyAt==null?stamp():perf.motionReadyAt;
+        var req=pending;
+        requestAnimationFrame(function(){
+          requestAnimationFrame(function(){
+            if(released)return;
+            if(!dataLoadFinished()||!motionStackReady()||!domQuiet()){
+              releaseScheduled=false;queueCheck(48);return;
+            }
+            callBase(req);
+          });
+        });
+      }
+
+      function afterCurrentTask(){
+        if(released||!pending)return;
+        if(dataLoadFinished())perf.dataReadyAt=perf.dataReadyAt==null?stamp():perf.dataReadyAt;
+        schedulePaintStableRelease();
+      }
 
       var wrapped=function(){
         if(released)return baseFinish.apply(this,arguments);
         pending={ctx:this,args:Array.prototype.slice.call(arguments)};
         finishRequested=true;
         perf.finishRequestedAt=perf.finishRequestedAt==null?stamp():perf.finishRequestedAt;
+        quietStartedAt=0;armQuietObserver();
         Promise.resolve().then(afterCurrentTask);
       };
-      wrapped.__rtWakeWrapped=true;wrapped.__rtBase=baseFinish;
+      wrapped.__rtWakeWrapped=true;
       finishRealLayoutLoading=wrapped;
       perf.bootHoldPatched=true;
 
+      window.addEventListener('retrade:motion-ready',function(){
+        perf.motionReadyAt=perf.motionReadyAt==null?stamp():perf.motionReadyAt;
+        Promise.resolve().then(afterCurrentTask);
+      });
+      window.addEventListener('retrade:data-ready',afterCurrentTask);
       window.addEventListener('pageshow',afterCurrentTask);
       document.addEventListener('visibilitychange',function(){if(!document.hidden)afterCurrentTask();});
-      window.addEventListener('retrade:data-ready',afterCurrentTask);
-      window.addEventListener('retrade:motion-ready',function(){
-        motionReady=true;perf.motionReadyAt=perf.motionReadyAt==null?stamp():perf.motionReadyAt;afterCurrentTask();
-      });
       return true;
     }catch(_){return false;}
   };
