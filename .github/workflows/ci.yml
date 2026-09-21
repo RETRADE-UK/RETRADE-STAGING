@@ -150,7 +150,7 @@ jobs:
           app_build=re.search(r"\bvar\s+v='([^']+)'",app)
           sw_build=re.search(r"\bconst\s+BUILD='([^']+)'",sw)
           assert app_build and sw_build and app_build.group(1)==sw_build.group(1)
-          assert 'v1544-staging-g1' in app_build.group(1)
+          assert 'v1545-staging-g1' in app_build.group(1)
           print('Staging isolation/gesture boundary passed:',app_build.group(1))
           PY
 
@@ -297,4 +297,19 @@ jobs:
           pick=core[core.find('function pickMonth(m)'):core.find('\n}',core.find('function pickMonth(m)'))+2]
           assert "_queueLocalControlRender('month-pick'" in pick and 'renderMonth();' in pick
           print('Sales disclosure locality invariants passed')
+          PY
+
+
+      - name: Single skeleton motion owner invariant
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          css=Path('skeleton-motion-polish-v1512.css').read_text(encoding='utf-8')
+          start=css.find('.rt .skeleton,')
+          end=css.find('}',start)
+          block=css[start:end+1]
+          assert 'animation:none!important' in block, 'legacy base skeleton animation still runs under calm sheen'
+          assert 'rtSkeletonSheen1512 var(--rt-skel-bar-duration)' in css
+          assert '--rt-skel-bar-duration:3.65s' in css
+          print('Single skeleton motion owner invariant passed')
           PY

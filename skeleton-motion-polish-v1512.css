@@ -1,4 +1,4 @@
-/* RETRADE skeleton motion polish — v1.5.20
+/* RETRADE skeleton motion polish — v1.5.45
  * One calm motion language for every data-loading surface.
  * Geometry remains owned by the existing real-layout skeleton systems.
  */
@@ -19,6 +19,7 @@
   overflow:hidden!important;
   background:var(--rt-skel-base)!important;
   background-image:none!important;
+  animation:none!important;
 }
 .rt .skeleton::after,
 .rt-real-layout-loading .rt-data-loading::after,
@@ -108,6 +109,7 @@
    Match the global cadence and keep the pill itself visible at all times. */
 .rt-pd1505-shimmer{
   background:var(--rt-skel-base)!important;
+  animation:none!important;
 }
 .rt-pd1505-shimmer::after{
   background:linear-gradient(
