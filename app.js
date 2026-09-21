@@ -11,7 +11,7 @@
  */
 (function(){
   'use strict';
-  var v='20260921-v1512';
+  var v='20260921-v1513';
   window.__rtBuildId=v;
   var motionReady=false;
   var motionFallbackTimer=0;
@@ -19,7 +19,7 @@
   window.__rtMotionStackReady=false;
   document.documentElement.classList.add('rt-app-cold','rt-motion-prep');
 
-  /* v1.5.12 — one low-contrast, constant-speed skeleton shimmer across boot,
+  /* v1.5.13 — one low-contrast, constant-speed skeleton shimmer across boot,
      main pages, Sales and Partners. Loaded before the feature stack so later
      page-specific loaders can keep their geometry without reintroducing their
      older faster shimmer timing. */
