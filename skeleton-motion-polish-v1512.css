@@ -56,7 +56,6 @@
     var(--rt-skel-sheen) 49%,
     transparent 76%
   )!important;
-  transform:translate3d(-112%,0,0)!important;
 }
 
 /* Sales route + truth masks use the same movement and contrast. */
@@ -72,7 +71,6 @@
     var(--rt-skel-sheen) 49%,
     transparent 76%
   )!important;
-  transform:translate3d(-112%,0,0)!important;
 }
 #p-monthly.rt-sales-route-loading1509{
   --rt-sales-load-base:var(--rt-skel-base)!important;
@@ -94,7 +92,6 @@
     var(--rt-skel-sheen) 50%,
     transparent 76%
   )!important;
-  transform:translate3d(-112%,0,0)!important;
 }
 
 /* Constant-speed travel avoids the accelerate/decelerate brightness "pop" that
