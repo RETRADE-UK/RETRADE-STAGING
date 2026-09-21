@@ -63,7 +63,7 @@ body.rt-real-layout-loading #p-summary :is(\
   text-shadow:none!important;\
 }\
 /* Partner list/account loading shells must also remain data-free. */\
-#p-accounts.rt-partners-loading1517 :is(.rt-acct-compact-strip>strong,.rt-acct-snapshot-name,.rt-acct-op-money strong,.rt-acct-op-money span){\
+#p-accounts.rt-partners-loading1517 :is(.rt-acct-compact-strip>strong,.rt-acct-snapshot-name,.rt-acct-op-badge,.rt-acct-snapshot-term,.rt-acct-op-money strong,.rt-acct-op-money span){\
   color:transparent!important;\
   -webkit-text-fill-color:transparent!important;\
   text-shadow:none!important;\
