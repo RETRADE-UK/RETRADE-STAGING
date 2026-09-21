@@ -43,28 +43,39 @@
 </script>
 
 <style id="rt-launch-first-frame-style">
-/* v1.5.38 — frame-zero ownership. A theme-matched backplate exists before
-   launch markup parses; the lockup is calm and immediate, not a second animation. */
+/* v1.5.40 — frame-zero ownership + readable branded choreography. The backplate
+   exists before app chrome can paint; motion happens entirely above it. */
 html.rt-launch-sealed,html.rt-launch-sealed body{background:#eef1f7!important}
 html[data-theme="dark"].rt-launch-sealed,html[data-theme="dark"].rt-launch-sealed body{background:#0f1724!important}
 html.rt-launch-sealed body::before{content:"";position:fixed;inset:0;z-index:13040;background:#eef1f7;pointer-events:none}
 html[data-theme="dark"].rt-launch-sealed body::before{background:#0f1724}
 html.rt-launch-sealed body > *:not(#rt-launch-brand):not(#rt-brand-symbols){visibility:hidden!important}
-#rt-launch-brand{--brand:#F2B33D;--text-primary:#172033;position:fixed;inset:0;z-index:13050;display:grid;place-items:center;background:#eef1f7;opacity:1;pointer-events:auto;contain:strict;transition:opacity 150ms ease-out}
+#rt-launch-brand{--brand:#F2B33D;--text-primary:#172033;position:fixed;inset:0;z-index:13050;display:grid;place-items:center;background:#eef1f7;opacity:1;pointer-events:auto;contain:strict;transition:opacity 220ms cubic-bezier(.22,.61,.36,1)}
 html[data-theme="dark"] #rt-launch-brand{--text-primary:#f4f5f7;background:#0f1724}
 #rt-launch-brand.rt-launch-brand-out{opacity:0;pointer-events:none}
 #rt-launch-brand.rt-launch-brand-dormant{visibility:hidden!important;opacity:0!important;pointer-events:none!important}
-#rt-launch-brand .rt-launch-lockup{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:17px;opacity:1;transform:translateZ(0);animation:rtLaunchLockup1538 160ms ease-out both}
-#rt-launch-brand .rt-launch-mark-wrap{position:relative;display:block;width:72px;height:84px}
-#rt-launch-brand .rt-launch-mark{display:block;width:100%;height:100%;filter:drop-shadow(0 8px 18px rgba(0,0,0,.08))}
-#rt-launch-brand .rt-launch-word{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:25px;font-weight:900;font-style:italic;letter-spacing:.035em;line-height:1;color:var(--text-primary);white-space:nowrap}
+#rt-launch-brand .rt-launch-lockup{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;perspective:900px;transform-style:preserve-3d}
+#rt-launch-brand .rt-launch-mark-wrap{position:relative;display:block;width:72px;height:84px;opacity:0;transform-style:preserve-3d;will-change:transform,opacity;animation:rtLaunchShieldArc1540 960ms cubic-bezier(.14,.74,.18,1) 44ms both}
+#rt-launch-brand .rt-launch-mark-wrap::after{content:"";position:absolute;inset:-38%;z-index:-1;border-radius:50%;background:radial-gradient(circle,rgba(242,179,61,.25) 0%,rgba(242,179,61,.08) 42%,rgba(242,179,61,0) 74%);opacity:0;transform:scale(.58);animation:rtLaunchShieldImpact1540 460ms ease-out 720ms both}
+#rt-launch-brand .rt-launch-mark{display:block;width:100%;height:100%;filter:drop-shadow(0 10px 20px rgba(0,0,0,.10))}
+#rt-launch-brand .rt-launch-word{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:25px;font-weight:900;font-style:italic;letter-spacing:.035em;line-height:1;color:var(--text-primary);white-space:nowrap;opacity:0;clip-path:inset(0 100% 0 0);transform:translate3d(0,8px,0);animation:rtLaunchWordReveal1540 360ms cubic-bezier(.22,.61,.36,1) 940ms both}
 #rt-launch-brand .rt-launch-word span{color:var(--brand)}
-#rt-launch-brand.rt-launch-brand-out .rt-launch-lockup{opacity:.9;transform:scale(1.006);transition:opacity 150ms ease-out,transform 150ms ease-out}
+#rt-launch-brand.rt-launch-brand-out .rt-launch-lockup{opacity:.82;transform:scale(1.018);transition:opacity 220ms ease-out,transform 220ms cubic-bezier(.22,.61,.36,1)}
 #rt-launch-brand.rt-launch-snapshot{visibility:visible!important;opacity:1!important;pointer-events:none!important;transition:none!important}
-#rt-launch-brand.rt-launch-snapshot .rt-launch-lockup{animation:none!important;opacity:1!important;transform:none!important}
-@keyframes rtLaunchLockup1538{from{opacity:.82;transform:scale(.988)}to{opacity:1;transform:scale(1)}}
+#rt-launch-brand.rt-launch-snapshot .rt-launch-mark-wrap,#rt-launch-brand.rt-launch-snapshot .rt-launch-word{animation:none!important;opacity:1!important;transform:none!important;clip-path:none!important}
+#rt-launch-brand.rt-launch-snapshot .rt-launch-mark-wrap::after{animation:none!important;opacity:0!important}
+@keyframes rtLaunchShieldArc1540{
+  0%{opacity:0;transform:translate3d(-50vw,22vh,0) scale(.18) rotateY(-150deg) rotateZ(-30deg)}
+  12%{opacity:1}
+  48%{opacity:1;transform:translate3d(-13vw,-9vh,0) scale(.66) rotateY(-62deg) rotateZ(12deg)}
+  74%{opacity:1;transform:translate3d(2.2vw,1.4vh,0) scale(1.085) rotateY(14deg) rotateZ(-3deg)}
+  88%{opacity:1;transform:translate3d(-.65vw,-.38vh,0) scale(.985) rotateY(-4deg) rotateZ(.8deg)}
+  100%{opacity:1;transform:translate3d(0,0,0) scale(1) rotateY(0) rotateZ(0)}
+}
+@keyframes rtLaunchShieldImpact1540{0%{opacity:0;transform:scale(.58)}28%{opacity:.9}62%{opacity:.34;transform:scale(1.02)}100%{opacity:0;transform:scale(1.32)}}
+@keyframes rtLaunchWordReveal1540{0%{opacity:0;clip-path:inset(0 100% 0 0);transform:translate3d(0,8px,0);letter-spacing:.14em}55%{opacity:1}100%{opacity:1;clip-path:inset(0 0 0 0);transform:translate3d(0,0,0);letter-spacing:.035em}}
 @media(max-width:600px){#rt-launch-brand .rt-launch-mark-wrap{width:64px;height:75px}#rt-launch-brand .rt-launch-word{font-size:22px}}
-@media(prefers-reduced-motion:reduce){#rt-launch-brand{transition:none!important}#rt-launch-brand .rt-launch-lockup{animation:none!important;opacity:1!important;transform:none!important}}
+@media(prefers-reduced-motion:reduce){#rt-launch-brand{transition:none!important}#rt-launch-brand .rt-launch-mark-wrap,#rt-launch-brand .rt-launch-word{animation:none!important;opacity:1!important;transform:none!important;clip-path:none!important}#rt-launch-brand .rt-launch-mark-wrap::after{animation:none!important;display:none!important}}
 </style>
 
 <!-- App icon v2.19.25 — there was NO icon of any kind here: no apple-touch-icon,
@@ -98,7 +109,7 @@ html[data-theme="dark"] #rt-launch-brand{--text-primary:#f4f5f7;background:#0f17
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <!-- V2 Session 4a: Chart.js removed — dashboard chart is hand-rolled SVG -->
 <link rel="stylesheet" href="./app.css?v=1.4.37">
-<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./skeleton-motion-polish-v1512.css?v=1.5.39-staging-g1">
+<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./skeleton-motion-polish-v1512.css?v=1.5.40-staging-g1">
 
 <style id="retrade-v145-sync-float">
 /* v1.4.5: global sync state is an overlay, never a header layout participant. */
@@ -1086,7 +1097,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 <script src="./accounting.js?v=1.4.11"></script>
 <script src="./reports.js?v=1.4.8"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.js" integrity="sha384-OUpie84zd1LdwNlK9uJJQRwab0BLqo3eKYKFh7hSVL58FSk7wPp2l0kfUMIIoaQd" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="./app.js?v=1.5.39-staging-g1"></script>
+<script src="./app.js?v=1.5.40-staging-g1"></script>
 
 <!-- RETRADE dashboard spacing cleanup: mobile/tablet/narrow-desktop rhythm v3 - 2026-06-29 -->
 </body>

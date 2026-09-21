@@ -14272,9 +14272,27 @@ function renderSummary(){
           })():''}
         </div>
       </div>`;
-    el.innerHTML=html;
-    // v1.5.39 — values are already truthful in the rendered HTML. Do not replace
-    // them with a 0→target/old→new count-up; charts and the donut own the motion.
+    const _existingHeader=el.querySelector('.summary-header');
+    const _existingGrid=el.querySelector('.summary-grid-v3');
+    if(_existingHeader&&_existingGrid){
+      const _next=document.createElement('div');
+      _next.innerHTML=html;
+      const _nextGrid=_next.querySelector('.summary-grid-v3');
+      const _nextHeader=_next.querySelector('.summary-header');
+      const _sel=_existingHeader.querySelector('.summary-period-sel');
+      if(_sel&&_sel.value!==SUMMARY_PERIOD)_sel.value=SUMMARY_PERIOD;
+      if(_nextHeader){
+        const _curText=_existingHeader.querySelector('.summary-header-text');
+        const _newText=_nextHeader.querySelector('.summary-header-text');
+        if(_curText&&_newText&&_curText.innerHTML!==_newText.innerHTML)_curText.innerHTML=_newText.innerHTML;
+      }
+      if(_nextGrid)_existingGrid.replaceWith(_nextGrid);
+      else el.innerHTML=html;
+    }else{
+      el.innerHTML=html;
+    }
+    // v1.5.40 — values are truthful immediately. The filter stays mounted;
+    // chart/donut motion explains the newly selected period.
     _animateDonut(el, SUMMARY_PERIOD);  // v2.19.15 — sweep on reveal/period, enter-anim new categories
     window.__summaryByCat=stats.byCat||[];
     renderSummaryChart(chartLabels,chartRev,chartProfit,chartReturns,chartReturnCounts,_chartPartialLast);
