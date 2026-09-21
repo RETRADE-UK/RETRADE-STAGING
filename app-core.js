@@ -2110,27 +2110,59 @@ async function doSignIn(){
   errEl.style.display = 'none';
   btn.style.display = 'none';
   ldEl.style.display = 'block';
-  const {error} = await _sb.auth.signInWithPassword({email, password: pass});
-  if(error){
-    // Translate Supabase error codes into plain English
-    let msg = 'Sign in failed. Please try again.';
-    const raw = (error.message||'').toLowerCase();
-    if(raw.includes('invalid login') || raw.includes('invalid credentials') || raw.includes('email not confirmed')){
-      msg = 'Incorrect email or password. Please check your details and try again.';
-    } else if(raw.includes('email') && raw.includes('not found')){
-      msg = 'No account found with that email address.';
-    } else if(raw.includes('too many')){
-      msg = 'Too many attempts. Please wait a moment and try again.';
-    } else if(raw.includes('network') || raw.includes('fetch')){
-      msg = 'Network error. Check your connection and try again.';
+  ldEl.textContent = 'Signing in…';
+
+  let result=null, signError=null;
+  try{
+    result=await _sb.auth.signInWithPassword({email, password: pass});
+    signError=result&&result.error?result.error:null;
+  }catch(e){
+    signError=e;
+  }
+
+  /* Mobile Safari can occasionally persist the new auth session even when the
+     sign-in request surfaces a transient failure. Verify the actual session
+     before telling the user login failed; this removes the "failed, refresh,
+     actually logged in" state. */
+  let session=result&&result.data&&result.data.session?result.data.session:null;
+  if(!session){
+    try{
+      const check=await Promise.race([
+        _sb.auth.getSession(),
+        new Promise((_,reject)=>setTimeout(()=>reject(new Error('session verification timeout')),1800))
+      ]);
+      session=check&&check.data&&check.data.session?check.data.session:null;
+    }catch(_){}
+  }
+
+  if(session){
+    errEl.style.display='none';
+    ldEl.textContent='Loading your workspace…';
+    if(typeof window.__rtAuthHandoff==='function'){
+      window.__rtAuthHandoff(session).catch(function(e){
+        console.error('[RETRADE] post-login handoff failed:',e);
+        try{_diagRecord('auth-handoff',e,{location:location.origin+location.pathname});}catch(_){}
+      });
     }
-    errEl.textContent = msg;
-    errEl.style.display = 'block';
-    btn.style.display = 'block';
-    ldEl.style.display = 'none';
     return;
   }
-  // onAuthStateChange will handle the rest
+
+  // No persisted session exists: this is a genuine authentication failure.
+  let msg = 'Sign in failed. Please try again.';
+  const raw = String((signError&&signError.message)||'').toLowerCase();
+  if(raw.includes('invalid login') || raw.includes('invalid credentials') || raw.includes('email not confirmed')){
+    msg = 'Incorrect email or password. Please check your details and try again.';
+  } else if(raw.includes('email') && raw.includes('not found')){
+    msg = 'No account found with that email address.';
+  } else if(raw.includes('too many')){
+    msg = 'Too many attempts. Please wait a moment and try again.';
+  } else if(raw.includes('network') || raw.includes('fetch')){
+    msg = 'Network error. Check your connection and try again.';
+  }
+  errEl.textContent = msg;
+  errEl.style.display = 'block';
+  btn.style.display = 'block';
+  ldEl.style.display = 'none';
 }
 
 function showForgotPassword(){
@@ -23750,6 +23782,44 @@ function _restoreAuthInputs(){
   // Flag set BEFORE await so onAuthStateChange SIGNED_IN (which fires almost
   // immediately on page load) never triggers a second concurrent initDB call.
   let _initialLoadDone = !!session && !_pwRecovery;
+  let _authHandoffPromise=null;
+
+  async function _completeSignedInSession(sess){
+    if(!sess||!sess.user)return false;
+    if(_pwRecovery){
+      _currentUserId=sess.user.id;
+      showNewPasswordScreen();
+      return true;
+    }
+
+    _currentUserId=sess.user.id;
+    showApp();
+    const _av=document.getElementById('user-avatar');
+    if(_av && sess.user?.email) _av.textContent=sess.user.email[0].toUpperCase();
+    if(typeof _refreshSideNavUser==='function') _refreshSideNavUser();
+
+    if(_initialLoadDone)return true;
+    _initialLoadDone=true;
+    try{
+      await initDB();
+      _dbSnapshot=_dbFingerprint();
+      await _hydrateUserSettings(_currentUserId);
+      await _startRealtimeSync();
+      return true;
+    }catch(e){
+      _initialLoadDone=false;
+      throw e;
+    }
+  }
+
+  /* One handoff owner for both the button response and SIGNED_IN event. Keeping
+     heavy Supabase/data work outside onAuthStateChange avoids auth callback
+     re-entrancy/deadlock timing on mobile. */
+  window.__rtAuthHandoff=function(sess){
+    if(_authHandoffPromise)return _authHandoffPromise;
+    _authHandoffPromise=_completeSignedInSession(sess).finally(function(){_authHandoffPromise=null;});
+    return _authHandoffPromise;
+  };
 
   if(session && _pwRecovery){
     // v2.21.28 — arrived via a reset link: set a new password, do NOT enter the app
@@ -23774,7 +23844,7 @@ function _restoreAuthInputs(){
   }
 
   // Listen for auth state changes
-  _sb.auth.onAuthStateChange(async (event, sess) => {
+  _sb.auth.onAuthStateChange((event, sess) => {
     if(_previewMode && event !== 'SIGNED_IN') return;
     // v2.21.28 — a password-reset session must NOT auto-login; show the reset screen instead.
     if(event === 'PASSWORD_RECOVERY' || (_pwRecovery && sess && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED'))){
@@ -23783,19 +23853,17 @@ function _restoreAuthInputs(){
       return;
     }
     if(event === 'SIGNED_IN' && sess){
-      _currentUserId = sess.user.id;
-      showApp();
-      // Set avatar initial from email
-      const _av=document.getElementById('user-avatar');
-      if(_av && sess.user?.email) _av.textContent=sess.user.email[0].toUpperCase();
-      if(!_initialLoadDone){
-        _initialLoadDone = true;
-        await initDB();
-        _dbSnapshot = _dbFingerprint();
-        await _hydrateUserSettings(_currentUserId); // F6: sync settings from cloud on login
-        await _startRealtimeSync();
-      }
-      // else: page-load SIGNED_IN echo — already loaded, do nothing
+      /* Supabase recommends keeping this callback short. Defer the full app/data
+         handoff to the next task so signInWithPassword can settle cleanly. */
+      setTimeout(function(){
+        if(typeof window.__rtAuthHandoff==='function'){
+          window.__rtAuthHandoff(sess).catch(function(e){
+            console.error('[RETRADE] auth state handoff failed:',e);
+            try{_diagRecord('auth-state-handoff',e,{location:location.origin+location.pathname});}catch(_){}
+          });
+        }
+      },0);
+      return;
     } else if(event === 'PASSWORD_RECOVERY'){
       // v2.21.26 — user returned via the reset-email link: let them set a new password
       if(sess) _currentUserId = sess.user.id;
