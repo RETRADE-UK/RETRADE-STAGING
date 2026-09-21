@@ -174,7 +174,8 @@ jobs:
           assert 'rt-launch-first-frame-style' in index and 'rtLaunchLockup1538' in index and 'body::before' in index
           assert supabase!=-1 and app!=-1 and supabase<app and supabase>head
           assert "document.getElementById('rt-launch-brand')" in launch
-          assert "!finishRequested&&b&&b.classList.contains('rt-real-layout-loading')" not in launch\n          assert 'directRevealReady' in launch
+          assert "!finishRequested&&b&&b.classList.contains('rt-real-layout-loading')" not in launch
+          assert 'directRevealReady' in launch
           assert 'BRAND_MIN_MS=330' in launch and 'BRAND_TO_SKELETON_MS=520' in launch and 'SKELETON_MIN_MS=280' in launch and 'skeletonRemaining' in launch
 
           start=core.find('function setSummaryPeriod(p)')
