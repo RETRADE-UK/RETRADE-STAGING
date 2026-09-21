@@ -65,32 +65,15 @@
     }
   }catch(_){}
 
-  var SALES_STATE_KEY='rt-sales-route-v1';
+  // v1.5.20 — Sales route state has ONE owner: app-core's _saveUIState /
+  // _loadUIState. A second JSON route cache could restore a different grid/detail
+  // value after the boot layout was already painted, creating the wrong skeleton.
   function currentView(){try{return MONTHLY_VIEW==='detail'?'detail':'grid';}catch(_){return 'grid';}}
   function activePageId(){var p=document.querySelector('.page.on');return p?p.id:'';}
   function safeCurrentMonth(){try{return typeof currentMonthKey==='function'?currentMonthKey():'';}catch(_){return '';}}
   function bumpSalesMotion(){window.__rtSalesMotionReplayToken=(window.__rtSalesMotionReplayToken||0)+1;}
-  function salesState(){
-    var out={};
-    try{out.view=MONTHLY_VIEW;}catch(_){}
-    try{out.month=SELECTED_MONTH;}catch(_){}
-    try{out.filter=MONTH_FILTER;}catch(_){}
-    try{out.sort=MONTH_SORT;}catch(_){}
-    try{out.period=MONTHLY_PERIOD;}catch(_){}
-    return out;
-  }
-  function persistSalesState(){try{localStorage.setItem(SALES_STATE_KEY,JSON.stringify(salesState()));}catch(_){} }
-  function restoreSalesState(){
-    var s=null;try{s=JSON.parse(localStorage.getItem(SALES_STATE_KEY)||'null');}catch(_){}
-    if(!s||typeof s!=='object')return false;
-    try{if(s.view==='grid'||s.view==='detail')MONTHLY_VIEW=s.view;}catch(_){}
-    try{if(s.month&&/^[A-Z]{3}-\d{2}$/.test(s.month))SELECTED_MONTH=s.month;}catch(_){}
-    try{if(s.filter)MONTH_FILTER=s.filter;}catch(_){}
-    try{if(s.sort)MONTH_SORT=s.sort;}catch(_){}
-    try{if(s.period)MONTHLY_PERIOD=s.period;}catch(_){}
-    return true;
-  }
-  var restoredSalesState=restoreSalesState();
+  function persistSalesState(){try{if(typeof _saveUIState==='function')_saveUIState();}catch(_){}}
+  var restoredSalesState=false;
 
   function removeOldSalesSwitcher(){
     var old=document.querySelector('#p-monthly .rt-sales-mode-switch');if(old)old.remove();

@@ -4545,15 +4545,11 @@ function _markLoadingRegions(root){
     '.mcard .msub'
   ].join(',')).forEach(function(el){el.classList.add('rt-data-loading');});
 
-  // Bring back the polished pre-v1.4.14 skeleton language without bringing back
-  // its duplicate page DOM. These are the real current labels in the real cards.
-  root.querySelectorAll([
-    '.page-title','.page-subtitle','.summary-title','.summary-subtitle',
-    '.kpi-label','.summary-panel > .sl','.summary-chart-head .sl',
-    '.summary-cat-head .sl','.snap-strip-head .sl','.inv-age-title',
-    '.monthly-profitability-card > .sl'
-  ].join(',')).forEach(function(el){el.classList.add('rt-label-loading');});
-
+  // v1.5.20 — static UI is not loading data. Keep page titles, card labels,
+  // section headings and explanatory copy visible from the first real-layout
+  // frame. Only values/rows/charts whose truth depends on hydration are masked.
+  // This makes the loading surface quieter and prevents every piece of text from
+  // shimmering independently.
   // Catch data leaves whose renderer does not expose a semantic value class.
   root.querySelectorAll('*').forEach(function(el){
     if(el.children&&el.children.length)return;
@@ -4833,14 +4829,20 @@ function _replayDashboardMotionAfterLoading(page){
   // v1.4.26 — stop the hidden/partially-visible boot animations immediately.
   // The hydrated chart itself is still completing its skeleton crossfade here;
   // hold the data strokes at their true 0% state until that reveal is finished.
+  const barSelector='.rt-chart-primary-bar,.rt-chart-primary-actual,.rt-chart-profit-bar,.rt-chart-profit-actual,.rt-chart-forecast-shell,.rt-chart-refund-dot';
   charts.forEach(function(svg){
-    let any=false;
+    // The Dashboard renderer is now predominantly a bar chart. Older replay
+    // logic only looked for .rt-chart-line and therefore decided there was
+    // nothing to animate on first load. Treat either bars OR lines as a valid
+    // hydrated chart and hold them at frame zero until the loading crossfade ends.
+    let any=!!svg.querySelector(barSelector);
     svg.querySelectorAll('.rt-chart-line').forEach(function(path){
       try{
         const len=path.getTotalLength();
         if(isFinite(len)&&len>0){path.style.setProperty('--rt-len',len.toFixed(1)+'px');any=true;}
       }catch(e){}
     });
+    try{svg.getAnimations().forEach(function(a){a.cancel();});}catch(e){}
     svg.classList.remove('rt-chart-draw');
     svg.classList.add('rt-motion-hold');
     svg.dataset.rtReplayReady=any?'1':'0';

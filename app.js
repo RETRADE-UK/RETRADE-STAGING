@@ -1,4 +1,4 @@
-/* RETRADE app entrypoint — v1.5.19 restrained motion architecture.
+/* RETRADE app entrypoint — v1.5.20 premium launch + single boot loader.
  *
  * Cold-start is intentionally staged:
  *   1) launch coordinator + production core
@@ -11,7 +11,7 @@
  */
 (function(){
   'use strict';
-  var v='20260921-v1519';
+  var v='20260921-v1520';
   window.__rtBuildId=v;
   var motionReady=false;
   var motionFallbackTimer=0;
@@ -125,11 +125,6 @@
       './accounts-operations-compact-v2.js',
       './partner-account-experience-v2.js',
       './partner-page-unified-v1503.js',
-      './partners-loading-v1517.js',
-      './main-page-loading-motion-v1506.js',
-      './main-page-truth-gate-v1507.js',
-      './sales-loading-v1517.js',
-      './skeleton-truth-exclusivity-v1511.js',
       './document-exports.js',
       './chart-polish.js',
       './chart-motion.js',

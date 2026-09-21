@@ -1,14 +1,9 @@
-/* RETRADE Sales default-route refinement v1.4.58
+/* RETRADE Sales default-route refinement v1.5.20
  *
- * Sales is still one destination with a nav-button Yearly/Monthly toggle, but
- * the safe/default landing view is Monthly:
- * - every full app load/reload starts Sales in Monthly
- * - returning to Sales after 15 minutes away starts in Monthly
- * - resuming the app after 15+ minutes in the background resets Sales to Monthly
- * - short navigation hops keep the current Sales view, so the Sales button can
- *   still toggle naturally during an active working session
- *
- * No sales data, accounting, forecast maths, lifecycle or sync behaviour changes.
+ * Core owns startup/reload restoration of the exact Sales sub-route.
+ * This file only applies the "come back to the current month after a long break"
+ * convenience during an already-running session. It MUST NOT change MONTHLY_VIEW
+ * while cold boot hydration is painting its destination layout.
  */
 (function(){
   'use strict';
@@ -27,31 +22,23 @@
 
   function forceMonthly(){
     try{MONTHLY_VIEW='detail';}catch(_){}
-    try{if(!SELECTED_MONTH)SELECTED_MONTH=currentMonth();}catch(_){}
+    try{SELECTED_MONTH=currentMonth()||SELECTED_MONTH;}catch(_){}
     try{if(typeof _saveUIState==='function')_saveUIState();}catch(_){}
   }
 
   function renderMonthlyIfVisible(){
     if(activePageId()!=='p-monthly')return;
-    try{
-      if(typeof renderMonth==='function'){renderMonth();return;}
-      if(typeof renderMonthlyPage==='function')renderMonthlyPage();
-    }catch(_){}
+    try{if(typeof renderMonthlyPage==='function')renderMonthlyPage();}catch(_){}
   }
 
-  /* A reload is a fresh working session: Sales should never reopen on Yearly
-     merely because Yearly was the last toggle state before the reload. */
-  forceMonthly();
-  clearStamp(LEFT_KEY);
-  clearStamp(HIDDEN_KEY);
-  if(activePageId()==='p-monthly')requestAnimationFrame(renderMonthlyIfVisible);
+  /* Do not mutate anything on module load. The cold-start renderer has already
+     selected the exact persisted route and may currently be skeletonising it. */
 
   try{
     if(typeof goToTab==='function'){
       var nativeGoToTab=goToTab;
       goToTab=function(name,sourceEl){
         var before=activePageId();
-
         if(before==='p-monthly'&&name!=='monthly')setStamp(LEFT_KEY,wallNow());
 
         if(name==='monthly'&&before!=='p-monthly'&&!contextualMonthOpen()){
@@ -59,7 +46,6 @@
           if(leftAt&&wallNow()-leftAt>=IDLE_RESET_MS)forceMonthly();
           clearStamp(LEFT_KEY);
         }
-
         return nativeGoToTab.apply(this,arguments);
       };
     }
@@ -78,4 +64,6 @@
       }
     },{passive:true});
   }catch(_){}
+
+  console.info('[RETRADE] v1.5.20 Sales route defaults loaded');
 })();

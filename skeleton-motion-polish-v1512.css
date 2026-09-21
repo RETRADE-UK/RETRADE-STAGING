@@ -1,4 +1,4 @@
-/* RETRADE skeleton motion polish — v1.5.17
+/* RETRADE skeleton motion polish — v1.5.20
  * One calm motion language for every data-loading surface.
  * Geometry remains owned by the existing real-layout skeleton systems.
  */
@@ -264,4 +264,50 @@ html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loadi
   .rt-account-shell1503-block::after{
     animation:none!important;
   }
+}
+
+
+/* v1.5.20 — truth handoff is opacity-only. Data should feel as though the
+   placeholder resolves into its value, not as though a new card flies in. */
+@keyframes rtTruthReveal1520{from{opacity:.48}to{opacity:1}}
+@keyframes rtTruthChartReveal1520{from{opacity:.28}to{opacity:1}}
+.rt-real-layout-revealing .rt-data-reveal{
+  filter:none!important;
+  transform:none!important;
+  animation:rtTruthReveal1520 190ms ease-out both!important;
+}
+.rt-real-layout-revealing .rt-chart-reveal{
+  filter:none!important;
+  transform:none!important;
+  animation:rtTruthChartReveal1520 220ms ease-out both!important;
+}
+.rt-real-layout-revealing .rt-loading-overlay-exit{
+  transition:opacity 180ms ease-out!important;
+}
+
+/* Dashboard boot replay: bars now participate in the same frame-zero hold that
+   line charts already used. They cannot be visible at full height underneath
+   the skeleton and then mysteriously skip their reveal. */
+#p-summary svg.rt-motion-hold .rt-chart-primary-bar,
+#p-summary svg.rt-motion-hold .rt-chart-primary-actual,
+#p-summary svg.rt-motion-hold .rt-chart-profit-bar,
+#p-summary svg.rt-motion-hold .rt-chart-profit-actual,
+#p-summary svg.rt-motion-hold .rt-chart-forecast-shell{
+  transform:scaleY(.04)!important;
+  animation:none!important;
+}
+#p-summary svg.rt-motion-hold .rt-chart-refund-dot,
+#p-summary svg.rt-motion-hold .rt-chart-refund-event{
+  opacity:0!important;
+  animation:none!important;
+}
+@media(prefers-reduced-motion:reduce){
+  .rt-real-layout-revealing .rt-data-reveal,
+  .rt-real-layout-revealing .rt-chart-reveal{animation:none!important;opacity:1!important}
+  .rt-real-layout-revealing .rt-loading-overlay-exit{transition:none!important;opacity:0!important}
+  #p-summary svg.rt-motion-hold .rt-chart-primary-bar,
+  #p-summary svg.rt-motion-hold .rt-chart-primary-actual,
+  #p-summary svg.rt-motion-hold .rt-chart-profit-bar,
+  #p-summary svg.rt-motion-hold .rt-chart-profit-actual,
+  #p-summary svg.rt-motion-hold .rt-chart-forecast-shell{transform:none!important}
 }
