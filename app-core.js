@@ -13020,11 +13020,15 @@ function showFilteredItems(filter){
 }
 
 let _summaryPeriodFrame=0;
-let _summaryPeriodFrame2=0;
 function setSummaryPeriod(p){
+  if(p===SUMMARY_PERIOD)return;
   SUMMARY_PERIOD=p;
   _saveUIState();
-  _queueInteractionRender(renderSummary);
+  // Dashboard period switching is local, memory-backed state. Render the new
+  // truth immediately; the chart/bar animation supplies the visual transition.
+  // Do not route it through the nav acknowledgement queue.
+  if(_summaryPeriodFrame){cancelAnimationFrame(_summaryPeriodFrame);_summaryPeriodFrame=0;}
+  renderSummary();
 }
 
 let _stockFromSummary=false;

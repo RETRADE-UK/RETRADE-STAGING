@@ -1,4 +1,4 @@
-/* RETRADE cold-start / wake coordinator v1.5.31
+/* RETRADE cold-start / wake coordinator v1.5.34
  *
  * Launch principle: the real responsive application renders underneath its own
  * loading state and is only revealed when BOTH contracts are true:
@@ -13,7 +13,7 @@
 (function(){
   'use strict';
 
-  var VERSION=String(window.__rtBuildId||'20260921-v1533');
+  var VERSION=String(window.__rtBuildId||'20260921-v1534');
   var root=document.documentElement;
   var t0=(window.performance&&performance.now)?performance.now():Date.now();
   var bodyObserver=null;
@@ -25,8 +25,8 @@
   var lastLoading=false;
   var lastRevealing=false;
   var warmScheduled=false;
-  var brandEl=null,brandShownAt=0,brandTimer=0,finishRequested=false;
-  var BRAND_MIN_MS=420,BRAND_TO_SKELETON_MS=560,BRAND_FADE_MS=180;
+  var brandEl=null,brandShownAt=0,brandTimer=0,finishRequested=false,skeletonVisibleAt=0;
+  var BRAND_MIN_MS=300,BRAND_TO_SKELETON_MS=420,BRAND_FADE_MS=160,SKELETON_MIN_MS=220;
 
   root.classList.add('rt-app-cold');
 
@@ -47,7 +47,7 @@
   perf.motionReadyAt=null;
   perf.bootQuietWaitMs=0;
   perf.bootQuietRetries=0;
-  perf.brandShownAt=null;perf.brandDismissedAt=null;perf.brandHandoff=null;
+  perf.brandShownAt=null;perf.brandDismissedAt=null;perf.brandHandoff=null;perf.skeletonVisibleAt=null;
 
   function stamp(){return ((window.performance&&performance.now)?performance.now():Date.now())-t0;}
   function clock(){return (window.performance&&performance.now)?performance.now():Date.now();}
@@ -85,19 +85,27 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
     if(document.getElementById('rt-launch-brand-style'))return;
     var s=document.createElement('style');s.id='rt-launch-brand-style';
     s.textContent='\
-#rt-launch-brand{position:fixed;inset:0;z-index:13050;display:grid;place-items:center;background:var(--bg);opacity:1;pointer-events:auto;transition:opacity 180ms ease-out;contain:strict}\
+#rt-launch-brand{position:fixed;inset:0;z-index:13050;display:grid;place-items:center;background:var(--bg);opacity:1;pointer-events:auto;transition:opacity 160ms ease-out;contain:strict}\
 #rt-launch-brand.rt-launch-brand-out{opacity:0;pointer-events:none}\
-#rt-launch-brand .rt-launch-lockup{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;opacity:0;animation:rtLaunchLockupIn1531 180ms ease-out 35ms both}\
+#rt-launch-brand .rt-launch-lockup{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;opacity:0;animation:rtLaunchLockupIn1534 180ms ease-out 35ms both}\
 #rt-launch-brand .rt-launch-mark{display:block;width:72px;height:84px}\
 #rt-launch-brand .rt-launch-word{font-family:var(--font-body);font-size:25px;font-weight:900;font-style:italic;letter-spacing:.035em;line-height:1;color:var(--text-primary);white-space:nowrap}\
 #rt-launch-brand .rt-launch-word span{color:var(--brand)}\
-@keyframes rtLaunchLockupIn1531{from{opacity:0}to{opacity:1}}\
+@keyframes rtLaunchLockupIn1534{from{opacity:0}to{opacity:1}}\
 @media(max-width:600px){#rt-launch-brand .rt-launch-mark{width:64px;height:75px}#rt-launch-brand .rt-launch-word{font-size:22px}}\
 @media(prefers-reduced-motion:reduce){#rt-launch-brand{transition:none!important}#rt-launch-brand .rt-launch-lockup{animation:none!important;opacity:1!important}}';
     document.head.appendChild(s);
   }
   function createBrand(){
-    if(brandEl||!document.body)return;
+    if(brandEl)return;
+    if(!document.body)return;
+    var existing=document.getElementById('rt-launch-brand');
+    if(existing){
+      brandEl=existing;
+      brandShownAt=clock();
+      perf.brandShownAt=perf.brandShownAt==null?stamp():perf.brandShownAt;
+      return;
+    }
     brandEl=document.createElement('div');brandEl.id='rt-launch-brand';brandEl.setAttribute('aria-hidden','true');
     brandEl.innerHTML='<div class="rt-launch-lockup"><svg class="rt-launch-mark" viewBox="0 0 811 946" aria-hidden="true"><use href="#rt-mark"></use></svg><div class="rt-launch-word">RE<span>TRADE</span></div></div>';
     document.body.appendChild(brandEl);brandShownAt=clock();perf.brandShownAt=stamp();
@@ -105,13 +113,17 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
   function removeBrand(mode){
     if(!brandEl)return;if(brandTimer){clearTimeout(brandTimer);brandTimer=0;}
     var el=brandEl;brandEl=null;perf.brandHandoff=mode||'content';perf.brandDismissedAt=stamp();
+    if(mode==='skeleton'){
+      skeletonVisibleAt=clock()+BRAND_FADE_MS;
+      perf.skeletonVisibleAt=stamp()+BRAND_FADE_MS;
+    }
     if(reducedMotion()){if(el.parentNode)el.remove();return;}
     el.classList.add('rt-launch-brand-out');setTimeout(function(){if(el&&el.parentNode)el.remove();},BRAND_FADE_MS+40);
   }
   function scheduleBrandToSkeleton(){
     if(brandTimer)clearTimeout(brandTimer);
     var remaining=brandShownAt?Math.max(0,(brandShownAt+BRAND_TO_SKELETON_MS)-clock()):BRAND_TO_SKELETON_MS;
-    brandTimer=setTimeout(function(){brandTimer=0;var b=document.body;if(!finishRequested&&b&&b.classList.contains('rt-real-layout-loading'))removeBrand('skeleton');},remaining);
+    brandTimer=setTimeout(function(){brandTimer=0;var b=document.body;if(b&&b.classList.contains('rt-real-layout-loading'))removeBrand('skeleton');},remaining);
   }
   function authVisible(){
     var el=document.getElementById('auth-overlay');if(!el)return false;
@@ -298,6 +310,8 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
         }
         var brandRemaining=brandEl&&brandShownAt?Math.max(0,(brandShownAt+BRAND_MIN_MS)-absNow()):0;
         if(brandRemaining>0){queueCheck(Math.min(60,Math.max(16,brandRemaining)));return;}
+        var skeletonRemaining=skeletonVisibleAt?Math.max(0,(skeletonVisibleAt+SKELETON_MIN_MS)-absNow()):0;
+        if(skeletonRemaining>0){queueCheck(Math.min(60,Math.max(16,skeletonRemaining)));return;}
         releaseScheduled=true;
         perf.dataReadyAt=perf.dataReadyAt==null?stamp():perf.dataReadyAt;
         perf.motionReadyAt=perf.motionReadyAt==null?stamp():perf.motionReadyAt;
