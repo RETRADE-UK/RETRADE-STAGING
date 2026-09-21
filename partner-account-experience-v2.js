@@ -148,7 +148,7 @@
 
   installStyles();
   wrapAccountRenderer();
-  installPaintFirstNavigation();
+  /* v1.5.22: no paint-first skeleton. openAccountPage is in-memory navigation. */
   try{polish(document.getElementById('p-item'));}catch(_){}
-  console.info('[RETRADE] v1.4.91 Partner account paint-first navigation + mobile hierarchy loaded');
+  console.info('[RETRADE] v1.5.22 Partner account direct-navigation mobile hierarchy loaded');
 })();

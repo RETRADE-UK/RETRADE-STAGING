@@ -9,8 +9,8 @@
  * - Add item and Adjustment become the two explicit account actions.
  * - Add item owns new stock, new listed item and add-existing workflows.
  * - The global FAB opens the same account quick actions (no duplicate logic).
- * - Account navigation paints a full final-layout loading shell before the
- *   authoritative renderer runs, preventing partial-content/layout flashes.
+ * - Account navigation renders the resident account immediately; presentation
+ *   polish is applied after render without an artificial loading screen.
  */
 (function(){
   'use strict';
@@ -178,24 +178,16 @@
   function installNavigation(){
     var current=window.openAccountPage;
     if(typeof current!=='function'||current.__rtUnified1503)return;
+    /* If an older paint-first wrapper is present, unwrap it. Account data is
+       already resident in memory; showing a synthetic skeleton for two frames
+       creates a flash without representing any real wait. */
     var base=current.__rtBase||current;
     function wrapped(accountId){
-      var a=accountById(accountId);if(!a)return base.apply(this,arguments);
-      activeAccountId=a.id;var token=++navToken;
-      try{_itemPageOrigin='p-accounts';}catch(_){}
-      try{if(typeof _deactivatePages==='function')_deactivatePages();}catch(_){}
-      try{document.querySelectorAll('.tab,.bnt').forEach(function(el){el.classList.remove('on');});}catch(_){}
-      var page=document.getElementById('p-item');if(page)page.classList.add('on');
-      renderLoadingShell(a);
-      try{window.scrollTo(0,0);}catch(_){}
-      try{if(typeof handleNavResize==='function')handleNavResize();}catch(_){}
-      try{if(typeof _syncFabVisibility==='function')_syncFabVisibility();}catch(_){}
-      requestAnimationFrame(function(){requestAnimationFrame(function(){
-        if(token!==navToken)return;var p=document.getElementById('p-item');if(!p||!p.classList.contains('on'))return;
-        p.removeAttribute('data-rt-account-transition');
-        base.call(window,accountId);
-        schedule();setTimeout(schedule,50);setTimeout(schedule,180);
-      });});
+      var a=accountById(accountId);if(a)activeAccountId=a.id;
+      var out=base.apply(this,arguments);
+      schedule();
+      setTimeout(schedule,60);
+      return out;
     }
     wrapped.__rtUnified1503=true;wrapped.__rtBase=base;window.openAccountPage=wrapped;try{openAccountPage=wrapped;}catch(_){}
   }
@@ -218,5 +210,5 @@
     window.addEventListener('retrade:motion-ready',schedule);window.addEventListener('popstate',schedule);window.addEventListener('hashchange',schedule);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
-  console.info('[RETRADE] v1.5.03 unified Partner list/actions/loading shell loaded');
+  console.info('[RETRADE] v1.5.22 unified Partner list/actions direct navigation loaded');
 })();

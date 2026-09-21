@@ -455,15 +455,16 @@
   }
   function animateMoneyFlow(host){
     if(!host||reducedMotion())return;
-    var sequenceDelay=660,fillDur=650,stagger=58;
+    /* Values are already truthful when the DOM renders. Never roll them up from
+       zero after hydration; that reads as delayed data. Let only the bars tell
+       the visual story, and start promptly after the page handoff. */
+    var sequenceDelay=180,fillDur=430,stagger=42;
     var fills=host.querySelectorAll('.mf-fill');
     Array.prototype.forEach.call(fills,function(fill,i){
       var target=fill.style.width||'';if(!target)return;
       fill.style.transition='none';fill.style.width='0%';try{void fill.getBoundingClientRect().width;}catch(_){}
       requestAnimationFrame(function(){fill.style.transition='width '+fillDur+'ms '+EASE+' '+(sequenceDelay+i*stagger)+'ms';fill.style.width=target;});
     });
-    var vals=host.querySelectorAll('.mf-val');
-    Array.prototype.forEach.call(vals,function(el,i){var target=el.textContent;el.textContent=money(0,(target.indexOf('.')>=0?2:0));animateValue(el,target,sequenceDelay+i*stagger,fillDur);});
   }
   if(typeof renderMonthlyMoneyFlow==='function'){
     var _renderMoneyBeforeMotion=renderMonthlyMoneyFlow;

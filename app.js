@@ -1,4 +1,4 @@
-/* RETRADE app entrypoint — v1.5.21 premium launch + single boot loader.
+/* RETRADE app entrypoint — v1.5.22 premium launch + direct warm navigation.
  *
  * Cold-start is intentionally staged:
  *   1) launch coordinator + production core
@@ -11,7 +11,7 @@
  */
 (function(){
   'use strict';
-  var v='20260921-v1521';
+  var v='20260921-v1522';
   window.__rtBuildId=v;
   var motionReady=false;
   var motionFallbackTimer=0;
