@@ -150,7 +150,7 @@ jobs:
           app_build=re.search(r"\bvar\s+v='([^']+)'",app)
           sw_build=re.search(r"\bconst\s+BUILD='([^']+)'",sw)
           assert app_build and sw_build and app_build.group(1)==sw_build.group(1)
-          assert 'v1543-staging-g1' in app_build.group(1)
+          assert 'v1544-staging-g1' in app_build.group(1)
           print('Staging isolation/gesture boundary passed:',app_build.group(1))
           PY
 
@@ -279,4 +279,22 @@ jobs:
               block=core[start:end+2]
               assert 'renderStock();' not in block and 'renderMonth();' not in block, fn+' blocks input with synchronous full render'
           print('Local Inventory and month-filter responsiveness invariants passed')
+          PY
+
+
+      - name: Sales disclosure locality invariants
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          core=Path('app-core.js').read_text(encoding='utf-8')
+          start=core.find('function toggleFYSection(fyStart)')
+          end=core.find('\n}',start)
+          block=core[start:end+2]
+          assert start!=-1
+          assert 'data-fy-section' in core and 'data-fy-grid' in core and 'data-fy-chevron' in core
+          assert "if(!next)renderMonthlyGrid();" in block, 'lazy first expansion fallback missing'
+          assert "grid.style.display='none'" in block and "grid.style.display='grid'" in block
+          pick=core[core.find('function pickMonth(m)'):core.find('\n}',core.find('function pickMonth(m)'))+2]
+          assert "_queueLocalControlRender('month-pick'" in pick and 'renderMonth();' in pick
+          print('Sales disclosure locality invariants passed')
           PY

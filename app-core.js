@@ -14488,8 +14488,67 @@ function _getFYLabelHTML(fyStart){
 
 
 function toggleFYSection(fyStart){
-  _fyCollapsed[fyStart]=!_fyCollapsed[fyStart];
-  renderMonthlyGrid();
+  const next=!_fyCollapsed[fyStart];
+  _fyCollapsed[fyStart]=next;
+
+  const section=document.querySelector('#p-monthly [data-fy-section="'+fyStart+'"]');
+  const grid=section&&section.querySelector('[data-fy-grid="'+fyStart+'"]');
+  const chevron=section&&section.querySelector('[data-fy-chevron="'+fyStart+'"]');
+
+  /* v1.5.44 — a disclosure is local UI, not a Sales-page render. If this FY is
+     already materialised, collapse/expand that existing grid only. Past FYs are
+     intentionally lazy: their first ever expansion still asks renderMonthlyGrid
+     to build the cards, after which future toggles stay local. */
+  if(section&&grid){
+    section.style.marginBottom=next?'12px':'20px';
+    if(chevron)chevron.style.transform='rotate('+(next?'-90deg':'0deg')+')';
+
+    let reduced=false;
+    try{reduced=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(_){}
+    try{if(grid.__rtFYAnim)grid.__rtFYAnim.cancel();}catch(_){}
+
+    if(next){
+      if(reduced||typeof grid.animate!=='function'){
+        grid.style.display='none';
+        return;
+      }
+      const h=Math.max(1,grid.getBoundingClientRect().height);
+      grid.style.overflow='hidden';
+      grid.__rtFYAnim=grid.animate(
+        [{height:h+'px',opacity:1},{height:'0px',opacity:.28}],
+        {duration:150,easing:'cubic-bezier(.4,0,.2,1)'}
+      );
+      grid.__rtFYAnim.onfinish=function(){
+        if(_fyCollapsed[fyStart]){
+          grid.style.display='none';
+          grid.style.height='';
+          grid.style.opacity='';
+          grid.style.overflow='';
+        }
+        grid.__rtFYAnim=null;
+      };
+      return;
+    }
+
+    grid.style.display='grid';
+    if(reduced||typeof grid.animate!=='function')return;
+    const h=Math.max(1,grid.getBoundingClientRect().height);
+    grid.style.overflow='hidden';
+    grid.__rtFYAnim=grid.animate(
+      [{height:'0px',opacity:.28},{height:h+'px',opacity:1}],
+      {duration:165,easing:'cubic-bezier(.22,.61,.36,1)'}
+    );
+    grid.__rtFYAnim.onfinish=function(){
+      grid.style.height='';
+      grid.style.opacity='';
+      grid.style.overflow='';
+      grid.__rtFYAnim=null;
+    };
+    return;
+  }
+
+  // A never-opened past FY has no month cards yet; build it once.
+  if(!next)renderMonthlyGrid();
 }
 
 
@@ -14886,10 +14945,10 @@ function renderMonthlyGrid(){
           +'</div>'
           +'</div>';
       }).join('');
-      gridHTML='<div class="mgrid" style="margin-top:10px;">'+cards+'</div>';
+      gridHTML='<div class="mgrid" data-fy-grid="'+fy+'" style="margin-top:10px;">'+cards+'</div>';
     }
 
-    html+='<div class="fy-section" style="margin-bottom:'+(isCollapsed?'12px':'20px')+'">'
+    html+='<div class="fy-section" data-fy-section="'+fy+'" style="margin-bottom:'+(isCollapsed?'12px':'20px')+'">'
       +'<div onclick="toggleFYSection('+fy+')" style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:var(--surface);border:1.5px solid '+borderCol+';border-radius:10px;cursor:pointer;user-select:none;transition:border-color 0.15s;">'
       +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;min-width:0;">'
       +'<span style="font-size:13px;font-weight:700;letter-spacing:0.02em;color:'+labelCol+';white-space:nowrap;">FY '+fyLabel+'</span>'
@@ -14900,7 +14959,7 @@ function renderMonthlyGrid(){
       +(roiSpan?roiSpan.replace('<span ','<span class="fy-stat-hide" '):'')
       +'<span style="font-weight:700;color:'+profitColor+'">'+fmt(fyProfit)+'</span>'
       +'</div>'
-      +'<span style="font-size:14px;color:var(--muted);transition:transform 0.2s;display:inline-block;transform:rotate('+chevronRot+');">▾</span>'
+      +'<span data-fy-chevron="'+fy+'" style="font-size:14px;color:var(--muted);transition:transform 0.2s;display:inline-block;transform:rotate('+chevronRot+');">▾</span>'
       +'</div></div>'
       +gridHTML
       +'</div>';
@@ -14961,7 +15020,7 @@ function pickMonth(m){
   if(el)el.classList.remove('open');
   SELECTED_MONTH=m;MONTH_FILTER='all';SELECTION_MODE=false;SELECTED_ITEMS.clear();
   _saveUIState();
-  renderMonth();
+  _queueLocalControlRender('month-pick',function(){renderMonth();});
 }
 // Generic open/close for the mobile filter pill dropdowns. The element is
 // identified by its DOM id; toggling adds/removes the .open class and the CSS
