@@ -19,6 +19,18 @@
   window.__rtMotionStackReady=false;
   document.documentElement.classList.add('rt-app-cold','rt-motion-prep');
 
+  /* v1.5.12 — one low-contrast, constant-speed skeleton shimmer across boot,
+     main pages, Sales and Partners. Loaded before the feature stack so later
+     page-specific loaders can keep their geometry without reintroducing their
+     older faster shimmer timing. */
+  if(!document.getElementById('rt-skeleton-motion-polish-1512')){
+    var skelCss=document.createElement('link');
+    skelCss.id='rt-skeleton-motion-polish-1512';
+    skelCss.rel='stylesheet';
+    skelCss.href='./skeleton-motion-polish-v1512.css?v='+v;
+    document.head.appendChild(skelCss);
+  }
+
   if(!document.getElementById('rt-motion-preflight')){
     var pre=document.createElement('style');pre.id='rt-motion-preflight';
     pre.textContent='html.rt-motion-prep #monthly-profitability-svg{opacity:0!important}#monthly-profitability-svg{transition:opacity 120ms cubic-bezier(.22,.61,.36,1)}@media(prefers-reduced-motion:reduce){html.rt-motion-prep #monthly-profitability-svg{opacity:1!important}#monthly-profitability-svg{transition:none!important}}';
