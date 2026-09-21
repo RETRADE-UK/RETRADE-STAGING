@@ -1,4 +1,4 @@
-/* RETRADE main-page real-layout loading + reveal — v1.5.06
+/* RETRADE main-page real-layout loading + reveal — v1.5.13
  *
  * Presentation-only loading system for top-level pages.
  *
@@ -29,6 +29,17 @@
 
   function reduced(){
     try{return !!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(_){return false;}
+  }
+  function bootOwned(){
+    var body=document.body,root=document.documentElement;
+    return !!(
+      (root&&root.classList.contains('rt-app-cold')) ||
+      (body&&(
+        body.classList.contains('rt-real-layout-loading') ||
+        body.classList.contains('rt-real-layout-revealing') ||
+        body.classList.contains('rt-launch-waking')
+      ))
+    );
   }
   function activePage(){return document.querySelector('.page.on');}
   function pageForName(name){return document.getElementById('p-'+String(name||''));}
@@ -256,7 +267,7 @@
   }
 
   function begin(page,reason){
-    if(!isEligible(page))return;
+    if(!isEligible(page)||bootOwned())return;
     if(session)endSession(session,false);
     var s=session={id:++serial,page:page,reason:reason||'nav',started:now(),ended:false,timer:0,observer:null,bag:{values:[],texts:[],primary:[],charts:[],media:[],controls:[],links:[]}};
     page.classList.add('rt-main-loading1506');page.classList.remove('rt-main-preparing1506');
@@ -279,7 +290,7 @@
     if(typeof current!=='function'||current.__rtMainLoading1506)return;
     function wrapped(name,sourceEl){
       var target=pageForName(name),before=activePage();
-      var eligibleTarget=isEligible(target)&&(!before||before.id!==target.id);
+      var eligibleTarget=!bootOwned()&&isEligible(target)&&(!before||before.id!==target.id);
       if(eligibleTarget)target.classList.add('rt-main-preparing1506');
       var out;
       try{out=current.apply(this,arguments);}catch(err){if(eligibleTarget)target.classList.remove('rt-main-preparing1506');throw err;}
@@ -298,6 +309,7 @@
         var active=activePage(),id=active?active.id:'';
         if(id===lastActive)return;
         lastActive=id;
+        if(bootOwned())return;
         if(isEligible(active)&&!active.classList.contains('rt-main-loading1506')&&!active.classList.contains('rt-main-preparing1506')){
           active.classList.add('rt-main-preparing1506');
           Promise.resolve().then(function(){if(active.classList.contains('on'))begin(active,'route');else active.classList.remove('rt-main-preparing1506');});
@@ -310,12 +322,12 @@
   function start(){
     installStyles();installNavigation();installRouteObserver();
     var active=activePage();
-    if(isEligible(active)&&!active.classList.contains('rt-main-loading1506')){
+    if(!bootOwned()&&isEligible(active)&&!active.classList.contains('rt-main-loading1506')){
       active.classList.add('rt-main-preparing1506');
       requestAnimationFrame(function(){if(active.classList.contains('on'))begin(active,'initial');else active.classList.remove('rt-main-preparing1506');});
     }
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
-  console.info('[RETRADE] v1.5.06 real-layout main-page loading + reveal system loaded');
+  console.info('[RETRADE] v1.5.13 real-layout main-page loading + reveal system loaded');
 })();
