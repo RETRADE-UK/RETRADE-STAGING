@@ -1,4 +1,4 @@
-/* RETRADE main-page KPI count motion — v1.5.10
+/* RETRADE main-page KPI count motion — v1.5.14
  *
  * Standardises the Dashboard-style numeric reveal across top-level pages after
  * their truth-only skeleton has released. Only primary/headline values animate;
@@ -10,7 +10,7 @@
   if(window.__rtMainKpiCount1510)return;
   window.__rtMainKpiCount1510=true;
 
-  var DURATION=520;
+  var DURATION=820;
   var serial=0;
   var mainPages=new Set([
     'p-monthly','p-stock','p-expenses','p-cash','p-returns','p-scrapped',
@@ -20,7 +20,7 @@
   function reduced(){
     try{return !!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(_){return false;}
   }
-  function ease(t){return 1-Math.pow(1-t,3);}
+  function ease(t){return t*t*(3-2*t);}
   function cls(el){return String((el&&el.className&&el.className.baseVal)||el&&el.className||'').toLowerCase();}
   function text(el){return String(el&&el.textContent||'').replace(/\s+/g,' ').trim();}
 
@@ -143,5 +143,5 @@
     }
   }catch(_){}
 
-  console.info('[RETRADE] v1.5.10 main KPI count motion loaded');
+  console.info('[RETRADE] v1.5.14 main KPI count motion loaded');
 })();
