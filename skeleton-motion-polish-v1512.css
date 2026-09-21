@@ -11,8 +11,21 @@
 
 /* Legacy/current real-layout placeholders. Keep the base steady; only a soft
    low-contrast band moves across it. */
+.rt .skeleton,
 .rt-real-layout-loading .rt-data-loading,
 .rt-real-layout-loading .rt-loading-line{
+  background:linear-gradient(
+    100deg,
+    var(--rt-skel-base) 0%,
+    var(--rt-skel-edge) 39%,
+    color-mix(in srgb,var(--rt-skel-base) 95.5%,var(--text) 4.5%) 50%,
+    var(--rt-skel-edge) 61%,
+    var(--rt-skel-base) 100%
+  )!important;
+  background-size:240% 100%!important;
+}
+
+.rt-real-layout-loading .rt-label-loading::after{
   background:linear-gradient(
     100deg,
     var(--rt-skel-base) 0%,
@@ -94,6 +107,46 @@
   )!important;
 }
 
+/* Dashboard category loading used to combine a fast spinning ring with a
+   1.15s opacity pulse. Keep the ring as a very slow orientation cue and make
+   the legend bars steady so this area no longer flashes independently. */
+.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart::before{
+  background:conic-gradient(from 25deg,
+    color-mix(in srgb,var(--border) 30%,transparent) 0 20%,
+    color-mix(in srgb,var(--text) 5%,var(--border)) 34%,
+    color-mix(in srgb,var(--border) 26%,transparent) 52% 100%)!important;
+}
+.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-legend::before{
+  opacity:.78!important;
+  animation:none!important;
+}
+
+/* Launch experience deliberately starts static for the first paint. If loading
+   lasts long enough to enter rt-launch-long, use the same calm system instead
+   of switching to the older high-contrast wake shimmer/pulse. Extra repeated
+   state classes intentionally raise specificity above the injected launch CSS. */
+html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-data-loading,
+html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-loading-line{
+  background:linear-gradient(
+    100deg,
+    var(--rt-skel-base) 0%,
+    var(--rt-skel-edge) 39%,
+    color-mix(in srgb,var(--rt-skel-base) 95.5%,var(--text) 4.5%) 50%,
+    var(--rt-skel-edge) 61%,
+    var(--rt-skel-base) 100%
+  )!important;
+  background-size:240% 100%!important;
+}
+html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-chart-loading::after{
+  opacity:.28!important;
+  background:linear-gradient(100deg,transparent 22%,var(--rt-skel-sheen) 49%,transparent 76%)!important;
+  background-size:240% 100%!important;
+}
+html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-legend::before{
+  animation:none!important;
+  opacity:.78!important;
+}
+
 /* Constant-speed travel avoids the accelerate/decelerate brightness "pop" that
    read as flashing when many placeholders were animating together. */
 @keyframes rtSkeletonPaint1512{
@@ -104,12 +157,31 @@
   from{transform:translate3d(-112%,0,0)}
   to{transform:translate3d(112%,0,0)}
 }
+@keyframes rtSkeletonRotate1512{
+  to{transform:rotate(360deg)}
+}
 
 @media (prefers-reduced-motion:no-preference){
+  .rt .skeleton,
   .rt-real-layout-loading .rt-data-loading,
   .rt-real-layout-loading .rt-loading-line,
+  .rt-real-layout-loading .rt-label-loading::after,
   .rt-real-layout-loading .rt-chart-loading::after{
     animation:rtSkeletonPaint1512 var(--rt-skel-duration) linear infinite!important;
+  }
+
+  .rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart::before{
+    animation:rtSkeletonRotate1512 2.8s linear infinite!important;
+  }
+
+  html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-data-loading,
+  html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-loading-line,
+  html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-chart-loading::after{
+    animation:rtSkeletonPaint1512 var(--rt-skel-duration) linear infinite!important;
+  }
+
+  html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart::before{
+    animation:rtSkeletonRotate1512 2.8s linear infinite!important;
   }
 
   .page.rt-main-loading1506 .rt-main-skel-value1506::after,
@@ -124,8 +196,10 @@
 }
 
 @media (prefers-reduced-motion:reduce){
+  .rt .skeleton,
   .rt-real-layout-loading .rt-data-loading,
   .rt-real-layout-loading .rt-loading-line,
+  .rt-real-layout-loading .rt-label-loading::after,
   .rt-real-layout-loading .rt-chart-loading::after,
   .page.rt-main-loading1506 .rt-main-skel-value1506::after,
   .page.rt-main-loading1506 .rt-main-skel-text1506::after,
@@ -133,7 +207,9 @@
   #p-monthly.rt-main-loading1506 .rt-sales-data-mask1508::after,
   #p-monthly.rt-sales-route-loading1509 .rt-sales-route-skel1509::after,
   #p-monthly.rt-sales-route-loading1509 .monthly-profitability-card::after,
-  .rt-pd1505-shimmer::after{
+  .rt-pd1505-shimmer::after,
+  .rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart::before,
+  .rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-legend::before{
     animation:none!important;
   }
 }
