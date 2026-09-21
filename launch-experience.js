@@ -1,4 +1,4 @@
-/* RETRADE cold-start / wake coordinator v1.5.40
+/* RETRADE cold-start / wake coordinator v1.5.41
  *
  * Launch principle: the real responsive application renders underneath its own
  * loading state and is only revealed when BOTH contracts are true:
@@ -66,7 +66,7 @@ html.rt-app-cold body.rt-real-layout-loading .rt-label-loading{color:inherit!imp
 html.rt-app-cold body.rt-real-layout-loading .rt-label-loading::after{display:none!important;animation:none!important;}\
 /* Cold start keeps the core real-layout skeleton styling continuous from first paint. */\
 /* Cold boot uses the same local reveal philosophy as normal navigation: no whole-page translate. */\
-@keyframes rtLaunchPageWake1540{from{opacity:.94}to{opacity:1}}\
+@keyframes rtLaunchPageWake1541{from{opacity:.94}to{opacity:1}}\
 body.rt-launch-waking.rt-real-layout-revealing .page.on{animation:rtLaunchPageWake1540 280ms cubic-bezier(.22,.61,.36,1) both!important;transform:none!important;}\
 body.rt-launch-waking.rt-real-layout-revealing .rt-loading-overlay-exit{transition:opacity 180ms cubic-bezier(.22,.61,.36,1)!important;}\
 html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!important;}\

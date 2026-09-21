@@ -150,7 +150,7 @@ jobs:
           app_build=re.search(r"\bvar\s+v='([^']+)'",app)
           sw_build=re.search(r"\bconst\s+BUILD='([^']+)'",sw)
           assert app_build and sw_build and app_build.group(1)==sw_build.group(1)
-          assert 'v1540-staging-g1' in app_build.group(1)
+          assert 'v1541-staging-g1' in app_build.group(1)
           print('Staging isolation/gesture boundary passed:',app_build.group(1))
           PY
 
@@ -182,8 +182,11 @@ jobs:
           start=core.find('function setSummaryPeriod(p)')
           end=core.find('\n}',start)
           block=core[start:end+2]
-          assert start!=-1 and '_queueInteractionRender' not in block and 'requestAnimationFrame' not in block and 'setTimeout' not in block and 'renderSummary();' in block
+          assert start!=-1 and '_queueInteractionRender' not in block and 'setTimeout' not in block
+          assert block.count('requestAnimationFrame') >= 2, 'Dashboard selector no longer gets a paint before heavy render'
+          assert 'renderSummary();' in block and '_summaryPeriodRenderToken' in core
           assert "_existingGrid.replaceWith(_nextGrid)" in core and "_existingHeader" in core
+          assert 'html.rt-launch-sealed body{visibility:hidden!important;overflow:hidden!important}' in index
 
           print('Frame-zero launch and Dashboard filter invariants passed')
           PY
