@@ -1,12 +1,13 @@
-/* RETRADE skeleton motion polish — v1.5.12
+/* RETRADE skeleton motion polish — v1.5.14
  * One calm motion language for every data-loading surface.
  * Geometry remains owned by the existing real-layout skeleton systems.
  */
 :root{
-  --rt-skel-duration:2.7s;
+  --rt-skel-duration:3.4s;
+  --rt-skel-bar-duration:3.65s;
   --rt-skel-base:color-mix(in srgb,var(--surface2) 90%,var(--border) 10%);
   --rt-skel-edge:color-mix(in srgb,var(--surface2) 86%,var(--border) 14%);
-  --rt-skel-sheen:color-mix(in srgb,var(--text) 3.25%,transparent);
+  --rt-skel-sheen:color-mix(in srgb,var(--text) 2.25%,transparent);
 }
 
 /* Legacy/current real-layout placeholders. Keep the base steady; only a soft
@@ -14,15 +15,25 @@
 .rt .skeleton,
 .rt-real-layout-loading .rt-data-loading,
 .rt-real-layout-loading .rt-loading-line{
+  position:relative!important;
+  overflow:hidden!important;
+  background:var(--rt-skel-base)!important;
+  background-image:none!important;
+}
+.rt .skeleton::after,
+.rt-real-layout-loading .rt-data-loading::after,
+.rt-real-layout-loading .rt-loading-line::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
   background:linear-gradient(
     100deg,
-    var(--rt-skel-base) 0%,
-    var(--rt-skel-edge) 39%,
-    color-mix(in srgb,var(--rt-skel-base) 96.75%,var(--text) 3.25%) 50%,
-    var(--rt-skel-edge) 61%,
-    var(--rt-skel-base) 100%
-  )!important;
-  background-size:240% 100%!important;
+    transparent 25%,
+    var(--rt-skel-sheen) 50%,
+    transparent 75%
+  );
+  transform:translate3d(-115%,0,0);
 }
 
 .rt-real-layout-loading .rt-label-loading::after{
@@ -150,8 +161,8 @@ html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loadi
 /* Constant-speed travel avoids the accelerate/decelerate brightness "pop" that
    read as flashing when many placeholders were animating together. */
 @keyframes rtSkeletonPaint1512{
-  from{background-position:180% 0}
-  to{background-position:-180% 0}
+  from{background-position:155% 0}
+  to{background-position:-155% 0}
 }
 @keyframes rtSkeletonSheen1512{
   from{transform:translate3d(-112%,0,0)}
@@ -162,9 +173,12 @@ html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loadi
 }
 
 @media (prefers-reduced-motion:no-preference){
-  .rt .skeleton,
-  .rt-real-layout-loading .rt-data-loading,
-  .rt-real-layout-loading .rt-loading-line,
+  .rt .skeleton::after,
+  .rt-real-layout-loading .rt-data-loading::after,
+  .rt-real-layout-loading .rt-loading-line::after{
+    animation:rtSkeletonSheen1512 var(--rt-skel-bar-duration) linear infinite!important;
+  }
+
   .rt-real-layout-loading .rt-label-loading::after,
   .rt-real-layout-loading .rt-chart-loading::after{
     animation:rtSkeletonPaint1512 var(--rt-skel-duration) linear infinite!important;
@@ -175,7 +189,13 @@ html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loadi
   }
 
   html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-data-loading,
-  html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-loading-line,
+  html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-loading-line{
+    animation:none!important;
+  }
+  html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-data-loading::after,
+  html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-loading-line::after{
+    animation:rtSkeletonSheen1512 var(--rt-skel-bar-duration) linear infinite!important;
+  }
   html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-chart-loading::after{
     animation:rtSkeletonPaint1512 var(--rt-skel-duration) linear infinite!important;
   }
@@ -196,9 +216,9 @@ html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loadi
 }
 
 @media (prefers-reduced-motion:reduce){
-  .rt .skeleton,
-  .rt-real-layout-loading .rt-data-loading,
-  .rt-real-layout-loading .rt-loading-line,
+  .rt .skeleton::after,
+  .rt-real-layout-loading .rt-data-loading::after,
+  .rt-real-layout-loading .rt-loading-line::after,
   .rt-real-layout-loading .rt-label-loading::after,
   .rt-real-layout-loading .rt-chart-loading::after,
   .page.rt-main-loading1506 .rt-main-skel-value1506::after,
