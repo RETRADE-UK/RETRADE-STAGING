@@ -1,17 +1,20 @@
-// RETRADE service worker — warm app shell + immutable child scripts v20260921-v1522.
-const BUILD='20260921-v1522';
+// RETRADE staging service worker — production v1.5.33 + gesture layer G1.
+
+const BUILD='20260921-v1533-staging-g1';
 const CACHE_PREFIX='retrade-static-';
 const CACHE_NAME=CACHE_PREFIX+BUILD;
 const CHILD_SCRIPTS=[
-  'launch-experience.js','app-core.js','performance-system.js','navigation-stability.js','accounts-performance.js','gesture-back-v31.js','gesture-native-v3.js','gesture-native-v3-actions.js','gesture-live-tracking.js','interaction-system-v2.js','surface-gestures-v2.js','app-lifecycle.js','sales-defaults.js',
+  'launch-experience.js','staging-supabase.js','app-core.js','staging-dev-auth.js','staging-gestures.js',
+  'gesture-back-v31.js','gesture-native-v3.js','gesture-native-v3-actions.js','gesture-live-tracking.js','interaction-system-v2.js','surface-gestures-v2.js','chart-gesture-v2.js',
+  'performance-system.js','navigation-stability.js','app-lifecycle.js','sales-defaults.js',
   'bundle-orders.js','bundle-panel.js','bundle-row-polish.js','cashflow-liabilities.js','relist-fee-integrity.js','account-detail-stability.js','cashflow-dashboard-v2.js','cashflow-movement-card-polish.js','cashflow-performance-v1509.js',
   'partner-item-navigation.js','partner-actions-v2.js','partner-statement-action.js',
   'partner-statements.js','partner-statements-accounting-v2.js','partner-statements-accounting-v3.js','partner-account-adjustment-statements.js',
   'partner-account-ui-v3.js','partner-account-ui-v4.js','partner-account-cleanup.js',
   'partner-row-menu-popover.js','item-account-adjustments.js','partner-arrangements-v2.js',
   'partner-account-finalise.js','partner-account-legacy-hero-cleanup.js','partner-account-adjustments.js','partner-account-adjustments-hardening.js','partner-payment-allocations-v2.js','partner-account-transaction-ui.js','partner-transaction-breakdown-guard.js','partner-collapse-defaults.js',
-  'accounts-operations-dashboard.js','accounts-sort-polish.js','accounts-operations-compact-v2.js','partner-account-experience-v2.js','partner-page-unified-v1503.js','document-exports.js',
-  'chart-polish.js','chart-motion.js','chart-finalize.js','chart-gesture-v2.js','chart-reveal.js',
+  'accounts-operations-dashboard.js','accounts-sort-polish.js','accounts-operations-compact-v2.js','partner-account-experience-v2.js','partner-page-unified-v1503.js','sales-calendar-layout-v1530.js','document-exports.js',
+  'chart-polish.js','chart-motion.js','chart-finalize.js','chart-reveal.js',
   'sales-chart-sequence.js','chart-forecast-sequence.js','motion-system.js'
 ];
 const CHILD_SET=new Set(CHILD_SCRIPTS);

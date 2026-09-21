@@ -1,4 +1,4 @@
-/* RETRADE app entrypoint — v1.5.22 premium launch + direct warm navigation.
+/* RETRADE staging entrypoint — production v1.5.33 + isolated gesture layer G1.
  *
  * Cold-start is intentionally staged:
  *   1) launch coordinator + production core
@@ -11,7 +11,7 @@
  */
 (function(){
   'use strict';
-  var v='20260921-v1522';
+  var v='20260921-v1533-staging-g1';
   window.__rtBuildId=v;
   var motionReady=false;
   var motionFallbackTimer=0;
@@ -19,16 +19,8 @@
   window.__rtMotionStackReady=false;
   document.documentElement.classList.add('rt-app-cold','rt-motion-prep');
 
-  /* v1.5.15 — one low-contrast, compositor-friendly skeleton shimmer across boot,
-     main pages, Sales and Partners. Loaded before the feature stack so later
-     page-specific loaders can keep their geometry without reintroducing their
-     older faster shimmer timing. */
   if(!document.getElementById('rt-skeleton-motion-polish-1512')){
-    var skelCss=document.createElement('link');
-    skelCss.id='rt-skeleton-motion-polish-1512';
-    skelCss.rel='stylesheet';
-    skelCss.href='./skeleton-motion-polish-v1512.css?v='+v;
-    document.head.appendChild(skelCss);
+    var skelCss=document.createElement('link');skelCss.id='rt-skeleton-motion-polish-1512';skelCss.rel='stylesheet';skelCss.href='./skeleton-motion-polish-v1512.css?v='+v;document.head.appendChild(skelCss);
   }
 
   if(!document.getElementById('rt-motion-preflight')){
@@ -81,17 +73,10 @@
     return s;
   }
 
-  function loadEnhancements(){
+  function loadEnhancements(gestureManifest){
     var files=[
       './performance-system.js',
       './navigation-stability.js',
-      './accounts-performance.js',
-      './gesture-back-v31.js',
-      './gesture-native-v3.js',
-      './gesture-native-v3-actions.js',
-      './gesture-live-tracking.js',
-      './interaction-system-v2.js',
-      './surface-gestures-v2.js',
       './app-lifecycle.js',
       './sales-defaults.js',
       './bundle-orders.js',
@@ -125,16 +110,30 @@
       './accounts-operations-compact-v2.js',
       './partner-account-experience-v2.js',
       './partner-page-unified-v1503.js',
+      './sales-calendar-layout-v1530.js',
       './document-exports.js',
       './chart-polish.js',
       './chart-motion.js',
       './chart-finalize.js',
-      './chart-gesture-v2.js',
       './chart-reveal.js',
       './sales-chart-sequence.js',
       './chart-forecast-sequence.js',
       './motion-system.js'
     ];
+
+    /* Staging-only gesture experiments are declared in one manifest rather than
+       being mixed into the production runtime list. Preserve the dependency
+       positions used by the gesture prototype without changing production files. */
+    gestureManifest=gestureManifest&&typeof gestureManifest==='object'?gestureManifest:{};
+    var early=Array.isArray(gestureManifest.early)?gestureManifest.early:[];
+    var charts=Array.isArray(gestureManifest.charts)?gestureManifest.charts:[];
+    var appLifeAt=files.indexOf('./app-lifecycle.js');
+    if(appLifeAt<0)appLifeAt=2;
+    if(early.length)files.splice.apply(files,[appLifeAt,0].concat(early));
+    var chartRevealAt=files.indexOf('./chart-reveal.js');
+    if(chartRevealAt<0)chartRevealAt=files.length-1;
+    if(charts.length)files.splice.apply(files,[chartRevealAt,0].concat(charts));
+
     files.forEach(function(src,index){
       append(src,index<3?'auto':'low',index===files.length-1?function(){markMotionReady('stack-loaded');}:null);
     });
@@ -145,7 +144,11 @@
     append('./app-core.js','high',function(){
       try{if(typeof window.__rtInstallLaunchCoreHooks==='function')window.__rtInstallLaunchCoreHooks();}catch(_){}
       append('./staging-dev-auth.js','high');
-      requestAnimationFrame(function(){loadEnhancements();});
+      append('./staging-gestures.js','low',function(){
+        /* Cold start is otherwise identical to production. The only product
+           behaviour delta is the explicit staging gesture manifest. */
+        loadEnhancements(window.__rtStagingGestureManifest||{});
+      });
     });
   });
 })();

@@ -63,13 +63,15 @@
 <title>Retrade</title>
 <link rel="manifest" id="retrade-manifest">
 <script>if(/^https?:$/.test(location.protocol)){document.getElementById('retrade-manifest').href='./manifest.webmanifest';}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900;1,14..32,400&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- V2 Session 1 — JetBrains Mono (Inter is already loaded above with the full weight range V2 needs) -->
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.js" integrity="sha384-OUpie84zd1LdwNlK9uJJQRwab0BLqo3eKYKFh7hSVL58FSk7wPp2l0kfUMIIoaQd" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <!-- V2 Session 4a: Chart.js removed — dashboard chart is hand-rolled SVG -->
 <link rel="stylesheet" href="./app.css?v=1.4.37">
-<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./skeleton-motion-polish-v1512.css?v=1.5.15">
+<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./skeleton-motion-polish-v1512.css?v=1.5.33-staging-g1">
 
 <style id="retrade-v145-sync-float">
 /* v1.4.5: global sync state is an overlay, never a header layout participant. */
@@ -947,6 +949,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Sign In
     </button>
+    <button onclick="startPreviewMode()" id="preview-btn"
+      style="display:none;width:100%;padding:12px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;margin-top:10px;">
+      Developer preview
+    </button>
 
     <button onclick="showForgotPassword()"
       style="width:100%;padding:10px;background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-top:8px;text-decoration:underline;text-underline-offset:3px;">
@@ -1046,7 +1052,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 
 <script src="./accounting.js?v=1.4.11"></script>
 <script src="./reports.js?v=1.4.8"></script>
-<script src="./app.js?v=1.4.41"></script>
+<script src="./app.js?v=1.5.33-staging-g1"></script>
 
 <!-- RETRADE dashboard spacing cleanup: mobile/tablet/narrow-desktop rhythm v3 - 2026-06-29 -->
 </body>

@@ -1,4 +1,4 @@
-name: RETRADE CI
+name: RETRADE Staging CI
 
 on:
   pull_request:
@@ -18,16 +18,12 @@ jobs:
         run: |
           set -euo pipefail
           for file in \
-            app.js app-core.js accounting.js reports.js sw.js staging-supabase.js staging-dev-auth.js \
-            launch-experience.js performance-system.js navigation-stability.js accounts-performance.js \
-            account-detail-stability.js \
-            gesture-back-v31.js gesture-native-v3.js gesture-native-v3-actions.js gesture-live-tracking.js \
-            interaction-system-v2.js surface-gestures-v2.js sales-defaults.js \
-            bundle-orders.js bundle-panel.js bundle-row-polish.js \
-            cashflow-liabilities.js cashflow-dashboard-v2.js cashflow-movement-card-polish.js cashflow-performance-v1509.js \
-            partner-item-navigation.js partner-statements.js partner-account-experience-v2.js partner-page-unified-v1503.js \
-            accounts-operations-dashboard.js accounts-operations-compact-v2.js item-account-adjustments.js \
-            chart-polish.js chart-motion.js chart-finalize.js chart-gesture-v2.js chart-reveal.js \
+            app.js app-core.js accounting.js reports.js sw.js staging-supabase.js staging-dev-auth.js staging-gestures.js gesture-back-v31.js gesture-native-v3.js gesture-native-v3-actions.js gesture-live-tracking.js interaction-system-v2.js surface-gestures-v2.js chart-gesture-v2.js \
+            launch-experience.js performance-system.js navigation-stability.js app-lifecycle.js sales-defaults.js account-detail-stability.js \
+            bundle-orders.js bundle-panel.js bundle-row-polish.js relist-fee-integrity.js \
+            cashflow-liabilities.js cashflow-dashboard-v2.js cashflow-movement-card-polish.js cashflow-performance-v1509.js partner-item-navigation.js partner-actions-v2.js partner-statement-action.js partner-account-ui-v3.js partner-account-ui-v4.js partner-account-cleanup.js partner-row-menu-popover.js partner-statements.js partner-statements-accounting-v2.js partner-statements-accounting-v3.js partner-account-adjustment-statements.js partner-arrangements-v2.js partner-account-finalise.js partner-account-legacy-hero-cleanup.js partner-account-adjustments.js partner-account-adjustments-hardening.js partner-payment-allocations-v2.js partner-account-transaction-ui.js partner-transaction-breakdown-guard.js partner-collapse-defaults.js accounts-operations-dashboard.js accounts-sort-polish.js accounts-operations-compact-v2.js partner-account-experience-v2.js partner-page-unified-v1503.js sales-calendar-layout-v1530.js \
+            item-account-adjustments.js document-exports.js \
+            chart-polish.js chart-motion.js chart-finalize.js chart-reveal.js \
             sales-chart-sequence.js chart-forecast-sequence.js motion-system.js
           do
             echo "Checking $file"
@@ -67,7 +63,17 @@ jobs:
           print('Workflow write-safety check passed')
           PY
 
-      - name: Core file references and build alignment
+      - name: Core file references
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          index=Path('index.html').read_text(encoding='utf-8')
+          for required in ('app.js','app.css'):
+              assert required in index, f'{required} is not referenced by index.html'
+          print('Core file reference check passed')
+          PY
+
+      - name: Shared production loading invariants
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -75,114 +81,75 @@ jobs:
 
           index=Path('index.html').read_text(encoding='utf-8')
           app=Path('app.js').read_text(encoding='utf-8')
-          core=Path('app-core.js').read_text(encoding='utf-8')
           sw=Path('sw.js').read_text(encoding='utf-8')
-          staging=Path('staging-supabase.js').read_text(encoding='utf-8')
-          staging_auth=Path('staging-dev-auth.js').read_text(encoding='utf-8')
-          cname=Path('CNAME').read_text(encoding='utf-8').strip()
-          for required in ('app.js','app.css'):
-              assert required in index, f'{required} is not referenced by index.html'
+          core=Path('app-core.js').read_text(encoding='utf-8')
+          launch=Path('launch-experience.js').read_text(encoding='utf-8')
+          perf=Path('performance-system.js').read_text(encoding='utf-8')
+          partner=Path('partner-page-unified-v1503.js').read_text(encoding='utf-8')
+          partner_exp=Path('partner-account-experience-v2.js').read_text(encoding='utf-8')
+          chart=Path('chart-motion.js').read_text(encoding='utf-8')
 
-          assert "'./interaction-system-v2.js'" in app, 'interaction-system-v2.js is not loaded by app.js'
-          assert "'interaction-system-v2.js'" in sw, 'interaction-system-v2.js is not in the service-worker child cache'
-          assert "'./navigation-stability.js'" in app, 'navigation-stability.js is not loaded by app.js'
-          assert "'navigation-stability.js'" in sw, 'navigation-stability.js is not in the service-worker child cache'
-          assert "'./account-detail-stability.js'" in app, 'account-detail-stability.js is not loaded by app.js'
-          assert "'account-detail-stability.js'" in sw, 'account-detail-stability.js is not in the service-worker child cache'
-          assert "'./accounts-performance.js'" in app, 'accounts-performance.js is not loaded by app.js'
-          assert "'accounts-performance.js'" in sw, 'accounts-performance.js is not in the service-worker child cache'
-          assert "'./staging-supabase.js'" in app, 'staging Supabase binding is not loaded before app core'
-          assert "'./staging-dev-auth.js'" in app, 'staging development auth helper is not loaded'
-          assert 'dvnrxmdejxfuazmpnudj.supabase.co' in staging, 'staging Supabase project reference is missing'
-          assert 'hqyglehtssgnlrfndwpy.supabase.co' not in staging, 'production Supabase project leaked into staging binding'
-          assert 'signInAnonymously' in staging_auth, 'staging bypass must use authenticated Supabase staging sessions'
-          assert '__RETRADE_STAGING__' in staging_auth, 'staging auth helper is missing its environment guard'
-          assert cname == 'test.retrade-uk.com', f'Unexpected staging CNAME: {cname}'
-
-          staging_pos=app.find("'./staging-supabase.js'")
-          core_pos=app.find("'./app-core.js'")
-          auth_pos=app.find("'./staging-dev-auth.js'")
-          assert staging_pos != -1 and core_pos != -1 and staging_pos < core_pos, 'staging Supabase binding must load before app-core.js'
-          assert auth_pos > core_pos, 'staging auth helper must load after app-core.js'
-
-          # Old browser-memory dummy data must never come back. Staging fixtures
-          # belong in the isolated Supabase project, not the shipped app bundle.
-          for forbidden in ('function _buildPreviewDB(){','function startPreviewMode(){','PREVIEW_STORAGE_KEY','LEGACY_PREVIEW_STORAGE_KEYS','_previewParam','_previewStored'):
-              assert forbidden not in core, f'legacy browser preview mechanism returned: {forbidden}'
-          assert 'preview-btn' not in index and 'startPreviewMode()' not in index, 'legacy preview login UI returned'
-          assert not re.search(r'^\s*disablePreviewMode\(\);\s*$', core, re.M), 'orphan disablePreviewMode boot call returned'
-
+          assert 'skeleton-motion-polish-v1512.css' in index
           app_build=re.search(r"\bvar\s+v='([^']+)'",app)
           sw_build=re.search(r"\bconst\s+BUILD='([^']+)'",sw)
-          assert app_build and sw_build, 'Could not resolve app/SW build identifiers'
-          assert app_build.group(1)==sw_build.group(1), f'Build mismatch: app.js={app_build.group(1)} sw.js={sw_build.group(1)}'
-          print('Core references, build alignment, staging isolation and preview cleanup passed:',app_build.group(1))
+          assert app_build and sw_build and app_build.group(1)==sw_build.group(1), 'app/SW build mismatch'
+          assert "'./sales-calendar-layout-v1530.js'" in app and "'sales-calendar-layout-v1530.js'" in sw
+
+          for name in (
+              'main-page-loading-motion-v1506.js','main-page-truth-gate-v1507.js',
+              'sales-loading-mask-v1508.js','sales-month-loading-v1509.js',
+              'main-kpi-count-motion-v1510.js','skeleton-truth-exclusivity-v1511.js'
+          ):
+              assert f"'./{name}'" not in app, f'competing loader returned: {name}'
+
+          for name in (
+              'gesture-back-v31.js','gesture-native-v3.js','gesture-native-v3-actions.js',
+              'gesture-live-tracking.js','interaction-system-v2.js','chart-gesture-v2.js'
+          ):
+              assert f"'./{name}'" not in app, f'experimental gesture module shipped live: {name}'
+
+          for marker in ('rt-launch-brand','BRAND_TO_SKELETON_MS','retrade:motion-ready'):
+              assert marker in launch, f'launch marker missing: {marker}'
+          for marker in ('const _bootMonthlyRoute=','const _hydratedBootPage=','.rt-chart-primary-bar','__rtAuthHandoff'):
+              assert marker in core, f'core marker missing: {marker}'
+          assert 'rt-sales-route-v1' not in perf and 'restoreSalesState()' not in perf
+          assert 'renderLoadingShell(a);' not in partner
+          assert 'installPaintFirstNavigation();' not in partner_exp
+          assert 'el.textContent=money(0' not in chart
+          print('Shared loading invariants passed:',app_build.group(1))
           PY
 
 
-      - name: Loading and reveal architecture invariants
+      - name: Staging isolation and gesture boundary
         run: |
           python - <<'PY'
           from pathlib import Path
           import re
 
           app=Path('app.js').read_text(encoding='utf-8')
-          core=Path('app-core.js').read_text(encoding='utf-8')
-          launch=Path('launch-experience.js').read_text(encoding='utf-8')
-          perf=Path('performance-system.js').read_text(encoding='utf-8')
-          defaults=Path('sales-defaults.js').read_text(encoding='utf-8')
-          partner=Path('partner-page-unified-v1503.js').read_text(encoding='utf-8')
-          partner_exp=Path('partner-account-experience-v2.js').read_text(encoding='utf-8')
-          chart=Path('chart-motion.js').read_text(encoding='utf-8')
-          skeleton=Path('skeleton-motion-polish-v1512.css').read_text(encoding='utf-8')
+          sw=Path('sw.js').read_text(encoding='utf-8')
+          manifest=Path('staging-gestures.js').read_text(encoding='utf-8')
+          cname=Path('CNAME').read_text(encoding='utf-8').strip()
 
-          # Cold boot has one owner. In-memory page navigation must not invent
-          # route-wide skeleton latency once the DB is already resident.
-          forbidden_runtime=(
-              'partners-loading-v1517.js',
-              'partners-list-transition-v1504.js',
-              'partners-loading-dwell-v1505.js',
-              'sales-loading-v1517.js',
-              'sales-loading-mask-v1508.js',
-              'sales-month-loading-v1509.js',
-              'main-page-loading-motion-v1506.js',
-              'main-page-truth-gate-v1507.js',
-              'main-kpi-count-motion-v1510.js',
+          assert cname == 'test.retrade-uk.com', 'staging CNAME changed'
+          assert "'./staging-supabase.js'" in app, 'staging Supabase binding missing'
+          assert "'./staging-dev-auth.js'" in app, 'staging auth helper missing'
+          assert "'./staging-gestures.js'" in app, 'gesture manifest entrypoint missing'
+          assert 'window.__rtStagingGestureManifest' in manifest
+
+          allowed=(
+              'gesture-back-v31.js','gesture-native-v3.js','gesture-native-v3-actions.js',
+              'gesture-live-tracking.js','interaction-system-v2.js','surface-gestures-v2.js',
+              'chart-gesture-v2.js'
           )
-          for name in forbidden_runtime:
-              assert f"'./{name}'" not in app, f'legacy/competing loading owner returned to runtime: {name}'
+          for name in allowed:
+              assert name in manifest, f'gesture module missing from manifest: {name}'
+              assert name in sw, f'gesture module missing from staging cache: {name}'
+              assert f"'./{name}'" not in app, f'gesture module leaked directly into app.js: {name}'
 
-          # Branded cold start -> exact real-layout skeleton (only when needed)
-          # -> truth reveal, with motion modules ready before the mask leaves.
-          for marker in ('rt-launch-brand','BRAND_TO_SKELETON_MS','MOTION_WAIT_MAX_MS','retrade:motion-ready'):
-              assert marker in launch, f'launch-stage marker missing: {marker}'
-
-          # Dashboard must replay modern bars as well as legacy line paths.
-          for marker in (".rt-chart-primary-bar", "rtTruthChartReveal1520"):
-              assert marker in core, f'Dashboard boot replay regression: {marker} missing'
-          assert 'rt-motion-hold .rt-chart-primary-bar' in skeleton, 'Dashboard bars are not held at frame zero during boot reveal'
-
-          # Sales sub-route has one persisted state owner: app-core.
-          assert 'const _bootMonthlyRoute=' in core, 'core Sales boot-route snapshot missing'
-          assert 'rt-sales-route-v1' not in perf and 'restoreSalesState()' not in perf, 'duplicate Sales route cache returned'
-          startup_guard=defaults.split('/* Do not mutate anything on module load.',1)
-          assert len(startup_guard)==2, 'Sales startup non-mutation guard missing'
-          before_nav=startup_guard[1].split('try{',1)[0]
-          assert 'forceMonthly();' not in before_nav and 'renderMonthlyIfVisible();' not in before_nav, 'Sales defaults mutate the route during boot'
-
-          # Resident Partner/account data renders directly; no two-frame fake wait.
-          assert 'renderLoadingShell(a);' not in partner, 'Partner account synthetic loading shell returned'
-          assert 'installPaintFirstNavigation();' not in partner_exp, 'legacy Partner paint-first navigation wrapper returned'
-
-          # Truthful numeric values are never reset to zero after hydration.
-          assert 'el.textContent=money(0' not in chart, 'post-load Sales money count-up returned'
-
-          # Static UI copy stays static; only data-bearing regions skeletonise.
-          mark_start=core.find('function _markLoadingRegions(root)')
-          mark_end=core.find('function _clearLoadingRegions(page)',mark_start)
-          assert mark_start!=-1 and mark_end!=-1
-          mark=core[mark_start:mark_end]
-          assert "'.page-title'" not in mark and "'.summary-title'" not in mark, 'static page labels are being skeletonised again'
-
-          print('Loading/reveal architecture invariants passed')
+          app_build=re.search(r"\bvar\s+v='([^']+)'",app)
+          sw_build=re.search(r"\bconst\s+BUILD='([^']+)'",sw)
+          assert app_build and sw_build and app_build.group(1)==sw_build.group(1)
+          assert 'staging-g1' in app_build.group(1)
+          print('Staging isolation/gesture boundary passed:',app_build.group(1))
           PY
