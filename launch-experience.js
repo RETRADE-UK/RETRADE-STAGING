@@ -66,8 +66,9 @@ html.rt-app-cold body.rt-real-layout-loading .rt-label-loading{color:inherit!imp
 html.rt-app-cold body.rt-real-layout-loading .rt-label-loading::after{display:none!important;animation:none!important;}\
 /* Cold start keeps the core real-layout skeleton styling continuous from first paint. */\
 /* Cold boot uses the same local reveal philosophy as normal navigation: no whole-page translate. */\
-body.rt-launch-waking.rt-real-layout-revealing .page.on{animation:none!important;transform:none!important;}\
-body.rt-launch-waking.rt-real-layout-revealing .rt-loading-overlay-exit{transition:opacity 150ms cubic-bezier(.22,.61,.36,1)!important;}\
+@keyframes rtLaunchPageWake1540{from{opacity:.94}to{opacity:1}}\
+body.rt-launch-waking.rt-real-layout-revealing .page.on{animation:rtLaunchPageWake1540 280ms cubic-bezier(.22,.61,.36,1) both!important;transform:none!important;}\
+body.rt-launch-waking.rt-real-layout-revealing .rt-loading-overlay-exit{transition:opacity 180ms cubic-bezier(.22,.61,.36,1)!important;}\
 html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!important;}\
 @media(prefers-reduced-motion:reduce){\
  html.rt-app-cold body.rt-real-layout-loading .rt-data-loading,html.rt-app-cold body.rt-real-layout-loading .rt-loading-line,html.rt-app-cold body.rt-real-layout-loading .rt-chart-loading::after,html.rt-app-cold body.rt-real-layout-loading .cat-donut-chart::before,html.rt-app-cold body.rt-real-layout-loading .cat-donut-legend::before{animation:none!important;}\
