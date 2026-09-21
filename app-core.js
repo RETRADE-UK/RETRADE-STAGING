@@ -4377,6 +4377,17 @@ async function initDB(){
     else if(_safeTab==='tax')renderTax();
     else if(_safeTab==='data')renderData();
     else renderSummary();
+
+    // v1.5.13 — the renderer above replaces much of the seeded loading DOM.
+    // Re-mask the freshly hydrated DOM synchronously, in this SAME task, before
+    // the launch coordinator waits for data/paint stability. Without this,
+    // users can see skeleton -> live page -> skeleton -> reveal on cold start.
+    const _hydratedBootPage=document.getElementById('p-'+_safeTab);
+    if(_hydratedBootPage){
+      _markLoadingRegions(_hydratedBootPage);
+      _disableLoadingControls();
+    }
+
     _deactivatePages();
     document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
     document.querySelectorAll('.bnt').forEach(b=>b.classList.remove('on'));
