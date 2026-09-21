@@ -4145,8 +4145,28 @@ function _activityStateLabel(v){
   const map={sourced:'Unlisted',listed:'Listed',sold:'Sold',resold:'Resold',returned:'Returned',scrapped:'Scrapped',donated:'Donated',returned_supplier:'Supplier return',deleted:'Deleted',joblot:'Job Lot',gone:'Deleted'};
   return map[v]||String(v||'').replace(/_/g,' ');
 }
-function setActivityFilter(f){ACTIVITY_FILTER=f||'all';renderActivity();}
-function setActivitySearch(v){ACTIVITY_SEARCH=String(v||'');renderActivity();}
+function setActivityFilter(f){
+  f=f||'all';
+  if(f===ACTIVITY_FILTER)return;
+  ACTIVITY_FILTER=f;
+  _ackChoice('#p-activity','activity-filter',f,'active');
+  _queueLocalControlRender('activity-filter',function(){renderActivity();});
+}
+function setActivitySearch(v){
+  ACTIVITY_SEARCH=String(v||'');
+  const clear=document.querySelector('#p-activity .act-search-clear');
+  if(clear)clear.classList.toggle('show',!!ACTIVITY_SEARCH);
+  _queueLocalControlRender('activity-search',function(){renderActivity();});
+}
+function clearActivitySearch(){
+  if(!ACTIVITY_SEARCH)return;
+  ACTIVITY_SEARCH='';
+  const input=document.querySelector('#p-activity .act-search input');
+  if(input)input.value='';
+  const clear=document.querySelector('#p-activity .act-search-clear');
+  if(clear)clear.classList.remove('show');
+  _queueLocalControlRender('activity-search',function(){renderActivity();});
+}
 function renderActivity(){
   const el=document.getElementById('p-activity'); if(!el) return;
   const allRows=(DB.activityLog||[]).slice().sort(function(a,b){return (Number(b.ts)||0)-(Number(a.ts)||0);});
@@ -4175,7 +4195,7 @@ function renderActivity(){
     if(f[0]==='all')n=allRows.length;
     else if(f[0]==='undo')n=undoCount;
     else n=allRows.filter(function(r){return _activityCategory(r)===f[0];}).length;
-    return '<button class="act-filter'+(ACTIVITY_FILTER===f[0]?' active':'')+'" onclick="setActivityFilter(\''+f[0]+'\')"><span>'+f[1]+'</span><b>'+n+'</b></button>';
+    return '<button data-activity-filter="'+f[0]+'" class="act-filter'+(ACTIVITY_FILTER===f[0]?' active':'')+'" onclick="setActivityFilter(\''+f[0]+'\')"><span>'+f[1]+'</span><b>'+n+'</b></button>';
   }).join('');
   let body='';
   if(!rows.length){
@@ -4211,13 +4231,40 @@ function renderActivity(){
     });
   }
   const searchIcon='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
-  el.innerHTML='<div class="act-shell"><div class="page-header act-page-header"><div><div class="page-title">Activity &amp; Undo</div>'
+  const activityHTML='<div class="act-shell"><div class="page-header act-page-header"><div><div class="page-title">Activity &amp; Undo</div>'
     +'<div class="page-subtitle">Review what changed and safely reverse the latest eligible item action.</div></div>'
     +'<div class="act-overview"><span><strong>'+todayCount+'</strong> today</span><i></i><span><strong>'+activeCount+'</strong> active records</span><i></i><span><strong>'+undoCount+'</strong> undoable</span>'
     +(reviewCount?'<i></i><span class="act-overview-review"><strong>'+reviewCount+'</strong> review</span>':'')+'</div></div>'
     +'<div class="act-toolbar"><div class="act-filters">'+filterHTML+'</div><div class="act-search">'+searchIcon+'<input type="search" value="'+esc(ACTIVITY_SEARCH)+'" placeholder="Search item, action, amount…" oninput="setActivitySearch(this.value)">'
-    +'<button class="act-search-clear'+(ACTIVITY_SEARCH?' show':'')+'" onclick="ACTIVITY_SEARCH=\'\';renderActivity()" aria-label="Clear search">×</button></div></div>'
+    +'<button class="act-search-clear'+(ACTIVITY_SEARCH?' show':'')+'" onclick="clearActivitySearch()" aria-label="Clear search">×</button></div></div>'
     +'<div class="act-feed">'+body+'</div></div>';
+
+  const existing=el.querySelector('.act-shell');
+  if(!existing){
+    el.innerHTML=activityHTML;
+    return;
+  }
+
+  /* v1.5.46 — keep the toolbar and search input alive while the result set
+     changes. Replacing the focused input on each keystroke was unnecessary DOM
+     churn and could interrupt mobile keyboard/caret behaviour. */
+  const tmp=document.createElement('div');
+  tmp.innerHTML=activityHTML;
+  const next=tmp.firstElementChild;
+  const currentOverview=existing.querySelector('.act-overview');
+  const nextOverview=next&&next.querySelector('.act-overview');
+  const currentFilters=existing.querySelector('.act-filters');
+  const nextFilters=next&&next.querySelector('.act-filters');
+  const currentFeed=existing.querySelector('.act-feed');
+  const nextFeed=next&&next.querySelector('.act-feed');
+  if(currentOverview&&nextOverview)currentOverview.innerHTML=nextOverview.innerHTML;
+  if(currentFilters&&nextFilters)currentFilters.innerHTML=nextFilters.innerHTML;
+  if(currentFeed&&nextFeed)currentFeed.innerHTML=nextFeed.innerHTML;
+
+  const input=existing.querySelector('.act-search input');
+  if(input&&document.activeElement!==input&&input.value!==ACTIVITY_SEARCH)input.value=ACTIVITY_SEARCH;
+  const clear=existing.querySelector('.act-search-clear');
+  if(clear)clear.classList.toggle('show',!!ACTIVITY_SEARCH);
 }
 
 function saveDB(){
@@ -17874,8 +17921,27 @@ function _costCategoryBreakdown(trips,expenses,tieredById,from,to){
 }
 
 // Set period scope / category filter and re-render (Costs & Trips page).
-function setCostPeriod(kind){COST_PERIOD=kind;COST_CAT_FILTER='all';renderExpenses();}
-function setCostCatFilter(label){COST_CAT_FILTER=(COST_CAT_FILTER===label?'all':label);renderExpenses();}
+function _queueExpensesRender(){
+  const page=document.getElementById('p-expenses');if(page)page.setAttribute('data-rt-filter-pending','1');
+  _queueLocalControlRender('expenses-filter',function(){
+    renderExpenses();
+    const current=document.getElementById('p-expenses');if(current)current.removeAttribute('data-rt-filter-pending');
+  });
+}
+function setCostPeriod(kind){
+  if(kind===COST_PERIOD&&COST_CAT_FILTER==='all')return;
+  COST_PERIOD=kind;COST_CAT_FILTER='all';
+  _ackChoice('#p-expenses','cost-period',kind,'active');
+  _ackChoice('#p-expenses','cost-category','all','active');
+  _queueExpensesRender();
+}
+function setCostCatFilter(label){
+  const next=COST_CAT_FILTER===label?'all':label;
+  if(next===COST_CAT_FILTER)return;
+  COST_CAT_FILTER=next;
+  _ackChoice('#p-expenses','cost-category',next,'active');
+  _queueExpensesRender();
+}
 
 // ===== CASH & OWNER LEDGER (v2.20.0) ==========================================
 // The item/sale/return/fee engine (calc*) owns PROFIT; the expenses table owns
@@ -19016,19 +19082,19 @@ function renderExpenses(){
 
   const _periods=[['taxyear','Tax year'],['mtd','This month'],['lastMonth','Last month'],['last30','30 days'],['last90','90 days'],['all','All time']];
   const periodRow=_periods.map(function(p){
-    return '<button class="cost-period-pill'+(COST_PERIOD===p[0]?' active':'')+'" onclick="setCostPeriod(\''+p[0]+'\')">'+p[1]+'</button>';
+    return '<button data-cost-period="'+p[0]+'" class="cost-period-pill'+(COST_PERIOD===p[0]?' active':'')+'" onclick="setCostPeriod(\''+p[0]+'\')">'+p[1]+'</button>';
   }).join('');
 
   // Category filter cards (tap to filter, tap active to clear). Leading "All".
   const allActive=(COST_CAT_FILTER==='all')?' active':'';
-  const allCard='<div class="cost-cat-card'+allActive+'" onclick="setCostCatFilter(\'all\')">'
+  const allCard='<div data-cost-category="all" class="cost-cat-card'+allActive+'" onclick="setCostCatFilter(\'all\')">'
     +'<div class="ccc-dot" style="background:var(--muted)"></div>'
     +'<div class="ccc-label">All categories</div>'
     +'<div class="ccc-amt">'+fmt(_brk.total)+'</div>'
     +'<div class="ccc-count">'+_brk.count+' item'+(_brk.count!==1?'s':'')+'</div></div>';
   const catCards=_brk.cats.map(function(c){
     const act=(COST_CAT_FILTER===c.label)?' active':'';
-    return '<div class="cost-cat-card'+act+'" onclick="setCostCatFilter(\''+c.label.replace(/'/g,"\\'")+'\')">'
+    return '<div data-cost-category="'+esc(c.label)+'" class="cost-cat-card'+act+'" onclick="setCostCatFilter(\''+c.label.replace(/'/g,"\\'")+'\')">'
       +'<div class="ccc-box">Box '+c.box+'</div>'
       +'<div class="ccc-dot" style="background:'+_costCatDot(c.bucket)+'"></div>'
       +'<div class="ccc-label" title="'+esc(c.label)+'">'+esc(_expenseShort(c.label))+'</div>'
