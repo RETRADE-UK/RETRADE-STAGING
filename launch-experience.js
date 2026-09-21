@@ -12,7 +12,7 @@
 (function(){
   'use strict';
 
-  var VERSION='20260921-v1514';
+  var VERSION='20260921-v1515';
   var root=document.documentElement;
   var t0=(window.performance&&performance.now)?performance.now():Date.now();
   var bodyObserver=null;
