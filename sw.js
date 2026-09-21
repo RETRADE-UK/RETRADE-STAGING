@@ -1,5 +1,5 @@
-// RETRADE service worker — warm app shell + immutable child scripts v20260917-v1516.
-const BUILD='20260918-v3200';
+// RETRADE service worker — warm app shell + immutable child scripts v20260921-v1512.
+const BUILD='20260921-v1512';
 const CACHE_PREFIX='retrade-static-';
 const CACHE_NAME=CACHE_PREFIX+BUILD;
 const CHILD_SCRIPTS=[
@@ -15,7 +15,7 @@ const CHILD_SCRIPTS=[
   'sales-chart-sequence.js','chart-forecast-sequence.js','motion-system.js'
 ];
 const CHILD_SET=new Set(CHILD_SCRIPTS);
-const SHELL_FILES=['index.html','app.css','manifest.webmanifest'];
+const SHELL_FILES=['index.html','app.css','skeleton-motion-polish-v1512.css','manifest.webmanifest'];
 const SHELL_SET=new Set(SHELL_FILES);
 function buildUrl(name){return new URL('./'+name+'?v='+BUILD,self.registration.scope).href;}
 function shellUrl(name){return new URL('./'+name,self.registration.scope).href;}
