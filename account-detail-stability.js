@@ -14,10 +14,10 @@
 
   var GROUPS={
     sales:{match:/^sales$/i,label:'Sales',empty:'No sales yet'},
-    settlements:{match:/^(settlement history|payments\s*&\s*adjustments)$/i,label:'Payments & adjustments',empty:'No payments or adjustments yet'},
+    settlements:{match:/^(settlement history|payment history|payments\s*&\s*adjustments)$/i,label:'Payments & adjustments',empty:'No payments or adjustments yet'},
     listed:{match:/^listed stock$/i,label:'Listed stock',empty:'No listed items'},
     unlisted:{match:/^unlisted/i,label:'Unlisted · needs listing',empty:'No unlisted items'},
-    returned:{match:/^returned/i,label:'Returned · action needed',empty:'No returned items'}
+    returned:{match:/^return/i,label:'Returned · action needed',empty:'No returned items'}
   };
 
   function page(){return document.getElementById('p-item');}

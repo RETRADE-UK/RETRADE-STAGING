@@ -148,7 +148,7 @@
 
   installStyles();
   wrapAccountRenderer();
-  /* v1.5.22: no paint-first skeleton. openAccountPage is in-memory navigation. */
+  /* v1.5.31: resident account data renders directly. */
   try{polish(document.getElementById('p-item'));}catch(_){}
-  console.info('[RETRADE] v1.5.22 Partner account direct-navigation mobile hierarchy loaded');
+  console.info('[RETRADE] v1.5.31 Partner account direct-navigation mobile hierarchy loaded');
 })();

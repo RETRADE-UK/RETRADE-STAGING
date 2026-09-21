@@ -1,4 +1,4 @@
-/* RETRADE navigation / spatial stability v1.0.1
+/* RETRADE navigation / spatial stability v1.0.2
  *
  * This layer deliberately makes ordinary navigation visually boring.
  * Pages should appear in their final geometry, not animate themselves into
@@ -31,7 +31,6 @@
   style.id='rt-navigation-stability-css';
   style.textContent=[
     'html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-behavior:auto!important;}',
-    'body{overscroll-behavior-y:none;}',
     '.rt .page{overflow-anchor:none;}',
     // Normal route activation must not translate/fade the entire page. We only
     // suppress the route animation itself; transforms used by explicit swipe /
@@ -40,5 +39,5 @@
   ].join('\n');
   document.head.appendChild(style);
 
-  console.info('[RETRADE] navigation spatial stability v1.0.1 loaded');
+  console.info('[RETRADE] navigation spatial stability v1.0.2 loaded');
 })();

@@ -1,4 +1,4 @@
-/* RETRADE Partner surface unification — v1.5.03
+/* RETRADE Partner surface unification — v1.5.21
  *
  * Presentation/workflow layer only. No account, item, settlement, adjustment or
  * cashflow records are rewritten here.
@@ -9,8 +9,8 @@
  * - Add item and Adjustment become the two explicit account actions.
  * - Add item owns new stock, new listed item and add-existing workflows.
  * - The global FAB opens the same account quick actions (no duplicate logic).
- * - Account navigation renders the resident account immediately; presentation
- *   polish is applied after render without an artificial loading screen.
+ * - Account navigation paints a full final-layout loading shell before the
+ *   authoritative renderer runs, preventing partial-content/layout flashes.
  */
 (function(){
   'use strict';
@@ -21,6 +21,7 @@
   var queued=false;
   var observer=null;
   var navToken=0;
+  var ACCOUNT_MIN_MS=360,ACCOUNT_MAX_MS=1800;
 
   function norm(v){return String(v==null?'':v).replace(/\s+/g,' ').trim();}
   function escHtml(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c];});}
@@ -57,7 +58,9 @@
       .rt-partner-v1503-choice:hover{background:var(--surface2);}\
       .rt-partner-v1503-choice-icon{width:34px;height:34px;border-radius:9px;background:var(--surface2);display:flex;align-items:center;justify-content:center;flex:0 0 34px;color:var(--accent);font-size:18px;font-weight:800;}\
       .rt-partner-v1503-choice-copy{min-width:0;flex:1}.rt-partner-v1503-choice-copy strong{display:block;font-size:12.5px}.rt-partner-v1503-choice-copy span{display:block;font-size:10.5px;color:var(--text-secondary);margin-top:2px;line-height:1.35;}\
-      #p-item[data-rt-account-transition="v1503"]{position:relative;}\
+      #p-item[data-rt-account-transition]{position:relative;}\
+      #p-item .rt-account-shell1503.rt-account-shell1503-overlay{position:absolute;inset:0;z-index:60;min-height:100%;background:var(--bg);padding:0 0 28px;box-sizing:border-box;opacity:1;pointer-events:auto;transition:opacity 160ms cubic-bezier(.22,.61,.36,1);}\
+      #p-item .rt-account-shell1503.rt-account-shell1503-overlay.rt-account-shell1503-exit{opacity:0;}\
       #p-item .rt-account-shell1503{padding:0 0 28px;min-height:70vh;}\
       #p-item .rt-account-shell1503-nav{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;}\
       #p-item .rt-account-shell1503-navright{display:flex;align-items:center;gap:8px;margin-left:auto;}\
@@ -77,7 +80,8 @@
       #p-item .rt-account-shell1503-groups{display:grid;gap:9px}.rt-account-shell1503-group{height:50px;border:1px solid var(--border);border-radius:12px;background:var(--surface);display:flex;align-items:center;padding:0 14px;gap:10px;box-sizing:border-box}.rt-account-shell1503-group strong{font-size:12.5px}.rt-account-shell1503-group span{margin-left:auto;width:30px;height:8px;border-radius:999px;background:var(--surface2)}\
       @keyframes rt-shell1503{to{transform:translateX(100%)}}\
       @media(max-width:760px){#p-item .rt-account-shell1503-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}#p-item .rt-account-shell1503-kpi{min-height:82px;padding:11px}#p-accounts .rt-acct-compact-strip{grid-template-columns:minmax(0,1fr) minmax(108px,auto) 14px!important;gap:12px!important;}}\
-      @media(max-width:560px){#p-item .rt-partner-v1503-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}#p-item .rt-partner-v1503-actions .btn{width:100%}#p-item .rt-account-shell1503-actions{display:grid;grid-template-columns:1fr 1fr}.rt-account-shell1503-action{width:auto!important}#p-item .rt-account-shell1503-title{font-size:27px}}\
+      @media(max-width:640px){#p-item .rt-account-shell1503-kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}#p-item .rt-account-shell1503-kpi{min-height:78px;padding:10px 9px}#p-item .rt-account-shell1503-kpi:first-child{grid-column:1/-1;min-height:102px;padding:14px 16px}#p-item .rt-partner-v1503-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}#p-item .rt-partner-v1503-actions .btn{width:100%}#p-item .rt-account-shell1503-actions{display:grid;grid-template-columns:1fr 1fr}.rt-account-shell1503-action{width:auto!important}}\
+      @media(max-width:380px){#p-item .rt-account-shell1503-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#p-item .rt-account-shell1503-kpi:first-child{grid-column:1/-1}#p-item .rt-account-shell1503-kpi:last-child{grid-column:1/-1;min-height:68px}}\
       @media(prefers-reduced-motion:reduce){#p-item .rt-account-shell1503-line:after,#p-item .rt-account-shell1503-block:after{animation:none!important;}}\
     ';
     document.head.appendChild(s);
@@ -109,10 +113,16 @@
 
   function ensureSettings(page,a){
     var nav=page.querySelector('.rt-partner-v4-navrow');if(!nav)return;
-    var old=nav.querySelector('.rt-partner-v1503-settings');if(old)old.remove();
-    var btn=document.createElement('button');btn.type='button';btn.className='btn btn-secondary rt-partner-v1503-settings';btn.setAttribute('aria-label','Account settings');btn.title='Account settings';btn.innerHTML=settingsSvg();
-    btn.addEventListener('click',function(){try{if(typeof openEditAccount==='function')openEditAccount(a.id);else if(typeof window.openEditAccount==='function')window.openEditAccount(a.id);}catch(err){console.warn('[RETRADE] account settings open failed',err);}});
-    nav.appendChild(btn);
+    var btn=nav.querySelector('.rt-partner-v1503-settings');
+    if(!btn){
+      btn=document.createElement('button');btn.type='button';btn.className='btn btn-secondary rt-partner-v1503-settings';btn.setAttribute('aria-label','Account settings');btn.title='Account settings';btn.innerHTML=settingsSvg();
+      btn.addEventListener('click',function(){
+        var id=btn.getAttribute('data-account-id'),acct=accountById(id)||currentAccount();if(!acct)return;
+        try{if(typeof openEditAccount==='function')openEditAccount(acct.id);else if(typeof window.openEditAccount==='function')window.openEditAccount(acct.id);}catch(err){console.warn('[RETRADE] account settings open failed',err);}
+      });
+      nav.appendChild(btn);
+    }
+    btn.setAttribute('data-account-id',a.id);
     page.querySelectorAll('button,a').forEach(function(el){if(el===btn||el.closest('.rt-partner-v4-navrow'))return;var t=norm(el.textContent).toLowerCase(),oc=String(el.getAttribute('onclick')||'');if(t==='edit'||t==='edit account'||oc.indexOf('openEditAccount')!==-1)el.classList.add('rt-partner-v1503-hidden-action');});
   }
 
@@ -132,13 +142,18 @@
   }
 
   function ensureActionRow(page,a){
-    var old=page.querySelector('.rt-partner-v1503-actions');if(old)old.remove();
     var summary=page.querySelector('.rt-partner-summary-v3');if(!summary)return;
-    var row=document.createElement('div');row.className='rt-partner-v1503-actions';
-    row.innerHTML='<button type="button" class="btn rt-partner-v1503-add">+ Add item</button><button type="button" class="btn btn-secondary rt-partner-v1503-adjust">+ Adjustment</button>';
-    summary.insertAdjacentElement('afterend',row);
-    row.querySelector('.rt-partner-v1503-add').addEventListener('click',function(){openItemChooser(a);});
-    row.querySelector('.rt-partner-v1503-adjust').addEventListener('click',function(){openAdjustment(a);});
+    var row=page.querySelector('.rt-partner-v1503-actions');
+    if(!row){
+      row=document.createElement('div');row.className='rt-partner-v1503-actions';
+      row.innerHTML='<button type="button" class="btn rt-partner-v1503-add">+ Add item</button><button type="button" class="btn btn-secondary rt-partner-v1503-adjust">+ Adjustment</button>';
+      summary.insertAdjacentElement('afterend',row);
+      row.querySelector('.rt-partner-v1503-add').addEventListener('click',function(){var acct=accountById(row.getAttribute('data-account-id'))||currentAccount();if(acct)openItemChooser(acct);});
+      row.querySelector('.rt-partner-v1503-adjust').addEventListener('click',function(){var acct=accountById(row.getAttribute('data-account-id'))||currentAccount();if(acct)openAdjustment(acct);});
+    }else if(row.previousElementSibling!==summary){
+      summary.insertAdjacentElement('afterend',row);
+    }
+    row.setAttribute('data-account-id',a.id);
 
     page.querySelectorAll('button,a').forEach(function(el){
       if(el.closest('.rt-partner-v1503-actions,.panel,.side-panel,.modal'))return;
@@ -150,7 +165,7 @@
 
   function polishAccount(){
     queued=false;
-    var page=document.getElementById('p-item'),a=currentAccount();if(!page||!page.classList.contains('on')||!a||page.hasAttribute('data-rt-account-transition'))return;
+    var page=document.getElementById('p-item'),a=currentAccount(),transition=page&&page.getAttribute('data-rt-account-transition');if(!page||!page.classList.contains('on')||!a||transition==='v1503')return;
     activeAccountId=a.id;classifySummary(page);ensureSettings(page,a);ensureActionRow(page,a);
   }
   function schedule(){if(queued)return;queued=true;requestAnimationFrame(function(){requestAnimationFrame(function(){patchPartnersList();polishAccount();});});}
@@ -158,11 +173,11 @@
   function shellGroup(label){return '<div class="rt-account-shell1503-group"><strong>'+label+'</strong><span></span></div>';}
   function renderLoadingShell(a){
     var page=document.getElementById('p-item');if(!page)return;
-    page.setAttribute('data-rt-account-transition','v1503');
+    page.setAttribute('data-rt-account-transition','v1503');page.setAttribute('aria-busy','true');
     page.innerHTML=''
       +'<div class="rt-account-shell1503">'
         +'<div class="rt-account-shell1503-nav"><button type="button" class="btn btn-secondary" disabled>← Accounts</button><div class="rt-account-shell1503-navright"><button type="button" class="btn btn-secondary" disabled>Statement</button><button type="button" class="btn btn-secondary rt-partner-v1503-settings" disabled>'+settingsSvg()+'</button></div></div>'
-        +'<div class="rt-account-shell1503-head"><div class="rt-account-shell1503-title">'+escHtml(a&&a.name||'Account')+'</div><span class="rt-account-shell1503-tag">'+escHtml(arrangementLabel(a))+'</span></div>'
+        +'<div class="rt-account-shell1503-head"><div class="rt-account-shell1503-line" style="width:min(48%,260px);height:28px;margin-bottom:9px"></div><div class="rt-account-shell1503-line" style="width:112px;height:22px"></div></div>'
         +'<div class="rt-account-shell1503-kpis">'
           +'<div class="rt-account-shell1503-kpi"><div class="rt-account-shell1503-line"></div><div class="rt-account-shell1503-line"></div><div class="rt-account-shell1503-line"></div></div>'
           +'<div class="rt-account-shell1503-kpi"><div class="rt-account-shell1503-line"></div><div class="rt-account-shell1503-line"></div><div class="rt-account-shell1503-line"></div></div>'
@@ -178,16 +193,10 @@
   function installNavigation(){
     var current=window.openAccountPage;
     if(typeof current!=='function'||current.__rtUnified1503)return;
-    /* If an older paint-first wrapper is present, unwrap it. Account data is
-       already resident in memory; showing a synthetic skeleton for two frames
-       creates a flash without representing any real wait. */
     var base=current.__rtBase||current;
     function wrapped(accountId){
       var a=accountById(accountId);if(a)activeAccountId=a.id;
-      var out=base.apply(this,arguments);
-      schedule();
-      setTimeout(schedule,60);
-      return out;
+      var out=base.apply(this,arguments);schedule();setTimeout(schedule,60);return out;
     }
     wrapped.__rtUnified1503=true;wrapped.__rtBase=base;window.openAccountPage=wrapped;try{openAccountPage=wrapped;}catch(_){}
   }
@@ -210,5 +219,5 @@
     window.addEventListener('retrade:motion-ready',schedule);window.addEventListener('popstate',schedule);window.addEventListener('hashchange',schedule);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
-  console.info('[RETRADE] v1.5.22 unified Partner list/actions direct navigation loaded');
+  console.info('[RETRADE] v1.5.31 unified Partner direct navigation + interactions loaded');
 })();

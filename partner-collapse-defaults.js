@@ -1,4 +1,4 @@
-/* RETRADE partner collapse defaults — v1.4.91
+/* RETRADE partner collapse defaults — v1.5.21
  * Keeps account detail sections compact without watching mutations across the
  * whole application. User choices remain session-scoped.
  */
@@ -36,13 +36,13 @@
     box.classList.toggle('closed',!!unsettledState[key]);var head=box.querySelector('.rt-payalloc2-head');if(head)head.setAttribute('aria-expanded',unsettledState[key]?'false':'true');
     if(!head||head.getAttribute('data-rt-collapse-default-bound')==='1')return;head.setAttribute('data-rt-collapse-default-bound','1');head.addEventListener('click',function(){unsettledState[key]=!unsettledState[key];},true);
   }
-  function enhance(){queued=false;var p=page();if(!p||p.hasAttribute('data-rt-account-transition'))return;bindGroups(p);bindUnsettled(p);}
+  function enhance(){queued=false;var p=page(),transition=p&&p.getAttribute('data-rt-account-transition');if(!p||transition==='v1503')return;bindGroups(p);bindUnsettled(p);}
   function schedule(){if(queued)return;queued=true;requestAnimationFrame(enhance);}
 
   function start(){
     schedule();var p=document.getElementById('p-item');if(p){observer=new MutationObserver(function(muts){for(var i=0;i<muts.length;i++){if(muts[i].type==='childList'&&(muts[i].addedNodes.length||muts[i].removedNodes.length)){schedule();return;}}});observer.observe(p,{childList:true,subtree:true});}
-    window.addEventListener('retrade:motion-ready',schedule);
+    window.addEventListener('retrade:motion-ready',schedule);window.addEventListener('retrade:account-page-reveal',schedule);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
-  console.info('[RETRADE] v1.4.91 partner sections default collapsed (page scoped)');
+  console.info('[RETRADE] v1.5.21 partner sections default collapsed (page scoped)');
 })();
