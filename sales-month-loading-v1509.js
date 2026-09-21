@@ -1,4 +1,4 @@
-/* RETRADE Sales same-route loading + reveal — v1.5.09
+/* RETRADE Sales target-layout loading + reveal — v1.5.14
  *
  * Sales Yearly/Monthly lives on the same p-monthly route. The shared top-level
  * loader only starts when the active page id changes, so same-route view changes
@@ -10,7 +10,7 @@
   if(window.__rtSalesMonthLoading1509)return;
   window.__rtSalesMonthLoading1509=true;
 
-  var MIN_MS=390;
+  var MIN_MS=520;
   var serial=0;
   var session=null;
   var EASE='cubic-bezier(.22,.61,.36,1)';
@@ -31,6 +31,11 @@
     if(!t||t.length>90)return false;
     if(numericLike(t))return true;
     if(el.closest('#month-list'))return true;
+    /* The yearly/FY calendar has descriptive values such as "5 sold · 2 active"
+       that are not a single numeric token. Mask those in-place so the calendar
+       skeleton genuinely matches its own layout rather than leaking live data. */
+    if(el.closest('.mcard')&&/(?:mval|msub)/.test(c))return true;
+    if(el.closest('.fy-section')&&/(?:fy-stat-hide|mval|msub)/.test(c))return true;
     return /(?:sale|order|revenue|profit|margin|metric|kpi|stat|summary|total|amount|value)/.test(c+' '+parent)&&t.length<56;
   }
 
@@ -71,6 +76,7 @@
     var p=s.page;
     if(!p)return;
     p.classList.remove('rt-sales-route-loading1509');
+    p.removeAttribute('data-rt-sales-skeleton-layout');
     /* This class is deliberately borrowed so the truth gate recognises the
        same-route Sales skeleton. Remove it only when the generic loader is not
        managing its own busy session. */
@@ -98,12 +104,17 @@
     setTimeout(function(){requestAnimationFrame(function(){requestAnimationFrame(function(){finish(s);});});},wait);
   }
 
-  function begin(reason){
+  function begin(reason,deferInitialMark){
     var p=page();if(!p||!p.classList.contains('on'))return null;
     if(session)finish(session);
-    var s=session={id:++serial,page:p,reason:reason||'sales',started:now(),ended:false,marked:[],primary:[],observer:null};
+    var view=(typeof MONTHLY_VIEW!=='undefined'&&MONTHLY_VIEW==='detail')?'detail':'yearly';
+    var s=session={id:++serial,page:p,reason:reason||'sales',view:view,started:now(),ended:false,marked:[],primary:[],observer:null};
     p.classList.add('rt-sales-route-loading1509','rt-main-loading1506');
-    mark(p,s);
+    p.setAttribute('data-rt-sales-skeleton-layout',view);
+    /* For route/view changes, do not paint the layout we are leaving. The
+       wrapped renderer will build the target DOM synchronously and mark it in
+       the same task, before the browser gets a paint opportunity. */
+    if(!deferInitialMark)mark(p,s);
     try{
       s.observer=new MutationObserver(function(muts){
         if(s.ended)return;
@@ -121,8 +132,14 @@
   function wrapRender(name){
     var base=window[name];if(typeof base!=='function'||base.__rtSalesRoute1509)return;
     function wrapped(){
-      var own=!session&&activeSales(),s=own?begin(name):session,out;
-      try{out=base.apply(this,arguments);}finally{if(own&&s)scheduleFinish(s);}
+      var own=!session&&activeSales(),s=own?begin(name,true):session,out;
+      try{
+        out=base.apply(this,arguments);
+      }finally{
+        /* The renderer has now produced the destination layout. Mask that exact
+           DOM synchronously so Yearly never borrows Monthly's skeleton. */
+        if(own&&s&&!s.ended){mark(s.page,s);scheduleFinish(s);}
+      }
       return out;
     }
     wrapped.__rtSalesRoute1509=true;wrapped.__rtBase=base;window[name]=wrapped;try{eval(name+'=wrapped');}catch(_){}
@@ -131,8 +148,15 @@
   function wrapNav(){
     var base=window.goToTab;if(typeof base!=='function'||base.__rtSalesSameRoute1509)return;
     function wrapped(name){
-      var same=name==='monthly'&&activeSales(),s=same?begin('same-route-nav'):null,out;
-      try{out=base.apply(this,arguments);}finally{if(same&&s)scheduleFinish(s);}
+      var same=name==='monthly'&&activeSales(),out;
+      /* Let the destination renderer own the skeleton. Starting here would
+         skeletonise the page being left and is what caused the Monthly-shaped
+         loader to flash before the Yearly/FY calendar. */
+      out=base.apply(this,arguments);
+      if(same&&!session){
+        var s=begin('same-route-nav',false);
+        if(s)scheduleFinish(s);
+      }
       return out;
     }
     wrapped.__rtSalesSameRoute1509=true;wrapped.__rtBase=base;window.goToTab=wrapped;try{goToTab=wrapped;}catch(_){}
@@ -140,5 +164,5 @@
 
   function install(){installStyles();wrapRender('renderMonth');wrapRender('renderMonthlyGrid');wrapRender('renderMonthlyPage');wrapNav();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
-  console.info('[RETRADE] v1.5.09 Sales same-route skeleton + reveal loaded');
+  console.info('[RETRADE] v1.5.14 Sales target-layout skeleton + reveal loaded');
 })();
