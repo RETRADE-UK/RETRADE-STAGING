@@ -1,4 +1,4 @@
-/* RETRADE Sales yearly chart sequence v3.3 (v1.4.69)
+/* RETRADE Sales yearly chart sequence v3.4 (v1.5.30)
  *
  * One presentation owner for the Sales yearly chart.
  *
@@ -40,7 +40,7 @@
 
   window.__rtSalesChartSequence=window.__rtSalesChartSequence||{};
   var diag=window.__rtSalesChartSequence;
-  diag.version='3.3';
+  diag.version='3.4';
   window.__rtSalesSequenceArmed=true;
 
   function reduced(){
@@ -345,7 +345,10 @@
     }
     function onDownCapture(e){
       if(!e||!isFinite(e.clientX)||!near(e.clientX))return;
-      show(e.pointerType!=='mouse');
+      /* Touch/pen already owns the full-chart scrub interaction. Keep this small
+         forecast popover as a desktop hover affordance so mobile never receives
+         two competing overlays for the same September point. */
+      if(e.pointerType==='mouse')show(false);
     }
     function onLeave(e){if(!e||e.pointerType==='mouse')hide();}
     function onResize(){position();}

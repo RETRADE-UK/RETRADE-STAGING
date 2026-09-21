@@ -347,7 +347,7 @@
     layer.appendChild(svgCircle(x,g.sy(fc.profit),4.0,'var(--surface-1)','var(--profit)','rt-sales-forecast-ring'));
 
     var y=Math.max(opts.pad.t+opts.fontSize,g.sy(fc.rev)-10),anchor=x>g.W-opts.pad.r-92?'end':'end';
-    var t=document.createElementNS(NS,'text');t.setAttribute('class','rt-sales-forecast-label');t.setAttribute('x',(x-5).toFixed(1));t.setAttribute('y',y.toFixed(1));t.setAttribute('text-anchor',anchor);t.setAttribute('font-size',Math.max(10,Math.round(opts.fontSize*.9)));t.textContent='Forecast '+compactMoney(fc.rev);layer.appendChild(t);
+    var t=document.createElementNS(NS,'text');t.setAttribute('class','rt-sales-forecast-label');t.setAttribute('x',(x-5).toFixed(1));t.setAttribute('y',y.toFixed(1));t.setAttribute('text-anchor',anchor);t.setAttribute('font-size',Math.max(10,Math.round(opts.fontSize*.9)));t.textContent='Forecast '+compactMoney(fc.rev)+' · '+compactMoney(fc.actualRev)+' actual';layer.appendChild(t);
     if(g.W>=560){
       var r=document.createElementNS(NS,'text');r.setAttribute('class','rt-sales-range-label');r.setAttribute('x',(x-5).toFixed(1));r.setAttribute('y',(y+14).toFixed(1));r.setAttribute('text-anchor','end');r.setAttribute('font-size',Math.max(9,Math.round(opts.fontSize*.78)));
       r.textContent='Likely '+compactMoney(fc.revLow)+'–'+compactMoney(fc.revHigh)+' · '+fc.confidence;layer.appendChild(r);
@@ -359,7 +359,15 @@
     svgEl.setAttribute('aria-label','Monthly net revenue and net profit with current-month forecast and confidence range');
 
     if(typeof _setupChartScrub==='function'){
-      try{_setupChartScrub(svgEl,{W:g.W,pad:g.pad,innerW:g.innerW,n:labels.length,sx:g.sx,sy:g.sy,revData:actualRev,profitData:actualProfit,labels:labels,primaryColor:opts.primaryColor||'var(--state-listed)',secondaryColor:opts.secondaryColor||'var(--profit)',primaryLabel:opts.primaryLabel||'Net Revenue',secondaryLabel:opts.secondaryLabel||'Net Profit',tertiaryData:Array.isArray(opts.tertiaryData)?opts.tertiaryData:null,tertiaryColor:opts.tertiaryColor||'var(--red)',tertiaryLabel:opts.tertiaryLabel||'Refunds',tertiaryCounts:Array.isArray(opts.tertiaryCounts)?opts.tertiaryCounts:null,tertiaryEvents:!!opts.tertiaryEvents,tertiaryEventY:NaN,extraTooltipData:Array.isArray(opts.extraTooltipData)?opts.extraTooltipData:null,extraTooltipLabel:opts.extraTooltipLabel||'Gross Profit',extraTooltipColor:opts.extraTooltipColor||'var(--text-secondary)'});}catch(_){}
+      try{
+        var scrubLabels=labels.slice();
+        if(scrubLabels.length)scrubLabels[scrubLabels.length-1]=String(scrubLabels[scrubLabels.length-1]||'')+' · forecast';
+        /* The final plotted point is the projected month-end point. Scrubbing the
+           current month must therefore use forecast geometry too; previously the
+           indicator jumped down to the achieved value while the hollow endpoint
+           stayed above it, which made the interaction look detached from the mark. */
+        _setupChartScrub(svgEl,{W:g.W,pad:g.pad,innerW:g.innerW,n:labels.length,sx:g.sx,sy:g.sy,revData:forecastRev,profitData:forecastProfit,labels:scrubLabels,primaryColor:opts.primaryColor||'var(--state-listed)',secondaryColor:opts.secondaryColor||'var(--profit)',primaryLabel:opts.primaryLabel||'Net Revenue',secondaryLabel:opts.secondaryLabel||'Net Profit',tertiaryData:Array.isArray(opts.tertiaryData)?opts.tertiaryData:null,tertiaryColor:opts.tertiaryColor||'var(--red)',tertiaryLabel:opts.tertiaryLabel||'Refunds',tertiaryCounts:Array.isArray(opts.tertiaryCounts)?opts.tertiaryCounts:null,tertiaryEvents:!!opts.tertiaryEvents,tertiaryEventY:NaN,extraTooltipData:Array.isArray(opts.extraTooltipData)?opts.extraTooltipData:null,extraTooltipLabel:opts.extraTooltipLabel||'Gross Profit',extraTooltipColor:opts.extraTooltipColor||'var(--text-secondary)'});
+      }catch(_){}
     }
   }
 
@@ -455,9 +463,6 @@
   }
   function animateMoneyFlow(host){
     if(!host||reducedMotion())return;
-    /* Values are already truthful when the DOM renders. Never roll them up from
-       zero after hydration; that reads as delayed data. Let only the bars tell
-       the visual story, and start promptly after the page handoff. */
     var sequenceDelay=180,fillDur=430,stagger=42;
     var fills=host.querySelectorAll('.mf-fill');
     Array.prototype.forEach.call(fills,function(fill,i){
