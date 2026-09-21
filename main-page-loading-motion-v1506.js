@@ -20,7 +20,7 @@
   var MAX_MS=2200;
   var EASE='cubic-bezier(.22,.61,.36,1)';
   var eligible=new Set([
-    'p-monthly','p-stock','p-expenses','p-cash','p-returns','p-scrapped',
+    'p-stock','p-expenses','p-cash','p-returns','p-scrapped',
     'p-activity','p-tax','p-data','p-runs'
   ]);
   var session=null;
@@ -64,9 +64,9 @@
       .page.rt-main-loading1506 button:disabled,.page.rt-main-loading1506 input:disabled,.page.rt-main-loading1506 select:disabled,.page.rt-main-loading1506 textarea:disabled{opacity:.62!important;cursor:default!important;}\
       .page.rt-main-loading1506 [data-rt-main-link-disabled="1"]{pointer-events:none!important;opacity:.62!important;}\
       @keyframes rtMainSheen1506{to{transform:translateX(105%)}}\
-      @keyframes rtMainValueReveal1506{0%{opacity:.12;transform:translate3d(0,5px,0)}100%{opacity:1;transform:translate3d(0,0,0)}}\
-      @keyframes rtMainCardReveal1506{0%{opacity:.66;transform:translate3d(0,3px,0)}100%{opacity:1;transform:translate3d(0,0,0)}}\
-      @keyframes rtMainChartReveal1506{0%{opacity:.18;transform:translate3d(0,3px,0) scale(.997)}100%{opacity:1;transform:translate3d(0,0,0) scale(1)}}\
+      @keyframes rtMainValueReveal1506{0%{opacity:.58}100%{opacity:1}}\
+      @keyframes rtMainCardReveal1506{0%{opacity:.76}100%{opacity:1}}\
+      @keyframes rtMainChartReveal1506{0%{opacity:.62}100%{opacity:1}}\
       .page .rt-main-reveal-value1506{animation:rtMainValueReveal1506 320ms '+EASE+' both;animation-delay:var(--rt-main-delay,0ms);}\
       .page .rt-main-reveal-card1506{animation:rtMainCardReveal1506 270ms '+EASE+' both;animation-delay:var(--rt-main-card-delay,0ms);}\
       .page .rt-main-reveal-chart1506{animation:rtMainChartReveal1506 340ms '+EASE+' both;animation-delay:70ms;transform-origin:center;}\
@@ -219,8 +219,8 @@
 
     restoreControls(bag);
     if(!animate||reduced())return;
-    primary.forEach(function(el,i){el.style.setProperty('--rt-main-delay',Math.min(i*26,156)+'ms');el.classList.add('rt-main-reveal-value1506');});
-    cards.slice(0,10).forEach(function(card,i){card.style.setProperty('--rt-main-card-delay',Math.min(i*18,108)+'ms');card.classList.add('rt-main-reveal-card1506');});
+    primary.forEach(function(el){el.style.setProperty('--rt-main-delay','0ms');el.classList.add('rt-main-reveal-value1506');});
+    cards.slice(0,10).forEach(function(card){card.style.setProperty('--rt-main-card-delay','0ms');card.classList.add('rt-main-reveal-card1506');});
     setTimeout(function(){
       primary.forEach(function(el){if(!el)return;el.classList.remove('rt-main-reveal-value1506','rt-main-primary1506');el.style.removeProperty('--rt-main-delay');});
       cards.forEach(function(card){if(!card)return;card.classList.remove('rt-main-reveal-card1506');card.style.removeProperty('--rt-main-card-delay');});

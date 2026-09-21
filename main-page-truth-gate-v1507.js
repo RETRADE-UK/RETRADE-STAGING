@@ -11,7 +11,7 @@
   if(window.__rtMainTruthGate1507)return;
   window.__rtMainTruthGate1507=true;
 
-  var topLevel=new Set(['summary','monthly','stock','expenses','cash','returns','scrapped','activity','accounts','tax','data','runs']);
+  var topLevel=new Set(['summary','stock','expenses','cash','returns','scrapped','activity','tax','data','runs']);
   var serial=0;
 
   function pageFor(name){return document.getElementById('p-'+String(name||''));}

@@ -1,4 +1,4 @@
-/* RETRADE skeleton motion polish — v1.5.14
+/* RETRADE skeleton motion polish — v1.5.17
  * One calm motion language for every data-loading surface.
  * Geometry remains owned by the existing real-layout skeleton systems.
  */
@@ -7,7 +7,7 @@
   --rt-skel-bar-duration:3.65s;
   --rt-skel-base:color-mix(in srgb,var(--surface2) 90%,var(--border) 10%);
   --rt-skel-edge:color-mix(in srgb,var(--surface2) 86%,var(--border) 14%);
-  --rt-skel-sheen:color-mix(in srgb,var(--text) 2.25%,transparent);
+  --rt-skel-sheen:color-mix(in srgb,var(--text) 1.7%,transparent);
 }
 
 /* Legacy/current real-layout placeholders. Keep the base steady; only a soft
@@ -230,6 +230,38 @@ html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loadi
   .rt-pd1505-shimmer::after,
   .rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart::before,
   .rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-legend::before{
+    animation:none!important;
+  }
+}
+
+
+/* v1.5.17 dedicated Sales/Partners loaders: one shared calm sweep, no pulse. */
+.rt-partner-skel1517,
+.rt-sales-skel1517{
+  background:var(--rt-skel-base)!important;
+}
+.rt-partner-skel1517::after,
+.rt-sales-skel1517::after,
+#p-monthly.rt-sales-loading1517 .monthly-profitability-card.rt-sales-chart-skel1517::after,
+.rt-account-shell1503-line::after,
+.rt-account-shell1503-block::after{
+  background:linear-gradient(100deg,transparent 26%,var(--rt-skel-sheen) 50%,transparent 74%)!important;
+}
+@media (prefers-reduced-motion:no-preference){
+  .rt-partner-skel1517::after,
+  .rt-sales-skel1517::after,
+  #p-monthly.rt-sales-loading1517 .monthly-profitability-card.rt-sales-chart-skel1517::after,
+  .rt-account-shell1503-line::after,
+  .rt-account-shell1503-block::after{
+    animation:rtSkeletonSheen1512 var(--rt-skel-duration) linear .16s infinite!important;
+  }
+}
+@media (prefers-reduced-motion:reduce){
+  .rt-partner-skel1517::after,
+  .rt-sales-skel1517::after,
+  #p-monthly.rt-sales-loading1517 .monthly-profitability-card.rt-sales-chart-skel1517::after,
+  .rt-account-shell1503-line::after,
+  .rt-account-shell1503-block::after{
     animation:none!important;
   }
 }

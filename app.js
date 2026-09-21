@@ -1,4 +1,4 @@
-/* RETRADE app entrypoint — v1.5.16 smooth-render policy.
+/* RETRADE app entrypoint — v1.5.17 single-owner loading architecture.
  *
  * Cold-start is intentionally staged:
  *   1) launch coordinator + production core
@@ -11,7 +11,7 @@
  */
 (function(){
   'use strict';
-  var v='20260921-v1516';
+  var v='20260921-v1517';
   window.__rtBuildId=v;
   var motionReady=false;
   var motionFallbackTimer=0;
@@ -125,12 +125,10 @@
       './accounts-operations-compact-v2.js',
       './partner-account-experience-v2.js',
       './partner-page-unified-v1503.js',
-      './partners-list-transition-v1504.js',
-      './partners-loading-dwell-v1505.js',
+      './partners-loading-v1517.js',
       './main-page-loading-motion-v1506.js',
       './main-page-truth-gate-v1507.js',
-      './sales-loading-mask-v1508.js',
-      './sales-month-loading-v1509.js',
+      './sales-loading-v1517.js',
       './main-kpi-count-motion-v1510.js',
       './skeleton-truth-exclusivity-v1511.js',
       './document-exports.js',

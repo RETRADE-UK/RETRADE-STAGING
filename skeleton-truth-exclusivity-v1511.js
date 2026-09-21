@@ -29,7 +29,7 @@
   [class*="stat"] .num,[class*="stat"] [class*="value"],\
   .rt-cash-primary-value,.rt-cash-meta-value,.rt-cash-flow-card strong,.rt-cash-stock-card strong\
 ),\
-#p-monthly.rt-sales-route-loading1509 :is(\
+#p-monthly.rt-sales-loading1517 :is(\
   .kpi-value,.kpi .num,.kpi [class*="value"],\
   [class*="kpi"] .num,[class*="metric"] .num,[class*="summary"] .num,\
   [class*="headline"] .num,[class*="total"] .num,[class*="stat"] .num,\
@@ -45,10 +45,10 @@
 .page.rt-main-loading1506 :is(\
   .kpi-value,.kpi>.num,[class*="kpi"]>[class*="value"],\
   .rt-cash-primary-value,.rt-cash-meta-value\
-):not(.rt-main-skel-value1506):not(.rt-sales-route-skel1509),\
-#p-monthly.rt-sales-route-loading1509 :is(\
+):not(.rt-main-skel-value1506):not(.rt-sales-skel1517),\
+#p-monthly.rt-sales-loading1517 :is(\
   .kpi-value,.kpi>.num,[class*="kpi"]>[class*="value"]\
-):not(.rt-main-skel-value1506):not(.rt-sales-route-skel1509){\
+):not(.rt-main-skel-value1506):not(.rt-sales-skel1517){\
   background:color-mix(in srgb,var(--surface2) 78%,var(--border))!important;\
   border-radius:6px!important;\
   box-shadow:none!important;\
@@ -63,15 +63,14 @@ body.rt-real-layout-loading #p-summary :is(\
   text-shadow:none!important;\
 }\
 /* Partner list/account loading shells must also remain data-free. */\
-#p-accounts.rt-partners-dwell1505 :is(.num,.kpi-value,[class*="value"]),\
-#p-accounts:has(.rt-partners-dwell-shell1505) :is(.rt-partners-content1505 .num,.rt-partners-content1505 [class*="value"]){\
+#p-accounts.rt-partners-loading1517 :is(.rt-acct-compact-strip>strong,.rt-acct-snapshot-name,.rt-acct-op-money strong,.rt-acct-op-money span){\
   color:transparent!important;\
   -webkit-text-fill-color:transparent!important;\
   text-shadow:none!important;\
 }\
 @media(prefers-reduced-motion:reduce){\
   .page.rt-main-loading1506 :is(.kpi-value,.kpi .num,[class*="kpi"] .num),\
-  #p-monthly.rt-sales-route-loading1509 :is(.kpi-value,.kpi .num,[class*="kpi"] .num){transition:none!important;}\
+  #p-monthly.rt-sales-loading1517 :is(.kpi-value,.kpi .num,[class*="kpi"] .num){transition:none!important;}\
 }';
     document.head.appendChild(s);
   }
@@ -82,8 +81,8 @@ body.rt-real-layout-loading #p-summary :is(\
   function enforce(page){
     if(!page)return;
     var loading=page.classList.contains('rt-main-loading1506')||
-      page.classList.contains('rt-sales-route-loading1509')||
-      page.classList.contains('rt-partners-dwell1505');
+      page.classList.contains('rt-sales-loading1517')||
+      page.classList.contains('rt-partners-loading1517');
     page.toggleAttribute('data-rt-skeleton-exclusive1511',loading);
   }
 
