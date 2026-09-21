@@ -153,3 +153,34 @@ jobs:
           assert 'staging-g1' in app_build.group(1)
           print('Staging isolation/gesture boundary passed:',app_build.group(1))
           PY
+
+
+      - name: Frame-zero launch and Dashboard filter invariants
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          index=Path('index.html').read_text(encoding='utf-8')
+          launch=Path('launch-experience.js').read_text(encoding='utf-8')
+          core=Path('app-core.js').read_text(encoding='utf-8')
+
+          plate=index.find('<div id="rt-launch-brand"')
+          nav=index.find('<nav id="nav"')
+          supabase=index.find('@supabase/supabase-js')
+          app=index.find('<script src="./app.js')
+          head=index.find('</head>')
+
+          assert plate!=-1 and nav!=-1 and plate<nav
+          assert 'rt-launch-first-frame-style' in index
+          assert supabase!=-1 and app!=-1 and supabase<app and supabase>head
+          assert "document.getElementById('rt-launch-brand')" in launch
+          assert "!finishRequested&&b&&b.classList.contains('rt-real-layout-loading')" not in launch
+          assert 'SKELETON_MIN_MS=220' in launch and 'skeletonRemaining' in launch
+
+          start=core.find('function setSummaryPeriod(p)')
+          end=core.find('\n}',start)
+          block=core[start:end+2]
+          assert start!=-1 and '_queueInteractionRender' not in block and 'renderSummary();' in block
+
+          print('Frame-zero launch and Dashboard filter invariants passed')
+          PY
