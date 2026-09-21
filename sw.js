@@ -1,6 +1,6 @@
-// RETRADE staging service worker — production v1.5.41 candidate + gesture layer G1.
+// RETRADE staging service worker — production v1.5.42 candidate + gesture layer G1.
 
-const BUILD='20260921-v1541-staging-g1';
+const BUILD='20260921-v1542-staging-g1';
 const CACHE_PREFIX='retrade-static-';
 const CACHE_NAME=CACHE_PREFIX+BUILD;
 const CHILD_SCRIPTS=[
@@ -18,7 +18,7 @@ const CHILD_SCRIPTS=[
   'sales-chart-sequence.js','chart-forecast-sequence.js','motion-system.js'
 ];
 const CHILD_SET=new Set(CHILD_SCRIPTS);
-const SHELL_FILES=['index.html','app.css','skeleton-motion-polish-v1512.css','manifest.webmanifest'];
+const SHELL_FILES=['index.html','app.css','skeleton-motion-polish-v1512.css','manifest.webmanifest','launch-light-1170x2532.png','launch-dark-1170x2532.png','launch-light-1179x2556.png','launch-dark-1179x2556.png','launch-light-1206x2622.png','launch-dark-1206x2622.png','launch-light-1284x2778.png','launch-dark-1284x2778.png','launch-light-1290x2796.png','launch-dark-1290x2796.png','launch-light-1320x2868.png','launch-dark-1320x2868.png'];
 const SHELL_SET=new Set(SHELL_FILES);
 function buildUrl(name){return new URL('./'+name+'?v='+BUILD,self.registration.scope).href;}
 function shellUrl(name){return new URL('./'+name,self.registration.scope).href;}

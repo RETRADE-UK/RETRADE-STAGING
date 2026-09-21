@@ -150,7 +150,7 @@ jobs:
           app_build=re.search(r"\bvar\s+v='([^']+)'",app)
           sw_build=re.search(r"\bconst\s+BUILD='([^']+)'",sw)
           assert app_build and sw_build and app_build.group(1)==sw_build.group(1)
-          assert 'v1541-staging-g1' in app_build.group(1)
+          assert 'v1542-staging-g1' in app_build.group(1)
           print('Staging isolation/gesture boundary passed:',app_build.group(1))
           PY
 
@@ -225,4 +225,34 @@ jobs:
           assert '_animateKPIs(el);' not in block, 'Dashboard is replacing truthful values with a post-render count-up again'
           assert '_animateDonut(el, SUMMARY_PERIOD);' in block, 'Dashboard explanatory motion unexpectedly disappeared'
           print('Dashboard truthful-value invariant passed')
+          PY
+
+
+      - name: iOS startup and Sales period responsiveness invariants
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          index=Path('index.html').read_text(encoding='utf-8')
+          core=Path('app-core.js').read_text(encoding='utf-8')
+          sw=Path('sw.js').read_text(encoding='utf-8')
+
+          for name in (
+              'launch-light-1170x2532.png','launch-dark-1170x2532.png',
+              'launch-light-1179x2556.png','launch-dark-1179x2556.png',
+              'launch-light-1206x2622.png','launch-dark-1206x2622.png',
+              'launch-light-1284x2778.png','launch-dark-1284x2778.png',
+              'launch-light-1290x2796.png','launch-dark-1290x2796.png',
+              'launch-light-1320x2868.png','launch-dark-1320x2868.png'
+          ):
+              assert name in index, f'iOS startup link missing: {name}'
+              assert name in sw, f'iOS startup asset not cached: {name}'
+              assert Path(name).exists(), f'iOS startup asset file missing: {name}'
+
+          start=core.find('function setMonthlyPeriod(v)')
+          end=core.find('\n}',start)
+          block=core[start:end+2]
+          assert start!=-1 and block.count('requestAnimationFrame')>=2
+          assert '_monthlyPeriodRenderToken' in core
+          assert "if(MONTHLY_VIEW==='grid')renderMonthlyGrid();" in block
+          print('iOS startup and Sales period responsiveness invariants passed')
           PY

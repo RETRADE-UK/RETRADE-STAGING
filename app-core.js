@@ -14564,16 +14564,37 @@ function _monthlyPeriodResolve(v){
 // Month key the grid should scroll to on its next render (set when returning
 // from a month's detail view). null => don't move the page at all.
 let _monthlyScrollToKey=null;
+let _monthlyPeriodPaintFrame=0;
+let _monthlyPeriodRenderFrame=0;
+let _monthlyPeriodRenderToken=0;
 function setMonthlyPeriod(v){
+  if(v===MONTHLY_PERIOD)return;
   MONTHLY_PERIOD=v;
   try{ localStorage.setItem('rt_monthly_period',v); }catch(e){}
-  _monthlyScrollToKey=null;   // a period change must never move the page
-  // Full re-render (mirrors setSummaryPeriod -> renderSummary on the Dashboard).
-  // renderMonthlyGrid() rebuilds the header/select and ends by calling
-  // renderMonthlyProfitabilityChart(), which in turn re-renders the money-flow
-  // panel — so the chart, the panel and the FY groups can never disagree.
-  if(MONTHLY_VIEW==='grid')renderMonthlyGrid();
-  else renderMonthlyProfitabilityChart();
+  _monthlyScrollToKey=null;
+
+  /* v1.5.42 — the native select acknowledges immediately. Keep the existing
+     truthful Sales surface for one paint, then update the chart/grid atomically.
+     Rapid changes collapse to the newest period instead of queueing redraws. */
+  const select=document.getElementById('monthly-period-select');
+  if(select&&select.value!==v)select.value=v;
+  const page=document.getElementById('p-monthly');
+  if(page)page.setAttribute('data-rt-period-pending','1');
+
+  const token=++_monthlyPeriodRenderToken;
+  if(_monthlyPeriodPaintFrame){cancelAnimationFrame(_monthlyPeriodPaintFrame);_monthlyPeriodPaintFrame=0;}
+  if(_monthlyPeriodRenderFrame){cancelAnimationFrame(_monthlyPeriodRenderFrame);_monthlyPeriodRenderFrame=0;}
+
+  _monthlyPeriodPaintFrame=requestAnimationFrame(function(){
+    _monthlyPeriodPaintFrame=0;
+    _monthlyPeriodRenderFrame=requestAnimationFrame(function(){
+      _monthlyPeriodRenderFrame=0;
+      if(token!==_monthlyPeriodRenderToken)return;
+      if(MONTHLY_VIEW==='grid')renderMonthlyGrid();
+      else renderMonthlyProfitabilityChart();
+      if(page)page.removeAttribute('data-rt-period-pending');
+    });
+  });
 }
 
 function _monthlyPeriodSelectHTML(){
