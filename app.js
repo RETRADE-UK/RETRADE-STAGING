@@ -1,4 +1,4 @@
-/* RETRADE app entrypoint — v1.5.17 single-owner loading architecture.
+/* RETRADE app entrypoint — v1.5.18 single-owner loading architecture.
  *
  * Cold-start is intentionally staged:
  *   1) launch coordinator + production core
@@ -11,7 +11,7 @@
  */
 (function(){
   'use strict';
-  var v='20260921-v1517';
+  var v='20260921-v1518';
   window.__rtBuildId=v;
   var motionReady=false;
   var motionFallbackTimer=0;

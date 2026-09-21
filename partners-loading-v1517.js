@@ -1,6 +1,6 @@
 /* RETRADE Partners real-layout loader — v1.5.17
  *
- * One loading owner for the Partners list.
+ * One loading owner for the Partners list (v1.5.18 hardening).
  * - never renders a second imitation Partners page
  * - waits for the compact final DOM, then masks that exact geometry
  * - skips the skeleton entirely when the final layout resolves quickly
@@ -19,6 +19,7 @@
   var serial=0;
   var warm=false;
   var session=null;
+  var navDepth=0;
 
   function now(){return (window.performance&&performance.now)?performance.now():Date.now();}
   function reduced(){try{return !!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(_){return false;}}
@@ -111,6 +112,19 @@
     p.setAttribute('data-rt-partners-warm1517','1');
   }
 
+  function abandon(s){
+    if(!s||s.ended)return;s.ended=true;
+    if(s.observer){try{s.observer.disconnect();}catch(_){}s.observer=null;}
+    if(s.timer){clearTimeout(s.timer);s.timer=0;}
+    var p=s.page;
+    if(p){
+      p.classList.remove('rt-partners-preparing1517','rt-partners-loading1517');
+      p.removeAttribute('aria-busy');
+      clearMarks(s);
+    }
+    if(session===s)session=null;
+  }
+
   function finish(s,animate){
     if(!s||s.ended)return;s.ended=true;
     if(s.observer){try{s.observer.disconnect();}catch(_){}s.observer=null;}
@@ -131,7 +145,7 @@
 
   function visibleCheck(s){
     if(!s||s.ended)return;
-    if(!s.page||!s.page.classList.contains('on')){finish(s,false);return;}
+    if(!s.page||!s.page.classList.contains('on')){abandon(s);return;}
     var t=now(),shown=t-s.shownAt,quiet=t-s.lastMutation;
     if(shown>=MIN_VISIBLE&&layoutReady(s.page)&&!blocking()&&quiet>=QUIET_MS){finish(s,true);return;}
     if(shown>=MAX_VISIBLE){finish(s,true);return;}
@@ -164,8 +178,11 @@
   function waitForLayout(s){
     if(!s||s.ended)return;
     var p=s.page;
-    if(!p||!p.classList.contains('on')){finish(s,false);return;}
     var elapsed=now()-s.started;
+    if(!p||!p.classList.contains('on')){
+      if(elapsed<700){requestAnimationFrame(function(){waitForLayout(s);});return;}
+      abandon(s);return;
+    }
     if(layoutReady(p)){
       if(!blocking()&&elapsed<SHOW_AFTER){revealDirect(p);s.ended=true;if(session===s)session=null;return;}
       if(elapsed>=SHOW_AFTER){showSkeleton(s);return;}
@@ -176,7 +193,7 @@
 
   function beginCold(p,reason){
     if(!p||warm)return null;
-    if(session)finish(session,false);
+    if(session)abandon(session);
     cleanupLegacy(p);
     var s=session={id:++serial,page:p,reason:reason||'partners',started:now(),shownAt:0,lastMutation:0,visible:false,ended:false,marked:[],observer:null,timer:0};
     p.classList.add('rt-partners-preparing1517');
@@ -188,6 +205,7 @@
     var current=window.renderAccountsPage;
     if(typeof current!=='function'||current.__rtPartners1517)return;
     function wrapped(){
+      if(navDepth)return current.apply(this,arguments);
       var p=page(),cold=!warm;
       if(cold&&p){cleanupLegacy(p);p.classList.add('rt-partners-preparing1517');}
       var out=current.apply(this,arguments);
@@ -199,10 +217,30 @@
     window.renderAccountsPage=wrapped;try{renderAccountsPage=wrapped;}catch(_){}
   }
 
+  function wrapNav(){
+    var base=window.goToTab;
+    if(typeof base!=='function'||base.__rtPartnersNav1518)return;
+    function wrapped(name){
+      if(name!=='accounts')return base.apply(this,arguments);
+      var p=page();
+      if(!warm&&p){cleanupLegacy(p);p.classList.add('rt-partners-preparing1517');}
+      navDepth++;
+      var out;
+      try{out=base.apply(this,arguments);}
+      finally{navDepth--;}
+      p=page();
+      if(warm){if(p)p.classList.remove('rt-partners-preparing1517');return out;}
+      if(p)beginCold(p,'nav');
+      return out;
+    }
+    wrapped.__rtPartnersNav1518=true;wrapped.__rtBase=base;
+    window.goToTab=wrapped;try{goToTab=wrapped;}catch(_){}
+  }
+
   function start(){
     installStyles();
     var p=page();cleanupLegacy(p);
-    wrapRenderer();
+    wrapRenderer();wrapNav();
     p=page();
     if(p&&p.classList.contains('on')){
       if(layoutReady(p)&&!blocking())revealDirect(p);
@@ -214,5 +252,5 @@
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
-  console.info('[RETRADE] v1.5.17 Partners single-owner real-layout loader loaded');
+  console.info('[RETRADE] v1.5.18 Partners single-owner real-layout loader loaded');
 })();
