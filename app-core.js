@@ -5270,10 +5270,41 @@ function _playDashboardBootReveal(page){
     _replayDashboardMotionAfterLoading(page);
     return;
   }
-  requestAnimationFrame(function(){requestAnimationFrame(function(){
+
+  /* Boot is a choreography, not a normal data refresh. Keep the hydrated
+     targets in data-cv, expose the dashboard shell first, then let the figures
+     and charts wake in a short stagger. A later render cannot strand the KPIs
+     at zero because the target remains on each node. */
+  page.classList.remove('rt-dashboard-boot-enter','rt-dashboard-boot-live');
+  void page.offsetWidth;
+  page.classList.add('rt-dashboard-boot-enter');
+
+  window.setTimeout(function(){
+    if(!page||!page.isConnected)return;
+    _kpiRevealDone=false;
     _animateKPIs(page);
+    page.classList.add('rt-dashboard-boot-live');
+  },120);
+
+  window.setTimeout(function(){
+    if(!page||!page.isConnected)return;
     _replayDashboardMotionAfterLoading(page);
-  });});
+  },190);
+
+  /* Safety settle: boot presentation must never leave truthful KPI targets at
+     their temporary zero frame, even if iOS throttles/cancels an animation. */
+  window.setTimeout(function(){
+    if(!page||!page.isConnected)return;
+    page.querySelectorAll('[data-cv]').forEach(function(el){
+      var key=el.getAttribute('data-cv-key');
+      var to=parseFloat(el.getAttribute('data-cv'));
+      var fmtName=el.getAttribute('data-cv-fmt')||'k';
+      if(!key||!isFinite(to))return;
+      if(_kpiRAF[key]){cancelAnimationFrame(_kpiRAF[key]);delete _kpiRAF[key];}
+      el.textContent=(_CV_FMT[fmtName]||_CV_FMT.k)(to);
+      _kpiPrev[key]=to;
+    });
+  },1050);
 }
 
 function _replayDashboardMotionAfterLoading(page){
