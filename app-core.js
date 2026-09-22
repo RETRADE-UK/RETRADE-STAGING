@@ -5373,8 +5373,11 @@ function finishRealLayoutLoading(tab){
     _realLayoutFinishTimer=null;
     if(typeof _syncFabVisibility==='function')_syncFabVisibility();
     if(safe==='summary'){
-      var bootReveal=!!(document.body&&document.body.classList.contains('rt-launch-waking'));
-      if(bootReveal&&typeof _playDashboardBootReveal==='function')_playDashboardBootReveal(page);
+      var bootReveal=!!(document.documentElement&&document.documentElement.classList.contains('rt-app-cold'));
+      if(bootReveal&&typeof _playDashboardBootReveal==='function'){
+        if(typeof _prepareDashboardBootReveal==='function')_prepareDashboardBootReveal(page);
+        _playDashboardBootReveal(page);
+      }
       else _replayDashboardMotionAfterLoading(page);
     }
   };
