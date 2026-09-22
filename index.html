@@ -72,7 +72,7 @@ html[data-theme="dark"] #rt-launch-brand{--text-primary:#f4f5f7;background:#0f17
 #rt-launch-brand.rt-launch-brand-out{opacity:0;pointer-events:none}
 #rt-launch-brand.rt-launch-brand-dormant{visibility:hidden!important;opacity:0!important;pointer-events:none!important}
 #rt-launch-brand .rt-launch-lockup{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;perspective:900px;transform-style:preserve-3d}
-#rt-launch-brand .rt-launch-mark-wrap{position:relative;display:block;width:72px;height:84px;opacity:0;transform-style:preserve-3d;will-change:transform,opacity;animation:rtLaunchShieldArc1540 1250ms cubic-bezier(.16,.72,.18,1) 80ms both}
+#rt-launch-brand .rt-launch-mark-wrap{position:relative;display:block;width:72px;height:84px;opacity:0;transform-style:preserve-3d;will-change:transform,opacity;animation:rtLaunchShieldArc1540 1250ms linear 80ms both}
 #rt-launch-brand .rt-launch-mark-wrap::after{content:"";position:absolute;inset:-38%;z-index:-1;border-radius:50%;background:radial-gradient(circle,rgba(242,179,61,.25) 0%,rgba(242,179,61,.08) 42%,rgba(242,179,61,0) 74%);opacity:0;transform:scale(.58);animation:rtLaunchShieldImpact1540 520ms ease-out 980ms both}
 #rt-launch-brand .rt-launch-mark{display:block;width:100%;height:100%;filter:drop-shadow(0 10px 20px rgba(0,0,0,.10))}
 #rt-launch-brand .rt-launch-word{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:25px;font-weight:900;font-style:italic;letter-spacing:.035em;line-height:1;color:var(--text-primary);white-space:nowrap;opacity:0;clip-path:inset(0 100% 0 0);transform:translate3d(0,8px,0);animation:rtLaunchWordReveal1540 460ms cubic-bezier(.22,.61,.36,1) 1280ms both}
@@ -83,10 +83,13 @@ html[data-theme="dark"] #rt-launch-brand{--text-primary:#f4f5f7;background:#0f17
 #rt-launch-brand.rt-launch-snapshot .rt-launch-mark-wrap::after{animation:none!important;opacity:0!important}
 @keyframes rtLaunchShieldArc1540{
   0%{opacity:0;transform:translate3d(-50vw,22vh,0) scale(.18) rotateY(-150deg) rotateZ(-30deg)}
-  12%{opacity:1}
-  48%{opacity:1;transform:translate3d(-13vw,-9vh,0) scale(.66) rotateY(-62deg) rotateZ(12deg)}
-  74%{opacity:1;transform:translate3d(2.2vw,1.4vh,0) scale(1.085) rotateY(14deg) rotateZ(-3deg)}
-  88%{opacity:1;transform:translate3d(-.65vw,-.38vh,0) scale(.985) rotateY(-4deg) rotateZ(.8deg)}
+  8%{opacity:.82;transform:translate3d(-44vw,18vh,0) scale(.24) rotateY(-137deg) rotateZ(-25deg)}
+  20%{opacity:1;transform:translate3d(-34vw,10vh,0) scale(.36) rotateY(-116deg) rotateZ(-15deg)}
+  36%{opacity:1;transform:translate3d(-22vw,-2vh,0) scale(.52) rotateY(-88deg) rotateZ(1deg)}
+  52%{opacity:1;transform:translate3d(-11vw,-8vh,0) scale(.70) rotateY(-57deg) rotateZ(10deg)}
+  68%{opacity:1;transform:translate3d(-2vw,-3vh,0) scale(.91) rotateY(-22deg) rotateZ(5deg)}
+  80%{opacity:1;transform:translate3d(1.8vw,1.2vh,0) scale(1.07) rotateY(11deg) rotateZ(-2.5deg)}
+  91%{opacity:1;transform:translate3d(-.45vw,-.28vh,0) scale(.99) rotateY(-3deg) rotateZ(.6deg)}
   100%{opacity:1;transform:translate3d(0,0,0) scale(1) rotateY(0) rotateZ(0)}
 }
 @keyframes rtLaunchShieldImpact1540{0%{opacity:0;transform:scale(.58)}28%{opacity:.9}62%{opacity:.34;transform:scale(1.02)}100%{opacity:0;transform:scale(1.32)}}
