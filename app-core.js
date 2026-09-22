@@ -4743,10 +4743,11 @@ async function initDB(){
     // resolve differently from the loading page already on screen. Resolved ONCE and
     // reused below, the loading and hydrated page cannot disagree.
     const _freshSession = !_isSameSession();
-    /* v1.5.52 — a genuine app cold start always lands on Dashboard. A browser
-       hard reload remains a continuation of the page being worked on, but
-       reopening the installed PWA/app never resurrects a stale destination. */
-    const _coldLaunch = !!(document.documentElement&&document.documentElement.classList.contains('rt-app-cold')) && !_isHardReload();
+    /* v1.5.53 — every true cold boot lands on Dashboard, including a hard reload.
+       Warm in-app navigation still preserves the current destination. This keeps
+       launch choreography deterministic and prevents stale deep pages painting
+       underneath the branded cold-start surface. */
+    const _coldLaunch = !!(document.documentElement&&document.documentElement.classList.contains('rt-app-cold'));
     const _lastTab = (() => { if(_coldLaunch||_freshSession) return 'summary';
       try{ return localStorage.getItem(_SK.tab) || 'summary'; }catch(e){ return 'summary'; } })();
     const _safeTab = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs','activity'].includes(_lastTab) ? _lastTab : 'summary';
