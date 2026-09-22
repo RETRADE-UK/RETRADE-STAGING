@@ -5242,6 +5242,40 @@ function showRealLayoutLoading(tab,msg){
 // Boot data is rendered while chart regions are masked. Re-arm the dashboard
 // reveal only AFTER the mask is removed so the user actually sees the line draw
 // and category-donut sweep/recoil instead of those animations expiring invisibly.
+function _prepareDashboardBootReveal(page){
+  if(!page||page.id!=='p-summary'||_kpiReducedMotion())return;
+  try{
+    page.querySelectorAll('[data-cv]').forEach(function(el){
+      var key=el.getAttribute('data-cv-key');
+      var to=parseFloat(el.getAttribute('data-cv'));
+      var fmtName=el.getAttribute('data-cv-fmt')||'k';
+      if(!key||!isFinite(to))return;
+      if(_kpiRAF[key]){cancelAnimationFrame(_kpiRAF[key]);delete _kpiRAF[key];}
+      el.textContent=(_CV_FMT[fmtName]||_CV_FMT.k)(0);
+    });
+    _kpiRevealDone=false;
+    var charts=Array.from(page.querySelectorAll('#summary-chart-svg,#summary-chart-svg-mobile'));
+    charts.forEach(function(svg){
+      try{svg.getAnimations().forEach(function(a){a.cancel();});}catch(_){}
+      svg.classList.remove('rt-chart-draw');
+      svg.classList.add('rt-motion-hold');
+    });
+  }catch(_){}
+}
+
+function _playDashboardBootReveal(page){
+  if(!page||page.id!=='p-summary')return;
+  if(_kpiReducedMotion()){
+    _animateKPIs(page);
+    _replayDashboardMotionAfterLoading(page);
+    return;
+  }
+  requestAnimationFrame(function(){requestAnimationFrame(function(){
+    _animateKPIs(page);
+    _replayDashboardMotionAfterLoading(page);
+  });});
+}
+
 function _replayDashboardMotionAfterLoading(page){
   if(!page||page.id!=='p-summary')return;
   try{if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;}catch(e){}
