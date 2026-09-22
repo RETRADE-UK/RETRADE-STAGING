@@ -1,4 +1,4 @@
-/* RETRADE cold-start / wake coordinator v1.5.47
+/* RETRADE cold-start / wake coordinator v1.5.48
  *
  * Launch principle: the real responsive application renders underneath its own
  * loading state and is only revealed when BOTH contracts are true:
@@ -27,6 +27,7 @@
   var warmScheduled=false;
   var brandEl=null,brandShownAt=0,brandTimer=0,finishRequested=false,skeletonVisibleAt=0,directRevealReady=false;
   var BRAND_MIN_MS=2050,BRAND_TO_SKELETON_MS=2150,BRAND_FADE_MS=300,SKELETON_MIN_MS=360;
+  var bootSummaryReplayPending=false;
 
   root.classList.add('rt-app-cold');
 
@@ -175,6 +176,13 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
     // Motion owners arm while hidden and start from zero exactly as the real
     // loading surface begins its handoff. This event is boot-only.
     try{window.dispatchEvent(new CustomEvent('retrade:boot-reveal',{detail:{at:perf.revealAt}}));}catch(_){}
+    try{
+      var page=document.querySelector('.page.on');
+      if(page&&page.id==='p-summary'){
+        bootSummaryReplayPending=true;
+        if(typeof _prepareDashboardBootReveal==='function')_prepareDashboardBootReveal(page);
+      }
+    }catch(_){}
   }
   function finishWake(body){
     if(readySeen)return;
