@@ -152,7 +152,7 @@
       var run=function(){
         files.forEach(function(src){append(src,'low');});
       };
-      try{if('requestIdleCallback' in window){requestIdleCallback(run,{timeout:1600});return;}}catch(_){}
+      try{if('requestIdleCallback' in window){requestIdleCallback(run,{timeout:2400});return;}}catch(_){}
       setTimeout(run,650);
     }
     critical.forEach(function(src,index){
