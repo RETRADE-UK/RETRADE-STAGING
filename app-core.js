@@ -5289,12 +5289,12 @@ function _playDashboardBootReveal(page){
     _kpiRevealDone=false;
     _animateKPIs(page);
     page.classList.add('rt-dashboard-boot-live');
-  },120);
+  },180);
 
   window.setTimeout(function(){
     if(!page||!page.isConnected)return;
     _replayDashboardMotionAfterLoading(page);
-  },260);
+  },340);
 
   /* Safety settle: boot presentation must never leave truthful KPI targets at
      their temporary zero frame, even if iOS throttles/cancels an animation. */
@@ -5309,7 +5309,7 @@ function _playDashboardBootReveal(page){
       el.textContent=(_CV_FMT[fmtName]||_CV_FMT.k)(to);
       _kpiPrev[key]=to;
     });
-  },1650);
+  },1900);
 }
 
 function _replayDashboardMotionAfterLoading(page){
