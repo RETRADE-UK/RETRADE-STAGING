@@ -1,4 +1,4 @@
-/* RETRADE cold-start / wake coordinator v1.5.48
+/* RETRADE cold-start / wake coordinator v1.5.50
  *
  * Launch principle: the real responsive application renders underneath its own
  * loading state and is only revealed when BOTH contracts are true:
@@ -68,12 +68,16 @@ html.rt-app-cold body.rt-real-layout-loading .rt-label-loading::after{display:no
 /* Cold start keeps the core real-layout skeleton styling continuous from first paint. */\
 /* Cold boot uses the same local reveal philosophy as normal navigation: no whole-page translate. */\
 @keyframes rtLaunchPageWake1541{from{opacity:.94}to{opacity:1}}\
+@keyframes rtDashboardBootEnter1550{0%{opacity:.82;transform:translate3d(0,8px,0) scale(.994)}100%{opacity:1;transform:translate3d(0,0,0) scale(1)}}\
 body.rt-launch-waking.rt-real-layout-revealing .page.on{animation:rtLaunchPageWake1541 420ms cubic-bezier(.22,.61,.36,1) both!important;transform:none!important;}\
+html.rt-app-cold #p-summary.rt-dashboard-boot-enter{animation:rtDashboardBootEnter1550 520ms cubic-bezier(.16,.72,.18,1) both!important;will-change:transform,opacity;}\
+html.rt-app-cold #p-summary.rt-dashboard-boot-enter .summary-header{transition:opacity 360ms ease-out 30ms,transform 430ms cubic-bezier(.16,.72,.18,1) 30ms;transform:translate3d(0,0,0);opacity:1;}\
+html.rt-app-cold #p-summary.rt-dashboard-boot-enter .summary-grid-v3{transition:opacity 420ms ease-out 70ms;opacity:1;}\
 body.rt-launch-waking.rt-real-layout-revealing .rt-loading-overlay-exit{transition:opacity 260ms cubic-bezier(.22,.61,.36,1)!important;}\
 html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!important;}\
 @media(prefers-reduced-motion:reduce){\
  html.rt-app-cold body.rt-real-layout-loading .rt-data-loading,html.rt-app-cold body.rt-real-layout-loading .rt-loading-line,html.rt-app-cold body.rt-real-layout-loading .rt-chart-loading::after,html.rt-app-cold body.rt-real-layout-loading .cat-donut-chart::before,html.rt-app-cold body.rt-real-layout-loading .cat-donut-legend::before{animation:none!important;}\
- body.rt-launch-waking.rt-real-layout-revealing .page.on{animation:none!important;transform:none!important;opacity:1!important;}\
+ body.rt-launch-waking.rt-real-layout-revealing .page.on,html.rt-app-cold #p-summary.rt-dashboard-boot-enter{animation:none!important;transform:none!important;opacity:1!important;}\
  body.rt-launch-waking.rt-real-layout-revealing .rt-loading-overlay-exit{transition:none!important;opacity:0!important;}\
 }\
 ';
