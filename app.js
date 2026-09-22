@@ -159,7 +159,7 @@
       append(src,index<3?'auto':'low',index===critical.length-1?function(){
         markMotionReady('critical-stack-loaded');
         /* Let the welcome -> Dashboard transition own the next frames. */
-        setTimeout(loadDeferred,520);
+        setTimeout(loadDeferred,1450);
       }:null);
     });
   }
