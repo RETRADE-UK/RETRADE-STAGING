@@ -26,7 +26,7 @@
   var lastRevealing=false;
   var warmScheduled=false;
   var brandEl=null,brandShownAt=0,brandTimer=0,finishRequested=false,skeletonVisibleAt=0,directRevealReady=false;
-  var BRAND_MIN_MS=2050,BRAND_TO_SKELETON_MS=2150,BRAND_FADE_MS=300,SKELETON_MIN_MS=360;
+  var BRAND_MIN_MS=2425,BRAND_TO_SKELETON_MS=2525,BRAND_FADE_MS=320,SKELETON_MIN_MS=360;
   var bootSummaryReplayPending=false;
 
   root.classList.add('rt-app-cold');
