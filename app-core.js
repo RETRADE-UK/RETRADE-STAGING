@@ -5289,7 +5289,7 @@ function _playDashboardBootReveal(page){
   window.setTimeout(function(){
     if(!page||!page.isConnected)return;
     _replayDashboardMotionAfterLoading(page);
-  },190);
+  },260);
 
   /* Safety settle: boot presentation must never leave truthful KPI targets at
      their temporary zero frame, even if iOS throttles/cancels an animation. */
@@ -5304,7 +5304,7 @@ function _playDashboardBootReveal(page){
       el.textContent=(_CV_FMT[fmtName]||_CV_FMT.k)(to);
       _kpiPrev[key]=to;
     });
-  },1050);
+  },1650);
 }
 
 function _replayDashboardMotionAfterLoading(page){
@@ -24085,7 +24085,7 @@ function _animateKPIs(root){
     // against: the 320ms overlay dissolve ends with the count-up already underway,
     // so the skeleton thins out over cards that are already moving.
     // Change tween stays 450: a value update is not a reveal.
-    _countUp(el, from, to, reveal ? 700 : 450, fmtName, key);
+    _countUp(el, from, to, reveal ? 980 : 450, fmtName, key);
   });
   _kpiRevealDone = true;
 }
