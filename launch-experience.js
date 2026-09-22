@@ -1,4 +1,4 @@
-/* RETRADE cold-start / wake coordinator v1.5.46
+/* RETRADE cold-start / wake coordinator v1.5.47
  *
  * Launch principle: the real responsive application renders underneath its own
  * loading state and is only revealed when BOTH contracts are true:
@@ -26,7 +26,7 @@
   var lastRevealing=false;
   var warmScheduled=false;
   var brandEl=null,brandShownAt=0,brandTimer=0,finishRequested=false,skeletonVisibleAt=0,directRevealReady=false;
-  var BRAND_MIN_MS=1510,BRAND_TO_SKELETON_MS=1600,BRAND_FADE_MS=220,SKELETON_MIN_MS=360;
+  var BRAND_MIN_MS=2050,BRAND_TO_SKELETON_MS=2150,BRAND_FADE_MS=300,SKELETON_MIN_MS=360;
 
   root.classList.add('rt-app-cold');
 
@@ -67,8 +67,8 @@ html.rt-app-cold body.rt-real-layout-loading .rt-label-loading::after{display:no
 /* Cold start keeps the core real-layout skeleton styling continuous from first paint. */\
 /* Cold boot uses the same local reveal philosophy as normal navigation: no whole-page translate. */\
 @keyframes rtLaunchPageWake1541{from{opacity:.94}to{opacity:1}}\
-body.rt-launch-waking.rt-real-layout-revealing .page.on{animation:rtLaunchPageWake1540 280ms cubic-bezier(.22,.61,.36,1) both!important;transform:none!important;}\
-body.rt-launch-waking.rt-real-layout-revealing .rt-loading-overlay-exit{transition:opacity 180ms cubic-bezier(.22,.61,.36,1)!important;}\
+body.rt-launch-waking.rt-real-layout-revealing .page.on{animation:rtLaunchPageWake1541 420ms cubic-bezier(.22,.61,.36,1) both!important;transform:none!important;}\
+body.rt-launch-waking.rt-real-layout-revealing .rt-loading-overlay-exit{transition:opacity 260ms cubic-bezier(.22,.61,.36,1)!important;}\
 html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!important;}\
 @media(prefers-reduced-motion:reduce){\
  html.rt-app-cold body.rt-real-layout-loading .rt-data-loading,html.rt-app-cold body.rt-real-layout-loading .rt-loading-line,html.rt-app-cold body.rt-real-layout-loading .rt-chart-loading::after,html.rt-app-cold body.rt-real-layout-loading .cat-donut-chart::before,html.rt-app-cold body.rt-real-layout-loading .cat-donut-legend::before{animation:none!important;}\
