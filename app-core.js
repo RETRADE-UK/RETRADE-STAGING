@@ -5372,7 +5372,11 @@ function finishRealLayoutLoading(tab){
     _realLayoutLoadingTab=null;
     _realLayoutFinishTimer=null;
     if(typeof _syncFabVisibility==='function')_syncFabVisibility();
-    if(safe==='summary')_replayDashboardMotionAfterLoading(page);
+    if(safe==='summary'){
+      var bootReveal=!!(document.body&&document.body.classList.contains('rt-launch-waking'));
+      if(bootReveal&&typeof _playDashboardBootReveal==='function')_playDashboardBootReveal(page);
+      else _replayDashboardMotionAfterLoading(page);
+    }
   };
 
   requestAnimationFrame(function(){requestAnimationFrame(function(){
