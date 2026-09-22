@@ -1,0 +1,336 @@
+/* RETRADE skeleton motion polish — v1.5.45
+ * One calm motion language for every data-loading surface.
+ * Geometry remains owned by the existing real-layout skeleton systems.
+ */
+:root{
+  --rt-skel-duration:3.4s;
+  --rt-skel-bar-duration:3.65s;
+  --rt-skel-base:color-mix(in srgb,var(--surface2) 90%,var(--border) 10%);
+  --rt-skel-edge:color-mix(in srgb,var(--surface2) 86%,var(--border) 14%);
+  --rt-skel-sheen:color-mix(in srgb,var(--text) 1.7%,transparent);
+}
+
+/* Legacy/current real-layout placeholders. Keep the base steady; only a soft
+   low-contrast band moves across it. */
+.rt .skeleton,
+.rt-real-layout-loading .rt-data-loading,
+.rt-real-layout-loading .rt-loading-line{
+  position:relative!important;
+  overflow:hidden!important;
+  background:var(--rt-skel-base)!important;
+  background-image:none!important;
+  animation:none!important;
+}
+.rt .skeleton::after,
+.rt-real-layout-loading .rt-data-loading::after,
+.rt-real-layout-loading .rt-loading-line::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:linear-gradient(
+    100deg,
+    transparent 25%,
+    var(--rt-skel-sheen) 50%,
+    transparent 75%
+  );
+  transform:translate3d(-115%,0,0);
+}
+
+.rt-real-layout-loading .rt-label-loading::after{
+  background:linear-gradient(
+    100deg,
+    var(--rt-skel-base) 0%,
+    var(--rt-skel-edge) 39%,
+    color-mix(in srgb,var(--rt-skel-base) 97.75%,var(--text) 2.25%) 50%,
+    var(--rt-skel-edge) 61%,
+    var(--rt-skel-base) 100%
+  )!important;
+  background-size:240% 100%!important;
+}
+
+.rt-real-layout-loading .rt-chart-loading{
+  background:color-mix(in srgb,var(--rt-skel-base) 55%,transparent)!important;
+}
+.rt-real-layout-loading .rt-chart-loading::after{
+  background:linear-gradient(
+    100deg,
+    transparent 20%,
+    var(--rt-skel-sheen) 48%,
+    transparent 76%
+  )!important;
+  background-size:240% 100%!important;
+}
+
+/* Main-page in-place skeletons. */
+.page.rt-main-loading1506{
+  --rt-load-base:var(--rt-skel-base)!important;
+  --rt-load-sheen:var(--rt-skel-sheen)!important;
+}
+.page.rt-main-loading1506 .rt-main-skel-value1506,
+.page.rt-main-loading1506 .rt-main-skel-text1506,
+.page.rt-main-loading1506 .rt-main-chart-mask1506{
+  background:var(--rt-skel-base)!important;
+}
+.page.rt-main-loading1506 .rt-main-skel-value1506::after,
+.page.rt-main-loading1506 .rt-main-skel-text1506::after,
+.page.rt-main-loading1506 .rt-main-chart-mask1506::after{
+  background:linear-gradient(
+    100deg,
+    transparent 22%,
+    var(--rt-skel-sheen) 49%,
+    transparent 76%
+  )!important;
+}
+
+/* Sales route + truth masks use the same movement and contrast. */
+#p-monthly.rt-main-loading1506 .rt-sales-data-mask1508{
+  background:var(--rt-skel-base)!important;
+}
+#p-monthly.rt-main-loading1506 .rt-sales-data-mask1508::after,
+#p-monthly.rt-sales-route-loading1509 .rt-sales-route-skel1509::after,
+#p-monthly.rt-sales-route-loading1509 .monthly-profitability-card::after{
+  background:linear-gradient(
+    100deg,
+    transparent 22%,
+    var(--rt-skel-sheen) 49%,
+    transparent 76%
+  )!important;
+}
+#p-monthly.rt-sales-route-loading1509{
+  --rt-sales-load-base:var(--rt-skel-base)!important;
+  --rt-sales-load-sheen:var(--rt-skel-sheen)!important;
+}
+#p-monthly.rt-sales-route-loading1509 .rt-sales-route-skel1509{
+  background:var(--rt-skel-base)!important;
+}
+
+/* Partners previously used the fastest/highest-contrast shimmer in the app.
+   Match the global cadence and keep the pill itself visible at all times. */
+.rt-pd1505-shimmer{
+  background:var(--rt-skel-base)!important;
+  animation:none!important;
+}
+.rt-pd1505-shimmer::after{
+  background:linear-gradient(
+    100deg,
+    transparent 24%,
+    var(--rt-skel-sheen) 50%,
+    transparent 76%
+  )!important;
+}
+
+/* Dashboard category loading used to combine a fast spinning ring with a
+   1.15s opacity pulse. Keep the ring as a very slow orientation cue and make
+   the legend bars steady so this area no longer flashes independently. */
+.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart::before{
+  background:conic-gradient(from 25deg,
+    color-mix(in srgb,var(--border) 30%,transparent) 0 20%,
+    color-mix(in srgb,var(--text) 5%,var(--border)) 34%,
+    color-mix(in srgb,var(--border) 26%,transparent) 52% 100%)!important;
+}
+.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-legend::before{
+  opacity:.78!important;
+  animation:none!important;
+}
+
+/* Launch experience deliberately starts static for the first paint. If loading
+   lasts long enough to enter rt-launch-long, use the same calm system instead
+   of switching to the older high-contrast wake shimmer/pulse. Extra repeated
+   state classes intentionally raise specificity above the injected launch CSS. */
+html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-data-loading,
+html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-loading-line{
+  background:linear-gradient(
+    100deg,
+    var(--rt-skel-base) 0%,
+    var(--rt-skel-edge) 39%,
+    color-mix(in srgb,var(--rt-skel-base) 97.75%,var(--text) 2.25%) 50%,
+    var(--rt-skel-edge) 61%,
+    var(--rt-skel-base) 100%
+  )!important;
+  background-size:240% 100%!important;
+}
+html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-chart-loading::after{
+  opacity:.18!important;
+  background:linear-gradient(100deg,transparent 25%,var(--rt-skel-sheen) 50%,transparent 75%)!important;
+  background-size:240% 100%!important;
+}
+html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-legend::before{
+  animation:none!important;
+  opacity:.78!important;
+}
+
+/* Constant-speed travel avoids the accelerate/decelerate brightness "pop" that
+   read as flashing when many placeholders were animating together. */
+@keyframes rtSkeletonPaint1512{
+  from{background-position:155% 0}
+  to{background-position:-155% 0}
+}
+@keyframes rtSkeletonSheen1512{
+  from{transform:translate3d(-112%,0,0)}
+  to{transform:translate3d(112%,0,0)}
+}
+@keyframes rtSkeletonRotate1512{
+  to{transform:rotate(360deg)}
+}
+
+@media (prefers-reduced-motion:no-preference){
+  .rt .skeleton::after,
+  .rt-real-layout-loading .rt-data-loading::after,
+  .rt-real-layout-loading .rt-loading-line::after{
+    animation:rtSkeletonSheen1512 var(--rt-skel-bar-duration) linear infinite!important;
+  }
+
+  .rt-real-layout-loading .rt-label-loading::after,
+  .rt-real-layout-loading .rt-chart-loading::after{
+    animation:rtSkeletonPaint1512 var(--rt-skel-duration) linear infinite!important;
+  }
+
+  .rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart::before{
+    animation:rtSkeletonRotate1512 3.8s linear infinite!important;
+  }
+
+  html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-data-loading,
+  html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-loading-line{
+    animation:none!important;
+  }
+  html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-data-loading::after,
+  html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-loading-line::after{
+    animation:rtSkeletonSheen1512 var(--rt-skel-bar-duration) linear infinite!important;
+  }
+  html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading .rt-chart-loading::after{
+    animation:rtSkeletonPaint1512 var(--rt-skel-duration) linear infinite!important;
+  }
+
+  html.rt-app-cold body.rt-launch-long.rt-real-layout-loading.rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart::before{
+    animation:rtSkeletonRotate1512 3.8s linear infinite!important;
+  }
+
+  .page.rt-main-loading1506 .rt-main-skel-value1506::after,
+  .page.rt-main-loading1506 .rt-main-skel-text1506::after,
+  .page.rt-main-loading1506 .rt-main-chart-mask1506::after,
+  #p-monthly.rt-main-loading1506 .rt-sales-data-mask1508::after,
+  #p-monthly.rt-sales-route-loading1509 .rt-sales-route-skel1509::after,
+  #p-monthly.rt-sales-route-loading1509 .monthly-profitability-card::after,
+  .rt-pd1505-shimmer::after{
+    animation:rtSkeletonSheen1512 var(--rt-skel-duration) linear infinite!important;
+  }
+}
+
+@media (prefers-reduced-motion:reduce){
+  .rt .skeleton::after,
+  .rt-real-layout-loading .rt-data-loading::after,
+  .rt-real-layout-loading .rt-loading-line::after,
+  .rt-real-layout-loading .rt-label-loading::after,
+  .rt-real-layout-loading .rt-chart-loading::after,
+  .page.rt-main-loading1506 .rt-main-skel-value1506::after,
+  .page.rt-main-loading1506 .rt-main-skel-text1506::after,
+  .page.rt-main-loading1506 .rt-main-chart-mask1506::after,
+  #p-monthly.rt-main-loading1506 .rt-sales-data-mask1508::after,
+  #p-monthly.rt-sales-route-loading1509 .rt-sales-route-skel1509::after,
+  #p-monthly.rt-sales-route-loading1509 .monthly-profitability-card::after,
+  .rt-pd1505-shimmer::after,
+  .rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-chart::before,
+  .rt-real-layout-loading #p-summary .summary-categories .cat-donut-wrap.rt-chart-loading .cat-donut-legend::before{
+    animation:none!important;
+  }
+}
+
+
+/* v1.5.17 dedicated Sales/Partners loaders: one shared calm sweep, no pulse. */
+.rt-partner-skel1517,
+.rt-sales-skel1517{
+  background:var(--rt-skel-base)!important;
+}
+.rt-partner-skel1517::after,
+.rt-sales-skel1517::after,
+#p-monthly.rt-sales-loading1517 .monthly-profitability-card.rt-sales-chart-skel1517::after,
+.rt-account-shell1503-line::after,
+.rt-account-shell1503-block::after{
+  background:linear-gradient(100deg,transparent 26%,var(--rt-skel-sheen) 50%,transparent 74%)!important;
+}
+@media (prefers-reduced-motion:no-preference){
+  .rt-partner-skel1517::after,
+  .rt-sales-skel1517::after,
+  #p-monthly.rt-sales-loading1517 .monthly-profitability-card.rt-sales-chart-skel1517::after,
+  .rt-account-shell1503-line::after,
+  .rt-account-shell1503-block::after{
+    animation:rtSkeletonSheen1512 var(--rt-skel-duration) linear .16s infinite!important;
+  }
+}
+@media (prefers-reduced-motion:reduce){
+  .rt-partner-skel1517::after,
+  .rt-sales-skel1517::after,
+  #p-monthly.rt-sales-loading1517 .monthly-profitability-card.rt-sales-chart-skel1517::after,
+  .rt-account-shell1503-line::after,
+  .rt-account-shell1503-block::after{
+    animation:none!important;
+  }
+}
+
+
+/* v1.5.20 — truth handoff is opacity-only. Data should feel as though the
+   placeholder resolves into its value, not as though a new card flies in. */
+@keyframes rtTruthReveal1520{from{opacity:.48}to{opacity:1}}
+@keyframes rtTruthChartReveal1520{from{opacity:.28}to{opacity:1}}
+.rt-real-layout-revealing .rt-data-reveal{
+  filter:none!important;
+  transform:none!important;
+  animation:rtTruthReveal1520 190ms ease-out both!important;
+}
+.rt-real-layout-revealing .rt-chart-reveal{
+  filter:none!important;
+  transform:none!important;
+  animation:rtTruthChartReveal1520 220ms ease-out both!important;
+}
+.rt-real-layout-revealing .rt-loading-overlay-exit{
+  transition:opacity 180ms ease-out!important;
+}
+
+/* Dashboard boot replay: bars now participate in the same frame-zero hold that
+   line charts already used. They cannot be visible at full height underneath
+   the skeleton and then mysteriously skip their reveal. */
+#p-summary svg.rt-motion-hold .rt-chart-primary-bar,
+#p-summary svg.rt-motion-hold .rt-chart-primary-actual,
+#p-summary svg.rt-motion-hold .rt-chart-profit-bar,
+#p-summary svg.rt-motion-hold .rt-chart-profit-actual,
+#p-summary svg.rt-motion-hold .rt-chart-forecast-shell{
+  transform:scaleY(.04)!important;
+  animation:none!important;
+}
+#p-summary svg.rt-motion-hold .rt-chart-refund-dot,
+#p-summary svg.rt-motion-hold .rt-chart-refund-event{
+  opacity:0!important;
+  animation:none!important;
+}
+@media(prefers-reduced-motion:reduce){
+  .rt-real-layout-revealing .rt-data-reveal,
+  .rt-real-layout-revealing .rt-chart-reveal{animation:none!important;opacity:1!important}
+  .rt-real-layout-revealing .rt-loading-overlay-exit{transition:none!important;opacity:0!important}
+  #p-summary svg.rt-motion-hold .rt-chart-primary-bar,
+  #p-summary svg.rt-motion-hold .rt-chart-primary-actual,
+  #p-summary svg.rt-motion-hold .rt-chart-profit-bar,
+  #p-summary svg.rt-motion-hold .rt-chart-profit-actual,
+  #p-summary svg.rt-motion-hold .rt-chart-forecast-shell{transform:none!important}
+}
+
+/* Navigation keeps populated content; new destinations have lightweight shells.
+   A short delay avoids flashing an indicator for work completed in one frame. */
+.page{position:relative}
+.page[aria-busy="true"]::before,.page[data-rt-period-pending]::before{content:"";position:absolute;top:0;left:0;width:38px;height:2px;background:var(--accent,#dba634);border-radius:2px;opacity:0;animation:rtRouteWait 1.8s ease-in-out 150ms infinite;z-index:2;pointer-events:none}
+@keyframes rtRouteWait{0%,100%{opacity:.22;transform:scaleX(.6)}50%{opacity:.6;transform:scaleX(1)}}
+.rt-route-skeleton>.page-header{min-height:62px;margin-bottom:20px}
+.rt-route-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:18px}
+.rt-route-skeleton .card{padding:22px;min-width:0}
+.rt-route-line{display:block;height:14px;width:60%;border-radius:6px;margin:0 0 18px}
+.rt-route-line:nth-child(2){width:80%;height:26px;margin:0}
+.rt-route-charts{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;margin-bottom:18px}
+.rt-route-charts>.card{height:300px}
+.rt-route-fy{height:52px;margin-bottom:10px}
+.rt-route-fy .rt-route-line{height:10px;margin:0}
+.rt-route-months{margin-bottom:20px!important}
+.rt-route-months .mcard{min-height:138px}
+.rt-route-months .rt-route-line{width:80%}
+.rt-route-rows .rt-route-line{height:32px;width:100%;margin:0 0 18px}
+@media(max-width:700px){.rt-route-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.rt-route-charts{grid-template-columns:1fr}.rt-route-charts>.card{height:240px}.rt-route-skeleton .card{padding:16px}}
+@media(prefers-reduced-motion:reduce){.page[aria-busy="true"]::before,.page[data-rt-period-pending]::before{animation:none;opacity:.4}}

@@ -6,21 +6,24 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
-
+<!-- theme-color v2.19.25 — was #11111a / #f4f5f7, which are V1's --bg values and
+     were never updated when V2 landed. V2 --bg is #0f1724 dark / #eef1f7 light.
+     _syncThemeColorMeta() hardcodes the same pair and overwrites these at runtime,
+     so BOTH must change or this is silently pointless. -->
 <!-- iOS standalone startup surfaces. Background-only on purpose: iOS owns this
      frame before web content can execute; the animated shield begins in HTML. -->
-<link rel="apple-touch-startup-image" href="./launch-light-1170x2532.png" media="(device-width:390px) and (device-height:844px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:light)">
-<link rel="apple-touch-startup-image" href="./launch-dark-1170x2532.png" media="(device-width:390px) and (device-height:844px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:dark)">
-<link rel="apple-touch-startup-image" href="./launch-light-1179x2556.png" media="(device-width:393px) and (device-height:852px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:light)">
-<link rel="apple-touch-startup-image" href="./launch-dark-1179x2556.png" media="(device-width:393px) and (device-height:852px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:dark)">
-<link rel="apple-touch-startup-image" href="./launch-light-1206x2622.png" media="(device-width:402px) and (device-height:874px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:light)">
-<link rel="apple-touch-startup-image" href="./launch-dark-1206x2622.png" media="(device-width:402px) and (device-height:874px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:dark)">
-<link rel="apple-touch-startup-image" href="./launch-light-1284x2778.png" media="(device-width:428px) and (device-height:926px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:light)">
-<link rel="apple-touch-startup-image" href="./launch-dark-1284x2778.png" media="(device-width:428px) and (device-height:926px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:dark)">
-<link rel="apple-touch-startup-image" href="./launch-light-1290x2796.png" media="(device-width:430px) and (device-height:932px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:light)">
-<link rel="apple-touch-startup-image" href="./launch-dark-1290x2796.png" media="(device-width:430px) and (device-height:932px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:dark)">
-<link rel="apple-touch-startup-image" href="./launch-light-1320x2868.png" media="(device-width:440px) and (device-height:956px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:light)">
-<link rel="apple-touch-startup-image" href="./launch-dark-1320x2868.png" media="(device-width:440px) and (device-height:956px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:dark)">
+<link rel="apple-touch-startup-image" href="./assets/launch/launch-light-1170x2532.png" media="(device-width:390px) and (device-height:844px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:light)">
+<link rel="apple-touch-startup-image" href="./assets/launch/launch-dark-1170x2532.png" media="(device-width:390px) and (device-height:844px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:dark)">
+<link rel="apple-touch-startup-image" href="./assets/launch/launch-light-1179x2556.png" media="(device-width:393px) and (device-height:852px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:light)">
+<link rel="apple-touch-startup-image" href="./assets/launch/launch-dark-1179x2556.png" media="(device-width:393px) and (device-height:852px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:dark)">
+<link rel="apple-touch-startup-image" href="./assets/launch/launch-light-1206x2622.png" media="(device-width:402px) and (device-height:874px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:light)">
+<link rel="apple-touch-startup-image" href="./assets/launch/launch-dark-1206x2622.png" media="(device-width:402px) and (device-height:874px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:dark)">
+<link rel="apple-touch-startup-image" href="./assets/launch/launch-light-1284x2778.png" media="(device-width:428px) and (device-height:926px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:light)">
+<link rel="apple-touch-startup-image" href="./assets/launch/launch-dark-1284x2778.png" media="(device-width:428px) and (device-height:926px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:dark)">
+<link rel="apple-touch-startup-image" href="./assets/launch/launch-light-1290x2796.png" media="(device-width:430px) and (device-height:932px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:light)">
+<link rel="apple-touch-startup-image" href="./assets/launch/launch-dark-1290x2796.png" media="(device-width:430px) and (device-height:932px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:dark)">
+<link rel="apple-touch-startup-image" href="./assets/launch/launch-light-1320x2868.png" media="(device-width:440px) and (device-height:956px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:light)">
+<link rel="apple-touch-startup-image" href="./assets/launch/launch-dark-1320x2868.png" media="(device-width:440px) and (device-height:956px) and (-webkit-device-pixel-ratio:3) and (prefers-color-scheme:dark)">
 <!-- theme-color v2.19.25 — was #11111a / #f4f5f7, which are V1's --bg values and
      were never updated when V2 landed. V2 --bg is #0f1724 dark / #eef1f7 light.
      _syncThemeColorMeta() hardcodes the same pair and overwrites these at runtime,
@@ -69,7 +72,26 @@ html.rt-launch-sealed #rt-launch-brand,html.rt-launch-sealed #rt-brand-symbols{v
 html.rt-launch-sealed body > *:not(#rt-launch-brand):not(#rt-brand-symbols){visibility:hidden!important}
 #rt-launch-brand{--brand:#F2B33D;--text-primary:#172033;position:fixed;inset:0;z-index:13050;display:grid;place-items:center;background:#eef1f7;opacity:1;pointer-events:auto;contain:strict;transition:opacity 380ms cubic-bezier(.22,.61,.36,1)}
 html[data-theme="dark"] #rt-launch-brand{--text-primary:#f4f5f7;background:#0f1724}
+#rt-launch-brand .rt-launch-progress{position:absolute;top:calc(50% + 112px);left:0;right:0;text-align:center;color:var(--text-primary);font:500 11px/1.6 Inter,system-ui,sans-serif;opacity:0;animation:rtWelcomeWaitIn 300ms ease-out 2800ms forwards}
+#rt-launch-brand .rt-launch-progress::before{content:"";display:block;width:26px;height:2px;margin:0 auto 10px;background:var(--brand);border-radius:2px;animation:rtWelcomeWaitPulse 2s ease-in-out infinite}
+@keyframes rtWelcomeWaitIn{to{opacity:.65}}
+@keyframes rtWelcomeWaitPulse{0%,100%{opacity:.35;transform:scaleX(.65)}50%{opacity:.85;transform:scaleX(1)}}
+@media(prefers-reduced-motion:reduce){#rt-launch-brand .rt-launch-progress::before{animation:none}#rt-launch-brand .rt-launch-progress{animation:none;opacity:.65}}
 #rt-launch-brand.rt-launch-brand-out{opacity:0;pointer-events:none}
+html.rt-launch-to-auth #rt-launch-brand .rt-launch-lockup{transform:translate3d(0,-36px,0) scale(.88);opacity:0;transition:transform 480ms cubic-bezier(.22,.61,.36,1),opacity 380ms ease-out}
+html.rt-app-cold #auth-screen-login{opacity:0;transform:translate3d(0,16px,0)}
+html.rt-launch-to-auth #auth-screen-login{animation:rtAuthEntrance 620ms cubic-bezier(.22,.61,.36,1) 100ms both}
+html.rt-launch-to-auth #auth-screen-login > :not(:first-child){animation:rtAuthFields 280ms ease-out 380ms both}
+@keyframes rtAuthFields{from{opacity:0}to{opacity:1}}
+@keyframes rtAuthEntrance{from{opacity:0;transform:translate3d(0,16px,0)}to{opacity:1;transform:translate3d(0,0,0)}}
+/* The login lockup shares welcome geometry: the whole brand travels together. */
+.rt-auth-brand{display:flex;flex-direction:column;align-items:center;gap:18px;color:var(--text-primary)}
+.rt-auth-brand>svg{display:block;width:72px;height:84px}
+.rt-auth-word{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:25px;font-weight:900;letter-spacing:-.01em;text-transform:uppercase;display:inline-block;line-height:1;transform:skewX(-10.7deg);color:inherit;white-space:nowrap}
+.rt-auth-word>span{color:#F2B33D}
+@media(max-width:600px){.rt-auth-brand>svg{width:64px;height:75px}.rt-auth-word{font-size:22px}}
+html.rt-auth-bridge #auth-screen-login .rt-auth-brand{visibility:hidden}
+#auth-overlay.rt-auth-leaving{opacity:0;pointer-events:none;transition:opacity 260ms cubic-bezier(.22,.61,.36,1)}
 #rt-launch-brand.rt-launch-brand-dormant{visibility:hidden!important;opacity:0!important;pointer-events:none!important}
 #rt-launch-brand .rt-launch-lockup{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;perspective:900px;transform-style:preserve-3d}
 #rt-launch-brand .rt-launch-mark-wrap{position:relative;display:block;width:72px;height:84px;opacity:0;transform-style:preserve-3d;will-change:transform,opacity;animation:rtLaunchShieldArc1540 1250ms linear 80ms both}
@@ -96,6 +118,7 @@ html[data-theme="dark"] #rt-launch-brand{--text-primary:#f4f5f7;background:#0f17
 @keyframes rtLaunchWordReveal1540{0%{opacity:0;clip-path:inset(0 100% 0 0);transform:skewX(-10.7deg) translate3d(0,8px,0);letter-spacing:.06em}55%{opacity:1}100%{opacity:1;clip-path:inset(0 0 0 0);transform:skewX(-10.7deg) translate3d(0,0,0);letter-spacing:-.01em}}
 @media(max-width:600px){#rt-launch-brand .rt-launch-mark-wrap{width:64px;height:75px}#rt-launch-brand .rt-launch-word{font-size:22px}}
 @media(prefers-reduced-motion:reduce){#rt-launch-brand{transition:none!important}#rt-launch-brand .rt-launch-mark-wrap,#rt-launch-brand .rt-launch-word{animation:none!important;opacity:1!important;transform:none!important;clip-path:none!important}#rt-launch-brand .rt-launch-mark-wrap::after{animation:none!important;display:none!important}}
+@media(prefers-reduced-motion:reduce){html.rt-launch-to-auth #auth-screen-login,html.rt-launch-to-auth #auth-screen-login > :not(:first-child){animation:none!important;opacity:1!important;transform:none!important}#auth-overlay.rt-auth-leaving{transition:none!important}}
 </style>
 
 <!-- App icon v2.19.25 — there was NO icon of any kind here: no apple-touch-icon,
@@ -128,8 +151,8 @@ html[data-theme="dark"] #rt-launch-brand{--text-primary:#f4f5f7;background:#0f17
 <!-- V2 Session 1 — JetBrains Mono (Inter is already loaded above with the full weight range V2 needs) -->
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <!-- V2 Session 4a: Chart.js removed — dashboard chart is hand-rolled SVG -->
-<link rel="stylesheet" href="./app.css?v=1.4.37">
-<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./skeleton-motion-polish-v1512.css?v=1.5.54-staging-g1">
+<link rel="stylesheet" href="./assets/styles/application.css?v=1.4.37">
+<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./assets/styles/loading.css?v=1.5.57">
 
 <style id="retrade-v145-sync-float">
 /* v1.4.5: global sync state is an overlay, never a header layout participant. */
@@ -299,11 +322,12 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
   </symbol>
 </svg>
 
-<div id="rt-launch-brand" aria-hidden="true">
-  <div class="rt-launch-lockup">
+<div id="rt-launch-brand">
+  <div class="rt-launch-lockup" aria-hidden="true">
     <span class="rt-launch-mark-wrap"><svg class="rt-launch-mark" viewBox="0 0 811 946" aria-hidden="true" focusable="false"><use href="#rt-mark"/></svg></span>
     <div class="rt-launch-word">RE<span>TRADE</span></div>
   </div>
+  <div class="rt-launch-progress" role="status">Preparing your workspace…</div>
 </div>
 
 <a href="#main-content" class="skip-nav" style="position:absolute;top:-40px;left:8px;z-index:9999;background:var(--accent);color:#000;font-weight:700;padding:8px 12px;border-radius:6px;font-size:13px;text-decoration:none;transition:top 0.15s;" onfocus="this.style.top='8px'" onblur="this.style.top='-40px'">Skip to main content</a>
@@ -978,11 +1002,11 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
          were V1 flourish: three decorative gradients doing the job the mark now
          does properly. V2 is flat, and the logo does not need underlining. -->
     <div style="text-align:center;margin-bottom:30px;padding-top:4px;">
-      <div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
+      <div class="rt-auth-brand">
         <svg width="66" height="77" viewBox="0 0 811 946" aria-hidden="true" focusable="false" style="display:block;">
           <use href="#rt-mark"/>
         </svg>
-        <span style="font-family:var(--font-body);font-size:20px;font-weight:900;letter-spacing:-0.01em;color:var(--text-primary);text-transform:uppercase;display:inline-block;line-height:1;transform:skewX(-10.7deg);">Re<span class="rt-word-accent">trade</span></span>
+        <span class="rt-auth-word">RE<span>TRADE</span></span>
       </div>
     </div>
     <div id="auth-error" style="display:none;background:var(--red-dim);border:1px solid var(--red);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--red);margin-bottom:16px;"></div>
@@ -1114,10 +1138,11 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 
 </div>
 
-<script src="./accounting.js?v=1.4.11"></script>
-<script src="./reports.js?v=1.4.8"></script>
+<script src="./config/assets.js?v=1.5.60-staging"></script>
+<script src="./src/domain/accounting-engine.js?v=1.5.57"></script>
+<script src="./src/domain/report-engine.js?v=1.4.8"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.js" integrity="sha384-OUpie84zd1LdwNlK9uJJQRwab0BLqo3eKYKFh7hSVL58FSk7wPp2l0kfUMIIoaQd" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="./app.js?v=1.5.54-staging-g1"></script>
+<script src="./app.js?v=1.5.60-staging"></script>
 
 <!-- RETRADE dashboard spacing cleanup: mobile/tablet/narrow-desktop rhythm v3 - 2026-06-29 -->
 </body>
