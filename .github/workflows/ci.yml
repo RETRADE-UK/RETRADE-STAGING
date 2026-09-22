@@ -150,7 +150,7 @@ jobs:
           app_build=re.search(r"\bvar\s+v='([^']+)'",app)
           sw_build=re.search(r"\bconst\s+BUILD='([^']+)'",sw)
           assert app_build and sw_build and app_build.group(1)==sw_build.group(1)
-          assert 'v1551-staging-g1' in app_build.group(1)
+          assert 'v1552-staging-g1' in app_build.group(1)
           print('Staging isolation/gesture boundary passed:',app_build.group(1))
           PY
 
@@ -176,7 +176,7 @@ jobs:
           assert "document.getElementById('rt-launch-brand')" in launch
           assert "!finishRequested&&b&&b.classList.contains('rt-real-layout-loading')" not in launch
           assert 'directRevealReady' in launch
-          assert 'BRAND_MIN_MS=2050' in launch and 'BRAND_TO_SKELETON_MS=2150' in launch and 'SKELETON_MIN_MS=360' in launch and 'skeletonRemaining' in launch
+          assert 'BRAND_MIN_MS=2425' in launch and 'BRAND_TO_SKELETON_MS=2525' in launch and 'SKELETON_MIN_MS=360' in launch and 'skeletonRemaining' in launch
           assert 'rtLaunchShieldArc1540' in index and 'rtLaunchWordReveal1540' in index
 
           start=core.find('function setSummaryPeriod(p)')
