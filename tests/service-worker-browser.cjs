@@ -29,11 +29,26 @@ const {mockAuth,fixture,settled}=require('./startup-browser.cjs');
    return route.abort();
   });
   await page.goto(origin+'/legacy-test.html');
-  await page.evaluate(async()=>{await navigator.serviceWorker.register('./sw.js?legacy=1');await navigator.serviceWorker.ready;});
+  await page.evaluate(async()=>{await navigator.serviceWorker.register('./sw.js');await navigator.serviceWorker.ready;});
   await page.waitForFunction(()=>navigator.serviceWorker.controller);
   legacy=false;
   await page.goto(origin+'/');await settled(page);
-  await page.waitForFunction(()=>navigator.serviceWorker.controller?.scriptURL.endsWith('/sw.js')).catch(async error=>{console.error('Worker state',await page.evaluate(async()=>({readyState:document.readyState,controller:navigator.serviceWorker.controller?.scriptURL,registrations:(await navigator.serviceWorker.getRegistrations()).map(r=>({active:r.active?.scriptURL,waiting:r.waiting?.scriptURL,installing:r.installing?.scriptURL})),caches:await caches.keys()})),workerLogs,errors);throw error;});
+  // Production keeps one worker URL across releases. Activation is proved by
+  // the new build caching a relocated asset, not by a synthetic URL change.
+  await page.waitForFunction(async({build,core})=>{
+    if(!navigator.serviceWorker.controller)return false;
+    try{
+      await fetch('./'+core+'?v='+build);
+      const cache=await caches.open('retrade-static-'+build);
+      return !!(await cache.match(new URL('./'+core+'?v='+build,location.href).href));
+    }catch(_){return false;}
+  },{build:assets.build,core:assets.core}).catch(async error=>{
+    console.error('Worker state',await page.evaluate(async()=>({
+      readyState:document.readyState,controller:navigator.serviceWorker.controller?.scriptURL,
+      registrations:(await navigator.serviceWorker.getRegistrations()).map(r=>({active:r.active?.scriptURL,waiting:r.waiting?.scriptURL,installing:r.installing?.scriptURL})),
+      caches:await caches.keys()
+    })),workerLogs,errors);throw error;
+  });
   assert.equal(await page.evaluate(()=>window.__rtBuildId),assets.build);
   await page.evaluate(async path=>{const r=await fetch('./'+path);if(!r.ok)throw Error('Core unavailable');},assets.core);
   await context.setOffline(true);

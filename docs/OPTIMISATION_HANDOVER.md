@@ -66,3 +66,7 @@ Start the next work chat against staging and point it to [next feature handover]
 - [web.dev: PWA caching](https://web.dev/learn/pwa/caching) — cache a deliberate asset set; avoid unnecessary storage/downloads.
 - [web.dev: prefetching and precaching](https://web.dev/learn/performance/prefetching-prerendering-precaching) — selective warming and Save-Data respect.
 - [MDN: JavaScript modules](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules) — module scope differs from classic-script globals; conversion needs a planned migration.
+
+## CI follow-up: upgrade-test contract
+
+The initial staging CI and one post-merge run timed out while comparing worker script URLs. Diagnostics showed an old `sw.js?legacy=1` controller alongside a waiting `sw.js` worker: the synthetic setup changed the registration URL, unlike production. The upgrade fixture now retains the same `sw.js` URL across releases and waits for the new build to cache a relocated core asset before requiring an offline fetch. This is a test correction; runtime code is unchanged. Controller-state diagnostics remain available in test logs if an upgrade fails.
