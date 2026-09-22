@@ -1,6 +1,6 @@
-// RETRADE staging service worker — production v1.5.47 candidate + gesture layer G1.
+// RETRADE staging service worker — production v1.5.48 candidate + gesture layer G1.
 
-const BUILD='20260922-v1547-staging-g1';
+const BUILD='20260922-v1548-staging-g1';
 const CACHE_PREFIX='retrade-static-';
 const CACHE_NAME=CACHE_PREFIX+BUILD;
 const CHILD_SCRIPTS=[
