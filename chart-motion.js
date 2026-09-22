@@ -98,10 +98,10 @@
 @keyframes rtForecastGrowV1441{from{transform:scaleY(var(--rt-forecast-start,.55));opacity:.24}to{transform:scaleY(1);opacity:1}}\
 @keyframes rtRefundDotV1441{from{opacity:0;transform:scale(.5)}to{opacity:.9;transform:scale(1)}}\
 #p-summary svg.rt-chart-draw .rt-chart-primary-bar:not(.rt-chart-profit-bar):not(.rt-chart-forecast-shell),\
-#p-summary svg.rt-chart-draw .rt-chart-primary-actual{animation:rtRevenueBarV1441 590ms '+EASE+' both!important;animation-delay:var(--rt-bar-delay,0ms)!important;}\
+#p-summary svg.rt-chart-draw .rt-chart-primary-actual{animation:rtRevenueBarV1441 880ms '+EASE+' both!important;animation-delay:var(--rt-bar-delay,0ms)!important;}\
 #p-summary svg.rt-chart-draw .rt-chart-profit-bar:not(.rt-chart-forecast-shell),\
-#p-summary svg.rt-chart-draw .rt-chart-profit-actual{animation:rtProfitBarV1441 500ms '+EASE+' both!important;animation-delay:calc(var(--rt-bar-delay,0ms) + 86ms)!important;}\
-#p-summary svg.rt-chart-draw .rt-chart-forecast-shell{animation:rtForecastGrowV1441 450ms '+EASE+' both!important;animation-delay:calc(var(--rt-bar-delay,0ms) + 390ms)!important;}\
+#p-summary svg.rt-chart-draw .rt-chart-profit-actual{animation:rtProfitBarV1441 790ms '+EASE+' both!important;animation-delay:calc(var(--rt-bar-delay,0ms) + 125ms)!important;}\
+#p-summary svg.rt-chart-draw .rt-chart-forecast-shell{animation:rtForecastGrowV1441 680ms '+EASE+' both!important;animation-delay:calc(var(--rt-bar-delay,0ms) + 520ms)!important;}\
 #p-summary svg.rt-chart-draw .rt-chart-refund-dot{transform-box:fill-box;transform-origin:center;animation:rtRefundDotV1441 220ms ease-out both!important;animation-delay:var(--rt-refund-delay,470ms)!important;}\
 /* Sales forecast language: filled = achieved, hollow = projected finish. */\
 #p-monthly .rt-sales-actual-dot{stroke:var(--surface-1);stroke-width:1.55;vector-effect:non-scaling-stroke;}\
@@ -405,7 +405,7 @@
     }
     var isDaily30=(periodKey()==='30d'&&n>=24);
     Array.prototype.forEach.call(svgEl.querySelectorAll('.rt-chart-primary-bar'),function(rect){
-      var i=parseIndex(rect);if(i<0)return;var stagger=isDaily30?17:(n>12?25:44);rect.style.setProperty('--rt-bar-delay',(i*stagger)+'ms');
+      var i=parseIndex(rect);if(i<0)return;var stagger=isDaily30?26:(n>12?38:68);rect.style.setProperty('--rt-bar-delay',(i*stagger)+'ms');
     });
     Array.prototype.forEach.call(svgEl.querySelectorAll('.rt-chart-forecast-shell'),function(shell){
       var i=parseIndex(shell),isProfit=shell.classList.contains('rt-chart-profit-bar'),candidates=svgEl.querySelectorAll(isProfit?'.rt-chart-profit-actual':'.rt-chart-primary-actual'),actual=null;
