@@ -75,7 +75,7 @@ html[data-theme="dark"] #rt-launch-brand{--text-primary:#f4f5f7;background:#0f17
 #rt-launch-brand .rt-launch-mark-wrap{position:relative;display:block;width:72px;height:84px;opacity:0;transform-style:preserve-3d;will-change:transform,opacity;animation:rtLaunchShieldArc1540 1250ms linear 80ms both}
 #rt-launch-brand .rt-launch-mark-wrap::after{content:"";position:absolute;inset:-38%;z-index:-1;border-radius:50%;background:radial-gradient(circle,rgba(242,179,61,.25) 0%,rgba(242,179,61,.08) 42%,rgba(242,179,61,0) 74%);opacity:0;transform:scale(.58);animation:rtLaunchShieldImpact1540 520ms ease-out 980ms both}
 #rt-launch-brand .rt-launch-mark{display:block;width:100%;height:100%;filter:drop-shadow(0 10px 20px rgba(0,0,0,.10))}
-#rt-launch-brand .rt-launch-word{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:25px;font-weight:900;font-style:italic;letter-spacing:.035em;line-height:1;color:var(--text-primary);white-space:nowrap;opacity:0;clip-path:inset(0 100% 0 0);transform:translate3d(0,8px,0);animation:rtLaunchWordReveal1540 460ms cubic-bezier(.22,.61,.36,1) 1280ms both}
+#rt-launch-brand .rt-launch-word{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:25px;font-weight:900;font-style:normal;letter-spacing:-.01em;line-height:1;transform:skewX(-10.7deg);color:var(--text-primary);white-space:nowrap;opacity:0;clip-path:inset(0 100% 0 0);transform:skewX(-10.7deg) translate3d(0,8px,0);animation:rtLaunchWordReveal1540 460ms cubic-bezier(.22,.61,.36,1) 1280ms both}
 #rt-launch-brand .rt-launch-word span{color:var(--brand)}
 #rt-launch-brand.rt-launch-brand-out .rt-launch-lockup{opacity:.82;transform:scale(1.018);transition:opacity 220ms ease-out,transform 220ms cubic-bezier(.22,.61,.36,1)}
 #rt-launch-brand.rt-launch-snapshot{visibility:visible!important;opacity:1!important;pointer-events:none!important;transition:none!important}
@@ -93,7 +93,7 @@ html[data-theme="dark"] #rt-launch-brand{--text-primary:#f4f5f7;background:#0f17
   100%{opacity:1;transform:translate3d(0,0,0) scale(1) rotateY(0) rotateZ(0)}
 }
 @keyframes rtLaunchShieldImpact1540{0%{opacity:0;transform:scale(.58)}28%{opacity:.9}62%{opacity:.34;transform:scale(1.02)}100%{opacity:0;transform:scale(1.32)}}
-@keyframes rtLaunchWordReveal1540{0%{opacity:0;clip-path:inset(0 100% 0 0);transform:translate3d(0,8px,0);letter-spacing:.14em}55%{opacity:1}100%{opacity:1;clip-path:inset(0 0 0 0);transform:translate3d(0,0,0);letter-spacing:.035em}}
+@keyframes rtLaunchWordReveal1540{0%{opacity:0;clip-path:inset(0 100% 0 0);transform:skewX(-10.7deg) translate3d(0,8px,0);letter-spacing:.06em}55%{opacity:1}100%{opacity:1;clip-path:inset(0 0 0 0);transform:skewX(-10.7deg) translate3d(0,0,0);letter-spacing:-.01em}}
 @media(max-width:600px){#rt-launch-brand .rt-launch-mark-wrap{width:64px;height:75px}#rt-launch-brand .rt-launch-word{font-size:22px}}
 @media(prefers-reduced-motion:reduce){#rt-launch-brand{transition:none!important}#rt-launch-brand .rt-launch-mark-wrap,#rt-launch-brand .rt-launch-word{animation:none!important;opacity:1!important;transform:none!important;clip-path:none!important}#rt-launch-brand .rt-launch-mark-wrap::after{animation:none!important;display:none!important}}
 </style>
