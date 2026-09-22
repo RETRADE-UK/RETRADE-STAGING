@@ -26,7 +26,7 @@
   var lastRevealing=false;
   var warmScheduled=false;
   var brandEl=null,brandShownAt=0,brandTimer=0,finishRequested=false,skeletonVisibleAt=0,directRevealReady=false;
-  var BRAND_MIN_MS=2425,BRAND_TO_SKELETON_MS=2525,BRAND_FADE_MS=320,SKELETON_MIN_MS=360;
+  var BRAND_MIN_MS=2425,BRAND_TO_SKELETON_MS=2525,BRAND_FADE_MS=380,SKELETON_MIN_MS=360;
   var bootSummaryReplayPending=false;
 
   root.classList.add('rt-app-cold');
@@ -176,6 +176,8 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
     if(revealingSeen)return;
     revealingSeen=true;perf.revealAt=stamp();clearLongTimer();
     body.classList.remove('rt-launch-long');body.classList.add('rt-launch-waking');
+    // Keep the finished lockup alive during the crossfade; removeBrand owns
+    // the opacity transition and is deliberately not pre-empted here.
     removeBrand('content');
     // Motion owners arm while hidden and start from zero exactly as the real
     // loading surface begins its handoff. This event is boot-only.
@@ -190,7 +192,7 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
   }
   function finishWake(body){
     if(readySeen)return;
-    readySeen=true;perf.readyAt=stamp();clearLongTimer();body.classList.remove('rt-launch-long','rt-launch-shell');removeBrand('content');
+    readySeen=true;perf.readyAt=stamp();clearLongTimer();body.classList.remove('rt-launch-long','rt-launch-shell');
     if(releaseTimer)clearTimeout(releaseTimer);
     releaseTimer=setTimeout(function(){
       body.classList.remove('rt-launch-waking');root.classList.remove('rt-app-cold');root.classList.add('rt-app-awake');releaseTimer=0;scheduleStaticWarm();
