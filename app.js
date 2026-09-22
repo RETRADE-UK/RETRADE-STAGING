@@ -1,4 +1,4 @@
-/* RETRADE staging entrypoint — production v1.5.50 candidate + isolated gesture layer G1.
+/* RETRADE staging entrypoint — production v1.5.51 candidate + isolated gesture layer G1.
  *
  * Cold-start is intentionally staged:
  *   1) launch coordinator + production core
@@ -74,10 +74,24 @@
   }
 
   function loadEnhancements(gestureManifest){
-    var files=[
+    /* Only presentation code needed for the first Dashboard frame is allowed to
+       compete with the welcome handoff. Everything else is deferred until after
+       the first reveal so iOS does not parse/evaluate dozens of unrelated
+       account, export and Sales modules while animating the Dashboard. */
+    var critical=[
       './performance-system.js',
       './navigation-stability.js',
       './app-lifecycle.js',
+      './chart-polish.js',
+      './chart-motion.js',
+      './chart-finalize.js',
+      './chart-reveal.js',
+      './motion-system.js'
+    ];
+    var files=[
+      
+      
+      
       './sales-defaults.js',
       './bundle-orders.js',
       './bundle-panel.js',
@@ -112,13 +126,13 @@
       './partner-page-unified-v1503.js',
       './sales-calendar-layout-v1530.js',
       './document-exports.js',
-      './chart-polish.js',
-      './chart-motion.js',
-      './chart-finalize.js',
-      './chart-reveal.js',
+      
+      
+      
+      
       './sales-chart-sequence.js',
       './chart-forecast-sequence.js',
-      './motion-system.js'
+      
     ];
 
     /* Staging-only gesture experiments are declared in one manifest rather than
@@ -127,15 +141,26 @@
     gestureManifest=gestureManifest&&typeof gestureManifest==='object'?gestureManifest:{};
     var early=Array.isArray(gestureManifest.early)?gestureManifest.early:[];
     var charts=Array.isArray(gestureManifest.charts)?gestureManifest.charts:[];
-    var appLifeAt=files.indexOf('./app-lifecycle.js');
+    var appLifeAt=critical.indexOf('./app-lifecycle.js');
     if(appLifeAt<0)appLifeAt=2;
-    if(early.length)files.splice.apply(files,[appLifeAt,0].concat(early));
-    var chartRevealAt=files.indexOf('./chart-reveal.js');
-    if(chartRevealAt<0)chartRevealAt=files.length-1;
-    if(charts.length)files.splice.apply(files,[chartRevealAt,0].concat(charts));
+    if(early.length)critical.splice.apply(critical,[appLifeAt,0].concat(early));
+    var chartRevealAt=critical.indexOf('./chart-reveal.js');
+    if(chartRevealAt<0)chartRevealAt=critical.length-1;
+    if(charts.length)critical.splice.apply(critical,[chartRevealAt,0].concat(charts));
 
-    files.forEach(function(src,index){
-      append(src,index<3?'auto':'low',index===files.length-1?function(){markMotionReady('stack-loaded');}:null);
+    function loadDeferred(){
+      var run=function(){
+        files.forEach(function(src){append(src,'low');});
+      };
+      try{if('requestIdleCallback' in window){requestIdleCallback(run,{timeout:1600});return;}}catch(_){}
+      setTimeout(run,650);
+    }
+    critical.forEach(function(src,index){
+      append(src,index<3?'auto':'low',index===critical.length-1?function(){
+        markMotionReady('critical-stack-loaded');
+        /* Let the welcome -> Dashboard transition own the next frames. */
+        setTimeout(loadDeferred,520);
+      }:null);
     });
   }
 
