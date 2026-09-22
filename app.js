@@ -1,4 +1,4 @@
-/* RETRADE staging entrypoint — production v1.5.48 candidate + isolated gesture layer G1.
+/* RETRADE staging entrypoint — production v1.5.49 candidate + isolated gesture layer G1.
  *
  * Cold-start is intentionally staged:
  *   1) launch coordinator + production core
@@ -11,7 +11,7 @@
  */
 (function(){
   'use strict';
-  var v='20260922-v1548-staging-g1';
+  var v='20260922-v1549-staging-g1';
   window.__rtBuildId=v;
   var motionReady=false;
   var motionFallbackTimer=0;
