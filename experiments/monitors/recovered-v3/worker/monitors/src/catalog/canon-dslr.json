@@ -1,0 +1,125 @@
+{
+  "key": "canon",
+  "brand": "Canon",
+  "models": [
+    {
+      "id": "500D",
+      "aliases": [
+        "500d",
+        "eos 500d",
+        "rebel t1i"
+      ]
+    },
+    {
+      "id": "550D",
+      "aliases": [
+        "550d",
+        "eos 550d",
+        "rebel t2i"
+      ]
+    },
+    {
+      "id": "600D",
+      "aliases": [
+        "600d",
+        "eos 600d",
+        "rebel t3i"
+      ]
+    },
+    {
+      "id": "650D",
+      "aliases": [
+        "650d",
+        "eos 650d",
+        "rebel t4i"
+      ]
+    },
+    {
+      "id": "700D",
+      "aliases": [
+        "700d",
+        "eos 700d",
+        "rebel t5i"
+      ]
+    },
+    {
+      "id": "1000D",
+      "aliases": [
+        "1000d",
+        "eos 1000d",
+        "rebel xs"
+      ]
+    },
+    {
+      "id": "1100D",
+      "aliases": [
+        "1100d",
+        "eos 1100d",
+        "rebel t3"
+      ]
+    },
+    {
+      "id": "1200D",
+      "aliases": [
+        "1200d",
+        "eos 1200d",
+        "rebel t5"
+      ]
+    },
+    {
+      "id": "1300D",
+      "aliases": [
+        "1300d",
+        "eos 1300d",
+        "rebel t6"
+      ]
+    },
+    {
+      "id": "2000D",
+      "aliases": [
+        "2000d",
+        "eos 2000d",
+        "rebel t7"
+      ]
+    },
+    {
+      "id": "4000D",
+      "aliases": [
+        "4000d",
+        "eos 4000d",
+        "rebel t100"
+      ]
+    }
+  ],
+  "accessorySignals": {
+    "18-55 lens": [
+      "18-55",
+      "18 55",
+      "ef-s 18-55"
+    ],
+    "55-250 lens": [
+      "55-250",
+      "55 250",
+      "ef-s 55-250"
+    ],
+    "charger": [
+      "charger",
+      "battery charger"
+    ],
+    "battery": [
+      "battery",
+      "batteries"
+    ],
+    "box": [
+      "boxed",
+      "original box",
+      "box included"
+    ],
+    "flash": [
+      "speedlite",
+      "external flash",
+      "flashgun"
+    ]
+  },
+  "note": "Alias/accessory recognition only. Production resale values are deliberately not hard-coded here; they will be calibrated from current UK sold-market research and/or editable RETRADE model intelligence."
+}

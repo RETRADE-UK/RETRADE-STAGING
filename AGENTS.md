@@ -7,3 +7,4 @@
 - Staging must keep its isolated Supabase binding and `test.retrade-uk.com` CNAME. A failed binding must block core startup. Production must never load staging auth helpers.
 - For asset/layout changes run `npm run check`, `npm test`, and `npm run build`. Browser tests are synthetic and must not contact production data. State physical-device performance limits honestly.
 - Update ownership/handover docs when moving files or changing load/cache behaviour. Generated `_site/`, local backups, exports and credentials do not belong in Git.
+- Keep the cleaned layout as development continues: one owner per feature, no duplicate full-app snapshots or root-level patch piles. For monitor work read `docs/features/monitors/README.md`, `AUDIT.md` and `IMPLEMENTATION_PLAN.md`. Recovered prototypes in `experiments/monitors/` are reference-only, not approved runtime or migrations; fix the recorded activation blockers before promoting components.
