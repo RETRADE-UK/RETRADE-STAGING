@@ -4806,7 +4806,10 @@ svg.cat-donut-draw circle.donut-seg-last{
      corner badge instead of repetitive toasts. Hidden entirely when healthy. */
   #mobile-sync-badge{display:none;position:fixed;left:12px;bottom:calc(62px + env(safe-area-inset-bottom,0px) + 10px);z-index:315;width:30px;height:30px;min-width:30px;min-height:30px;max-width:30px;max-height:30px;overflow:hidden;border-radius:50%;align-items:center;justify-content:center;background:var(--surface);border:1px solid var(--border);box-shadow:0 2px 10px var(--shadow);color:var(--text-secondary);pointer-events:none;opacity:.92;}
   #mobile-sync-badge svg{width:15px;height:15px;}
-  #mobile-sync-badge.saving{display:flex;color:var(--accent);}
+  /* Saving/pending are background states, not actionable mobile controls.
+     Keep the mobile chrome clear; visible error state remains available. */
+  #mobile-sync-badge.saving,#mobile-sync-badge.pending{display:none!important;}
+  #mobile-sync-badge.saving{color:var(--accent);}
   #mobile-sync-badge.saving svg{animation:sideSyncSpin .9s linear infinite;}
   #mobile-sync-badge.pending{display:flex;color:var(--accent);}
   #mobile-sync-badge.error{display:flex;color:var(--red);}

@@ -14783,7 +14783,7 @@ function renderMonthlyGrid(){
     if(fy===currentFY)return true;
     return _fyKeys(fy).some(function(k){
       const ms=monthStats(k);
-      return (DB[k]||[]).length>0||ms.soldCount>0||ms.eventCount>0;
+      return ms.soldCount>0||ms.eventCount>0;
     });
   }); // newest first, data-bearing years only
 
@@ -14839,8 +14839,8 @@ function renderMonthlyGrid(){
       // so the Yearly view stays compact on mobile and desktop.
       const visibleMonths=displayMonths.filter(function(k){
         const ms=monthStats(k);
-        const hasItems=(DB[k]||[]).length>0||ms.soldCount>0||ms.eventCount>0;
-        return k===curMonthKey||hasItems;
+        const hasSales=ms.soldCount>0||ms.eventCount>0;
+        return k===curMonthKey||hasSales;
       });
       const cards=visibleMonths.map(function(k){
         // Session B: card profit and sold count come from sale-attribution,
