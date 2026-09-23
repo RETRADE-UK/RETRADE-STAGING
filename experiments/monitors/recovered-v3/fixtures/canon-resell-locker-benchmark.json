@@ -1,0 +1,70 @@
+{
+  "name": "Canon RL Benchmark \u00a351\u2013\u00a3100",
+  "purpose": "Detection parity against current Resell Locker Discord monitor before tightening reseller buy rules.",
+  "platform": "Vinted UK",
+  "searchTerms": [
+    "Canon",
+    "EOS",
+    "Rebel"
+  ],
+  "priceMin": 51,
+  "priceMax": 100,
+  "models": [
+    "500D",
+    "550D",
+    "600D",
+    "650D",
+    "700D",
+    "1000D",
+    "1100D",
+    "1200D",
+    "1300D",
+    "2000D",
+    "4000D"
+  ],
+  "rebelAliases": [
+    "Rebel T1i",
+    "Rebel T2i",
+    "Rebel T3i",
+    "Rebel T4i",
+    "Rebel T5i",
+    "Rebel XS",
+    "Rebel T3",
+    "Rebel T5",
+    "Rebel T6",
+    "Rebel T7",
+    "Rebel T100"
+  ],
+  "conditions": "ALL for benchmark",
+  "hardRejectKeywords": [],
+  "warningKeywords": [
+    "spares",
+    "parts only",
+    "not working",
+    "faulty",
+    "broken",
+    "untested",
+    "water damage",
+    "sensor damaged",
+    "sensor fault",
+    "shutter fault",
+    "no charger",
+    "charger missing",
+    "no battery"
+  ],
+  "sellerRule": {
+    "minReviews": 5,
+    "minRating": 4.5,
+    "zeroReviews": "RISKY not hidden"
+  },
+  "notifications": "Feed only during benchmark; add push after parity is proven.",
+  "successCriteria": {
+    "primary": "Same new whitelisted \u00a351\u2013\u00a3100 Canon listings as Resell Locker.",
+    "secondary": "Detection latency close enough to act on deals.",
+    "doNotJudgeYet": [
+      "Perfect resale values",
+      "Final SNIPE thresholds",
+      "Push notification speed"
+    ]
+  }
+}

@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "test": "node tests/startup-browser.cjs && node tests/service-worker-browser.cjs",
-    "check": "node scripts/check-assets.cjs && python3 scripts/check-invariants.py && node tests/service-worker.cjs",
+    "check": "node scripts/check-assets.cjs && python3 scripts/check-invariants.py && node tests/service-worker.cjs && node tests/monitors/recovery.cjs",
     "build": "node scripts/build-site.cjs",
     "audit:size": "node scripts/audit-size.cjs"
   },

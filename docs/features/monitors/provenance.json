@@ -1,0 +1,303 @@
+{
+  "version": 1,
+  "recovered_at": "2026-09-23",
+  "staging_base": "4d5b71fcc7f59d8d3c708c1cc2c88c2a0f74ee23",
+  "status": "reference-only; not activated",
+  "packages": [
+    {
+      "name": "RETRADE_Monitors_v1_Dev.zip",
+      "sha256": "2feb651f6a7698c284e01763fa225c58db97fe97aa0bfeb5b8775867a3527ad0",
+      "entries": [
+        {
+          "path": "MONITORS_V1_NOTES.txt",
+          "sha256": "273be8f0a6e00f2844ec7cdb35f9177ed8c22fb757dde8011546166318dc0714"
+        },
+        {
+          "path": "accounting.js",
+          "sha256": "72411c6ff85e6a29d0337581233a2604bec9634f6e5c3dc5d4bfd876a4c4f802"
+        },
+        {
+          "path": "app.css",
+          "sha256": "9470e90e9db08de1b65676d59d5c3c10b8f296c3cf28462f61342ed132d77bb7"
+        },
+        {
+          "path": "app.js",
+          "sha256": "aca8acb531d17d7d99790be690a0681d8be5030705355789f1e1321cb9d939f3"
+        },
+        {
+          "path": "index_dev(20260824-130655)(20260826-125622)(1).html",
+          "sha256": "000142846e6aebb6f5315a9fc25081f63daf2cb82f74272413467481c36aa621"
+        },
+        {
+          "path": "monitors.js",
+          "sha256": "42a6eb7651bfee4496b5d1248d2a5d13d13e1b04eae252e2fe735c942e809cba"
+        },
+        {
+          "path": "reports.js",
+          "sha256": "468231d40219979daec01cd153a2202c3898f85e51b01adb3ded36fe24d8a80a"
+        }
+      ]
+    },
+    {
+      "name": "RETRADE_Monitors_v2_CloudWorker.zip",
+      "sha256": "c5c232c66e4e706501d001c9287e26fb8cf513f0df857adb636b2a54a89cd7de",
+      "entries": [
+        {
+          "path": "MONITORS_V2_NOTES.txt",
+          "sha256": "7c37f2f1a9dabae48d211f859c3260a8f472d0e771b61717aa9d66130c6baeae"
+        },
+        {
+          "path": "accounting.js",
+          "sha256": "72411c6ff85e6a29d0337581233a2604bec9634f6e5c3dc5d4bfd876a4c4f802"
+        },
+        {
+          "path": "app.css",
+          "sha256": "a9283aae369d7f13f465b6d805aff32b2f7184685d2be750d5458cc928ce8c73"
+        },
+        {
+          "path": "app.js",
+          "sha256": "53cffeaa53c99e47a340e4bec3c9c3b197b4e3e8f1dc6d8dea728038f05cde3a"
+        },
+        {
+          "path": "dev/sql/001_monitors.sql",
+          "sha256": "869d7b9448e8e020545c87bc4720e8b01e93cdb7f9f697e18331a325df574f48"
+        },
+        {
+          "path": "index_dev(20260824-130655)(20260826-125622)(1).html",
+          "sha256": "000142846e6aebb6f5315a9fc25081f63daf2cb82f74272413467481c36aa621"
+        },
+        {
+          "path": "monitors.js",
+          "sha256": "1c6c27b7bb30b37deea53474f37470398fbc67ae8e2546e2a30a477b1b91d0aa"
+        },
+        {
+          "path": "reports.js",
+          "sha256": "468231d40219979daec01cd153a2202c3898f85e51b01adb3ded36fe24d8a80a"
+        },
+        {
+          "path": "worker/monitors/.env.example",
+          "sha256": "f3814efcfce553c7a3b6481dc4718614eb658a95bd92b0c8581335708da37f5e"
+        },
+        {
+          "path": "worker/monitors/README.md",
+          "sha256": "b3da5f314e8434118f8eac9a99b80edf9e4df8313af53ca9e9761cbbedb370a5"
+        },
+        {
+          "path": "worker/monitors/package.json",
+          "sha256": "360b3ef5a9b39f1e4d97fbfe97acd0138e86577fa6173a5cb3fddbd6ac780523"
+        },
+        {
+          "path": "worker/monitors/src/adapters/vinted.mjs",
+          "sha256": "9b10f3732790fb1f924895e5922cd99cbdd67d4b0d935aaff4a9e66304645cea"
+        },
+        {
+          "path": "worker/monitors/src/catalog/canon-dslr.json",
+          "sha256": "da31493db6059714787295c8831e38e661528c3b90ceaef38f88be19661b0e2c"
+        },
+        {
+          "path": "worker/monitors/src/db.mjs",
+          "sha256": "83b5792941f8541860e832942625374ddc32c683b3c2c7bc710b33077d7ca885"
+        },
+        {
+          "path": "worker/monitors/src/engine/match.mjs",
+          "sha256": "58e4d1fecb8cf0faf81c8a5ad37d7026c06fafccbd67284f3896fe170844ae35"
+        },
+        {
+          "path": "worker/monitors/src/engine/score.mjs",
+          "sha256": "be66bb26a18cec167b4aafe07cd3624383a687df436035969d188bf71e4b0db8"
+        },
+        {
+          "path": "worker/monitors/src/index.mjs",
+          "sha256": "099ed5b303ca9143905990b174fc2d722d8e4bcb94dd58a22dbe3188df5309ec"
+        }
+      ]
+    },
+    {
+      "name": "RETRADE_Monitors_v3_CanonBenchmark.zip",
+      "sha256": "4700302f90202c24d18738f0239c03a18896184c6c29db1538f4bccdc06b4016",
+      "entries": [
+        {
+          "path": "CANON_BENCHMARK_PLAN.txt",
+          "sha256": "992ff6cdfe54321689b750befbce28ff5f8172cd972640d5c05479508a094dd6"
+        },
+        {
+          "path": "MONITORS_V3_NOTES.txt",
+          "sha256": "2d03f864d740ca5361769a416a25abc454fa1cbe427fc6a0887d207505d5b9bd"
+        },
+        {
+          "path": "accounting.js",
+          "sha256": "72411c6ff85e6a29d0337581233a2604bec9634f6e5c3dc5d4bfd876a4c4f802"
+        },
+        {
+          "path": "app.css",
+          "sha256": "22ce036d5e2e13691e043f3cdab5f8a7252b7c7d292c99dfdb8d5d7b55e1bc86"
+        },
+        {
+          "path": "app.js",
+          "sha256": "53cffeaa53c99e47a340e4bec3c9c3b197b4e3e8f1dc6d8dea728038f05cde3a"
+        },
+        {
+          "path": "dev/seed/canon_resell_locker_benchmark.json",
+          "sha256": "33cd837ba0a2ef155817f1c51f1b9a79d30154752aeba457f3f3beda3ca0a2bd"
+        },
+        {
+          "path": "dev/sql/001_monitors.sql",
+          "sha256": "ac25bd58e55bc181e445e804d43758e4bbe5375cf32d51f522a5c0704fb0552a"
+        },
+        {
+          "path": "index_dev(20260824-130655)(20260826-125622)(1).html",
+          "sha256": "000142846e6aebb6f5315a9fc25081f63daf2cb82f74272413467481c36aa621"
+        },
+        {
+          "path": "monitors.js",
+          "sha256": "33b568f7ab172ebe37c3e9a59b0cbefde83cf71e40926ce78ecdd75fd55af2eb"
+        },
+        {
+          "path": "reports.js",
+          "sha256": "468231d40219979daec01cd153a2202c3898f85e51b01adb3ded36fe24d8a80a"
+        },
+        {
+          "path": "worker/monitors/.env.example",
+          "sha256": "f3814efcfce553c7a3b6481dc4718614eb658a95bd92b0c8581335708da37f5e"
+        },
+        {
+          "path": "worker/monitors/README.md",
+          "sha256": "b3da5f314e8434118f8eac9a99b80edf9e4df8313af53ca9e9761cbbedb370a5"
+        },
+        {
+          "path": "worker/monitors/package.json",
+          "sha256": "360b3ef5a9b39f1e4d97fbfe97acd0138e86577fa6173a5cb3fddbd6ac780523"
+        },
+        {
+          "path": "worker/monitors/src/adapters/vinted.mjs",
+          "sha256": "9b10f3732790fb1f924895e5922cd99cbdd67d4b0d935aaff4a9e66304645cea"
+        },
+        {
+          "path": "worker/monitors/src/catalog/canon-dslr.json",
+          "sha256": "da31493db6059714787295c8831e38e661528c3b90ceaef38f88be19661b0e2c"
+        },
+        {
+          "path": "worker/monitors/src/db.mjs",
+          "sha256": "2db74f4e476d87c468470ff4b22b63a45014c9f46627151bad244bc1bc05b270"
+        },
+        {
+          "path": "worker/monitors/src/engine/match.mjs",
+          "sha256": "03d58c86c0460d312eb3aad5144c21d1817fbdac40bfa5c433a88172458edc10"
+        },
+        {
+          "path": "worker/monitors/src/engine/score.mjs",
+          "sha256": "be66bb26a18cec167b4aafe07cd3624383a687df436035969d188bf71e4b0db8"
+        },
+        {
+          "path": "worker/monitors/src/index.mjs",
+          "sha256": "8886c9d3337b6a6ade1a59beaf7f75bb2de0998e3e777f066561a4e07b48c80e"
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "experiments/monitors/recovered-v3/ui/monitors.js",
+      "source_package": "RETRADE_Monitors_v3_CanonBenchmark.zip",
+      "source_path": "monitors.js",
+      "extraction": null,
+      "sha256": "33b568f7ab172ebe37c3e9a59b0cbefde83cf71e40926ce78ecdd75fd55af2eb"
+    },
+    {
+      "path": "experiments/monitors/recovered-v3/ui/cloud-bridge.js",
+      "source_package": "RETRADE_Monitors_v3_CanonBenchmark.zip",
+      "source_path": "app.js",
+      "extraction": "Exact suffix starting at Supabase bridge separator; no old application core copied.",
+      "sha256": "519d6ef5ac31a34ca16247c101d8366598f5c2cbc3f5c4f030c1c6ea5cf84b72"
+    },
+    {
+      "path": "experiments/monitors/recovered-v3/ui/monitors.css",
+      "source_package": "RETRADE_Monitors_v3_CanonBenchmark.zip",
+      "source_path": "app.css",
+      "extraction": "Exact suffix starting at integrated dev v1 separator; no base application CSS copied.",
+      "sha256": "a531d4621223afd3a9b5e49cf6e4378d84255bd1d78fd6f19a81e9cfb928f8e4"
+    },
+    {
+      "path": "experiments/monitors/recovered-v3/schema/001_monitors.sql",
+      "source_package": "RETRADE_Monitors_v3_CanonBenchmark.zip",
+      "source_path": "dev/sql/001_monitors.sql",
+      "extraction": null,
+      "sha256": "ac25bd58e55bc181e445e804d43758e4bbe5375cf32d51f522a5c0704fb0552a"
+    },
+    {
+      "path": "experiments/monitors/recovered-v3/fixtures/canon-resell-locker-benchmark.json",
+      "source_package": "RETRADE_Monitors_v3_CanonBenchmark.zip",
+      "source_path": "dev/seed/canon_resell_locker_benchmark.json",
+      "extraction": null,
+      "sha256": "33cd837ba0a2ef155817f1c51f1b9a79d30154752aeba457f3f3beda3ca0a2bd"
+    },
+    {
+      "path": "experiments/monitors/recovered-v3/worker/monitors/src/db.mjs",
+      "source_package": "RETRADE_Monitors_v3_CanonBenchmark.zip",
+      "source_path": "worker/monitors/src/db.mjs",
+      "extraction": null,
+      "sha256": "2db74f4e476d87c468470ff4b22b63a45014c9f46627151bad244bc1bc05b270"
+    },
+    {
+      "path": "experiments/monitors/recovered-v3/worker/monitors/src/index.mjs",
+      "source_package": "RETRADE_Monitors_v3_CanonBenchmark.zip",
+      "source_path": "worker/monitors/src/index.mjs",
+      "extraction": null,
+      "sha256": "8886c9d3337b6a6ade1a59beaf7f75bb2de0998e3e777f066561a4e07b48c80e"
+    },
+    {
+      "path": "experiments/monitors/recovered-v3/worker/monitors/src/adapters/vinted.mjs",
+      "source_package": "RETRADE_Monitors_v3_CanonBenchmark.zip",
+      "source_path": "worker/monitors/src/adapters/vinted.mjs",
+      "extraction": null,
+      "sha256": "9b10f3732790fb1f924895e5922cd99cbdd67d4b0d935aaff4a9e66304645cea"
+    },
+    {
+      "path": "experiments/monitors/recovered-v3/worker/monitors/src/engine/score.mjs",
+      "source_package": "RETRADE_Monitors_v3_CanonBenchmark.zip",
+      "source_path": "worker/monitors/src/engine/score.mjs",
+      "extraction": null,
+      "sha256": "be66bb26a18cec167b4aafe07cd3624383a687df436035969d188bf71e4b0db8"
+    },
+    {
+      "path": "experiments/monitors/recovered-v3/worker/monitors/src/engine/match.mjs",
+      "source_package": "RETRADE_Monitors_v3_CanonBenchmark.zip",
+      "source_path": "worker/monitors/src/engine/match.mjs",
+      "extraction": null,
+      "sha256": "03d58c86c0460d312eb3aad5144c21d1817fbdac40bfa5c433a88172458edc10"
+    },
+    {
+      "path": "experiments/monitors/recovered-v3/worker/monitors/src/catalog/canon-dslr.json",
+      "source_package": "RETRADE_Monitors_v3_CanonBenchmark.zip",
+      "source_path": "worker/monitors/src/catalog/canon-dslr.json",
+      "extraction": null,
+      "sha256": "da31493db6059714787295c8831e38e661528c3b90ceaef38f88be19661b0e2c"
+    },
+    {
+      "path": "experiments/monitors/recovered-v3/worker/monitors/package.reference.json",
+      "source_package": "RETRADE_Monitors_v3_CanonBenchmark.zip",
+      "source_path": "worker/monitors/package.json",
+      "extraction": null,
+      "sha256": "360b3ef5a9b39f1e4d97fbfe97acd0138e86577fa6173a5cb3fddbd6ac780523"
+    },
+    {
+      "path": "experiments/monitors/branch-schema/001_monitors.sql",
+      "source_repository": "RETRADE-UK/RETRADE",
+      "source_commit": "6ea9f95e8d0e9e66fb68a62dd829bee3b8ff6626",
+      "source_path": "dev/sql/001_monitors.sql",
+      "sha256": "687f4efbb99790c63e6a937d1d9b0d5f6272d99b3eec18d881c09f175df52d5a"
+    },
+    {
+      "path": "experiments/monitors/branch-schema/002_monitor_ownership_guard.sql",
+      "source_repository": "RETRADE-UK/RETRADE",
+      "source_commit": "6ea9f95e8d0e9e66fb68a62dd829bee3b8ff6626",
+      "source_path": "dev/sql/002_monitor_ownership_guard.sql",
+      "sha256": "6f832c5134782036ec902d29dfa7575df6182401455e57c7bf0f72a64a02fb1d"
+    }
+  ],
+  "legacy_branch": {
+    "repository": "RETRADE-UK/RETRADE",
+    "branch": "feature/monitors",
+    "commit": "6ea9f95e8d0e9e66fb68a62dd829bee3b8ff6626"
+  }
+}

@@ -40,3 +40,8 @@ The worker installs a small shell and limits warming to three concurrent request
 Small fixes go through the live repository's PR/CI flow. New features begin on staging. Staging retains its own CNAME, public Supabase binding and test-login helper. Its loader fails closed if the binding is unavailable. Gesture G1 is disabled under `experiments/gestures/` and preserved on `archive/gestures-g1-20260922` in the staging repository.
 
 The core is still around 1.6 MB uncompressed. Next extractions should give one feature explicit inputs and regression coverage at a time. Accounting/persistence rewrites, wholesale partner-wrapper consolidation and a framework migration are not part of this cleanup. The local maintainer checkout is `C:\RETRADE-UK\RETRADE`.
+
+Monitor takeover: `experiments/monitors/` contains recovered, audited reference
+sources only and is excluded from the allowlist and `_site/`. There is no monitor
+runtime owner yet. See `docs/features/monitors/IMPLEMENTATION_PLAN.md` for the
+future UI/worker/schema boundaries and activation gates.
