@@ -35,8 +35,7 @@
   function arrangementMeta(a){
     var model=accountModel(a);
     if(model==='fixed_cost')return {type:'Fixed cost',kind:'fixed',term:paymentTiming(a)==='on_sale'?'After sale':'Upfront'};
-    var p=a&&a.defaultSplitPercent!=null?Number(a.defaultSplitPercent):null;
-    return {type:'Profit share',kind:'share',term:p!=null&&isFinite(p)?((p%1?p.toFixed(1):p.toFixed(0))+'% split'):'Split set per item'};
+    return {type:'Profit share',kind:'share',term:'Split set per item'};
   }
   function rowsData(){
     var out=[];

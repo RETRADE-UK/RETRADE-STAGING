@@ -1627,7 +1627,13 @@ function closeMoreSheet(){
     // leaves the viewport completely instead of parking a sliver on screen.
     sheet.style.transform='';
   }
-  if(overlay)overlay.style.opacity='0';
+  if(overlay){
+    overlay.style.opacity='0';
+    // Make the closing overlay inert immediately. Keeping pointer events live
+    // during the 300ms visual exit blocks the fixed bottom nav/FAB and makes
+    // taps appear to land on the wrong layer.
+    overlay.style.pointerEvents='none';
+  }
   setTimeout(function(){
     if(sheet&&!sheet._msOpen){sheet.style.display='none';if(overlay)overlay.style.display='none';}
   },300);   // v2.17.1 — was 260ms, which clipped the tail of the .28s slide.
@@ -14758,21 +14764,28 @@ function renderMonthlyGrid(){
   const monthEvents=function(k){return _calendarEventsByMonth.get(k)||[];};
 
   // Build set of FYs to show: previous, current, next + any FY with data
-  const fySet=new Set([currentFY-1, currentFY, currentFY+1]);
+  const fySet=new Set([currentFY-1, currentFY]);
   allDBKeys().forEach(function(k){
     const code=keyCode(k); const yr=keyYear(k);
     const mo=MONTHS.indexOf(code);
     if(mo<0)return;
     const fy=mo>=3?yr:yr-1;
-    fySet.add(fy);
+    if(fy<=currentFY)fySet.add(fy);
   });
   // Fix B (B1): also cover the FY of every SALE/RETURN event month, so a sale
   // dated in an FY no purchase touched is not dropped from the rollups.
   _saleEventMonthKeys().forEach(function(mk){
     const mo=MONTHS.indexOf(keyCode(mk)); if(mo<0)return;
-    const yr=keyYear(mk); fySet.add(mo>=3?yr:yr-1);
+    const yr=keyYear(mk),fy=mo>=3?yr:yr-1;
+    if(fy<=currentFY)fySet.add(fy);
   });
-  const fyYears=Array.from(fySet).sort(function(a,b){return b-a;}); // newest first
+  const fyYears=Array.from(fySet).sort(function(a,b){return b-a;}).filter(function(fy){
+    if(fy===currentFY)return true;
+    return _fyKeys(fy).some(function(k){
+      const ms=monthStats(k);
+      return (DB[k]||[]).length>0||ms.soldCount>0||ms.eventCount>0;
+    });
+  }); // newest first, data-bearing years only
 
   let html='<div style="padding-bottom:80px;">';
   // Period selector lives in the page header (right side), mirroring the
@@ -14822,7 +14835,14 @@ function renderMonthlyGrid(){
     if(!isCollapsed){
       // Past FYs: show most-recent month first (MAR→APR). Current FY: chronological (APR→now).
       const displayMonths=isCurrentFY?months:[...months].reverse();
-      const cards=displayMonths.map(function(k){
+      // Keep the current month visible for orientation; omit empty months
+      // so the Yearly view stays compact on mobile and desktop.
+      const visibleMonths=displayMonths.filter(function(k){
+        const ms=monthStats(k);
+        const hasItems=(DB[k]||[]).length>0||ms.soldCount>0||ms.eventCount>0;
+        return k===curMonthKey||hasItems;
+      });
+      const cards=visibleMonths.map(function(k){
         // Session B: card profit and sold count come from sale-attribution,
         // but listedCount stays as listing-month inventory (kept in the bySale
         // helper for this exact use).
@@ -15379,18 +15399,62 @@ function renderBundleSaleRow(bid, members){
 // Group a month's sale-events: 2+ visible members of the same bundle -> ONE
 // combined row; a lone member (e.g. filtered) or non-bundle event -> its normal
 // row (which now carries a 'bundle' chip linking to the combined page).
-function _renderMonthList(events){
-  const out=[], seen={};
+function _salesDayLabel(ds){
+  const p=String(ds||'').split('-');
+  if(p.length!==3)return ds?'Date '+ds:'Date not recorded';
+  const d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]),12,0,0,0);
+  if(isNaN(d.getTime()))return ds?'Date '+ds:'Date not recorded';
+  try{return d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});}
+  catch(_){return ds?'Date '+ds:'Date not recorded';}
+}
+function _salesDayOrderCount(events){
+  let count=0;const seen={};
   (events||[]).forEach(function(e){
+    if(!e||e.isReturnAdjustment)return;
     const bid=_eventBundleId(e);
-    if(bid){
-      if(seen[bid])return;
-      seen[bid]=true;
-      const members=events.filter(function(x){return _eventBundleId(x)===bid;});
-      out.push(members.length>1?renderBundleSaleRow(bid,members):renderSaleEventRow(e));
-    } else {
-      out.push(renderSaleEventRow(e));
-    }
+    if(bid){if(seen[bid])return;seen[bid]=true;}
+    count++;
+  });
+  return count||((events||[]).length?1:0);
+}
+function _salesDayHeader(ds,events){
+  const n=_salesDayOrderCount(events);
+  return '<div class="rt-sales-day" data-date="'+esc(String(ds||''))+'">'+
+    '<span class="rt-sales-day-label">'+esc(_salesDayLabel(ds))+'</span>'+
+    '<span class="rt-sales-day-count">'+n+' order'+(n===1?'':'s')+'</span>'+
+  '</div>';
+}
+// Sales history is date-sold by default. Build the day groups in the core
+// renderer so both desktop and mobile receive the same structural headers,
+// independently of optional performance/deferred layers.
+function _renderMonthList(events){
+  const dateGrouped=MONTH_SORT==='date-sold';
+  const groups=[];
+  if(dateGrouped){
+    let current=null;
+    (events||[]).forEach(function(e){
+      const ds=String((e&&e.saleDate)||'');
+      if(!current||current.date!==ds){current={date:ds,events:[]};groups.push(current);}
+      current.events.push(e);
+    });
+  }else{
+    groups.push({date:null,events:events||[]});
+  }
+  const out=[];
+  groups.forEach(function(group){
+    if(dateGrouped)out.push(_salesDayHeader(group.date,group.events));
+    const seen={};
+    group.events.forEach(function(e){
+      const bid=_eventBundleId(e);
+      if(bid){
+        if(seen[bid])return;
+        seen[bid]=true;
+        const members=group.events.filter(function(x){return _eventBundleId(x)===bid;});
+        out.push(members.length>1?renderBundleSaleRow(bid,members):renderSaleEventRow(e));
+      }else{
+        out.push(renderSaleEventRow(e));
+      }
+    });
   });
   return out.join('');
 }
@@ -23730,6 +23794,7 @@ window.addEventListener('load',function(){
   var _navHidden = false;
   var _lastScrollY = 0;
   var _raf = null;
+  var _ignoreScrollUntil = 0;
 
   const _bnav=function(){return document.getElementById('bottom-nav');}
   // V2 proof: FAB position + hide-with-nav are now CSS-driven (keyed off
@@ -23741,7 +23806,13 @@ window.addEventListener('load',function(){
   const _show=function(){var b=_bnav();if(!b||!_navHidden)return;b.classList.remove('nav-hidden');_navHidden=false;_fabsRaise();}
   const _hide=function(){var b=_bnav();if(!b||_navHidden)return;b.classList.add('nav-hidden');_navHidden=true;_fabsDrop();}
   // Called by goToTab to reset scroll state so tab switch never triggers auto-hide
-  window._resetNavScrollState=function(){_lastScrollY=0;_navHidden=false;var b=_bnav();if(b)b.classList.remove('nav-hidden');_fabsRaise();};
+  window._resetNavScrollState=function(){
+    // Route changes may call scrollTo() and then restore a saved page offset.
+    // Ignore that programmatic scroll briefly so it cannot be mistaken for a
+    // downward user scroll that hides the nav while the new page is settling.
+    _lastScrollY=0;_ignoreScrollUntil=Date.now()+520;_navHidden=false;
+    var b=_bnav();if(b)b.classList.remove('nav-hidden');_fabsRaise();
+  };
   _fabsRaise();
   window.addEventListener('resize',function(){_fabsRaise();});
 
@@ -23752,6 +23823,7 @@ window.addEventListener('load',function(){
       var b=_bnav();
       if(!b||b.style.display!=='flex')return;
       var y=window.scrollY||window.pageYOffset||0;
+      if(Date.now()<_ignoreScrollUntil){_lastScrollY=y;_show();return;}
       var diff=y-_lastScrollY;
       // Always show when near top
       if(y<10){_show();_lastScrollY=y;return;}

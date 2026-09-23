@@ -153,7 +153,8 @@
       current.classList.remove('rt-sales-history-fy1530');
       sortCurrentMonths(current);
       var host=charts.parentElement;
-      if(host&&current.parentElement===host)host.insertBefore(current,charts);
+      // Keep the analytics graph first; the FY/month sections follow it.
+      if(host&&current.parentElement===host)host.insertBefore(charts,current);
     }
     var firstHistory=null;
     sections.forEach(function(section){if(section!==current&&!firstHistory)firstHistory=section;});

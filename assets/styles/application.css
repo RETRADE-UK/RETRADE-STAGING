@@ -5614,3 +5614,46 @@ svg.rt-chart-draw .rt-chart-refund-event{animation:rtRefundDotIn 150ms var(--eas
 .rt-chart-profit-bar{filter:none;}
 svg.rt-chart-draw .rt-chart-profit-bar{animation-delay:calc(var(--bar-i) * 26ms + 90ms);}
 @media(prefers-reduced-motion:reduce){svg.rt-chart-draw .rt-chart-profit-bar{animation:none!important;}}
+
+/* Sales history day grouping — shared structure, responsive density. */
+#month-list .rt-sales-day{
+  position:sticky;
+  top:0;
+  z-index:2;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  min-height:32px;
+  padding:7px 14px 6px;
+  margin:0;
+  border-top:1px solid color-mix(in srgb,var(--border) 82%,transparent);
+  border-bottom:1px solid color-mix(in srgb,var(--border) 72%,transparent);
+  background:color-mix(in srgb,var(--surface2) 94%,var(--bg));
+  color:var(--text-secondary);
+  font-size:11px;
+  line-height:1.2;
+  font-weight:760;
+  letter-spacing:.015em;
+  box-shadow:0 1px 0 rgba(0,0,0,.03);
+}
+#month-list .rt-sales-day:first-child{border-top:0}
+#month-list .rt-sales-day-label{min-width:0;white-space:nowrap}
+#month-list .rt-sales-day-count{
+  flex:0 0 auto;
+  color:var(--muted);
+  font-size:10px;
+  font-weight:650;
+  white-space:nowrap;
+}
+@media(max-width:639px){
+  #month-list .rt-sales-day{
+    min-height:34px;
+    padding:8px 11px 7px;
+    font-size:11px;
+  }
+  #month-list .rt-sales-day-count{font-size:10px}
+}
+@media(min-width:640px){
+  #month-list .rt-sales-day{padding-left:16px;padding-right:16px}
+}

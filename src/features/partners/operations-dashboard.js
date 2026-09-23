@@ -28,8 +28,7 @@
   function arrangementLabel(a){
     var model=accountModel(a);
     if(model==='fixed_cost')return 'Fixed cost · '+(paymentTiming(a)==='on_sale'?'After sale':'Upfront');
-    var p=a&&a.defaultSplitPercent!=null?Number(a.defaultSplitPercent):null;
-    return 'Profit share'+(p!=null&&isFinite(p)?' · '+(p%1?p.toFixed(1):p.toFixed(0))+'%':'');
+    return 'Profit share · Split set per item';
   }
   function accountItems(id){
     try{if(typeof _accountItems==='function')return _accountItems(id)||[];}catch(_){}
