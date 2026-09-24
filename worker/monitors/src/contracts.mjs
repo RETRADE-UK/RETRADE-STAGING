@@ -1,7 +1,6 @@
 /** Version 1 engine contract. Money is integer GBP pence; null means unknown. */
-import { readFileSync } from 'node:fs';
-
-export const canon = JSON.parse(readFileSync(new URL('./catalog/canon-dslr.json', import.meta.url), 'utf8'));
+import catalog from './catalog/canon-dslr.json' with { type: 'json' };
+export const canon = catalog;
 export const CONDITIONS = ['new', 'very_good', 'good', 'satisfactory'];
 
 export function isRecord(value) {

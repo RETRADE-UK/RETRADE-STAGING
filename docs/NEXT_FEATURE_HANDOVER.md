@@ -16,3 +16,7 @@ catalogue probe returned 404, so source feasibility and persistent worker/databa
 integration are the next gates. No monitor UI/notifications are active.
 
 Gesture files in `experiments/gestures/` are historical source, not an enabled loader. The matching archive branch preserves the complete previous runnable staging tree. Do not resume them as part of monitor work.
+
+## Monitor MVP preview — 24 September
+
+Custom builder, Canon preset, isolated persistence, scheduled worker/outbox, phone push opt-in and Discord observation capture are implemented. Live Vinted access remains blocked (actual hosting 403); this is not completed live detection. Continue from `docs/features/monitors/MVP_RUNBOOK.md`. Source access, physical phone delivery and a real side-by-side Discord sample are the next gates. Preserve the latest live sync/tax fixes already synced to staging.

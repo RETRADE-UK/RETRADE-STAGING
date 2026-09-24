@@ -28,6 +28,11 @@
     // retargeting taps after a scroll.
     '.rt #bottom-nav,.rt #bottom-nav button,.rt .fab-dial,.rt .fab-dial button,.rt #search-fab{touch-action:manipulation;-webkit-tap-highlight-color:transparent;}',
     '.rt #bottom-nav,.rt .fab-dial,.rt #search-fab{isolation:isolate;}',
+    // Navigation stays reachable above dismissible menus and their backdrops,
+    // but remains below form/confirmation dialogs (400+).
+    '.rt #bottom-nav,.rt #side-nav,.rt nav:not(#bottom-nav),.rt #mobile-top-bar{z-index:350;}',
+    '.rt .fab-dial{z-index:360;}',
+    '.rt #nav-search-expand{z-index:370;}',
     // Normal route activation must not translate/fade the entire page. We only
     // suppress the route animation itself; transforms used by explicit swipe /
     // gesture handling are intentionally left alone.

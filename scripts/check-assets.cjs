@@ -13,6 +13,7 @@ for(const file of scripts.concat('index.html')){
  for(const match of source.matchAll(/["']\.\/([^"'\s]+\.(?:js|css|png|webmanifest))(?:\?[^"']*)?["']/g))assert(allowed.has(match[1]),`${file} refers to undeclared ${match[1]}`);
 }
 const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+for(const match of html.matchAll(/(?:src|href)="\.\/[^"\s]+\.(?:js|css)\?v=([^"\s]+)"/g))assert.equal(match[1],assets.build,'Startup asset build tag drift');
 for(const file of assets.entry.concat(assets.styles,assets.launchImages))assert(html.includes(file),`Entry asset missing from HTML: ${file}`);
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.webmanifest'),'utf8'));for(const i of manifest.icons)assert(allowed.has(i.src.replace(/^\.\//,'')));
 const tracked=execFileSync('git',['ls-files'],{cwd:root,encoding:'utf8'}).split('\n');

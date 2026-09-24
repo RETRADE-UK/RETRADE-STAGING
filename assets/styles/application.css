@@ -593,7 +593,7 @@ select.bulk-ctrl{padding-right:26px;-webkit-appearance:none;appearance:none;back
 .ddmenu button.danger:hover{background:var(--red-dim);}
 
 /* TOAST */
-#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--surface);border:1px solid var(--border);color:var(--text);padding:14px 24px;border-radius:10px;font-size:14px;font-weight:500;z-index:500;opacity:0;transition:opacity 0.22s ease, transform 0.32s cubic-bezier(0.34,1.32,0.64,1);box-shadow:0 4px 20px var(--shadow-md);max-width:90vw;}
+#toast{pointer-events:none;position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--surface);border:1px solid var(--border);color:var(--text);padding:14px 24px;border-radius:10px;font-size:14px;font-weight:500;z-index:500;opacity:0;transition:opacity 0.22s ease, transform 0.32s cubic-bezier(0.34,1.32,0.64,1);box-shadow:0 4px 20px var(--shadow-md);max-width:90vw;}
 @media(max-width:600px){#toast{bottom:calc(62px + env(safe-area-inset-bottom,0px) + 10px);}}
 #toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
 #toast.err{background:var(--red);color:#fff;border-color:var(--red-hover);}
@@ -1406,8 +1406,12 @@ button .rt-icon,.btn .rt-icon{pointer-events:none;}
    so the buttons always appear bright/active above the dim. The FAB container
    itself is z-index:300 which lifts the whole group above the page. */
 /* Option list container — positioned relative + z-index:1 to sit above backdrop */
-#fab-dial-options{display:flex;flex-direction:column;align-items:flex-end;gap:10px;pointer-events:none;position:relative;z-index:1;}
-.fab-dial.open #fab-dial-options{pointer-events:auto;}
+#fab-dial-options{visibility:hidden;display:flex;flex-direction:column;align-items:flex-end;gap:10px;pointer-events:none;position:relative;z-index:1;}
+.fab-dial.open #fab-dial-options{visibility:visible;pointer-events:auto;}
+/* Closed controls cannot intercept taps or remain keyboard targets. */
+.fab-dial:not(.open) #fab-dial-options,
+.fab-dial:not(.open) #fab-dial-options *{visibility:hidden!important;pointer-events:none!important;}
+.fab-dial[aria-hidden="true"],.fab-dial[aria-hidden="true"] *{visibility:hidden!important;pointer-events:none!important;}
 /* Stagger transition delays apply to the children of #fab-dial-options too */
 #fab-dial-options .fab-dial-item:nth-child(1){transition-delay:0s;}
 #fab-dial-options .fab-dial-item:nth-child(2){transition-delay:0.04s;}
@@ -4070,9 +4074,9 @@ svg.cat-donut-draw circle.donut-seg-last{
      (which didn't render) — pure flexbox, so it's robust. Search FAB hides on
      open to free the row. ── */
   .fab-dial{
-    left:50%!important;right:auto!important;
+    left:calc(50% - 30px)!important;right:auto!important;
     bottom:calc(64px + env(safe-area-inset-bottom,0px) - 48px)!important;
-    transform:translateX(-50%);
+    transform:none;
     display:block!important;            /* override desktop flex-column */
     width:60px;height:60px;
     z-index:330;
@@ -4087,7 +4091,7 @@ svg.cat-donut-draw circle.donut-seg-last{
     gap:12px;padding:0 14px;z-index:331;
     pointer-events:none;
   }
-  .fab-dial.open #fab-dial-options{pointer-events:auto;}
+  .fab-dial.open #fab-dial-options{visibility:visible;pointer-events:auto;}
   .fab-dial-item{
     position:static;display:flex;flex-direction:column;align-items:center;gap:6px;
     margin:0;flex:0 0 auto;
@@ -5030,7 +5034,7 @@ svg.cat-donut-draw circle.donut-seg-last{
 
 /* Landscape override: keep centred FAB consistent on short screens too */
 @media(max-width:900px) and (orientation:landscape) and (max-height:500px){
-  .fab-dial{left:50%!important;right:auto!important;transform:translateX(-50%);display:block!important;
+  .fab-dial{left:calc(50% - 30px)!important;right:auto!important;transform:none;display:block!important;
     bottom:calc(62px + env(safe-area-inset-bottom,0px) - 46px)!important;}
 }
 

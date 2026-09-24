@@ -47,3 +47,32 @@ engine belongs to `worker/monitors/`, also excluded from public assets. There is
 no active monitor UI or deployed service yet. See
 `docs/features/monitors/IMPLEMENTATION_PLAN.md` for UI/worker/schema boundaries
 and activation gates, and the worker README for the current tested contract.
+
+## Monitor preview runtime
+
+Monitors now mounts on demand from `src/features/monitors/cloud.js` and `page.js`, registered in the manifest lazy list. The core owns only navigation, load and disposal hooks. `assets/styles/monitors.css` is scoped to this page. `supabase/functions/monitor-service/` deploys the original `worker/monitors/src/` engine, with no public worker assets. Push uses the existing service worker. The source is blocked after a staging-host 403; example cards are never saved or notified. See `docs/features/monitors/MVP_RUNBOOK.md`.
+
+## Release v1.5.70 — sync and interaction reconciliation (24 September)
+
+Startup HTML uses the manifest build ID for every local script/style. The worker
+honours explicit generation requests: an old tab receives its exact cached
+asset when available, otherwise a revalidated network request, never a silent
+substitution from the active cache. Business data and API responses remain outside
+this cache. `check-assets.cjs` rejects startup version drift.
+
+`navigation.js` owns the chrome layer order (navigation 350, FAB 360, search 370,
+forms 400+). The mobile FAB has a stable, untransformed anchor. Closed options,
+sheets and panels are inert; notifications cannot intercept taps. The core owns
+dial dismissal and accessibility state. Interface motion only fades visibility.
+
+The item revision guard records conflicts but leaves user feedback to the existing
+bounded recovery/persistence owner. Successful reconciliation no longer displays
+a premature reload error. Compare-and-swap protection, unresolved outbox retention
+and cloud deletion protection remain enabled. No accounting rules or database
+schema are changed by this shared release.
+
+Validation: `npm run check`, `npm test`, `npm run build`, and the production
+checkout's `node scripts/compare-staging.cjs ../staging`. The comparison strips only
+the declared staging monitor hooks and rejects any other shared-runtime drift.
+Browser tests use isolated data, actual pointer actions and mobile/desktop layouts;
+they do not prove physical iOS/Android frame pacing or live account synchronization.
