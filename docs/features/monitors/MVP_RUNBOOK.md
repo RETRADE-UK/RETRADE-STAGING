@@ -51,7 +51,7 @@ or claim Discord parity. The source-check diagnostic has been retired (410).
 | Delivery display | Existing `sw.js` push/click handlers |
 
 Only staging project `dvnrxmdejxfuazmpnudj` is permitted by the function's runtime
-check. Both new migrations were applied there. Production is untouched.
+check. All three monitor migrations were applied there. Production is untouched.
 The Edge deployment uploads the entrypoint, Deno config, package/lock and the
 original `worker/monitors/src/` files at their repo-relative paths; no second engine
 copy is maintained. `web-push` is pinned to 3.6.7, with its npm lockfile.
@@ -65,7 +65,7 @@ browser grants/policies. The security advisor's no-policy notices for these thre
 tables are intentional deny-by-default boundaries; anonymous owner-read notices
 reflect the staging developer bypass. No generic public-write policy was added.
 
-Every minute `retrade-monitor-minute` invokes the function via pg_net. A global
+Every minute `retrade-monitor-minute` checks for due scans/deliveries in SQL and invokes the function via pg_net only when work is due. Blocked source + empty outbox makes no Edge request. A global
 lease prevents overlapping ticks. At most five monitors and six unique catalogue
 requests run per cycle, with in-cycle shared search results and bounded pagination.
 Each monitor has a revision and expiring lease. Match evidence and notification
