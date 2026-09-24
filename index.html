@@ -381,6 +381,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 
     <!-- Right: user menu -->
     <div class="nav-right">
+      <div id="tablet-sync-status" role="status" aria-live="polite" title="Cloud synced">
+        <span class="rt-tablet-sync-dot" aria-hidden="true"></span>
+        <span id="tablet-sync-text">Synced</span>
+      </div>
       <div class="user-menu" id="user-menu">
         <button class="user-menu-btn" onclick="event.stopPropagation();toggleUserMenu()" id="user-menu-btn">
           <div class="user-avatar" id="user-avatar">R</div>

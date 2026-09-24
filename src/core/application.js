@@ -9060,6 +9060,8 @@ function _refreshSideNavSync(state){
   const wrap=document.getElementById('side-nav-sync');
   const txt=document.getElementById('side-nav-sync-text');
   const mob=document.getElementById('mobile-sync-badge');
+  const tablet=document.getElementById('tablet-sync-status');
+  const tabletText=document.getElementById('tablet-sync-text');
   const pending=(typeof _outboxPendingCount==='function')?_outboxPendingCount():0;
   const labels={saving:'Saving to cloud',pending:'Waiting to sync',error:'Sync issue',synced:'Synced'};
   const safeState=labels[state]?state:'synced';
@@ -9071,6 +9073,12 @@ function _refreshSideNavSync(state){
       safeState==='pending'?(pending+' change'+(pending===1?'':'s')+' saved on this device; retrying automatically'):
       safeState==='saving'?'Saving changes to cloud':'Cloud synced';
     wrap.setAttribute('aria-label',wrap.title);
+  }
+  if(tablet&&tabletText){
+    tablet.classList.remove('saving','pending','error');
+    if(safeState!=='synced')tablet.classList.add(safeState);
+    tabletText.textContent=labels[safeState];
+    tablet.title=wrap?wrap.title:labels[safeState];
   }
   if(!mob)return;
   if(safeState===_mobileSyncState)return;

@@ -5669,3 +5669,14 @@ svg.rt-chart-draw .rt-chart-profit-bar{animation-delay:calc(var(--bar-i) * 26ms 
 @media(min-width:640px){
   #month-list .rt-sales-day{padding-left:16px;padding-right:16px}
 }
+
+/* Tablet nav uses a compact inline status; the desktop footer and phone capsule
+   carry the same state at their respective widths. */
+#tablet-sync-status{display:none;}
+@media(min-width:601px) and (max-width:999px){
+  #tablet-sync-status{display:flex;align-items:center;gap:7px;flex:none;min-width:102px;
+    color:var(--text-secondary);font-size:11px;font-weight:650;white-space:nowrap;}
+  #tablet-sync-status .rt-tablet-sync-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--profit);}
+  #tablet-sync-status.saving .rt-tablet-sync-dot,#tablet-sync-status.pending .rt-tablet-sync-dot{background:var(--brand);}
+  #tablet-sync-status.error .rt-tablet-sync-dot{background:var(--red);}
+}
