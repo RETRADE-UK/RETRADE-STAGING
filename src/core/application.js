@@ -9054,37 +9054,53 @@ function _refreshSideNavUser(){
   if(nmEl)nmEl.textContent=name;
 }
 
-// Drop 4 — Sidebar sync indicator state machine.
-// state: 'synced' (default) | 'saving' | 'error'
+// One sync state for desktop sidebar and mobile status. Keep brief saves quiet.
+let _mobileSyncRevealTimer=0, _mobileSyncState='';
 function _refreshSideNavSync(state){
   const wrap=document.getElementById('side-nav-sync');
-  const txt =document.getElementById('side-nav-sync-text');
-  const mob =document.getElementById('mobile-sync-badge');
-  const now=new Date();
-  const hh=String(now.getHours()).padStart(2,'0');
-  const mm=String(now.getMinutes()).padStart(2,'0');
+  const txt=document.getElementById('side-nav-sync-text');
+  const mob=document.getElementById('mobile-sync-badge');
   const pending=(typeof _outboxPendingCount==='function')?_outboxPendingCount():0;
-  const syncSvg='<svg width="15" height="15" style="display:block;width:15px;height:15px;max-width:15px;max-height:15px;flex:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7h-5V2"/><path d="M20 7a8 8 0 1 0 1 8"/></svg>';
-  const warnSvg='<svg width="15" height="15" style="display:block;width:15px;height:15px;max-width:15px;max-height:15px;flex:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 17H3z"/><path d="M12 9v5M12 17h.01"/></svg>';
+  const labels={saving:'Saving to cloud',pending:'Waiting to sync',error:'Sync issue',synced:'Synced'};
+  const safeState=labels[state]?state:'synced';
   if(wrap&&txt){
     wrap.classList.remove('saving','pending','error');
-    if(state==='saving'){
-      wrap.classList.add('saving'); txt.textContent='Syncing'; wrap.title='Saving changes to cloud';
-    } else if(state==='error'){
-      wrap.classList.add('error'); txt.textContent='Sync issue'; wrap.title=_lastSyncError||'Cloud sync needs attention';
-    } else if(state==='pending'){
-      wrap.classList.add('pending'); txt.textContent='Pending'; wrap.title=(pending?pending+' change'+(pending===1?'':'s')+' ':'Changes ')+'safe on this device; cloud retry happens automatically'+(_lastSyncError?' · '+_lastSyncError:'');
-    } else {
-      txt.textContent='Synced'; wrap.title='Last synced '+hh+':'+mm;
+    if(safeState!=='synced')wrap.classList.add(safeState);
+    txt.textContent=labels[safeState];
+    wrap.title=safeState==='error'?(_lastSyncError||'Cloud sync needs attention'):
+      safeState==='pending'?(pending+' change'+(pending===1?'':'s')+' saved on this device; retrying automatically'):
+      safeState==='saving'?'Saving changes to cloud':'Cloud synced';
+    wrap.setAttribute('aria-label',wrap.title);
+  }
+  if(!mob)return;
+  if(safeState===_mobileSyncState)return;
+  _mobileSyncState=safeState;
+  clearTimeout(_mobileSyncRevealTimer);
+  mob.className='';
+  mob.innerHTML='';
+  mob.removeAttribute('title');
+  if(safeState==='synced')return;
+  const show=function(){
+    if(_mobileSyncState!==safeState)return;
+    mob.className=safeState;
+    const detail=safeState==='pending'?'Changes saved on this device; retrying automatically':
+      safeState==='error'?(_lastSyncError||'Cloud sync needs attention'):labels[safeState];
+    mob.setAttribute('aria-label',detail);
+    mob.title=detail;
+    const glyph=safeState==='error'?'!':safeState==='pending'?'•':'';
+    mob.innerHTML='<span class="rt-sync-mark" aria-hidden="true">'+glyph+'</span><span class="rt-sync-label">'+labels[safeState]+'</span>';
+    if(safeState==='error'&&typeof retradeForceResync==='function'){
+      const button=document.createElement('button');
+      button.type='button';
+      button.className='rt-sync-retry';
+      button.textContent='Retry';
+      button.setAttribute('aria-label','Retry cloud sync');
+      button.addEventListener('click',function(){retradeForceResync();});
+      mob.appendChild(button);
     }
-  }
-  if(mob){
-    mob.className=''; mob.innerHTML='';
-    if(state==='saving'){mob.className='saving';mob.innerHTML=syncSvg;mob.setAttribute('aria-label','Syncing changes');mob.title='Syncing';}
-    else if(state==='pending'){mob.className='pending';mob.innerHTML=syncSvg;mob.setAttribute('aria-label','Changes pending cloud sync');mob.title='Changes safe on device; cloud retry pending';}
-    else if(state==='error'){mob.className='error';mob.innerHTML=warnSvg;mob.setAttribute('aria-label','Cloud sync needs attention');mob.title=_lastSyncError||'Cloud sync needs attention';}
-    else{mob.setAttribute('aria-label','Cloud synced');mob.title='Synced';}
-  }
+  };
+  if(safeState==='error')show();
+  else _mobileSyncRevealTimer=setTimeout(show,450);
 }
 
 // Drop 4 — Sidebar settings popup (mirrors user-menu dropdown, gear-triggered).
@@ -22985,6 +23001,13 @@ function renderTax(){
   const fyFrom=selectedYear+'-04-06', fyTo=(selectedYear+1)+'-04-05';
   const _fyLabel=selectedYear+'/'+String(selectedYear+1).slice(2);
   const pnl=_buildTaxCashSummary(fyFrom,fyTo,'FY '+_fyLabel);
+  const managementPnl=_buildPnLSummary(fyFrom,fyTo,'FY '+_fyLabel);
+  // Reconcile sale-matched profit to the cash-basis tax working.
+  const timingStock=+(managementPnl.cogs-pnl.cashGoodsPaid).toFixed(2);
+  const timingPartner=+(managementPnl.selling.partner-pnl.cashPartnerPaid).toFixed(2);
+  const timingWriteOff=+(managementPnl.archiveLoss||0).toFixed(2);
+  const timingRefund=+(pnl.otherBusinessIncome||0).toFixed(2);
+  const cashBridge=+(timingStock+timingPartner+timingWriteOff+timingRefund).toFixed(2);
   const totalIncome=pnl.totalBusinessIncome!=null?pnl.totalBusinessIncome:pnl.revenue;
   const saleCount=soldItems.length;
   // Dynamic income label: list the unique platforms actually used this tax year
@@ -23091,6 +23114,20 @@ function renderTax(){
   if(selectedYear>2025){
     html+='<div style="background:var(--accent-dim);border:1px solid rgba(245,166,35,.22);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:11px;color:var(--text-secondary);line-height:1.5"><strong style="color:var(--text)">2026/27 working estimate:</strong> tax and NI rates are current for 2026/27; SA103 box labels use the latest published HMRC form layout as a working reference until that year&#39;s return form is published.</div>';
   }
+
+  // Show both bases before the method cards; this explains a higher tax figure.
+  html+='<div class="sl">Profit reconciliation</div>'
+    +'<div class="tax-profit-bridge">'
+    +'<div class="tax-bridge-row"><span>Net profit after expenses · sales basis</span><strong>'+fmt(managementPnl.netProfit)+'</strong></div>'
+    +(timingStock!==0?'<div class="tax-bridge-row"><span>Stock purchase timing</span><strong>'+(timingStock>0?'+':'−')+fmt(Math.abs(timingStock))+'</strong></div>':'')
+    +(timingPartner!==0?'<div class="tax-bridge-row"><span>Partner payment timing</span><strong>'+(timingPartner>0?'+':'−')+fmt(Math.abs(timingPartner))+'</strong></div>':'')
+    +(timingWriteOff!==0?'<div class="tax-bridge-row"><span>Sale-basis stock write-offs</span><strong>+'+fmt(timingWriteOff)+'</strong></div>':'')
+    +(timingRefund!==0?'<div class="tax-bridge-row"><span>Supplier refunds received</span><strong>+'+fmt(timingRefund)+'</strong></div>':'')
+    +'<div class="tax-bridge-row tax-bridge-total"><span>Profit on cash basis · actual expenses</span><strong>'+fmt(pnl.netProfit)+'</strong></div>'
+    +'<p>Cash basis counts stock and partner costs when paid. A cost shown in sales profit may therefore reach this tax working in a different period. Trading Allowance, if selected below, replaces actual expense deductions.</p>'
+    +'</div>';
+  if(Math.abs(+(managementPnl.netProfit+cashBridge-pnl.netProfit).toFixed(2))>0.01)
+    console.warn('[RETRADE] Tax reconciliation mismatch');
 
   // Below threshold banner
   if(belowThreshold){
@@ -26303,35 +26340,13 @@ console.info('[RETRADE] v1.4.3 persistence serialization + immediate write-ahead
     };
   }
 
-  // Floating sync status: fixed overlay, never participates in nav layout.
-  var _v145PillShowTimer=null,_v145PillHideTimer=null;
-  function _v145Pill(state){
-    var el=document.getElementById('sync-indicator');if(!el)return;
-    clearTimeout(_v145PillHideTimer);
-    el.className='sync-float '+state;
-    var iconHtml='';var text='';
-    if(state==='syncing'){iconHtml='<span class="sync-float-spinner"></span>';text='Syncing';}
-    else if(state==='success'){iconHtml='<span class="sync-float-check">✓</span>';text='Synced';}
-    else if(state==='error'){iconHtml='<span class="sync-float-warn">!</span>';text='Sync issue';}
-    else{iconHtml='<span class="sync-float-spinner"></span>';text='Pending';}
-    el.innerHTML=iconHtml+'<span id="sync-label">'+text+'</span>';
-    el.style.display='flex';
-    el.onclick=(state==='error'||state==='pending')?function(){try{retradeForceResync();}catch(e){}}:null;
-    el.title=state==='error'?(_lastSyncError||'Cloud sync needs attention'):(state==='pending'?'Changes are safe on this device and waiting for cloud confirmation':text);
-  }
+  // The sidebar and mobile badge above own sync feedback.
   _setSyncing=function(val){
     _syncing=!!val;
-    clearTimeout(_v145PillShowTimer);
-    if(val){
-      clearTimeout(_v145PillHideTimer);
-      _v145PillShowTimer=setTimeout(function(){if(_syncing)_v145Pill('syncing');},450);
-    }else{
-      var pending=0;try{pending=_outboxPendingCount();}catch(e){}
-      if(_lastSyncError)_v145Pill('error');
-      else if(pending>0)_v145Pill('pending');
-      else{_v145Pill('success');_v145PillHideTimer=setTimeout(function(){var el=document.getElementById('sync-indicator');if(el&&!_syncing)el.style.display='none';},1500);}
-    }
-    try{if(typeof _refreshSideNavSync==='function')_refreshSideNavSync(val?'saving':(_lastSyncError?'error':((typeof _outboxPendingCount==='function'&&_outboxPendingCount()>0)?'pending':'synced')));}catch(e){}
+    try{
+      if(typeof _refreshSideNavSync==='function')
+        _refreshSideNavSync(val?'saving':(_lastSyncError?'error':(_outboxPendingCount()>0?'pending':'synced')));
+    }catch(e){}
     if(!val){var cbs=_syncResolvers.splice(0);cbs.forEach(function(fn){try{fn();}catch(e){}});}
   };
 

@@ -175,7 +175,6 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
 .user-menu-country-item .cc{color:var(--accent);flex-shrink:0;}
 .user-menu-country-item .cs-tag{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted);background:var(--surface2);padding:2px 6px;border-radius:6px;}
 /* Sync indicator */
-#sync-indicator{display:none;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--text-secondary);white-space:nowrap;flex-shrink:0;}
 /* Mobile search icon btn — hidden on desktop */
 .nav-search-icon-btn{display:none;}
 /* Mobile search expand bar */
@@ -4558,7 +4557,6 @@ svg.cat-donut-draw circle.donut-seg-last{
   .rt #nav .user-menu-divider{background:var(--border);margin:4px 8px;}
 
   /* Sync indicator — calmer typography */
-  .rt #nav #sync-indicator{color:var(--text-tertiary);font-size:12px;}
 }
 /* ============================================================================
    ──────────  END V2 DESKTOP TOP BAR (Drop 3) ─────────────────────────────────
@@ -4802,23 +4800,34 @@ svg.cat-donut-draw circle.donut-seg-last{
     box-shadow:0 0 0 2px rgba(242,179,61,0.20);
     animation:none;
   }
-  /* v1.01 — mobile has no sidebar/top nav, so cloud state lives in one tiny
-     corner badge instead of repetitive toasts. Hidden entirely when healthy. */
-  #mobile-sync-badge{display:none;position:fixed;left:12px;bottom:calc(62px + env(safe-area-inset-bottom,0px) + 10px);z-index:315;width:30px;height:30px;min-width:30px;min-height:30px;max-width:30px;max-height:30px;overflow:hidden;border-radius:50%;align-items:center;justify-content:center;background:var(--surface);border:1px solid var(--border);box-shadow:0 2px 10px var(--shadow);color:var(--text-secondary);pointer-events:none;opacity:.92;}
-  #mobile-sync-badge svg{width:15px;height:15px;}
-  /* Saving/pending are background states, not actionable mobile controls.
-     Keep the mobile chrome clear; visible error state remains available. */
-  #mobile-sync-badge.saving,#mobile-sync-badge.pending{display:none!important;}
-  #mobile-sync-badge.saving{color:var(--accent);}
-  #mobile-sync-badge.saving svg{animation:sideSyncSpin .9s linear infinite;}
-  #mobile-sync-badge.pending{display:flex;color:var(--accent);}
-  #mobile-sync-badge.error{display:flex;color:var(--red);}
-  @keyframes sideSyncSpin{to{transform:rotate(360deg);}}
-  @media(min-width:601px){#mobile-sync-badge{display:none!important;}}
-  @keyframes sideSyncPulse{
-    0%,100%{opacity:1;}
-    50%{opacity:0.5;}
+  /* Sync status: one mobile capsule above navigation; desktop stays in sidebar. */
+  #mobile-sync-badge{
+    display:none;position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0px));
+    transform:translateX(-50%);z-index:315;align-items:center;gap:8px;
+    max-width:calc(100vw - 32px);min-height:36px;padding:6px 12px;
+    border-radius:999px;background:var(--surface);border:1px solid var(--border);
+    box-shadow:0 5px 18px var(--shadow-md);color:var(--text);font-size:12px;
+    font-weight:650;white-space:nowrap;pointer-events:none;
   }
+  #mobile-sync-badge.saving,#mobile-sync-badge.pending,#mobile-sync-badge.error{display:flex;}
+  #mobile-sync-badge.saving,#mobile-sync-badge.pending{border-color:var(--brand);color:var(--text);}
+  #mobile-sync-badge.error{border-color:var(--red);}
+  #mobile-sync-badge .rt-sync-mark{display:grid;place-items:center;width:12px;height:12px;flex:none;border:2px solid var(--brand);border-radius:50%;color:var(--red);font-size:11px;line-height:1;}
+  #mobile-sync-badge.saving .rt-sync-mark{border-color:var(--border2);border-top-color:var(--brand);animation:rtSyncTurn 1s linear infinite;}
+  #mobile-sync-badge.pending .rt-sync-mark{border-color:var(--brand);background:var(--brand);color:var(--surface);font-size:0;}
+  #mobile-sync-badge.error .rt-sync-mark{border-color:var(--red);width:16px;height:16px;}
+  #mobile-sync-badge .rt-sync-retry{pointer-events:auto;border:0;border-radius:6px;background:var(--red);color:#fff;padding:5px 8px;font:inherit;font-size:11px;cursor:pointer;}
+  @keyframes rtSyncTurn{to{transform:rotate(360deg);}}
+  @media(min-width:601px){#mobile-sync-badge{display:none!important;}}
+  @media(prefers-reduced-motion:reduce){#mobile-sync-badge .rt-sync-mark,.rt #side-nav .side-nav-sync-dot{animation:none!important;}}
+  .tax-profit-bridge{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:22px;}
+  .tax-bridge-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;}
+  .tax-bridge-row span{color:var(--text-secondary);}
+  .tax-bridge-row strong{font-family:var(--font-mono);font-size:13px;text-align:right;white-space:nowrap;}
+  .tax-bridge-total{border-bottom:0;font-weight:700;}
+  .tax-bridge-total span{color:var(--text);}
+  .tax-profit-bridge p{margin:7px 0 0;color:var(--text-secondary);font-size:11px;line-height:1.55;}
+  @media(max-width:600px){.tax-bridge-row{font-size:12px}.tax-bridge-row strong{font-size:12px;}}
 
   /* User row (avatar + name + gear) */
   .rt #side-nav .side-user-menu{position:relative;}
