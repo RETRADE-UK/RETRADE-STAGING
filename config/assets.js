@@ -1,7 +1,7 @@
 /* Runtime asset contract. Ordered classic scripts: do not alphabetise.
  * Shared by the browser loader, service worker and validation tools. */
 globalThis.RT_ASSETS = Object.freeze({
-  "build": "20260924-v1568-staging",
+  "build": "20260924-monitor-mvp-staging",
   "environment": "staging",
   "entry": [
     "src/domain/accounting-engine.js",
@@ -58,6 +58,8 @@ globalThis.RT_ASSETS = Object.freeze({
     "src/features/sales/chart-sequence.js"
   ],
   "lazy": [
+    "src/features/monitors/cloud.js",
+    "src/features/monitors/page.js",
     "src/features/partners/statements.js",
     "src/features/partners/statements-accounting-v3.js",
     "src/features/partners/account-adjustment-statements.js",
@@ -69,7 +71,8 @@ globalThis.RT_ASSETS = Object.freeze({
   ],
   "styles": [
     "assets/styles/application.css",
-    "assets/styles/loading.css"
+    "assets/styles/loading.css",
+    "assets/styles/monitors.css"
   ],
   "icons": [
     "assets/icons/app-180.png",

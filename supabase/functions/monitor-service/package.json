@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "web-push": "3.6.7"
+  },
+  "private": true
+}

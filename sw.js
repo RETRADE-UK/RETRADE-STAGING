@@ -102,3 +102,21 @@ self.addEventListener('fetch',event=>{
     return response?response.clone():fetch(request);
   })());
 });
+
+// Push has no app data cache. Payloads are bounded and clicks stay on staging.
+self.addEventListener('push',event=>{
+ let payload={};try{payload=event.data?event.data.json():{};}catch(_e){}
+ const title=typeof payload.title==='string'?payload.title.slice(0,100):'RETRADE monitor';
+ const body=typeof payload.body==='string'?payload.body.slice(0,240):'A monitor update is available.';
+ const tag=typeof payload.tag==='string'&&/^[a-zA-Z0-9-]{1,120}$/.test(payload.tag)?payload.tag:'retrade-monitor';
+ event.waitUntil(self.registration.showNotification(title,{body,tag,renotify:false,icon:new URL('assets/icons/app-180.png',SCOPE).href,data:{url:new URL('./',SCOPE).href}}));
+});
+self.addEventListener('notificationclick',event=>{
+ event.notification.close();
+ event.waitUntil((async()=>{
+  const clients=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+  const existing=clients.find(c=>new URL(c.url).origin===SCOPE.origin);
+  if(existing){await existing.focus();return;}
+  return self.clients.openWindow(new URL('./',SCOPE).href);
+ })());
+});

@@ -1,0 +1,349 @@
+/* Native feature styles: scoped, no global shell or typography overrides. */
+.monitor-page {
+  max-width: 1260px;
+  margin: 0 auto;
+  padding: 12px 0 90px;
+}
+.monitor-page h1 {
+  font-size: 32px;
+  letter-spacing: -1px;
+  margin: 6px 0;
+}
+.monitor-page h2,
+.monitor-dialog h2 {
+  font-size: 17px;
+  margin: 0;
+}
+.monitor-page h3 {
+  font-size: 16px;
+  line-height: 1.4;
+  margin: 10px 0;
+}
+.monitor-page p,
+.monitor-dialog p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 7px 0;
+}
+.monitor-header,
+.monitor-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.monitor-header {
+  margin-bottom: 22px;
+}
+.monitor-eyebrow {
+  color: var(--accent);
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  font-weight: 700;
+}
+.monitor-layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 24px;
+}
+.monitor-health {
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  border-radius: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin: 12px 0 24px;
+}
+.monitor-health small,
+.monitor-meta,
+.monitor-page small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.monitor-dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  background: #d9a64c;
+  border-radius: 50%;
+  margin-top: 6px;
+}
+.monitor-card {
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  margin: 12px 0;
+}
+.monitor-card.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.monitor-select {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  text-align: left;
+  width: 100%;
+  border: 0;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}
+.monitor-select strong {
+  font-size: 14px;
+}
+.monitor-select > span:not(.monitor-state) {
+  font-size: 12px;
+  color: var(--muted);
+}
+.monitor-state {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+.monitor-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.monitor-actions .btn {
+  font-size: 11px;
+  padding: 7px 9px;
+}
+.monitor-listing {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 18px;
+}
+.monitor-listing > img,
+.monitor-photo-empty {
+  width: 120px;
+  height: 145px;
+  object-fit: cover;
+  border-radius: 9px;
+  background: var(--surface2);
+}
+.monitor-photo-empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+}
+.monitor-warning {
+  color: #d9a64c !important;
+}
+.monitor-empty {
+  text-align: center;
+  padding: 44px 24px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  margin: 14px 0 22px;
+}
+.monitor-radar {
+  font-size: 42px;
+  color: var(--accent);
+  opacity: 0.65;
+}
+.monitor-empty p {
+  max-width: 400px;
+  margin: 8px auto;
+}
+.monitor-message:empty {
+  display: none;
+}
+.monitor-message {
+  padding: 12px;
+  border-radius: 9px;
+  background: var(--surface2);
+  margin: 10px 0;
+  font-size: 13px;
+}
+.monitor-message.is-error,
+.monitor-form-error {
+  color: var(--red) !important;
+}
+.monitor-compare-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 18px 0;
+}
+.monitor-compare-form button {
+  grid-column: 1/-1;
+  justify-self: start;
+}
+.monitor-page label,
+.monitor-dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.monitor-page input,
+.monitor-dialog input,
+.monitor-dialog textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 11px;
+  font: inherit;
+  font-size: 16px;
+}
+.monitor-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 18px 0;
+}
+.monitor-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 8px;
+  background: var(--surface2);
+  border-radius: 9px;
+}
+.monitor-stats strong {
+  font-size: 23px;
+}
+.monitor-stats span {
+  font-size: 10px;
+  color: var(--muted);
+}
+.monitor-compare-row {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding: 9px 0;
+  font-size: 12px;
+}
+.monitor-dialog {
+  width: min(560px, calc(100vw - 28px));
+  max-height: 85dvh;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  color: var(--text);
+  box-sizing: border-box;
+}
+.monitor-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.65);
+}
+.monitor-editor {
+  display: grid;
+  gap: 16px;
+}
+.monitor-price-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.monitor-dialog .monitor-check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+.monitor-check input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+.monitor-page button:focus-visible,
+.monitor-page a:focus-visible,
+.monitor-dialog :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.monitor-page a.btn {
+  text-decoration: none;
+}
+.monitor-page button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.monitor-phone {
+  margin-top: 24px;
+}
+.monitor-page .monitor-push-help {
+  font-size: 11px;
+}
+.monitor-page .btn {
+  white-space: normal;
+}
+.monitor-feed-note {
+  min-height: 20px;
+}
+@media (max-width: 900px) {
+  .monitor-layout {
+    grid-template-columns: 1fr;
+  }
+  .monitor-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .monitor-list .monitor-card {
+    margin: 0;
+  }
+  .monitor-section-title {
+    margin-bottom: 10px;
+  }
+  .monitor-header h1 {
+    font-size: 27px;
+  }
+}
+@media (max-width: 600px) {
+  .monitor-list {
+    grid-template-columns: 1fr;
+  }
+  .monitor-header {
+    align-items: flex-start;
+  }
+  .monitor-header > .btn {
+    max-width: 125px;
+  }
+  .monitor-listing {
+    grid-template-columns: 80px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+  }
+  .monitor-listing > img,
+  .monitor-photo-empty {
+    width: 80px;
+    height: 105px;
+  }
+  .monitor-listing .monitor-section-title {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .monitor-compare-form {
+    grid-template-columns: 1fr;
+  }
+  .monitor-stats {
+    gap: 4px;
+  }
+  .monitor-stats > div {
+    padding: 10px 6px;
+  }
+  .monitor-dialog {
+    padding: 18px;
+  }
+  .monitor-health {
+    padding: 15px;
+  }
+}

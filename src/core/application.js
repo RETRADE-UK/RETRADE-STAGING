@@ -2372,6 +2372,11 @@ async function doResetPassword(){
 }
 
 async function doSignOut(){
+  // Revoke this browser's push capability before ending the account session.
+  if('serviceWorker' in navigator){
+    await Promise.race([navigator.serviceWorker.getRegistration().then(async function(reg){const sub=reg&&reg.pushManager&&await reg.pushManager.getSubscription();if(sub)await sub.unsubscribe();}).catch(function(){}),new Promise(function(resolve){setTimeout(resolve,2000);})]);
+  }
+  if(window.RETRADE_MONITORS)window.RETRADE_MONITORS.unmount();
   if(_previewMode){
     disablePreviewMode();
     try{
@@ -5424,6 +5429,7 @@ function _restoreTabScroll(tab){const y=_scrollMap[tab];if(y)requestAnimationFra
 // sweep, or the suppressor gets stranded and that page stops fading forever.
 // Phase 3 note: this moves with app.js alongside _chartDrawKey / _kpiPrev.
 function _deactivatePages(){
+  if(window.RETRADE_MONITORS)window.RETRADE_MONITORS.unmount();
   document.querySelectorAll('.page').forEach(function(p){
     p.classList.remove('on','rt-boot-noanim');
   });
@@ -5463,7 +5469,7 @@ function _showRoutePending(name){
   if(page.children.length&&!changedSales)return;
   const yearly=name==='monthly'&&MONTHLY_VIEW==='grid';
   function mountSkeleton(){
-    const titles={summary:'Command Centre',monthly:yearly?'Sales overview':'Monthly sales',stock:'Stock',accounts:'Partners',expenses:'Costs',cash:'Cashflow',runs:'Sourcing',tax:'Tax Return',data:'Reports & Data',returns:'Returns',scrapped:'Archive',activity:'Activity',search:'Search'};
+    const titles={summary:'Command Centre',monthly:yearly?'Sales overview':'Monthly sales',stock:'Stock',accounts:'Partners',expenses:'Costs',cash:'Cashflow',runs:'Sourcing',tax:'Tax Return',data:'Reports & Data',returns:'Returns',scrapped:'Archive',activity:'Activity',search:'Search',monitors:'Monitors'};
     const line='<span class="skeleton rt-route-line"></span>';
     const cards='<div class="rt-route-stats">'+Array.from({length:4},function(){return '<div class="card">'+line+line+'</div>';}).join('')+'</div>';
     const charts='<div class="rt-route-charts"><div class="card skeleton"></div><div class="card skeleton"></div></div>';
@@ -5580,8 +5586,21 @@ function goToTab(name,sourceEl){
   else if(name==='data')_renderTab(renderData);
   else if(name==='search')_renderTab(renderSearchResults);
   else if(name==='runs')_renderTab(renderRunsPage);
+  else if(name==='monitors')_renderTab(renderMonitors);
   // Patch A — FAB visibility per page (hides on p-item/p-search/p-tax/p-data)
   if(typeof _syncFabVisibility==='function')_syncFabVisibility();
+}
+
+// Monitors load only after an explicit authenticated navigation.
+let _monitorLoad=null;
+function renderMonitors(){
+  const page=document.getElementById('p-monitors');
+  if(!_currentUserId){page.textContent='Sign in to use monitors.';return;}
+  const uid=_currentUserId;
+  if(!_monitorLoad){
+    _monitorLoad=['src/features/monitors/cloud.js','src/features/monitors/page.js'].reduce(function(p,file){return p.then(function(){return new Promise(function(resolve,reject){const s=document.createElement('script');s.src='./'+file+'?v='+window.__rtBuildId;s.onload=resolve;s.onerror=function(){s.remove();reject(new Error('Monitor page failed to load. Try again.'));};document.head.appendChild(s);});});},Promise.resolve()).catch(function(e){_monitorLoad=null;throw e;});
+  }
+  _monitorLoad.then(function(){if(page.classList.contains('on')&&_currentUserId===uid)window.RETRADE_MONITORS.mount({root:page,client:_sb,userId:uid});}).catch(function(e){if(page.classList.contains('on'))page.textContent=e.message;});
 }
 
 let _itemPageOrigin='p-summary';

@@ -47,3 +47,7 @@ engine belongs to `worker/monitors/`, also excluded from public assets. There is
 no active monitor UI or deployed service yet. See
 `docs/features/monitors/IMPLEMENTATION_PLAN.md` for UI/worker/schema boundaries
 and activation gates, and the worker README for the current tested contract.
+
+## Monitor preview runtime
+
+Monitors now mounts on demand from `src/features/monitors/cloud.js` and `page.js`, registered in the manifest lazy list. The core owns only navigation, load and disposal hooks. `assets/styles/monitors.css` is scoped to this page. `supabase/functions/monitor-service/` deploys the original `worker/monitors/src/` engine, with no public worker assets. Push uses the existing service worker. The source is blocked after a staging-host 403; example cards are never saved or notified. See `docs/features/monitors/MVP_RUNBOOK.md`.
