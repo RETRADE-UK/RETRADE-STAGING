@@ -29,6 +29,7 @@
       data = null,
       selected = null,
       feedToken = 0,
+      lastFeed = null,
       preview = false,
       timer = null,
       dialog = null;
@@ -277,11 +278,27 @@
       $(".monitor-feed-note").textContent =
         current().name +
         " · latest 200 candidates; pending details are not confirmed matches.";
-      cards(result.matches, false);
-      stats(result);
+      var signature = JSON.stringify([id, result]);
+      if (signature !== lastFeed) {
+        var focused = $(".monitor-feed").contains(document.activeElement)
+          ? document.activeElement.href
+          : null;
+        cards(result.matches, false);
+        stats(result);
+        lastFeed = signature;
+        if (focused) {
+          var link = Array.from($(".monitor-feed").querySelectorAll("a")).find(
+            function (a) {
+              return a.href === focused;
+            },
+          );
+          if (link) link.focus({ preventScroll: true });
+        }
+      }
     }
     function examples() {
       preview = !preview;
+      lastFeed = null;
       ++feedToken;
       $(".monitor-feed-note").textContent = preview
         ? "EXAMPLES ONLY · fictional listings, never saved or notified."
@@ -447,8 +464,12 @@
         throw new Error(
           "Notifications were not allowed. Change this site’s notification permission in your browser settings.",
         );
-      var reg = await navigator.serviceWorker.ready,
-        sub = await reg.pushManager.getSubscription();
+      var reg = await navigator.serviceWorker.getRegistration();
+      if (!reg || !reg.active || !reg.pushManager)
+        throw new Error(
+          "Notification setup is not ready. Refresh the page, then try again.",
+        );
+      var sub = await reg.pushManager.getSubscription();
       if (action === "unpush") {
         if (sub) {
           await api.request("unsubscribe", { endpoint: sub.endpoint });
@@ -495,6 +516,9 @@
         if (action === "select") {
           selected = m.id;
           preview = false;
+          lastFeed = null;
+          $('.monitor-results [data-action="preview"]').textContent =
+            "Preview example cards";
           controls();
           await loadFeed();
         }

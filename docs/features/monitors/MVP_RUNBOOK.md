@@ -110,3 +110,5 @@ To hide the UI: revert its PR through normal staging CI. Preserve tables/evidenc
 unless a deliberate data-removal decision is made. Do not apply these staging
 schedule/binding files to production. Source activation requires validation and a
 reviewed adapter change; changing a status flag alone is not source validation.
+
+Verified staging API evidence: unauthenticated request returned 401; temporary-account bootstrap, preset, custom draft, feed and comparator writes returned 200; push returned 403. Test account and all its seeded rows were removed. Scheduled ticks returned 200 without provider requests. PR CI passed both browser layouts and existing app regressions; desktop/mobile screenshots were reviewed.
