@@ -8,4 +8,11 @@ Keep monitor code in its own feature directory; keep any server-side integration
 
 Feature-only v3 source and both incompatible prototype schemas are segregated in `experiments/monitors/`, excluded from the deployed app. No monitor is enabled by the takeover. Do not apply the old SQL or merge the old full app. The implementation plan specifies final ownership under `src/features/monitors/`, `worker/monitors/`, approved migrations and dedicated tests once repaired.
 
+24 September: repaired engine contracts, normalization, matching/scoring, bounded
+source transport and comparator statistics now live in `worker/monitors/`; run
+`npm run test:monitors`. See that directory's README and the dated audit update.
+Staging has no monitor tables (read-only inspection); no DDL has run. The live
+catalogue probe returned 404, so source feasibility and persistent worker/database
+integration are the next gates. No monitor UI/notifications are active.
+
 Gesture files in `experiments/gestures/` are historical source, not an enabled loader. The matching archive branch preserves the complete previous runnable staging tree. Do not resume them as part of monitor work.

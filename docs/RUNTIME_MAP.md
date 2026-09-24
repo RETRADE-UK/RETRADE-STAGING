@@ -42,6 +42,8 @@ Small fixes go through the live repository's PR/CI flow. New features begin on s
 The core is still around 1.6 MB uncompressed. Next extractions should give one feature explicit inputs and regression coverage at a time. Accounting/persistence rewrites, wholesale partner-wrapper consolidation and a framework migration are not part of this cleanup. The local maintainer checkout is `C:\RETRADE-UK\RETRADE`.
 
 Monitor takeover: `experiments/monitors/` contains recovered, audited reference
-sources only and is excluded from the allowlist and `_site/`. There is no monitor
-runtime owner yet. See `docs/features/monitors/IMPLEMENTATION_PLAN.md` for the
-future UI/worker/schema boundaries and activation gates.
+sources only and is excluded from the allowlist and `_site/`. The repaired offline
+engine belongs to `worker/monitors/`, also excluded from public assets. There is
+no active monitor UI or deployed service yet. See
+`docs/features/monitors/IMPLEMENTATION_PLAN.md` for UI/worker/schema boundaries
+and activation gates, and the worker README for the current tested contract.

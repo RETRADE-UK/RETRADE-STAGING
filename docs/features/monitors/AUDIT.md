@@ -4,6 +4,41 @@ Date: 2026-09-23. Baseline: staging `4d5b71f`; legacy Git monitor head `6ea9f95`
 Scope: all three recovered archives, their feature deltas, Git dashboard/storage
 adapter and schemas, v3 worker/UI/cloud bridge, original benchmark plan and screenshots.
 
+## Implementation update — 24 September 2026
+
+The original findings below remain the record of the recovered prototype. New
+replacement code now lives in `worker/monitors/src/`; it is tested offline and
+not deployed. Its [README](../../../worker/monitors/README.md) defines the v1 contract.
+
+Read-only inspection verified project `dvnrxmdejxfuazmpnudj` is `RETRADE-STAGING`,
+active/healthy. `information_schema.columns` returned no public `monitors` or
+`monitor_*` tables. Applied migration metadata contained only
+`staging_anonymous_seed_hardening`, `staging_full_three_month_fixture` and
+`partner_account_adjustments`. No table/data changes were made. Thus staging has
+neither prototype monitor schema; a new append-only migration can be designed
+without importing either conflicting prototype. Recheck immediately before DDL.
+
+| Findings | New foundation status | Still needed |
+| --- | --- | --- |
+| M01 | Integer pence, explicit unknown values, verified cost components and dated model valuation inputs | Trusted persistence/valuation source; new UI formatting |
+| M05, M06 | Presence-aware detail merge; malformed response errors; byte/time/page limits | Live provider field validation and actual enrichment transport |
+| M07 | Custom models, zero maximum, Canon aliases, pending-detail result and accessory warnings | Validated provider category mapping and real-world recall tuning |
+| M08, M09 | Bounded overlap scanning, pre-enrichment ID deduplication, saturation signal, Retry-After metadata | Durable caches, shared scheduler budgets, persisted backoff and source watermark |
+| M12 | Independent comparator observations with nullable missed-side timestamp; coverage, duplicates, median/p95 signed latency | Database/UI capture and multi-day real comparison |
+| M14 | Explicit rating scale, partial-data handling, distinct zero-review modes; warnings suppress economic BUY/SNIPE | Real seller payload calibration and UI consuming the same result |
+| M02, M03, M04, M10, M11, M13, M15–M17 | Remain activation gates; safe link normalization exists in new code | Schema/ownership, auth-aware UI, persistent worker, failure recovery, health and deployment |
+
+Tests include 66 canonical alias/price combinations, all benchmark warning terms,
+money/unknown/foreign-currency cases, sparse detail, malicious links, seller
+policies, valuation gates, HTTP errors, hangs/cancellation, malformed/oversized
+responses, overlap saturation and missing comparator observations. All source
+tests inject synthetic transport; no external messages or marketplace actions run.
+
+A limited catalog feasibility probe returned HTTP 404 from this environment,
+without a usable catalog payload. Source availability remains unresolved. Official
+Pro documentation was rechecked at https://pro-docs.svc.vinted.com/ (v0.360.0);
+its inventory/order API still does not establish a general buyer-search feed.
+
 ## Verdict
 
 The separation of scanner, provider adapter, matching/scoring, persistence and
@@ -14,8 +49,9 @@ contract. Its standalone styling also replaces the native look with a separate s
 
 Keep the recovered source quarantined, implement focused replacements under the
 current owners, and validate a real source before spending time on advanced scores.
-There is no evidence of a deployed worker or an applied monitor migration in this
-audit. Database state was not queried or changed.
+There was no evidence of a deployed worker or an applied monitor migration in the
+original audit. Database state was not queried then; see the dated read-only
+inspection above for the subsequent evidence.
 
 ## Activation blockers
 

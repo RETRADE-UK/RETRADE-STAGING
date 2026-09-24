@@ -5,6 +5,13 @@ unreliable boundaries before enabling it.** Recovery and audit are complete for
 the three available packages, the preserved Git branch and two Discord screenshots.
 Live monitoring, deployment and Discord parity have not been demonstrated.
 
+**24 September update:** the first repaired engine is implemented under
+[`worker/monitors/`](../../../worker/monitors/README.md), with v1 contracts,
+normalization, matching/scoring, bounded source requests and benchmark comparison.
+Staging schema inspection found no monitor tables. The catalogue feasibility probe
+returned 404; network access and persistent operation remain unverified. The native
+monitor page is still disabled. Read the dated audit update before the next step.
+
 ## Source of truth
 
 | Evidence | What it contains | Treatment |
