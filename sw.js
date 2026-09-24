@@ -1,4 +1,4 @@
-/* Versioned, scope-relative static cache. Business/API traffic never enters it. */
+/* Release 20260924-v1569. Versioned static cache; business/API traffic stays outside it. */
 importScripts('./config/assets.js');
 const ASSETS=self.RT_ASSETS;
 const BUILD=ASSETS.build;
@@ -56,7 +56,7 @@ async function navigationResponse(request,event){
     }catch(_){return null;}
   })();
   event.waitUntil(network.then(()=>{}));
-  const early=await Promise.race([network,new Promise(resolve=>setTimeout(()=>resolve(null),140))]);
+  const early=await Promise.race([network,new Promise(resolve=>setTimeout(()=>resolve(null),900))]);
   if(early)return early;
   return (await cache.match(cacheKey('index.html')))||(await network)||new Response('<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RETRADE · Offline</title><body style="background:#0f1724;color:#fff;font:18px system-ui;padding:10vh 24px"><h1>RETRADE</h1><p>Your workspace isn’t available offline yet. Reconnect, then try again.</p><button onclick="location.reload()">Try again</button></body></html>',{status:503,headers:{'Content-Type':'text/html; charset=utf-8'}});
 }

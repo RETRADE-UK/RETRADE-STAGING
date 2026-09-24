@@ -83,6 +83,27 @@ if(require.main===module)(async () => {
       const { page, context, errors, missingAssets } = await open(browser, options);
       await settled(page);
       await checkFigures(page);
+      if(options.mobile){
+        const tapGeometry=await page.evaluate(()=>{
+          document.body.style.minHeight='2400px';
+          window.scrollTo(0,560);
+          return true;
+        });
+        await page.waitForFunction(()=>window.scrollY>300);
+        const hit=await page.evaluate(()=>{
+          const nav=document.querySelector('#bottom-nav .bnt[data-tab="stock"]');
+          const rect=nav.getBoundingClientRect();
+          const top=document.elementFromPoint(rect.left+rect.width/2,rect.top+rect.height/2);
+          const font=parseFloat(getComputedStyle(document.getElementById('global-search-mobile')).fontSize);
+          return {onTarget:top===nav||nav.contains(top),navBottom:rect.bottom,font};
+        });
+        assert(hit.onTarget,'Scrolled mobile nav must receive taps at its visible coordinates');
+        assert(hit.navBottom<=844&&hit.navBottom>740,'Mobile nav remains on screen after scrolling');
+        assert(hit.font>=16,'Mobile search input must not trigger iOS focus zoom');
+        await page.evaluate(()=>{openPanel('Tap test','<input aria-label="Tap test field">');closePanel();closePanel();});
+        assert.equal(await page.evaluate(()=>document.body.style.position),'','Repeated panel dismissal must release the body scroll lock once');
+        await page.evaluate(()=>{document.body.style.minHeight='';window.scrollTo(0,0);});
+      }
       if(assets.environment==='staging')assert.equal(await page.evaluate(()=>window.__fixtureClientUrl),'https://dvnrxmdejxfuazmpnudj.supabase.co');
       assert.equal(await page.locator('.page.on').getAttribute('id'), 'p-summary');
       if(process.env.RETRADE_CAPTURE)await page.screenshot({path:process.env.RETRADE_CAPTURE+'/dashboard-'+(options.mobile?'mobile':'desktop')+'.png'});
@@ -101,6 +122,24 @@ if(require.main===module)(async () => {
         assert.equal(await page.evaluate(()=>typeof runFinancialRegressionTests),'undefined','Diagnostic fixtures must not load during startup');
         const financial=await page.evaluate(async()=>{await _loadDiagnosticFixtures('accounting');return [runFinancialRegressionTests(),runStockLifecycleRegressionTests(),runCashLedgerRegressionTests(),runSummaryCycleRegressionTests()].map(r=>({ok:r.ok,passed:r.passed,failures:r.results.filter(x=>!x.ok)}));});
         assert(financial.every(r=>r.ok),'Accounting diagnostic regression: '+JSON.stringify(financial));
+        const taxSelection=await page.evaluate(()=>{
+          const oldYear=DB._taxYear,oldMethod=DB._taxMethod,oldExpenses=DB.expenses;
+          try{
+            DB._taxYear=2026;DB._taxMethod='ta';
+            DB.expenses=(oldExpenses||[]).concat([{id:'allowance-regression',date:'2026-08-01',amount:5000,category:'Other',description:'Fixture'}]);
+            renderTax();
+            const cards=[...document.querySelectorAll('#p-tax .tax-method-card')];
+            const actualSelected=cards[1]?.textContent.includes('SELECTED');
+            const bridge=[...document.querySelectorAll('#p-tax .tax-bridge-row')].map(e=>e.textContent.trim());
+            DB._taxMethod='ta_manual';renderTax();
+            const manualSelected=[...document.querySelectorAll('#p-tax .tax-method-card')][0]?.textContent.includes('SELECTED');
+            return {actualSelected,manualSelected,bridge};
+          }finally{DB._taxYear=oldYear;DB._taxMethod=oldMethod;DB.expenses=oldExpenses;renderTax();}
+        });
+        assert(taxSelection.actualSelected,'Legacy automatic allowance must update when actual expenses exceed £1,000');
+        assert(taxSelection.manualSelected,'A newly selected manual trading allowance must remain selectable');
+        assert(taxSelection.bridge.some(row=>row.includes('Yearly Sales gross profit')),'Tax must compare against Yearly Sales gross');
+        assert(taxSelection.bridge.some(row=>row.includes('Yearly Sales net profit')),'Tax must compare against Yearly Sales net');
         console.log('PASS lazy accounting fixtures',financial.map(r=>r.passed));
         await page.evaluate(()=>openAddAccountModal());
         await page.waitForFunction(()=>document.querySelector('#acc-type option[value=consignment]')?.textContent.includes('Profit share'));

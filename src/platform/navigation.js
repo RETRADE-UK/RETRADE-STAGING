@@ -11,15 +11,6 @@
 (function(){
   'use strict';
 
-  // RETRADE is an app surface, not a document viewer. Browser-level page zoom
-  // makes controls drift and creates a web-page feel on iOS. Any surface that
-  // genuinely needs zoom should implement it explicitly inside that component.
-  try{
-    var viewport=document.querySelector('meta[name="viewport"]');
-    if(viewport){
-      viewport.setAttribute('content','width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover');
-    }
-  }catch(_){}
 
   // Route code owns scroll position. Native browser history restoration can run
   // after RETRADE has already painted a route and visibly move the interface.

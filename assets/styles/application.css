@@ -191,10 +191,8 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
   transform:translateY(-110%);
   transition:transform 0.22s cubic-bezier(0.4,0,0.2,1),opacity 0.22s;
   opacity:0;
-  /* pointer-events off only — no visibility:hidden, no display:none.
-     Input must remain in accessibility tree so iOS .focus() works synchronously.
-     Panel is hidden via transform (off-screen) so pointer-events:none is not
-     needed for tap safety — translateY(-110%) handles it. */
+  /* The offscreen search pane must never intercept taps. */
+  pointer-events:none;
   display:block;
 }
 #nav-search-expand.open{
@@ -219,15 +217,9 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
   z-index:310;
   padding-bottom:env(safe-area-inset-bottom,0px);
   box-shadow:0 -1px 0 var(--border),0 -4px 20px var(--shadow);
-  transform:translateY(0);
-  transition:transform 0.22s cubic-bezier(0.34,1.38,0.64,1);
-  will-change:transform;
+  /* Fixed hit geometry across scroll and keyboard resizing. */
 }
 #bottom-nav.nav-shown{display:flex!important;align-items:stretch;gap:0;}
-#bottom-nav.nav-hidden{
-  transform:translateY(100%);
-  transition:transform 0.18s cubic-bezier(0.4,0,1,1);
-}
 .bnt{
   flex:1 1 0;min-width:0;height:100%;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -447,7 +439,7 @@ nav:not(#bottom-nav){position:sticky;top:env(safe-area-inset-top,0px);z-index:20
 /* ITEM TABLE */
 .item-table{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 2px var(--shadow);}
 .item-row{border-bottom:1px solid var(--border);padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:8px;transition:background 0.12s,transform 0.08s ease;cursor:pointer;align-items:center;}
-.item-row:active{background:var(--surface2);transform:scale(0.995);}
+.item-row:active{background:var(--surface2);}
 .item-row:last-child{border-bottom:none;}
 .item-row:hover{background:var(--surface2);}
 .item-row.selected{background:var(--accent-dim);border-left:3px solid var(--accent);padding-left:11px;}
@@ -2158,7 +2150,7 @@ svg.cat-donut-draw circle.donut-seg-last{
 #toast.success{background:var(--green);color:#fff;border-color:var(--green-hover);}
 
 /* Item rows */
-.item-row{transition:background .12s ease,border-color .15s ease,transform .18s cubic-bezier(0.34,1.2,0.64,1),box-shadow .18s ease;will-change:transform;}
+.item-row{transition:background .12s ease,border-color .15s ease,box-shadow .18s ease;}
 @media(hover:hover){.item-row:hover{transform:translateY(-2px) scale(1.002);border-color:color-mix(in srgb,var(--accent) 40%,var(--border));}}
 .item-row:active{transform:scale(0.993) translateY(0)!important;transition:transform .06s ease!important;}
 
@@ -4163,14 +4155,6 @@ svg.cat-donut-draw circle.donut-seg-last{
     opacity:0;transform:translateY(8px) scale(0.8);pointer-events:none;
   }
 
-  /* ── Hide FAB + search WITH the nav on scroll-down ── */
-  body:has(#bottom-nav.nav-hidden) .fab-dial{
-    transform:translateX(-50%) translateY(150%);
-    opacity:0;pointer-events:none;
-  }
-  body:has(#bottom-nav.nav-hidden) #search-fab{
-    transform:translateY(150%);opacity:0;pointer-events:none;
-  }
   #search-fab{transition:transform 0.22s cubic-bezier(0.34,1.38,0.64,1),opacity 0.18s ease,bottom 0.22s ease;}
 }
 
@@ -5679,4 +5663,9 @@ svg.rt-chart-draw .rt-chart-profit-bar{animation-delay:calc(var(--bar-i) * 26ms 
   #tablet-sync-status .rt-tablet-sync-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--profit);}
   #tablet-sync-status.saving .rt-tablet-sync-dot,#tablet-sync-status.pending .rt-tablet-sync-dot{background:var(--brand);}
   #tablet-sync-status.error .rt-tablet-sync-dot{background:var(--red);}
+}
+
+/* iOS keeps the visual viewport steady when editable text is at least 16px. */
+@media(max-width:600px){
+  .rt input:not([type="checkbox"]):not([type="radio"]),.rt select,.rt textarea{font-size:16px!important;}
 }

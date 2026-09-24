@@ -1180,12 +1180,14 @@ function showConfirm(title,msg,opts){
   });
 }
 function resolveConfirm(val){
-  document.getElementById('confirm-modal').classList.remove('open');
+  const modal=document.getElementById('confirm-modal');
+  if(!modal||!modal.classList.contains('open'))return;
+  modal.classList.remove('open');
   unlockBodyScroll();
   const restore=_confirmPrevFocus;_confirmPrevFocus=null;
   if(_confirmResolve){_confirmResolve(val);_confirmResolve=null;}
   if(restore&&typeof restore.focus==='function'&&document.contains(restore)){
-    setTimeout(function(){try{restore.focus();}catch(e){}},0);
+    setTimeout(function(){try{restore.focus({preventScroll:true});}catch(e){}},0);
   }
 }
 document.addEventListener('keydown',function(e){
@@ -7107,7 +7109,7 @@ function toggleNavSearch(){
   if(isOpen){
     expand.classList.remove('open');
     if(searchFab)searchFab.classList.remove('active');
-    if(backdrop){backdrop.style.opacity='0';backdrop.style.pointerEvents='none';setTimeout(function(){backdrop.style.display='none';},180);}
+    if(backdrop){backdrop.style.opacity='0';backdrop.style.pointerEvents='none';setTimeout(function(){if(!expand.classList.contains('open'))backdrop.style.display='none';},180);}
     const inp=document.getElementById('global-search-mobile');
     if(inp)inp.value='';
   } else {
@@ -7126,7 +7128,7 @@ function clearMobileSearch(){
   const searchFab=document.getElementById('search-fab');
   if(expand){expand.classList.remove('open');}
   if(searchFab)searchFab.classList.remove('active');
-  if(backdrop){backdrop.style.opacity='0';backdrop.style.pointerEvents='none';setTimeout(function(){backdrop.style.display='none';},180);}
+  if(backdrop){backdrop.style.opacity='0';backdrop.style.pointerEvents='none';setTimeout(function(){if(!expand.classList.contains('open'))backdrop.style.display='none';},180);}
   const target=_preSearchPage||'p-summary';
   const tabName=target.replace('p-','');
   const tabEl=document.querySelector('[data-tab="'+tabName+'"]');
@@ -7324,6 +7326,7 @@ function openPanel(title,content,pushHistory,_meta){
 }
 function closePanel(){
   const panel=document.getElementById('slide-panel');
+  if(!panel||!panel.classList.contains('on'))return;
   const overlay=document.getElementById('panel-overlay');
   overlay.classList.remove('on');
   panel.classList.remove('dragging','on');
@@ -7337,7 +7340,7 @@ function closePanel(){
   _runOverheadReturnId=null;
   const restore=_panelPrevFocus;_panelPrevFocus=null;
   if(restore&&typeof restore.focus==='function'&&document.contains(restore)){
-    setTimeout(function(){try{restore.focus();}catch(e){}},0);
+    setTimeout(function(){try{restore.focus({preventScroll:true});}catch(e){}},0);
   }
 }
 
@@ -7690,7 +7693,7 @@ function closeFabDial(){
   if(bd){
     bd.style.opacity='0';
     bd.style.pointerEvents='none';
-    setTimeout(function(){ bd.style.display='none'; },180);
+    setTimeout(function(){ if(!dial||!dial.classList.contains('open'))bd.style.display='none'; },180);
   }
 }
 
@@ -13232,6 +13235,9 @@ function closeAllCategoriesModal(){
   var pn=document.getElementById('all-cats-panel');
   if(pn){pn.style.transition='transform 0.25s cubic-bezier(0.4,0,1,1)';pn.style.transform='translateX(100%)';}
   if(ov){ov.style.transition='opacity 0.25s ease';ov.style.opacity='0';}
+  if(!ov&&!pn)return;
+  if(ov&&ov.dataset.closing==='1')return;
+  if(ov)ov.dataset.closing='1';
   setTimeout(function(){if(ov)ov.remove();if(pn)pn.remove();unlockBodyScroll();},260);
 }
 // ============================================================================
@@ -21581,15 +21587,18 @@ let _saleModalPrevFocus=null;
 function _openSaleModal(id,focusId){
   const modal=document.getElementById(id);if(!modal)return;
   _saleModalPrevFocus=document.activeElement;
+  if(modal.style.display==='flex')return;
   modal.style.display='flex';lockBodyScroll();
   _wireFormLabels(modal);
   setTimeout(function(){const f=document.getElementById(focusId)||modal.querySelector('button,input,select,[tabindex]');if(f)try{f.focus();}catch(e){}},0);
 }
 function _closeSaleModal(id){
-  const modal=document.getElementById(id);if(modal)modal.style.display='none';
+  const modal=document.getElementById(id);
+  if(!modal||modal.style.display!=='flex')return;
+  modal.style.display='none';
   unlockBodyScroll();MODAL_CALLBACK=null;
   const restore=_saleModalPrevFocus;_saleModalPrevFocus=null;
-  if(restore&&typeof restore.focus==='function'&&document.contains(restore))setTimeout(function(){try{restore.focus();}catch(e){}},0);
+  if(restore&&typeof restore.focus==='function'&&document.contains(restore))setTimeout(function(){try{restore.focus({preventScroll:true});}catch(e){}},0);
 }
 function _trapDialogTab(e,modal){
   const focusable=Array.from(modal.querySelectorAll('button:not([disabled]),[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')).filter(function(x){return x.offsetParent!==null;});
@@ -23010,6 +23019,21 @@ function renderTax(){
   const _fyLabel=selectedYear+'/'+String(selectedYear+1).slice(2);
   const pnl=_buildTaxCashSummary(fyFrom,fyTo,'FY '+_fyLabel);
   const managementPnl=_buildPnLSummary(fyFrom,fyTo,'FY '+_fyLabel);
+  // The Yearly Sales cards group April–March calendar months. Tax starts on
+  // 6 April. Use their exact per-month source to make this comparison legible.
+  const salesEvents=getSaleEventsInRange(selectedYear+'-04-01',(selectedYear+1)+'-03-31');
+  const salesEventIndex=new Map();
+  salesEvents.forEach(function(ev){
+    const k=_monthKeyFromDate(ev.saleDate);
+    if(!k)return;
+    if(!salesEventIndex.has(k))salesEventIndex.set(k,[]);
+    salesEventIndex.get(k).push(ev);
+  });
+  const salesContext={eventsByMonth:salesEventIndex,tieredTrips:calcTieredTrips(DB.trips||[])};
+  const salesFYMonths=_fyKeys(selectedYear).map(function(k){return calcMonthStatsBySale(k,salesContext);});
+  const salesFYGross=+salesFYMonths.reduce(function(s,m){return s+(Number(m.grossProfit)||0);},0).toFixed(2);
+  const salesFYNet=+salesFYMonths.reduce(function(s,m){return s+(Number(m.netProfit)||0);},0).toFixed(2);
+  const salesPeriodBridge=+(managementPnl.netProfit-salesFYNet).toFixed(2);
   // Reconcile sale-matched profit to the cash-basis tax working.
   const timingStock=+(managementPnl.cogs-pnl.cashGoodsPaid).toFixed(2);
   const timingPartner=+(managementPnl.selling.partner-pnl.cashPartnerPaid).toFixed(2);
@@ -23047,8 +23071,10 @@ function renderTax(){
 
   // Method selection — user can override, defaults to whichever gives lower tax
   const autoMethod=taWins?'ta':'actual';
-  if(!DB._taxMethod)DB._taxMethod=autoMethod;
-  const chosenMethod=DB._taxMethod;
+  // Legacy values were also written by the old automatic default. Only a
+  // deliberately tapped card (the *_manual values) overrides current figures.
+  const chosenMethod=DB._taxMethod==='ta_manual'?'ta':
+    DB._taxMethod==='actual_manual'?'actual':autoMethod;
   const usingTA=chosenMethod==='ta';
 
   // ── Pre-compute total tax early so monthly breakdown can show per-month set-aside ──
@@ -23094,7 +23120,7 @@ function renderTax(){
   const methodCard=function(method,title,income,deductLabel,deductVal,taxable,note){
     const selected=chosenMethod===method;
     const isAuto=autoMethod===method;
-    return '<div class="tax-method-card" onclick="DB._taxMethod=\''+method+'\';saveDB();renderTax()" style="background:var(--surface);border:2px solid '+(selected?'var(--green)':'var(--border)')+';border-radius:12px;padding:18px;position:relative;box-shadow:0 1px 3px var(--shadow);cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s" onmouseenter="this.style.boxShadow=\'0 4px 16px var(--shadow-md)\'" onmouseleave="this.style.boxShadow=\'0 1px 3px var(--shadow)\'">'
+    return '<div class="tax-method-card" onclick="DB._taxMethod=\''+method+'_manual\';saveDB();renderTax()" style="background:var(--surface);border:2px solid '+(selected?'var(--green)':'var(--border)')+';border-radius:12px;padding:18px;position:relative;box-shadow:0 1px 3px var(--shadow);cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s" onmouseenter="this.style.boxShadow=\'0 4px 16px var(--shadow-md)\'" onmouseleave="this.style.boxShadow=\'0 1px 3px var(--shadow)\'">'
       +(selected?'<div style="position:absolute;top:-1px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;font-size:10px;font-weight:700;padding:3px 12px;border-radius:0 0 8px 8px;letter-spacing:0.5px;white-space:nowrap">\u2713 SELECTED</div>'
         :isAuto?'<div style="position:absolute;top:-1px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-size:10px;font-weight:700;padding:3px 12px;border-radius:0 0 8px 8px;letter-spacing:0.5px;white-space:nowrap">Recommended</div>':'')
       +'<div style="font-weight:700;font-size:14px;margin-bottom:14px;padding-top:'+((selected||isAuto)?'10px':'0')+'">' +title+'</div>'
@@ -23126,15 +23152,18 @@ function renderTax(){
   // Show both bases before the method cards; this explains a higher tax figure.
   html+='<div class="sl">Profit reconciliation</div>'
     +'<div class="tax-profit-bridge">'
-    +'<div class="tax-bridge-row"><span>Net profit after expenses · sales basis</span><strong>'+fmt(managementPnl.netProfit)+'</strong></div>'
+    +'<div class="tax-bridge-row"><span>Yearly Sales gross profit · Apr–Mar</span><strong>'+fmt(salesFYGross)+'</strong></div>'
+    +'<div class="tax-bridge-row"><span>Yearly Sales net profit · after overheads</span><strong>'+fmt(salesFYNet)+'</strong></div>'
+    +(salesPeriodBridge!==0?'<div class="tax-bridge-row"><span>Tax period / reporting adjustment</span><strong>'+(salesPeriodBridge>0?'+':'−')+fmt(Math.abs(salesPeriodBridge))+'</strong></div>':'')
+    +'<div class="tax-bridge-row"><span>Sales-basis profit · 6 Apr–5 Apr</span><strong>'+fmt(managementPnl.netProfit)+'</strong></div>'
     +(timingStock!==0?'<div class="tax-bridge-row"><span>Stock purchase timing</span><strong>'+(timingStock>0?'+':'−')+fmt(Math.abs(timingStock))+'</strong></div>':'')
     +(timingPartner!==0?'<div class="tax-bridge-row"><span>Partner payment timing</span><strong>'+(timingPartner>0?'+':'−')+fmt(Math.abs(timingPartner))+'</strong></div>':'')
     +(timingWriteOff!==0?'<div class="tax-bridge-row"><span>Sale-basis stock write-offs</span><strong>+'+fmt(timingWriteOff)+'</strong></div>':'')
     +(timingRefund!==0?'<div class="tax-bridge-row"><span>Supplier refunds received</span><strong>+'+fmt(timingRefund)+'</strong></div>':'')
     +'<div class="tax-bridge-row tax-bridge-total"><span>Profit on cash basis · actual expenses</span><strong>'+fmt(pnl.netProfit)+'</strong></div>'
-    +'<p>Cash basis counts stock and partner costs when paid. A cost shown in sales profit may therefore reach this tax working in a different period. Trading Allowance, if selected below, replaces actual expense deductions.</p>'
+    +'<p>Yearly Sales groups calendar months (Apr–Mar); the UK tax year runs 6 Apr–5 Apr. Cash basis deducts stock and partner costs when paid, so unpaid costs can raise this figure. The selected method below determines the taxable amount.</p>'
     +'</div>';
-  if(Math.abs(+(managementPnl.netProfit+cashBridge-pnl.netProfit).toFixed(2))>0.01)
+  if(Math.abs(+(salesFYNet+salesPeriodBridge+cashBridge-pnl.netProfit).toFixed(2))>0.01)
     console.warn('[RETRADE] Tax reconciliation mismatch');
 
   // Below threshold banner
@@ -23834,56 +23863,13 @@ window.addEventListener('load',function(){
   });
 })();
 
-// Bottom nav scroll-hide — position-based, not delta-based
-(function(){
-  var _navHidden = false;
-  var _lastScrollY = 0;
-  var _raf = null;
-  var _ignoreScrollUntil = 0;
-
-  const _bnav=function(){return document.getElementById('bottom-nav');}
-  // V2 proof: FAB position + hide-with-nav are now CSS-driven (keyed off
-  // #bottom-nav.nav-hidden). These no longer write inline `bottom`, which
-  // previously clobbered the centered-FAB CSS. Kept as no-ops so existing
-  // call sites (_show/_hide/_resetNavScrollState/resize) stay valid.
-  const _fabsDrop=function(){}
-  const _fabsRaise=function(){}
-  const _show=function(){var b=_bnav();if(!b||!_navHidden)return;b.classList.remove('nav-hidden');_navHidden=false;_fabsRaise();}
-  const _hide=function(){var b=_bnav();if(!b||_navHidden)return;b.classList.add('nav-hidden');_navHidden=true;_fabsDrop();}
-  // Called by goToTab to reset scroll state so tab switch never triggers auto-hide
-  window._resetNavScrollState=function(){
-    // Route changes may call scrollTo() and then restore a saved page offset.
-    // Ignore that programmatic scroll briefly so it cannot be mistaken for a
-    // downward user scroll that hides the nav while the new page is settling.
-    _lastScrollY=0;_ignoreScrollUntil=Date.now()+520;_navHidden=false;
-    var b=_bnav();if(b)b.classList.remove('nav-hidden');_fabsRaise();
-  };
-  _fabsRaise();
-  window.addEventListener('resize',function(){_fabsRaise();});
-
-  window.addEventListener('scroll',function(){
-    if(_raf)return;
-    _raf=requestAnimationFrame(function(){
-      _raf=null;
-      var b=_bnav();
-      if(!b||b.style.display!=='flex')return;
-      var y=window.scrollY||window.pageYOffset||0;
-      if(Date.now()<_ignoreScrollUntil){_lastScrollY=y;_show();return;}
-      var diff=y-_lastScrollY;
-      // Always show when near top
-      if(y<10){_show();_lastScrollY=y;return;}
-      // Hide on downward scroll, show on upward
-      if(diff>8){_hide();}
-      else if(diff<-8){_show();}
-      _lastScrollY=y;
-    });
-  },{passive:true});
-
-  // Reset on tab switch (goToTab calls window.scrollTo(0,0))
-  window.addEventListener('scrollend',function(){
-    if((window.scrollY||0)<10)_show();
-  },{passive:true});
-})();
+// Stable mobile chrome: scrolling never translates tap targets. Route changes
+// retain the reset hook used by goToTab and clear any stale hidden class.
+window._resetNavScrollState=function(){
+  const nav=document.getElementById('bottom-nav');
+  if(nav)nav.classList.remove('nav-hidden');
+};
+window._resetNavScrollState();
 
 function _recalcRelist(currentPL,salePrice,bpf,shipping,packaging,postage,platformId,stockBasis){
   const promoInput=parseFloat(document.getElementById('rl-promo-input').value)||0;
