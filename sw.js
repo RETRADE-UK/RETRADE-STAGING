@@ -1,4 +1,4 @@
-/* Release 20260924-v1569. Versioned static cache; business/API traffic stays outside it. */
+/* Release 20260924-v1570-staging. Versioned static cache; business/API traffic stays outside it. */
 importScripts('./config/assets.js');
 const ASSETS=self.RT_ASSETS;
 const BUILD=ASSETS.build;
@@ -7,17 +7,17 @@ const CACHE_NAME=CACHE_PREFIX+BUILD;
 const SCRIPTS=['app.js','config/assets.js'].concat(ASSETS.entry,ASSETS.bindings,[ASSETS.launch,ASSETS.core],ASSETS.critical,ASSETS.deferred,ASSETS.lazy);
 const SHELL=['index.html','manifest.webmanifest'].concat(ASSETS.styles,ASSETS.icons);
 const STATIC_SET=new Set(SCRIPTS.concat(SHELL,ASSETS.launchImages));
-const SCRIPT_SET=new Set(SCRIPTS);
+const VERSIONED_SET=new Set(SCRIPTS.concat(ASSETS.styles));
 const SCOPE=new URL(self.registration.scope);
 const pending=new Map();
 let warming=null;
 function assetURL(path){return new URL(path,SCOPE).href;}
-function cacheKey(path){return assetURL(path)+(SCRIPT_SET.has(path)?'?v='+BUILD:'');}
+function cacheKey(path){return assetURL(path)+(VERSIONED_SET.has(path)?'?v='+BUILD:'');}
 async function fetchAndCache(path){
   if(pending.has(path))return pending.get(path);
   const work=(async()=>{
     try{
-      const response=await fetch(new Request(cacheKey(path),{credentials:'same-origin',cache:SCRIPT_SET.has(path)?'default':'no-cache'}));
+      const response=await fetch(new Request(cacheKey(path),{credentials:'same-origin',cache:'no-cache'}));
       if(!response||!response.ok)return null;
       const cache=await caches.open(CACHE_NAME);
       try{await cache.put(cacheKey(path),response.clone());}catch(_){}
@@ -98,7 +98,35 @@ self.addEventListener('fetch',event=>{
       for(const key of keys){const hit=await (await caches.open(key)).match(request,{ignoreSearch:true});if(hit)return hit;}
     }
     const target=legacy||path;
+    const requestedBuild=url.searchParams.get('v');
+    if(requestedBuild && requestedBuild!==BUILD && VERSIONED_SET.has(target)){
+      // A newly activated worker also controls tabs running the previous build.
+      // Serve that exact generation, never substitute current code under an old
+      // URL or store another release inside this generation's cache.
+      const previous=await caches.open(CACHE_PREFIX+requestedBuild);
+      const exact=await previous.match(request);
+      if(exact)return exact;
+      return fetch(new Request(request,{cache:'no-cache'}));
+    }
     const response=await cachedAsset(target);
     return response?response.clone():fetch(request);
   })());
+});
+
+// Push has no app data cache. Payloads are bounded and clicks stay on staging.
+self.addEventListener('push',event=>{
+ let payload={};try{payload=event.data?event.data.json():{};}catch(_e){}
+ const title=typeof payload.title==='string'?payload.title.slice(0,100):'RETRADE monitor';
+ const body=typeof payload.body==='string'?payload.body.slice(0,240):'A monitor update is available.';
+ const tag=typeof payload.tag==='string'&&/^[a-zA-Z0-9-]{1,120}$/.test(payload.tag)?payload.tag:'retrade-monitor';
+ event.waitUntil(self.registration.showNotification(title,{body,tag,renotify:false,icon:new URL('assets/icons/app-180.png',SCOPE).href,data:{url:new URL('./',SCOPE).href}}));
+});
+self.addEventListener('notificationclick',event=>{
+ event.notification.close();
+ event.waitUntil((async()=>{
+  const clients=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+  const existing=clients.find(c=>new URL(c.url).origin===SCOPE.origin);
+  if(existing){await existing.focus();return;}
+  return self.clients.openWindow(new URL('./',SCOPE).href);
+ })());
 });

@@ -151,8 +151,8 @@ html.rt-auth-bridge #auth-screen-login .rt-auth-brand{visibility:hidden}
 <!-- V2 Session 1 — JetBrains Mono (Inter is already loaded above with the full weight range V2 needs) -->
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <!-- V2 Session 4a: Chart.js removed — dashboard chart is hand-rolled SVG -->
-<link rel="stylesheet" href="./assets/styles/application.css?v=20260924-v1569">
-<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./assets/styles/loading.css?v=20260924-v1569">
+<link rel="stylesheet" href="./assets/styles/application.css?v=20260924-v1570-staging">
+<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./assets/styles/loading.css?v=20260924-v1570-staging">
 
 
 
@@ -217,6 +217,7 @@ html.rt-auth-bridge #auth-screen-login .rt-auth-brand{visibility:hidden}
 }
 </style>
 
+<link rel="stylesheet" href="./assets/styles/monitors.css?v=20260924-v1570-staging">
 </head>
 <body class="rt">
 
@@ -349,6 +350,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
         <button class="tab on" data-tab="summary" onclick="goToTab('summary',this)" title="Home"><span class="tab-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span><span class="tab-label">Home</span></button>
         <button class="tab" data-tab="monthly" onclick="goToTab('monthly',this)" title="Calendar"><span class="tab-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M8 3v4M16 3v4"/><line x1="3" y1="10" x2="21" y2="10"/><rect x="7" y="13" width="3" height="3" rx="0.5" fill="currentColor" stroke="none" opacity="0.7"/></svg></span><span class="tab-label">Calendar</span></button>
         <button class="tab" data-tab="stock" onclick="goToTab('stock',this)" title="Stock"><span class="tab-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="14" width="20" height="7" rx="1.5"/><rect x="4" y="9" width="16" height="6" rx="1.5"/><rect x="7" y="4" width="10" height="6" rx="1.5"/></svg></span><span class="tab-label">Stock</span></button>
+        <button class="tab" data-tab="monitors" onclick="goToTab('monitors',this)"><span class="tab-ic">◎</span><span class="tab-label">Monitors</span></button>
         <button class="tab nav-item-runs" data-tab="runs" onclick="goToTab('runs',this)" title="Sourcing" style="position:relative;"><span class="tab-ic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l3-8 4 16 3-8h5"/></svg></span><span class="tab-label">Sourcing</span></button>
       </div>
       <!-- More dropdown — Expenses, Tax, Data always here, no dynamic overflow -->
@@ -537,10 +539,11 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 
 <!-- MORE SHEET — hamburger menu, slides up from bottom nav -->
 <div id="more-sheet-overlay" onclick="closeMoreSheet()" style="display:none;position:fixed;inset:0;z-index:335;background:var(--overlay);backdrop-filter:blur(2px);"></div>
-<div id="more-sheet" style="display:none;position:fixed;bottom:calc(62px + env(safe-area-inset-bottom,0px));left:0;right:0;z-index:336;background:var(--surface);border-top:1px solid var(--border);border-radius:20px 20px 0 0;padding:8px 0 16px;box-shadow:0 -8px 40px var(--shadow-md);overflow-y:auto;max-height:70vh;">
+<div id="more-sheet" inert style="display:none;position:fixed;bottom:calc(62px + env(safe-area-inset-bottom,0px));left:0;right:0;z-index:336;background:var(--surface);border-top:1px solid var(--border);border-radius:20px 20px 0 0;padding:8px 0 16px;box-shadow:0 -8px 40px var(--shadow-md);overflow-y:auto;max-height:70vh;">
   <div style="width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px;"></div>
   <!-- MAIN sheet contents — page nav + country trigger + theme + sign out -->
   <div id="more-sheet-main" class="more-sheet-pane">
+    <button onclick="closeMoreSheet();goToTab('monitors')" class="more-sheet-row" data-sheet-tab="monitors"><span aria-hidden="true">◎</span><span>Monitors</span></button>
     <button onclick="closeMoreSheet();goToTab('runs',document.querySelector('[data-tab=\'runs\']'))" class="more-sheet-row" data-sheet-tab="runs">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l3-8 4 16 3-8h5"/></svg>
       <span>Sourcing</span>
@@ -711,14 +714,14 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 </button>
 <div id="fab-dial" class="fab-dial" style="display:none">
   <!-- Patch A — option list is populated per-page by buildFabOptions(); items render top-down (most-used closest to FAB) -->
-  <div id="fab-dial-options"></div>
-  <button class="fab-main" onclick="onFabClick()" title="Add" aria-label="Add new item">
+  <div id="fab-dial-options" inert></div>
+  <button class="fab-main" aria-controls="fab-dial-options" aria-expanded="false" onclick="onFabClick()" title="Add" aria-label="Add new item">
     <span class="fab-icon">+</span>
   </button>
 </div>
 
 <div class="panel-overlay" id="panel-overlay" onclick="closePanel()"></div>
-<div class="slide-panel" id="slide-panel" role="dialog" aria-modal="true" aria-labelledby="panel-title" tabindex="-1">
+<div class="slide-panel" id="slide-panel" inert role="dialog" aria-modal="true" aria-labelledby="panel-title" tabindex="-1">
   <div class="panel-header">
     <div style="display:flex;align-items:center;gap:8px;min-width:0;">
       <button class="panel-close" id="panel-back-btn" onclick="panelBack()" title="Back" aria-label="Back">←</button>
@@ -785,6 +788,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
       <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2.5"/><circle cx="12" cy="12" r="3"/><path d="M6 9v6M18 9v6"/></svg></span>
       <span class="side-nav-item-label">Cashflow</span>
     </button>
+    <button class="side-nav-item" data-tab="monitors" onclick="goToTab('monitors',this)"><span aria-hidden="true">◎</span><span>Monitors</span></button>
     <button class="side-nav-item side-nav-item-runs" data-tab="runs" onclick="goToTab('runs',this)">
       <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l3-8 4 16 3-8h5"/></svg></span>
       <span class="side-nav-item-label">Sourcing</span>
@@ -907,6 +911,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 <div class="page" id="p-item"></div>
 <div class="page" id="p-active-run"></div>
 <div class="page" id="p-runs"></div>
+<div class="page" id="p-monitors"></div>
 <div class="page" id="p-run"></div>
 </div>
 
@@ -1121,11 +1126,11 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 
 </div>
 
-<script src="./config/assets.js?v=20260924-v1569-staging"></script>
-<script src="./src/domain/accounting-engine.js?v=1.5.57"></script>
-<script src="./src/domain/report-engine.js?v=1.4.8"></script>
+<script src="./config/assets.js?v=20260924-v1570-staging"></script>
+<script src="./src/domain/accounting-engine.js?v=20260924-v1570-staging"></script>
+<script src="./src/domain/report-engine.js?v=20260924-v1570-staging"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.js" integrity="sha384-OUpie84zd1LdwNlK9uJJQRwab0BLqo3eKYKFh7hSVL58FSk7wPp2l0kfUMIIoaQd" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="./app.js?v=1.5.60-staging"></script>
+<script src="./app.js?v=20260924-v1570-staging"></script>
 
 <!-- RETRADE dashboard spacing cleanup: mobile/tablet/narrow-desktop rhythm v3 - 2026-06-29 -->
 </body>

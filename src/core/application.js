@@ -1437,6 +1437,7 @@ function toggleMoreSheet(){
   overlay.style.pointerEvents='auto';   // reset: goToTab's safety-net may have set this to 'none'
   overlay.style.opacity='0';
   sheet._msOpen=true;
+  sheet.inert=false;
   requestAnimationFrame(function(){
     sheet.style.transform='translateY(0)';
     overlay.style.transition='opacity .22s ease';
@@ -1624,6 +1625,7 @@ function closeMoreSheet(){
   // and aborted the caller (blank item page).
   if(sheet){
     sheet._msOpen=false;
+    sheet.inert=true;
     // v2.17.1 — clear the inline transform so the CSS rest state applies. That
     // state clears the sheet's own height PLUS its 62px bottom offset, so it
     // leaves the viewport completely instead of parking a sliver on screen.
@@ -2374,6 +2376,11 @@ async function doResetPassword(){
 }
 
 async function doSignOut(){
+  // Revoke this browser's push capability before ending the account session.
+  if('serviceWorker' in navigator){
+    await Promise.race([navigator.serviceWorker.getRegistration().then(async function(reg){const sub=reg&&reg.pushManager&&await reg.pushManager.getSubscription();if(sub)await sub.unsubscribe();}).catch(function(){}),new Promise(function(resolve){setTimeout(resolve,2000);})]);
+  }
+  if(window.RETRADE_MONITORS)window.RETRADE_MONITORS.unmount();
   if(_previewMode){
     disablePreviewMode();
     try{
@@ -5426,6 +5433,7 @@ function _restoreTabScroll(tab){const y=_scrollMap[tab];if(y)requestAnimationFra
 // sweep, or the suppressor gets stranded and that page stops fading forever.
 // Phase 3 note: this moves with app.js alongside _chartDrawKey / _kpiPrev.
 function _deactivatePages(){
+  if(window.RETRADE_MONITORS)window.RETRADE_MONITORS.unmount();
   document.querySelectorAll('.page').forEach(function(p){
     p.classList.remove('on','rt-boot-noanim');
   });
@@ -5465,7 +5473,7 @@ function _showRoutePending(name){
   if(page.children.length&&!changedSales)return;
   const yearly=name==='monthly'&&MONTHLY_VIEW==='grid';
   function mountSkeleton(){
-    const titles={summary:'Command Centre',monthly:yearly?'Sales overview':'Monthly sales',stock:'Stock',accounts:'Partners',expenses:'Costs',cash:'Cashflow',runs:'Sourcing',tax:'Tax Return',data:'Reports & Data',returns:'Returns',scrapped:'Archive',activity:'Activity',search:'Search'};
+    const titles={summary:'Command Centre',monthly:yearly?'Sales overview':'Monthly sales',stock:'Stock',accounts:'Partners',expenses:'Costs',cash:'Cashflow',runs:'Sourcing',tax:'Tax Return',data:'Reports & Data',returns:'Returns',scrapped:'Archive',activity:'Activity',search:'Search',monitors:'Monitors'};
     const line='<span class="skeleton rt-route-line"></span>';
     const cards='<div class="rt-route-stats">'+Array.from({length:4},function(){return '<div class="card">'+line+line+'</div>';}).join('')+'</div>';
     const charts='<div class="rt-route-charts"><div class="card skeleton"></div><div class="card skeleton"></div></div>';
@@ -5497,8 +5505,7 @@ function goToTab(name,sourceEl){
   if(_nsbtn)_nsbtn.classList.remove('active');
   // Dismiss any lingering overlays that could block nav taps
   if(typeof closeMoreSheet==='function')closeMoreSheet();
-  const _fabDial=document.querySelector('.fab-dial');if(_fabDial)_fabDial.classList.remove('open');
-  const _fabBackdrop=document.getElementById('fab-backdrop');if(_fabBackdrop){_fabBackdrop.style.opacity='0';_fabBackdrop.style.pointerEvents='none';setTimeout(function(){_fabBackdrop.style.display='none';},180);}
+  closeFabDial();
   // Safety net — force EVERY transient full-screen backdrop fully inert
   // immediately (display:none + pointer-events:none), so an interrupted
   // close animation can never leave an invisible layer eating nav taps.
@@ -5582,8 +5589,21 @@ function goToTab(name,sourceEl){
   else if(name==='data')_renderTab(renderData);
   else if(name==='search')_renderTab(renderSearchResults);
   else if(name==='runs')_renderTab(renderRunsPage);
+  else if(name==='monitors')_renderTab(renderMonitors);
   // Patch A — FAB visibility per page (hides on p-item/p-search/p-tax/p-data)
   if(typeof _syncFabVisibility==='function')_syncFabVisibility();
+}
+
+// Monitors load only after an explicit authenticated navigation.
+let _monitorLoad=null;
+function renderMonitors(){
+  const page=document.getElementById('p-monitors');
+  if(!_currentUserId){page.textContent='Sign in to use monitors.';return;}
+  const uid=_currentUserId;
+  if(!_monitorLoad){
+    _monitorLoad=['src/features/monitors/cloud.js','src/features/monitors/page.js'].reduce(function(p,file){return p.then(function(){return new Promise(function(resolve,reject){const s=document.createElement('script');s.src='./'+file+'?v='+window.__rtBuildId;s.onload=resolve;s.onerror=function(){s.remove();reject(new Error('Monitor page failed to load. Try again.'));};document.head.appendChild(s);});});},Promise.resolve()).catch(function(e){_monitorLoad=null;throw e;});
+  }
+  _monitorLoad.then(function(){if(page.classList.contains('on')&&_currentUserId===uid)window.RETRADE_MONITORS.mount({root:page,client:_sb,userId:uid});}).catch(function(e){if(page.classList.contains('on'))page.textContent=e.message;});
 }
 
 let _itemPageOrigin='p-summary';
@@ -7310,6 +7330,7 @@ function openPanel(title,content,pushHistory,_meta){
   panel.classList.remove('dragging');
   panel.style.transition='';
   panel.style.transform='';
+  panel.inert=false;
   panel.classList.add('on');
   panel.scrollTop=0;
   // Only lock if the panel wasn't already open — prevents double-locking when
@@ -7330,6 +7351,7 @@ function closePanel(){
   const overlay=document.getElementById('panel-overlay');
   overlay.classList.remove('on');
   panel.classList.remove('dragging','on');
+  panel.inert=true;
   PANEL_STACK=[];
   unlockBodyScroll();
   updatePanelNav();
@@ -7661,6 +7683,7 @@ function buildFabOptions(){
 }
 
 function onFabClick(){
+  closeMoreSheet();
   const activePage=(document.querySelector('.page.on')||{id:''}).id;
   // Hidden-page guard: shouldn't happen (FAB is hidden on these pages by
   // refreshActivePage), but if it does, fall through to nothing.
@@ -7682,13 +7705,20 @@ function onFabClick(){
   if(dial.classList.contains('open')){ closeFabDial(); }
   else {
     dial.classList.add('open');
+    document.getElementById('fab-dial-options').inert=false;
+    dial.querySelector('.fab-main').setAttribute('aria-expanded','true');
     const bd=document.getElementById('fab-backdrop');
     if(bd){ bd.style.display='block'; bd.style.pointerEvents='auto'; requestAnimationFrame(function(){ bd.style.opacity='1'; }); }
   }
 }
 function closeFabDial(){
   const dial=document.getElementById('fab-dial');
-  if(dial)dial.classList.remove('open');
+  if(dial){
+    dial.classList.remove('open');
+    dial.querySelector('.fab-main').setAttribute('aria-expanded','false');
+  }
+  const options=document.getElementById('fab-dial-options');
+  if(options)options.inert=true;
   const bd=document.getElementById('fab-backdrop');
   if(bd){
     bd.style.opacity='0';
@@ -7724,11 +7754,13 @@ function _syncFabVisibility(){
   const noContextActions=_fabOptionsForPage(activePage).length===0;
   const hidden=_FAB_HIDDEN_PAGES.has(activePage)||noContextActions;
   if(hidden){
-    dial.classList.remove('open');
+    closeFabDial();
+    dial.inert=true;
     dial.style.visibility='hidden';
     dial.setAttribute('aria-hidden','true');
     if(searchFab){searchFab.style.visibility='hidden';searchFab.setAttribute('aria-hidden','true');}
   } else {
+    dial.inert=false;
     dial.style.visibility='';
     dial.removeAttribute('aria-hidden');
     if(searchFab){searchFab.style.visibility='';searchFab.removeAttribute('aria-hidden');}
@@ -25458,8 +25490,6 @@ window.addEventListener('load', function(){
   var _schemaPromise=null;
   var _schemaOK=false;
   var _conflicts=[];
-  var _lastConflictToastKey='';
-  var _lastConflictToastAt=0;
 
   function _numRevision(v){
     var n=Number(v);
@@ -25592,15 +25622,8 @@ window.addEventListener('load', function(){
     e.expectedRevision=info.expected;
     e.currentRevision=current;
 
-    var now=Date.now(), key=action+':'+id+':'+String(current);
-    if(key!==_lastConflictToastKey || now-_lastConflictToastAt>5000){
-      _lastConflictToastKey=key;_lastConflictToastAt=now;
-      try{
-        if(typeof toast==='function'){
-          toast('Newer cloud version found — stale '+action+' blocked. Reload RETRADE to use the latest item.','err');
-        }
-      }catch(_e){}
-    }
+    // The recovery owner reports only an unresolved conflict. A successful
+    // compare-and-swap retry must not ask the user to reload.
     return e;
   }
 

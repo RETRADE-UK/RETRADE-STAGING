@@ -17,7 +17,14 @@ async function harness(scope='https://test.example/app/'){
  const n=h.requests.length;await h.emit('message',{data:{type:'RT_WARM_STATIC',build:assets.build,saveData:true}});assert.equal(h.requests.length,n,'Save-Data skips optional warming');
  await Promise.all([h.emit('message',{data:{type:'RT_WARM_STATIC',build:assets.build}}),h.emit('message',{data:{type:'RT_WARM_STATIC',build:assets.build}})]);
  assert(h.max<=3,'Concurrent warm messages share the bounded queue');assert.equal(new Set(h.requests).size,h.requests.length,'No duplicate warm requests');assert(!h.requests.some(u=>assets.lazy.some(p=>u.includes(p))),'Export engines load on demand');
- const before=h.requests.length;const r=await h.emit('fetch',{request:new Request('https://test.example/app/'+assets.core+'?v=anything')});assert((await r.text()).includes(assets.core));assert.equal(h.requests.length,before,'Current source served from cache');
+ const before=h.requests.length;const r=await h.emit('fetch',{request:new Request('https://test.example/app/'+assets.core+'?v='+assets.build)});assert((await r.text()).includes(assets.core));assert.equal(h.requests.length,before,'Current source served from cache');
+ const older=await h.caches.open('retrade-static-old');
+ await older.put('https://test.example/app/'+assets.core+'?v=old',new Response('old-core'));
+ assert.equal(await (await h.emit('fetch',{request:new Request('https://test.example/app/'+assets.core+'?v=old')})).text(),'old-core','Old tabs receive their exact cached generation');
+ const newer=await h.emit('fetch',{request:new Request('https://test.example/app/config/assets.js?v=future')});
+ assert.equal(await newer.text(),'asset:https://test.example/app/config/assets.js?v=future','New HTML must not receive the active worker old manifest');
+ const olderCSS=await h.emit('fetch',{request:new Request('https://test.example/app/assets/styles/application.css?v=old')});
+ assert.equal(await olderCSS.text(),'asset:https://test.example/app/assets/styles/application.css?v=old','Styles honour the requested generation too');
  assert.equal(await h.emit('fetch',{request:new Request('https://test.example/app/private-data.json')}),undefined,'Unknown/business data bypass caching');
  assert.equal(await h.emit('fetch',{request:new Request('https://test.example/other/'+assets.core)}),undefined,'Scope is honoured');
  const old=await h.caches.open('retrade-static-previous');await old.put('https://test.example/app/app-core.js?v=old',new Response('previous-core'));

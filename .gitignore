@@ -40,3 +40,6 @@ retrade-export*.json
 
 # Reproducible static deployment output
 _site/
+
+# Supabase CLI generated state
+supabase/.temp/

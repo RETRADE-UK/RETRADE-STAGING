@@ -93,3 +93,7 @@ contracts until validated with a usable source.
 
 See [current audit status](../../docs/features/monitors/AUDIT.md) and
 [implementation plan](../../docs/features/monitors/IMPLEMENTATION_PLAN.md).
+
+## Staging service integration (24 September)
+
+The engine is now reused by `supabase/functions/monitor-service/`. The native page, persistence and scheduled delivery are documented in `docs/features/monitors/MVP_RUNBOOK.md`. Engine benchmark recipes retain feed-only scoring; opt-in push of new matches is a separate account-owned service setting requested for the MVP. The live source is blocked (403) and scans are not running. Earlier foundation-only notes above remain historical context.

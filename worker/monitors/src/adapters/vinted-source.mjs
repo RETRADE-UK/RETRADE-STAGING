@@ -34,7 +34,9 @@ async function readJson(response, maxBytes) {
       chunks.push(value);
     }
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
-  try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); }
+  const joined = new Uint8Array(bytes); let offset = 0;
+  for (const chunk of chunks) { joined.set(chunk, offset); offset += chunk.length; }
+  try { return JSON.parse(new TextDecoder().decode(joined)); }
   catch { throw new SourceError('invalid_json'); }
 }
 

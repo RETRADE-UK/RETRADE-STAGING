@@ -19,7 +19,7 @@ const manifest = require('../../docs/features/monitors/provenance.json');
       `Recovered reference changed: ${item.path}; promote repaired code to its owner instead`);
     if (/\.(?:js|mjs)$/.test(file)) execFileSync(process.execPath, ['--check', file]);
   }
-  assert(!shipped.some(file => /(?:^|\/)monitors(?:\/|\.)/.test(file)),
+  assert(!shipped.some(file => /^(?:worker|experiments)\/monitors\//.test(file)),
     'Recovery is not activation: add reviewed runtime integration and update this gate together');
   for (const file of scripts.concat('index.html', 'sw.js')) {
     assert(!fs.readFileSync(path.join(root, file), 'utf8').includes('experiments/monitors/'),

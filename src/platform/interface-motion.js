@@ -43,7 +43,7 @@
       '#confirm-modal.open .confirm-box{animation:rtConfirmInV1468 180ms var(--rt-motion-ease) both!important;}',
       '.fab-dial-item{transition:opacity 130ms ease-out,transform 180ms var(--rt-motion-ease)!important;}',
       '#fab-dial,#search-fab{transition-property:opacity,scale,transform,bottom!important;transition-duration:130ms,175ms,175ms,175ms!important;transition-timing-function:ease-out,var(--rt-motion-ease),var(--rt-motion-ease),var(--rt-motion-ease)!important;}',
-      '#fab-dial.rt-fab-motion-hidden,#search-fab.rt-fab-motion-hidden{opacity:0!important;scale:.97;pointer-events:none!important;}',
+      '#fab-dial.rt-fab-motion-hidden,#search-fab.rt-fab-motion-hidden{opacity:0!important;pointer-events:none!important;}',
       '.tab,.bnt,.nav-more-btn,.more-sheet-row{transition-property:color,background-color,opacity!important;transition-duration:120ms!important;transition-timing-function:ease-out!important;}',
       '.tab svg,.bnt svg,.nav-more-btn svg{transition:transform 140ms var(--rt-motion-ease),color 120ms ease-out!important;}',
       '.tab.on svg,.bnt.on svg{transform:translateY(-1px);}',
@@ -51,7 +51,6 @@
       '@media(prefers-reduced-motion:reduce){',
       ' #panel-content,#confirm-modal.open,#confirm-modal.open .confirm-box{animation:none!important;}',
       ' .slide-panel,#more-sheet,.country-panel,.fab-dial-item,#fab-dial,#search-fab,.tab,.bnt,.nav-more-btn,.more-sheet-row,.tab svg,.bnt svg,.nav-more-btn svg,#p-monthly .mf-fill{transition:none!important;}',
-      ' #fab-dial.rt-fab-motion-hidden,#search-fab.rt-fab-motion-hidden{scale:1;}',
       '}'
     ].join('\n');
     document.head.appendChild(s);
@@ -66,6 +65,7 @@
   function motionVisibility(el,visible){
     if(!el)return;
     if(el.__rtMotionVisible===visible)return;
+    el.inert=!visible;
     el.__rtMotionVisible=visible;
     var token=el.__rtVisibilityToken=(el.__rtVisibilityToken||0)+1;
     clearHideTimer(el);
@@ -103,7 +103,7 @@
         try{hidden=_FAB_HIDDEN_PAGES.has(activePage)||_fabOptionsForPage(activePage).length===0;}
         catch(e){return nativeSyncFab.apply(this,arguments);}
         var searchFab=document.getElementById('search-fab');
-        if(hidden)dial.classList.remove('open');
+        if(hidden)closeFabDial();
         motionVisibility(dial,!hidden);
         motionVisibility(searchFab,!hidden);
       };
