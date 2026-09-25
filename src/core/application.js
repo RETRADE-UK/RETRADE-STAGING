@@ -5280,17 +5280,17 @@ function _ipCostEditorHTML(m,i){
   const locked=_ipHasRecordedPayment(i),supplier=type==='supplier',hasShare=!!i.accountId&&!supplier;
   const fixed=i.accountPaidAmount!=null,percent=i.accountSplitPercent!=null?i.accountSplitPercent:(a&&a.defaultSplitPercent!=null?a.defaultSplitPercent:0);
   const disabled=locked?' disabled':'';
-  let h='<section class="ip-cost-card" id="ip-costs"><div class="ip-card-heading"><h2>Item &amp; partner costs</h2><p>Set the agreement here. Your profit includes it once.</p></div>'
-    +'<label class="ip-control" for="ip-partner">Stock owner / partner<select id="ip-partner" onchange="ipAssignAccount(\''+m+'\',\''+i.id+'\',this.value)"'+disabled+'>'+_accountSelectOptionsHTML(i.accountId||null)+'</select></label>'
-    +'<form class="ip-cost-form" onsubmit="return ipSaveCosts(event,\''+m+'\',\''+i.id+'\')">'
-    +'<label class="ip-control" for="ip-buy-cost">'+(supplier?'Supplier item cost (£)':type==='consignment'?'Upfront item cost (£)':type==='hybrid'?'Upfront item cost (£)':'Item purchase cost (£)')
+  let h='<section class="ip-cost-card" id="ip-costs"><div class="ip-card-heading"><h2>Cost &amp; profit</h2></div>'
+    +'<details class="ip-owner-details"><summary>'+esc(a?a.name:'Own stock')+' · change owner</summary><label class="ip-control" for="ip-partner">Stock owner / partner<select id="ip-partner" onchange="ipAssignAccount(\''+m+'\',\''+i.id+'\',this.value)"'+disabled+'>'+_accountSelectOptionsHTML(i.accountId||null)+'</select></label></details>'
+    +'<form class="ip-cost-form" oninput="ipPreviewCosts(\''+m+'\',\''+i.id+'\')" onsubmit="return ipSaveCosts(event,\''+m+'\',\''+i.id+'\')">'
+    +'<label class="ip-control" for="ip-buy-cost"'+(type==='consignment'&&!Number(i.costPrice)?' hidden':'')+'>'+(supplier?'Item cost · supplier payout (£)':type==='consignment'?'Recorded upfront cost (£)':type==='hybrid'?'Upfront item cost (£)':'Item cost (£)')
     +'<input id="ip-buy-cost" type="number" inputmode="decimal" min="0" step="0.01" required value="'+(Number(i.costPrice)||0)+'"'+(type==='consignment'||(locked&&supplier)?' readonly':'')+'></label>';
   if(hasShare){
     h+='<label class="ip-control" for="ip-partner-method">Partner agreement<select id="ip-partner-method" onchange="ipCostMethodChanged()"'+disabled+'><option value="percent"'+(!fixed?' selected':'')+'>Share of profit</option><option value="fixed"'+(fixed?' selected':'')+'>Fixed payout</option></select></label>'
       +'<label class="ip-control" id="ip-percent-wrap" for="ip-partner-percent"'+(fixed?' hidden':'')+'>Partner share (%)<input id="ip-partner-percent" type="number" inputmode="decimal" min="0" max="100" step="0.01" value="'+percent+'"'+disabled+'></label>'
-      +'<label class="ip-control" id="ip-fixed-wrap" for="ip-partner-fixed"'+(!fixed?' hidden':'')+'>Partner payout (£)<input id="ip-partner-fixed" type="number" inputmode="decimal" min="0" step="0.01" value="'+(fixed?Number(i.accountPaidAmount):0)+'"'+disabled+'></label>';
+      +'<label class="ip-control" id="ip-fixed-wrap" for="ip-partner-fixed"'+(!fixed?' hidden':'')+'>Item cost · partner payout (£)<input id="ip-partner-fixed" type="number" inputmode="decimal" min="0" step="0.01" value="'+(fixed?Number(i.accountPaidAmount):0)+'"'+disabled+'></label>';
   }
-  h+='<p class="ip-form-note">'+(supplier?'The supplier amount is your item cost. Payment status is tracked separately in Partners.':hasShare?'Upfront cost and parts are deducted first, then the partner agreement. The remaining profit is yours.':'Parts and purchase credits are included in the cost breakdown below.')+'</p>';
+  h+='<p class="ip-form-note" id="ip-cost-preview" aria-live="polite">'+(hasShare?'Your retained profit is after item costs and the partner agreement.':'Cost includes the purchase amount; parts are shown in the breakdown.')+'</p>';
   if(locked)h+='<p class="ip-form-note">A payment is recorded. Partner terms are locked here; review corrections in <button type="button" class="ip-text-button" onclick="openAccountPage(\''+esc(i.accountId)+'\')">Partners</button>.</p>';
   h+='<div class="ip-cost-footer"><span id="ip-cost-save-status" role="status"></span><button class="btn btn-primary" type="submit">Save costs</button></div></form></section>';
   return h;
@@ -5299,6 +5299,26 @@ function ipCostMethodChanged(){
   const fixed=document.getElementById('ip-partner-method').value==='fixed';
   document.getElementById('ip-percent-wrap').hidden=fixed;
   document.getElementById('ip-fixed-wrap').hidden=!fixed;
+}
+function ipPreviewCosts(m,id){
+  const original=(DB[m]||[]).find(function(i){return i.id===id;});if(!original)return;
+  const i=Object.assign({},original),type=i.accountId?_itemAccountType(i):'own',locked=_ipHasRecordedPayment(i);
+  const cost=document.getElementById('ip-buy-cost'),method=document.getElementById('ip-partner-method');
+  if(!cost.checkValidity())return;
+  if(type!=='consignment'&&!(locked&&type==='supplier'))i.costPrice=Number(cost.value);
+  if(method&&!locked){
+    const fixed=method.value==='fixed',el=document.getElementById(fixed?'ip-partner-fixed':'ip-partner-percent');
+    if(!el.checkValidity()||el.value==='')return;
+    i.accountPaidAmount=fixed?Number(el.value):null;i.accountSplitPercent=fixed?null:Number(el.value);
+  }
+  const expected=!i.scrappedAt&&(!!i.isReturned||(!i.dateSold&&!i.resaleSalePrice));
+  const profit=expected?calcEstProfit(i):calcNetProfit(i);
+  const partner=expected?_estimatedPartnerCutFromProfit(i,calcEstGrossProfit(i)):(_accountItemOwed(i)||0);
+  const total=(Number(i.costPrice)||0)+(i.parts||[]).reduce(function(s,p){return s+(Number(p.cost)||0);},0)+partner;
+  const profitToken=document.querySelector('#p-item .ip-profit-token .ip-token-val'),costToken=document.querySelector('#p-item .ip-cost-token .ip-token-val');
+  if(profitToken){profitToken.textContent=profit==null?'—':fmt(profit);profitToken.parentElement.classList.toggle('pos',profit!=null&&profit>=0);profitToken.parentElement.classList.toggle('neg',profit!=null&&profit<0);}
+  if(costToken)costToken.textContent=fmt(total);
+  document.getElementById('ip-cost-preview').textContent='Preview · total item / partner cost '+fmt(total)+' · your profit '+fmt(profit)+'. Save to apply.';
 }
 function ipSaveCosts(event,m,id){
   event.preventDefault();
@@ -6476,7 +6496,7 @@ function _renderItemPageInner(m,id){
   }
   const freshListing=!i.dateSold&&!i.resaleSalePrice&&!hasReturn;
   if(freshListing){sale1Net=calcEstProfit(i)||0;sale1Partner=_estimatedPartnerCutFromProfit(i,calcEstGrossProfit(i));}
-  if(i.accountId&&_itemAccountType(i)!=='supplier')pb+=rcp('Partner '+(i.accountPaidAmount!=null?'payout':'share'),'−'+fmt(sale1Partner),'var(--red)');
+  if(i.accountId&&_itemAccountType(i)!=='supplier')pb+=rcp(i.accountPaidAmount!=null?'Item cost · partner payout':'Partner share','−'+fmt(sale1Partner),'var(--red)');
   pb+='<div class="ip-receipt-row total"><span style="flex:1">'+(freshListing?'Your expected profit':i.resaleSalePrice?'Your Sale 1 profit':'Your profit / loss')+'</span><span class="ip-receipt-val" style="color:'+(sale1Net>=0?'var(--green)':'var(--red)')+'">'+fmt(sale1Net)+'</span></div>';
 
   // sec2 must be declared before the Sale 2 block that uses it (TDZ fix).
@@ -6729,9 +6749,10 @@ function _renderItemPageInner(m,id){
   html+='<div class="ip-token-sub">'+(saleEditable?'✎ Tap to edit':status==='sold'||status==='resold'?icon('lock',11)+' Sold · locked':icon('lock',11)+' Locked')+'</div>';
   html+='</div>';
 
-  html+='<button type="button" class="ip-token ip-cost-token" onclick="document.getElementById(\'ip-costs\').scrollIntoView({block:\'center\'});document.getElementById(\'ip-buy-cost\').focus({preventScroll:true})">';
-  html+='<div class="ip-token-label">Item cost</div><div class="ip-token-val">'+fmt((Number(i.costPrice)||0)+partsCost)+'</div>';
-  html+='<div class="ip-token-sub">Purchase + parts · edit costs</div></button>';
+  html+='<button type="button" class="ip-token ip-cost-token" onclick="document.getElementById(\'ip-costs\').scrollIntoView({block:\'center\'});document.querySelector(\'#ip-costs .ip-control:not([hidden]) input\')?.focus({preventScroll:true})">';
+  const displayedPartnerCost=!i.scrappedAt&&(!!i.isReturned||(!i.dateSold&&!i.resaleSalePrice))?_estimatedPartnerCutFromProfit(i,calcEstGrossProfit(i)):(_accountItemOwed(i)||0);
+  html+='<div class="ip-token-label">Item cost'+(displayedPartnerCost&&i.accountPaidAmount==null?' + partner share':'')+'</div><div class="ip-token-val">'+fmt((Number(i.costPrice)||0)+partsCost+displayedPartnerCost)+'</div>';
+  html+='<div class="ip-token-sub">'+(displayedPartnerCost?'Includes payout '+fmt(displayedPartnerCost)+' · ':'Purchase + parts · ')+'edit costs</div></button>';
 
   // Promo %
   html+='<div class="ip-token" id="tok-promoPercent-'+id+'" onpointerdown="tokenPointerDown(\''+m+'\',\''+id+'\',\'promoPercent\')" onclick="openTokenEdit(\''+m+'\',\''+id+'\',\'promoPercent\')">';
@@ -15472,6 +15493,7 @@ function renderSaleEventRow(ev){
         leftSlot+
         '<div class="item-row-body">'+
           '<div class="item-row-name">'+esc(i.item)+'</div>'+
+          '<time class="sales-date-tag" datetime="'+esc(ev.saleDate||'')+'">'+(ev.isReturnAdjustment?'Returned ':Number(ev.sale)>1?'Resold ':'Sold ')+esc(_salesDayLabel(ev.saleDate))+'</time>'+
           '<div class="item-row-meta">'+
             '<span class="item-badge '+status+'">'+badgeText+'</span>'+
             platBadgeHTML(i)+
@@ -15535,6 +15557,7 @@ function renderBundleSaleRow(bid, members){
         leftSlot+
         '<div class="item-row-body">'+
           '<div class="item-row-name">'+esc(first.item||'Bundle')+(n>1?' <span style="color:var(--text-secondary);font-weight:600">+ '+(n-1)+' more</span>':'')+'</div>'+
+          '<time class="sales-date-tag" datetime="'+esc(dateSold)+'">Sold '+esc(_salesDayLabel(dateSold))+'</time>'+
           '<div class="item-row-meta">'+
             '<span class="item-badge bundle">\u2ac5 bundle</span>'+
             '<span class="item-row-meta-sep">\u00b7</span><span>'+metaStr+'</span>'+
@@ -15568,13 +15591,14 @@ function _salesDayOrderCount(events){
     if(bid){if(seen[bid])return;seen[bid]=true;}
     count++;
   });
-  return count||((events||[]).length?1:0);
+  return count;
 }
 function _salesDayHeader(ds,events){
   const n=_salesDayOrderCount(events);
+  const returns=(events||[]).filter(function(e){return e.isReturnAdjustment;}).length;
   return '<div class="rt-sales-day" data-date="'+esc(String(ds||''))+'">'+
     '<span class="rt-sales-day-label">'+esc(_salesDayLabel(ds))+'</span>'+
-    '<span class="rt-sales-day-count">'+n+' order'+(n===1?'':'s')+'</span>'+
+    '<span class="rt-sales-day-count">'+n+' order'+(n===1?'':'s')+(returns?' · '+returns+' return'+(returns===1?'':'s'):'')+'</span>'+
   '</div>';
 }
 // Sales history is date-sold by default. Build the day groups in the core
@@ -23134,10 +23158,9 @@ function renderTax(){
   const salesGross=round(sales.reduce(function(s,m){return s+m.grossProfit;},0));
   const salesNet=round(sales.reduce(function(s,m){return s+m.netProfit;},0));
   const income=pnl.totalBusinessIncome,expenses=round(income-pnl.netProfit);
-  const allowance=Math.min(1000,Math.max(0,income)),taxableTA=Math.max(0,round(income-allowance));
-  const autoMethod=taxableTA<=pnl.netProfit?'ta':'actual';
-  const method=DB._taxMethod==='ta_manual'?'ta':DB._taxMethod==='actual_manual'?'actual':autoMethod;
-  const usingTA=method==='ta',profit=usingTA?taxableTA:pnl.netProfit,deduction=usingTA?allowance:expenses;
+  // This workspace prepares actual-expense accounts. Old saved allowance
+  // preferences must not silently change its figures or the exported totals.
+  const allowance=0,usingTA=false,profit=pnl.netProfit,deduction=expenses;
   const rates=_taxRateConfig(year),otherIncome=_taxOtherIncome(),region=_taxRegion(),taxable=Math.max(0,profit);
   const incomeTax=_selfEmploymentIncomeTax(taxable,otherIncome,year,region);
   const class2=rates.c2mandatory&&taxable>(rates.c2chargeAt||rates.c2spt)?round(rates.c2weekly*52):0;
@@ -23199,11 +23222,14 @@ function renderTax(){
     +'<div class="tax-profit-bridge">'+row('Yearly Sales net profit',money(salesNet),'1 Apr '+year+' – 31 Mar '+(year+1))
     +row('Cash-basis profit',money(pnl.netProfit),'6 Apr '+year+' – 5 Apr '+(year+1),'tax-bridge-total')+'</div>'
     +details('tax-reconciliation','See the full reconciliation',bridge)+'</section>';
-  const methodCard=function(key,title,amount,note){const selected=method===key;return '<button type="button" class="tax-method-card'+(selected?' is-selected':'')+'" aria-pressed="'+selected+'" onclick="DB._taxMethod=\''+key+'_manual\';saveDB();renderTax()">'
-    +'<span class="tax-method-status">'+(selected?'✓ SELECTED':autoMethod===key?'Recommended':'Alternative')+'</span><strong>'+title+'</strong><span>'+money(amount)+'</span><small>'+note+'</small></button>';};
-  html+='<section class="tax-card"><div class="tax-section-heading"><h2>Choose your deduction</h2><p>Both options show the resulting taxable profit.</p></div><div class="tax-method-grid">'
-    +methodCard('ta','Trading allowance',taxableTA,money(allowance)+' instead of business expenses')
-    +methodCard('actual','Actual expenses',pnl.netProfit,money(expenses)+' of allowable costs')+'</div></section>';
+  const shortBoxes={17:11,20:12,21:14,22:15,23:18,24:19,25:17,26:17,28:16,30:19};
+  const filingRows=expenseLines.map(function(r){return '<div class="tax-filing-row"><span>'+r[1]+'</span><strong>'+money(r[2])+'</strong><small>Short · box '+shortBoxes[r[0]]+'</small><small>Full · box '+r[0]+'</small></div>';}).join('');
+  html+='<section class="tax-card"><div class="tax-section-heading"><h2>Prepare your tax return</h2><p>Actual expenses · cash basis. Match these recorded costs to your self-employment form.</p></div>'
+    +'<div class="tax-filing-lines">'+filingRows+'</div>'
+    +row('Total allowable expenses',money(expenses),'Short SA103S box 20 · Full SA103F box 31','tax-bridge-total')
+    +'<p class="tax-note">Amounts sharing a box must be added together; do not claim the total again alongside its individual lines. Review category assignments and business-only use before filing. Partner means a stock supplier / consignor here, not a legal business partnership.</p>'
+    +'<p class="tax-note">Box references use the published 2025/26 forms. Confirm the form for '+label+'. These are bookkeeping totals, before any capital allowances, losses or other tax adjustments. The Personal Allowance remains part of your tax estimate.</p>'
+    +'<p class="tax-note"><a href="https://www.gov.uk/government/publications/self-assessment-self-employment-short-sa103s" target="_blank" rel="noopener">HMRC short form &amp; notes</a> · <a href="https://www.gov.uk/government/publications/self-assessment-self-employment-full-sa103f" target="_blank" rel="noopener">HMRC full form &amp; notes</a></p></section>';
   let breakdown=row('Sales receipts',money(pnl.revenue),'Includes buyer-paid postage')
     +(pnl.otherBusinessIncome?row('Supplier refunds',money(pnl.otherBusinessIncome)):'')
     +row('Total business income',money(income),'','tax-bridge-total');
@@ -23233,14 +23259,15 @@ function renderTax(){
   const references=row('Turnover',money(pnl.revenue),'SA103F 15 / SA103S 9')
     +(pnl.otherBusinessIncome?row('Other business income',money(pnl.otherBusinessIncome),'SA103F 16 / SA103S 10'):'')
     +row(usingTA?'Trading allowance':'Allowable expenses',money(deduction),usingTA?'SA103F 16.1 / SA103S 10.1':'SA103F 31 / SA103S 20')
-    +row(profit<0?'Business loss':'Taxable profit',money(profit),profit<0?'Review loss-relief boxes':'SA103F 76 / SA103S 31');
+    +row(profit<0?'Net business loss':'Net business profit',money(Math.abs(profit)),profit<0?'SA103F 48 / SA103S 22 · before tax adjustments':'SA103F 47 / SA103S 21 · before tax adjustments');
   html+=details('tax-filing','Filing references',references+'<p class="tax-note">Latest published SA103 layout; confirm the form for '+label+' before filing.</p>');
   html+=details('tax-assumptions','How this estimate works','<p class="tax-note">Recorded sale dates stand in for receipt dates; expense dates stand in for payment dates. Keep these aligned with your records. Supplier refunds use the recorded removal / refund date. This is a working estimate; verify it before filing.</p>'
-    +'<p class="tax-note">Trading allowance replaces actual expense deductions. Sales and Tax can differ because of dates, unsold stock, unpaid partner costs and motor deductions.</p>');
+    +'<p class="tax-note">This workspace uses actual expenses, not the trading allowance. Sales and Tax can differ because of dates, unsold stock, unpaid partner costs and motor deductions.</p>');
   html+='<button type="button" class="btn btn-primary tax-download" onclick="downloadTaxSummary()">'+icon('save',16)+'Download tax summary</button></aside></div></div>';
   window._taxExportData={year:label,method:usingTA?'Trading allowance (£1,000)':'Actual expenses',income:income,turnover:pnl.revenue,
     otherBusinessIncome:pnl.otherBusinessIncome||0,saleCount:pnl.events.filter(function(e){return !e.isReturnAdjustment;}).length,
     expenseLines:usingTA?[['Trading allowance',allowance]]:expenseLines.map(function(r){return [r[1],r[2]];}),sa103Rows:_buildSA103Rows(pnl),
+    filingLines:expenseLines.map(function(r){return {label:r[1],amount:r[2],shortBox:shortBoxes[r[0]],fullBox:r[0]};}),
     totalExpenses:expenses,tradingAllowanceUsed:allowance,box15:pnl.revenue,box16:deduction,box23:profit,
     mileageMiles:pnl.mileage.miles,motorDoubleClaim:pnl.motorDoubleClaim,incomeTax:incomeTax,class2:class2,class4:class4,totalTax:totalTax,
     otherIncome:otherIncome,taxRegion:region,effectivePA:effectivePA};

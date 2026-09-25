@@ -643,7 +643,11 @@ function downloadTaxSummary(){
   rows.push(['Number of sales',d.saleCount]);
   rows.push([]);
   rows.push(['ALLOWABLE EXPENSES']);
-  d.expenseLines.filter(r=>r[1]!==0).forEach(r=>rows.push([r[0],money(r[1])]));
+  if(d.filingLines){
+    rows.push(['Cost category','Amount','SA103S short box','SA103F full box']);
+    d.filingLines.filter(r=>r.amount!==0).forEach(r=>rows.push([r.label,money(r.amount),r.shortBox,r.fullBox]));
+    rows.push(['Box references: 2025/26 forms; confirm your filing year. Add categories sharing a box.']);
+  }else d.expenseLines.filter(r=>r[1]!==0).forEach(r=>rows.push([r[0],money(r[1])]));
   rows.push([d.method.indexOf('Trading')===0?'Trading income allowance':'Total allowable expenses',money(d.box16)]);
   rows.push([]);
   rows.push(['TAXABLE PROFIT — HMRC CASH BASIS']);

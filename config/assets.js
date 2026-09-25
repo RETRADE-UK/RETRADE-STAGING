@@ -1,7 +1,7 @@
 /* Runtime asset contract. Ordered classic scripts: do not alphabetise.
  * Shared by the browser loader, service worker and validation tools. */
 globalThis.RT_ASSETS = Object.freeze({
-  "build": "20260925-v1572-staging",
+  "build": "20260925-v1573-staging",
   "environment": "staging",
   "entry": [
     "src/domain/accounting-engine.js",
@@ -75,6 +75,7 @@ globalThis.RT_ASSETS = Object.freeze({
     "assets/styles/tax.css",
     "assets/styles/item.css",
     "assets/styles/status.css",
+    "assets/styles/sales.css",
     "assets/styles/monitors.css"
   ],
   "icons": [

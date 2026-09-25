@@ -16,6 +16,7 @@
 | Dashboard bar/forecast timings | `src/features/charts/motion.js` |
 | Forecast content and loading handoff | `src/features/charts/finalize.js`, `reveal.js` |
 | Sales line sequence and calendar layout | `src/features/sales/` |
+| Sales history dates and responsive rows | Core `renderMonth` / sale-event renderers; `assets/styles/sales.css` |
 | Partner model/presentation/settlement extensions | Ordered partner files in the manifest |
 | Bundle, cashflow and document extensions | Corresponding feature directories |
 | On-demand partner statements and diagnostics | Manifest `lazy` list |
