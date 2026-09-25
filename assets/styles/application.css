@@ -4788,28 +4788,6 @@ svg.cat-donut-draw circle.donut-seg-last{
     box-shadow:0 0 0 2px rgba(242,179,61,0.20);
     animation:none;
   }
-  /* Sync status: one mobile capsule above navigation; desktop stays in sidebar. */
-  #mobile-sync-badge{
-    display:none;position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0px));
-    transform:translateX(-50%);z-index:315;align-items:center;gap:8px;
-    max-width:calc(100vw - 32px);min-height:36px;padding:6px 12px;
-    border-radius:999px;background:var(--surface);border:1px solid var(--border);
-    box-shadow:0 5px 18px var(--shadow-md);color:var(--text);font-size:12px;
-    font-weight:650;white-space:nowrap;pointer-events:none;
-  }
-  #mobile-sync-badge.saving,#mobile-sync-badge.pending,#mobile-sync-badge.error{display:flex;}
-  #mobile-sync-badge.saving,#mobile-sync-badge.pending{border-color:var(--brand);color:var(--text);}
-  #mobile-sync-badge.error{border-color:var(--red);}
-  #mobile-sync-badge .rt-sync-mark{display:grid;place-items:center;width:12px;height:12px;flex:none;border:2px solid var(--brand);border-radius:50%;color:var(--red);font-size:11px;line-height:1;}
-  #mobile-sync-badge.saving .rt-sync-mark{border-color:var(--border2);border-top-color:var(--brand);animation:rtSyncTurn 1s linear infinite;}
-  #mobile-sync-badge.pending .rt-sync-mark{border-color:var(--brand);background:var(--brand);color:var(--surface);font-size:0;}
-  #mobile-sync-badge.error .rt-sync-mark{border-color:var(--red);width:16px;height:16px;}
-  #mobile-sync-badge .rt-sync-retry{pointer-events:auto;border:0;border-radius:6px;background:var(--red);color:#fff;padding:5px 8px;font:inherit;font-size:11px;cursor:pointer;}
-  @keyframes rtSyncTurn{to{transform:rotate(360deg);}}
-  @media(min-width:601px){#mobile-sync-badge{display:none!important;}}
-  @media(prefers-reduced-motion:reduce){#mobile-sync-badge .rt-sync-mark,.rt #side-nav .side-nav-sync-dot{animation:none!important;}}
-
-
   /* User row (avatar + name + gear) */
   .rt #side-nav .side-user-menu{position:relative;}
   .rt #side-nav .side-nav-user{
