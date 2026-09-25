@@ -1,0 +1,16 @@
+/* Sync belongs to app chrome, never document flow or the bottom of a page. */
+#mobile-sync-badge{display:none;}
+@media(max-width:600px){
+  .rt #mobile-top-bar{gap:10px;}
+  .rt #mobile-top-bar .mtb-brand{margin-right:auto;}
+  #mobile-sync-badge{align-items:center;justify-content:center;gap:6px;flex:none;min-width:24px;height:44px;color:var(--text-secondary);pointer-events:none;}
+  #mobile-sync-badge.saving,#mobile-sync-badge.pending,#mobile-sync-badge.error{display:flex;}
+  #mobile-sync-badge .rt-sync-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
+  #mobile-sync-badge .rt-sync-mark{display:grid;place-items:center;width:14px;height:14px;border:2px solid var(--accent);border-radius:50%;font-size:11px;line-height:1;}
+  #mobile-sync-badge.saving .rt-sync-mark{border-color:var(--border);border-top-color:var(--accent);animation:rtSyncTurn 1s linear infinite;}
+  #mobile-sync-badge.pending .rt-sync-mark{background:var(--accent);border-color:var(--accent);font-size:0;}
+  #mobile-sync-badge.error .rt-sync-mark{color:var(--red);border-color:var(--red);}
+  #mobile-sync-badge .rt-sync-retry{pointer-events:auto;min-height:44px;border:0;border-radius:8px;background:transparent;color:var(--red);padding:0 5px;font:600 12px var(--font-body);cursor:pointer;}
+}
+@keyframes rtSyncTurn{to{transform:rotate(360deg);}}
+@media(prefers-reduced-motion:reduce){#mobile-sync-badge .rt-sync-mark{animation:none!important;}}

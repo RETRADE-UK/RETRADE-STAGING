@@ -19,6 +19,8 @@
 | Partner model/presentation/settlement extensions | Ordered partner files in the manifest |
 | Bundle, cashflow and document extensions | Corresponding feature directories |
 | On-demand partner statements and diagnostics | Manifest `lazy` list |
+| Item costs, postage policy application and item view | `src/core/application.js`; `assets/styles/item.css` |
+| Sync status presentation | Core `_refreshSideNavSync`; `assets/styles/status.css`; mobile header in `index.html` |
 | Responsive Tax view | `src/core/application.js` (`renderTax`), `assets/styles/tax.css` |
 | Tax cash timing and calendar slices | `src/domain/accounting-engine.js`; report export in `report-engine.js` |
 | Static cache and old-path transition | `sw.js` |

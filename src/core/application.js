@@ -846,35 +846,47 @@ function reorderShippingPolicy(name,dir){
   _msPoliciesRender();
 }
 function _refreshShippingPolicyDropdowns(){
-  // Re-render all open policy dropdowns after add/delete
-  ['qa-shipping-policy','edit-shipping-policy'].forEach(id=>{
-    const sel=document.getElementById(id);
-    if(!sel)return;
-    const cur=sel.value;
-    _populateShippingPolicySelect(sel);
-    sel.value=cur||'';
-  });
-  // Refresh management panel if open
+  document.querySelectorAll('select[data-shipping-policy],#qa-shipping-policy,#edit-shipping-policy').forEach(function(sel){_populateShippingPolicySelect(sel);});
   const list=document.getElementById('shipping-policies-list');
   if(list)_renderShippingPoliciesList();
 }
-function _populateShippingPolicySelect(sel){
+function _populateShippingPolicySelect(sel,amounts){
+  const preferred=sel.value;
+  sel.dataset.shippingPolicy='true';
+  if(sel.id==='qa-shipping-policy'){sel.dataset.costId='qa-shipping';sel.dataset.postageId='qa-postage';}
+  if(sel.id==='edit-shipping-policy'){sel.dataset.costId='edit-shipping-c';sel.dataset.postageId='edit-postage-c';}
+  if(!amounts&&sel.dataset.costId){
+    const cost=document.getElementById(sel.dataset.costId),post=document.getElementById(sel.dataset.postageId);
+    if(cost&&post)amounts={yourCost:Number(cost.value)||0,buyerPays:Number(post.value)||0};
+  }
   const policies=getShippingPolicies();
-  sel.innerHTML='<option value="">— No policy (clear fields) —</option>'
-    +policies.map(p=>`<option value="${esc(p.name)}">${esc(p.name)} · you £${p.yourCost.toFixed(2)} · buyer £${p.buyerPays.toFixed(2)}</option>`).join('');
+  const matches=amounts?policies.filter(function(p){return Math.abs((Number(p.yourCost)||0)-amounts.yourCost)<0.005&&Math.abs((Number(p.buyerPays)||0)-amounts.buyerPays)<0.005;}):[];
+  const match=matches.find(function(p){return p.name===preferred;})||matches[0];
+  sel.innerHTML='<option value="">Custom amounts</option>'
+    +policies.map(function(p){return '<option value="'+esc(p.name)+'">'+esc(p.name)+' · you £'+(Number(p.yourCost)||0).toFixed(2)+' · buyer £'+(Number(p.buyerPays)||0).toFixed(2)+'</option>';}).join('')
+    +'<option value="__clear_postage__">Clear postage amounts</option>';
+  sel.value=match?match.name:(!amounts&&policies.some(function(p){return p.name===preferred;})?preferred:'');
 }
 function applyShippingPolicy(selId,costId,postageId,bpfFn){
   const sel=document.getElementById(selId);
   if(!sel||!sel.value)return;
-  const policy=getShippingPolicies().find(p=>p.name===sel.value);
+  const clear=sel.value==='__clear_postage__';
+  const policy=clear?{yourCost:0,buyerPays:0}:getShippingPolicies().find(function(p){return p.name===sel.value;});
   if(!policy)return;
-  const costEl=document.getElementById(costId);
-  const postEl=document.getElementById(postageId);
-  if(costEl)costEl.value=policy.yourCost||'';
-  if(postEl)postEl.value=policy.buyerPays||'';
+  const costEl=document.getElementById(costId),postEl=document.getElementById(postageId);
+  if(costEl)costEl.value=(Number(policy.yourCost)||0).toFixed(2);
+  if(postEl)postEl.value=(Number(policy.buyerPays)||0).toFixed(2);
+  if(clear)sel.value='';
   if(typeof window[bpfFn]==='function')window[bpfFn]();
-  // Keep selected value visible so user sees which policy is applied
 }
+// Manual edits are custom amounts; matching saved amounts identify the policy
+// on every render/reopen, without adding a second persisted source of truth.
+document.addEventListener('input',function(e){
+  if(!e.target.id)return;
+  document.querySelectorAll('select[data-shipping-policy]').forEach(function(sel){
+    if(sel.dataset.costId===e.target.id||sel.dataset.postageId===e.target.id)_populateShippingPolicySelect(sel);
+  });
+});
 function promptSaveShippingPolicy(costId,postageId){
   const costEl=document.getElementById(costId);
   const postEl=document.getElementById(postageId);
@@ -5239,20 +5251,87 @@ function refreshActivePage(){
 // calcBuyerProtectionFee: now uses unified iterative calcEbayBPF
 function calcBuyerProtectionFee(p){return calcEbayBPF(p);}
 function applyIPPolicy(m,id){
-  const sel=document.getElementById('ip-policy-sel-'+id);
-  if(!sel)return;
-  const shipEl=document.getElementById('ip-ship2-'+id)||document.getElementById('ip-ship-'+id);
-  const postEl=document.getElementById('ip-post2-'+id)||document.getElementById('ip-post-'+id);
-  if(!sel.value){
-    // Empty option — clear fields to 0 so user can reset applied policy
-    if(shipEl){shipEl.value=0;shipEl.dispatchEvent(new Event('change'));}
-    if(postEl){postEl.value=0;postEl.dispatchEvent(new Event('change'));}
-    return;
-  }
-  const policy=getShippingPolicies().find(p=>p.name===sel.value);
+  const sel=document.getElementById('ip-policy-sel-'+id),i=(DB[m]||[]).find(function(x){return x.id===id;});
+  if(!sel||!i||!sel.value)return;
+  const selected=sel.value;
+  const policy=selected==='__clear_postage__'?{yourCost:0,buyerPays:0}:getShippingPolicies().find(function(p){return p.name===selected;});
   if(!policy)return;
-  if(shipEl){shipEl.value=policy.yourCost||0;shipEl.dispatchEvent(new Event('change'));}
-  if(postEl){postEl.value=policy.buyerPays||0;postEl.dispatchEvent(new Event('change'));}
+  // Save both values in one mutation. Dispatching two change events rebuilt
+  // the page after the first field and reset the policy selector mid-edit.
+  const resale=!!i.resaleSalePrice;
+  i[resale?'resaleShippingCost':'shippingCost']=Math.max(0,Number(policy.yourCost)||0);
+  i[resale?'resalePostage':'postage']=Math.max(0,Number(policy.buyerPays)||0);
+  if(i.dateSold||i.isReturned||resale)i.grossProfit=calcGrossProfit(i);
+  saveDB();_ipRefreshDetails(m,id);
+  const next=document.getElementById('ip-policy-sel-'+id);
+  if(next)next.value=selected==='__clear_postage__'?'':selected;
+}
+
+function _ipRefreshDetails(m,id){
+  const states=_getSecStates(),y=window.scrollY;
+  renderItemPage(m,id);_applySecStates(states);
+  window.scrollTo(0,y);
+}
+function _ipHasRecordedPayment(i){
+  return !!i.accountSettled||(_accounts||[]).some(function(a){return (a.settlements||[]).some(function(t){return t.paid===true&&(t.items||[]).some(function(x){return String(x.id||x.itemId)===String(i.id);});});});
+}
+function _ipCostEditorHTML(m,i){
+  const a=(_accounts||[]).find(function(x){return x.id===i.accountId;}),type=i.accountId?_itemAccountType(i):'own';
+  const locked=_ipHasRecordedPayment(i),supplier=type==='supplier',hasShare=!!i.accountId&&!supplier;
+  const fixed=i.accountPaidAmount!=null,percent=i.accountSplitPercent!=null?i.accountSplitPercent:(a&&a.defaultSplitPercent!=null?a.defaultSplitPercent:0);
+  const disabled=locked?' disabled':'';
+  let h='<section class="ip-cost-card" id="ip-costs"><div class="ip-card-heading"><h2>Item &amp; partner costs</h2><p>Set the agreement here. Your profit includes it once.</p></div>'
+    +'<label class="ip-control" for="ip-partner">Stock owner / partner<select id="ip-partner" onchange="ipAssignAccount(\''+m+'\',\''+i.id+'\',this.value)"'+disabled+'>'+_accountSelectOptionsHTML(i.accountId||null)+'</select></label>'
+    +'<form class="ip-cost-form" onsubmit="return ipSaveCosts(event,\''+m+'\',\''+i.id+'\')">'
+    +'<label class="ip-control" for="ip-buy-cost">'+(supplier?'Supplier item cost (£)':type==='consignment'?'Upfront item cost (£)':type==='hybrid'?'Upfront item cost (£)':'Item purchase cost (£)')
+    +'<input id="ip-buy-cost" type="number" inputmode="decimal" min="0" step="0.01" required value="'+(Number(i.costPrice)||0)+'"'+(type==='consignment'||(locked&&supplier)?' readonly':'')+'></label>';
+  if(hasShare){
+    h+='<label class="ip-control" for="ip-partner-method">Partner agreement<select id="ip-partner-method" onchange="ipCostMethodChanged()"'+disabled+'><option value="percent"'+(!fixed?' selected':'')+'>Share of profit</option><option value="fixed"'+(fixed?' selected':'')+'>Fixed payout</option></select></label>'
+      +'<label class="ip-control" id="ip-percent-wrap" for="ip-partner-percent"'+(fixed?' hidden':'')+'>Partner share (%)<input id="ip-partner-percent" type="number" inputmode="decimal" min="0" max="100" step="0.01" value="'+percent+'"'+disabled+'></label>'
+      +'<label class="ip-control" id="ip-fixed-wrap" for="ip-partner-fixed"'+(!fixed?' hidden':'')+'>Partner payout (£)<input id="ip-partner-fixed" type="number" inputmode="decimal" min="0" step="0.01" value="'+(fixed?Number(i.accountPaidAmount):0)+'"'+disabled+'></label>';
+  }
+  h+='<p class="ip-form-note">'+(supplier?'The supplier amount is your item cost. Payment status is tracked separately in Partners.':hasShare?'Upfront cost and parts are deducted first, then the partner agreement. The remaining profit is yours.':'Parts and purchase credits are included in the cost breakdown below.')+'</p>';
+  if(locked)h+='<p class="ip-form-note">A payment is recorded. Partner terms are locked here; review corrections in <button type="button" class="ip-text-button" onclick="openAccountPage(\''+esc(i.accountId)+'\')">Partners</button>.</p>';
+  h+='<div class="ip-cost-footer"><span id="ip-cost-save-status" role="status"></span><button class="btn btn-primary" type="submit">Save costs</button></div></form></section>';
+  return h;
+}
+function ipCostMethodChanged(){
+  const fixed=document.getElementById('ip-partner-method').value==='fixed';
+  document.getElementById('ip-percent-wrap').hidden=fixed;
+  document.getElementById('ip-fixed-wrap').hidden=!fixed;
+}
+function ipSaveCosts(event,m,id){
+  event.preventDefault();
+  const i=(DB[m]||[]).find(function(x){return x.id===id;});if(!i)return false;
+  const costEl=document.getElementById('ip-buy-cost'),method=document.getElementById('ip-partner-method');
+  const cost=Number(costEl.value),type=i.accountId?_itemAccountType(i):'own',locked=_ipHasRecordedPayment(i);
+  if(costEl.value===''||!isFinite(cost)||cost<0)return false;
+  let agreement=null,fixed=false;
+  if(method&&!locked){
+    fixed=method.value==='fixed';
+    const el=document.getElementById(fixed?'ip-partner-fixed':'ip-partner-percent');agreement=Number(el.value);
+    if(el.value===''||!isFinite(agreement)||agreement<0||(!fixed&&agreement>100)){el.reportValidity();return false;}
+  }
+  // Read-only acquisition values may belong to a historical arrangement.
+  // Assignment owns any explicit conversion; saving terms must preserve them.
+  if(type!=='consignment'&&!(locked&&type==='supplier'))i.costPrice=+cost.toFixed(2);
+  if(i.accountId&&!locked){
+    if(type==='supplier'){
+      // Supplier costs already enter P&L through costPrice. Keep the agreed
+      // amount consistent without introducing a second partner deduction.
+      i.accountPaidAmount=i.costPrice;i.accountSplitPercent=null;
+      i.partnerAgreedAmount=i.costPrice;i.arrangementModelOverride='fixed_cost';
+    }else{
+      i.accountPaidAmount=fixed?+agreement.toFixed(2):null;
+      i.accountSplitPercent=fixed?null:+agreement.toFixed(2);
+      i.partnerAgreedAmount=fixed?i.accountPaidAmount:null;
+      i.arrangementModelOverride=fixed?'fixed_cost':'profit_share';
+    }
+  }
+  if(i.dateSold||i.isReturned||i.resaleSalePrice)i.grossProfit=calcGrossProfit(i);
+  saveDB();_ipRefreshDetails(m,id);
+  const status=document.getElementById('ip-cost-save-status');if(status)status.textContent='Costs saved';
+  return false;
 }
 
 function toggleItemPlatformPicker(m,id){
@@ -5813,6 +5892,7 @@ function _applySecStates(states){
     if(key in states){
       const open=states[key];
       body.style.display=open?'block':'none';
+      const header=el.querySelector('.ip-section-header');if(header)header.setAttribute('aria-expanded',String(open));
       if(chev)chev.style.transform=open?'rotate(180deg)':'rotate(0deg)';
     }
   });
@@ -6050,6 +6130,7 @@ function _renderStockItemPage(m,i){
           <div class="ip-token-sub">${_sub}</div>
         </div>`;})()}
       </div>
+      ${_ipCostEditorHTML(m,i)}
       ${i.notes?`<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);font-weight:600;margin-bottom:6px;">Notes</div><div style="font-size:14px;color:var(--text);line-height:1.5;white-space:pre-wrap;">${esc(i.notes)}</div></div>`:''}
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:18px;">
         <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-secondary);font-weight:600;margin-bottom:10px;">Parts &amp; Expenses${(i.parts||[]).length>0?' ('+i.parts.length+')':''}</div>
@@ -6305,11 +6386,11 @@ function _renderItemPageInner(m,id){
   // Sale 1 net: for resold items, compute using calcGrossProfit on a clone with resale fields stripped.
   // This guarantees the receipt's displayed net uses the SAME fee logic as calcGrossProfit
   // (including partial_seller fee-base reduction), so line items reconcile to the total.
-  let sale1Net=0;
+  let sale1Net=0,sale1Partner=0;
   try{
     const _s1Cycle=_saleCycleSnapshot(i,1);
     const _s1Ev=_s1Cycle?_saleEventForCycle(i,m,_s1Cycle):null;
-    if(_s1Ev)sale1Net+=_saleBreakdown(_s1Ev).netProfit;
+    if(_s1Ev){const br=_saleBreakdown(_s1Ev);sale1Net+=br.netProfit;sale1Partner+=br.partnerSplit;}
     (i.returnHistory||[]).forEach(function(r){
       if((Number(r.saleNo)||1)!==1)return;
       sale1Net+=_saleBreakdown({item:i,sale:'R',saleNo:1,isReturnAdjustment:true,isReturned:true,returnEntry:r,snapshot:_saleCycleSnapshot(i,1)}).netProfit;
@@ -6393,7 +6474,10 @@ function _renderItemPageInner(m,id){
       if(_promoCredit>0)pb+=rcp((_plat==='ebay'?'eBay':'Platform')+' refunds boost difference','+'+fmt(_promoCredit),'var(--green)',true);
     }
   }
-  pb+='<div class="ip-receipt-row total"><span style="flex:1">'+(i.resaleSalePrice?'Sale 1 net':'Net profit / loss')+'</span><span class="ip-receipt-val" style="color:'+(sale1Net>=0?'var(--green)':'var(--red)')+'">'+fmt(sale1Net)+'</span></div>';
+  const freshListing=!i.dateSold&&!i.resaleSalePrice&&!hasReturn;
+  if(freshListing){sale1Net=calcEstProfit(i)||0;sale1Partner=_estimatedPartnerCutFromProfit(i,calcEstGrossProfit(i));}
+  if(i.accountId&&_itemAccountType(i)!=='supplier')pb+=rcp('Partner '+(i.accountPaidAmount!=null?'payout':'share'),'−'+fmt(sale1Partner),'var(--red)');
+  pb+='<div class="ip-receipt-row total"><span style="flex:1">'+(freshListing?'Your expected profit':i.resaleSalePrice?'Your Sale 1 profit':'Your profit / loss')+'</span><span class="ip-receipt-val" style="color:'+(sale1Net>=0?'var(--green)':'var(--red)')+'">'+fmt(sale1Net)+'</span></div>';
 
   // sec2 must be declared before the Sale 2 block that uses it (TDZ fix).
   // sec2: variant that allows a title accent color override
@@ -6401,10 +6485,10 @@ function _renderItemPageInner(m,id){
     const cls='ip-section'+(extraClass?' '+extraClass:'');
     const bdg=badge!=null?'<span class="ip-section-badge" style="color:'+(badgeColor||'var(--muted)')+'">'+badge+'</span>':'';
     const chevron='<span class="ip-section-chevron" style="transform:'+(open?'rotate(180deg)':'rotate(0deg)')+'">▾</span>';
-    const hdr='<div class="ip-section-header" onclick="var b=this.nextElementSibling,c=this.querySelector(\'.ip-section-chevron\');b.style.display=b.style.display===\'none\'?\'block\':\'none\';c.style.transform=b.style.display===\'none\'?\'rotate(0deg)\':\'rotate(180deg)\'">'
+    const hdr='<button type="button" aria-expanded="'+!!open+'" class="ip-section-header" onclick="var b=this.nextElementSibling,c=this.querySelector(\'.ip-section-chevron\');b.style.display=b.style.display===\'none\'?\'block\':\'none\';c.style.transform=b.style.display===\'none\'?\'rotate(0deg)\':\'rotate(180deg)\';this.setAttribute(\'aria-expanded\',b.style.display!==\'none\')">'
       +'<span class="ip-section-title"'+(accentColor?' style="color:'+accentColor+'"':'')+'>'+title+'</span>'
       +'<span class="ip-section-meta">'+bdg+chevron+'</span>'
-      +'</div>';
+      +'</button>';
     return'<div class="'+cls+'">'+hdr+'<div class="ip-section-body" style="display:'+(open?'block':'none')+'">'+body+'</div></div>';
   }
 
@@ -6448,6 +6532,7 @@ function _renderItemPageInner(m,id){
     if(br.itemCost>0)b+=rcp('Item cost','−'+fmt(br.itemCost),'var(--red)');
     if(br.parts>0)b+=rcp('Parts & expenses','−'+fmt(br.parts),'var(--red)');
     if(br.partialRefund>0)b+=rcp('Partial refunds','−'+fmt(br.partialRefund),'var(--accent)');
+    if(br.partnerSplit)b+=rcp('Partner payout','−'+fmt(br.partnerSplit),'var(--red)');
     b+='<div class="ip-receipt-row total"><span style="flex:1">Sale '+saleNo+' net</span><span class="ip-receipt-val" style="color:'+(br.netProfit>=0?'var(--green)':'var(--red)')+'">'+fmt(br.netProfit)+'</span></div>';
     const cycleReturns=(i.returnHistory||[]).filter(function(r){return (Number(r.saleNo)||1)===saleNo;});
     let cycleNet=br.netProfit;
@@ -6503,27 +6588,28 @@ function _renderItemPageInner(m,id){
     relistHTML=`<div class="ip-relist-section">
       <div class="ip-section-header" onclick="var b=this.nextElementSibling,c=this.querySelector('.ip-section-chevron');b.style.display=b.style.display==='none'?'block':'none';c.style.transform=b.style.display==='none'?'rotate(0deg)':'rotate(180deg)'">
         <span class="ip-section-title" style="color:var(--accent)">${projTitle}</span>
-        <span class="ip-section-meta"><span class="ip-section-badge" style="color:${combinedP>=0?'var(--green)':'var(--red)'}">Lifetime: ${fmt(combinedP)}</span><span class="ip-section-chevron" style="transform:rotate(180deg)">▾</span></span>
+        <span class="ip-section-meta"><span class="ip-section-badge" style="color:${combinedP>=0?'var(--green)':'var(--red)'}">Your profit: ${fmt(calcEstProfit(i))}</span><span class="ip-section-chevron" style="transform:rotate(180deg)">▾</span></span>
       </div>
       <div class="ip-section-body">
-        <div class="ip-receipt-row"><span style="flex:1;color:var(--muted)">P&L after return so far</span><span class="ip-receipt-val" style="color:${profit>=0?'var(--green)':'var(--red)'}">${fmt(profit)}</span></div>
+        <div class="ip-receipt-row"><span style="flex:1;color:var(--muted)">P&amp;L before partner, so far</span><span class="ip-receipt-val" style="color:${profit>=0?'var(--green)':'var(--red)'}">${fmt(profit)}</span></div>
         <div class="ip-receipt-row"><span style="flex:1">Expected sale</span><span class="ip-receipt-val" style="color:var(--green)">${fmt(rlSalePrice)}</span></div>
         ${rlPostage>0?`<div class="ip-receipt-row"><span style="flex:1">+ Buyer postage</span><span class="ip-receipt-val" style="color:var(--green)">+${fmt(rlPostage)}</span></div>`:''}
         <div class="ip-receipt-row"><span style="flex:1">eBay BPF</span><span class="ip-receipt-val" style="color:var(--red)">−${fmt(rlBPF)}</span></div>
         <div class="ip-receipt-row"><span style="flex:1">Shipping (you pay)</span><span class="ip-receipt-val" style="color:var(--red);display:flex;align-items:center;gap:4px">−£<input type="number" class="rcpt-relist-shipping-input" data-m="${m}" data-id="${id}" value="${+(rlShipping||0)}" min="0" step="0.01" style="width:60px;padding:2px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--red);font-size:13px;font-weight:600;text-align:right"></span></div>
         <div class="ip-receipt-row" style="align-items:center">
           <span style="display:flex;align-items:center;gap:8px;color:var(--text-secondary)">Promo %
-            <input id="rl-promo-input" type="number" min="0" max="100" step="0.1" value="${rlDefaultPromo}" style="width:56px;padding:3px 7px;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12px;font-weight:600;text-align:center;font-family:inherit" oninput="_recalcRelist(${profit},${rlSalePrice},${rlBPF},${rlShipping},${rlPackaging},${rlPostage},'${_itemPlatform(i)}',${rlStockBasis})">
+            <input id="rl-promo-input" type="number" min="0" max="100" step="0.1" value="${rlDefaultPromo}" style="width:56px;padding:3px 7px;border-radius:5px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:12px;font-weight:600;text-align:center;font-family:inherit" oninput="_recalcRelist(${profit},${rlSalePrice},${rlBPF},${rlShipping},${rlPackaging},${rlPostage},'${_itemPlatform(i)}',${rlStockBasis},'${m}','${id}')">
             <span style="font-size:11px;color:var(--muted)">+VAT</span>
           </span>
           <span id="rl-promo-cost" class="ip-receipt-val" style="color:var(--red)">−${fmt(rlPromo)}</span>
         </div>
         <div class="ip-receipt-row"><span style="flex:1">Item cost</span><span class="ip-receipt-val" style="color:var(--red)">−${fmt(rlItemCost)}</span></div>
         ${rlPartsCost>0?`<div class="ip-receipt-row"><span style="flex:1">Parts & expenses</span><span class="ip-receipt-val" style="color:var(--red)">−${fmt(rlPartsCost)}</span></div>`:''}
-        <div class="ip-receipt-row total"><span style="flex:1">Profit if sold</span><span id="rl-profit" class="ip-receipt-val" style="color:${rlProfit>=0?'var(--green)':'var(--red)'}">${fmt(rlProfit)}</span></div>
+        <div class="ip-receipt-row total"><span style="flex:1">Next sale before partner</span><span id="rl-profit" class="ip-receipt-val" style="color:${rlProfit>=0?'var(--green)':'var(--red)'}">${fmt(rlProfit)}</span></div>
+        <div class="ip-receipt-row"><span>Partner payout · lifetime</span><span id="rl-partner">−${fmt(_estimatedPartnerCutFromProfit(i,combinedP))}</span></div>
         <div class="ip-receipt-row" style="margin-top:6px;padding:10px;background:var(--surface2);border-radius:8px;border-bottom:none">
-          <span style="flex:1;font-weight:600">Lifetime P&L if sold</span>
-          <span id="rl-lifetime" class="ip-receipt-val" style="font-size:15px;color:${combinedP>=0?'var(--green)':'var(--red)'}">${fmt(combinedP)}</span>
+          <span style="flex:1;font-weight:600">Your lifetime profit if sold</span>
+          <span id="rl-lifetime" class="ip-receipt-val" style="font-size:15px;color:${calcEstProfit(i)>=0?'var(--green)':'var(--red)'}">${fmt(calcEstProfit(i))}</span>
         </div>
       </div>
     </div>`;
@@ -6536,10 +6622,10 @@ function _renderItemPageInner(m,id){
     const cls='ip-section'+(extraClass?' '+extraClass:'');
     const bdg=badge!=null?'<span class="ip-section-badge" style="color:'+(badgeColor||'var(--muted)')+'">'+badge+'</span>':'';
     const chevron='<span class="ip-section-chevron" style="transform:'+(open?'rotate(180deg)':'rotate(0deg)')+'">▾</span>';
-    const hdr='<div class="ip-section-header" onclick="var b=this.nextElementSibling,c=this.querySelector(\'.ip-section-chevron\');b.style.display=b.style.display===\'none\'?\'block\':\'none\';c.style.transform=b.style.display===\'none\'?\'rotate(0deg)\':\'rotate(180deg)\'">'
+    const hdr='<button type="button" aria-expanded="'+!!open+'" class="ip-section-header" onclick="var b=this.nextElementSibling,c=this.querySelector(\'.ip-section-chevron\');b.style.display=b.style.display===\'none\'?\'block\':\'none\';c.style.transform=b.style.display===\'none\'?\'rotate(0deg)\':\'rotate(180deg)\';this.setAttribute(\'aria-expanded\',b.style.display!==\'none\')">'
       +'<span class="ip-section-title">'+title+'</span>'
       +'<span class="ip-section-meta">'+bdg+chevron+'</span>'
-      +'</div>';
+      +'</button>';
     return'<div class="'+cls+'">'+hdr+'<div class="ip-section-body" style="display:'+(open?'block':'none')+'">'+body+'</div></div>';
   }
 
@@ -6576,6 +6662,7 @@ function _renderItemPageInner(m,id){
   if(_lifecycleCan(i,'relist')&&!_activeJobLotMembership(id))html+='<button class="btn btn-primary ip-act-btn" onclick="openRelist(\''+m+'\',\''+id+'\')">'+icon('relist',15)+'<span class="ip-act-label-always">Relist</span></button>';
   if(_lifecycleCan(i,'moveUnlisted')&&!_activeJobLotMembership(id))html+='<button class="btn btn-secondary ip-act-btn" onclick="moveReturnedToUnlisted(\''+m+'\',\''+id+'\')" title="Keep the return history but move this unit to Unlisted">'+icon('inbox',15)+'<span class="ip-act-label">Unlisted</span></button>';
   if(_lifecycleCan(i,'return'))html+='<button class="btn btn-secondary ip-act-btn" onclick="openReturn(\''+m+'\',\''+id+'\')">'+icon('return',15)+'<span class="ip-act-label-always">Return</span></button>';
+  html+='<details class="ip-more-actions"><summary>More actions</summary><div class="ip-more-action-list">';
   if(_stepBackTitle(i))html+='<button class="btn btn-secondary ip-act-btn" onclick="stepBack(\''+m+'\',\''+id+'\')" title="'+_stepBackTitle(i)+' \u2014 step back one state" style="color:var(--accent)">'+icon('revert',15)+'<span class="ip-act-label">Undo</span></button>';
   html+='<button class="btn btn-secondary ip-act-btn" onclick="confirmDupeItem(\''+m+'\',\''+id+'\')">'+icon('dupe',15)+'<span class="ip-act-label">Dupe</span></button>';
   if(!i.dateSold&&!i.resaleSalePrice&&!i.isReturned&&!i.scrappedAt&&!_activeJobLotMembership(id)&&(i.state==='sourced'||i.state==='listed'))html+='<button class="btn btn-secondary ip-act-btn" onclick="openSplitModal(\''+m+'\',\''+id+'\')" title="Split a multi-buy lot into separate units"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v6a3 3 0 0 0 3 3h6a3 3 0 0 1 3 3v6"/><path d="M6 3v6a3 3 0 0 1-3 3"/><polyline points="15 9 18 12 15 15"/></svg><span class="ip-act-label">Split</span></button>';
@@ -6585,6 +6672,7 @@ function _renderItemPageInner(m,id){
   if(_canScrap(i))html+='<button class="btn btn-secondary ip-act-btn" onclick="openScrapModal(\''+m+'\',\''+id+'\')" title="Dispose of item — scrap or donate" style="color:var(--warn)">'+icon('dispose',15)+'<span class="ip-act-label">Dispose</span></button>';
   if(!i.bundleId&&!i.scrappedAt&&!i.resaleSalePrice&&!_activeJobLotMembership(id)&&(i.isReturned||!i.dateSold))html+='<button class="btn btn-secondary ip-act-btn" onclick="openLinkToSaleModal(\''+m+'\',\''+id+'\')" title="Reconcile this item with an existing historical sale" style="color:var(--accent)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 0 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/></svg><span class="ip-act-label">Reconcile sale</span></button>';
   html+='<button class="btn btn-secondary ip-act-btn ip-act-danger" onclick="deleteItem(\''+m+'\',\''+id+'\')">'+icon('trash',15)+'</button>';
+  html+='</div></details>';
   html+='</div>'; // close ip-topbar-row1
   html+='<div class="ip-topbar-row2">';
   html+='<div class="ip-title-wrap">';
@@ -6641,12 +6729,9 @@ function _renderItemPageInner(m,id){
   html+='<div class="ip-token-sub">'+(saleEditable?'✎ Tap to edit':status==='sold'||status==='resold'?icon('lock',11)+' Sold · locked':icon('lock',11)+' Locked')+'</div>';
   html+='</div>';
 
-  // Buy price — always editable
-  html+='<div class="ip-token" id="tok-costPrice-'+id+'" onpointerdown="tokenPointerDown(\''+m+'\',\''+id+'\',\'costPrice\')" onclick="openTokenEdit(\''+m+'\',\''+id+'\',\'costPrice\')">';
-  html+='<div class="ip-token-label">Buy Price</div>';
-  html+='<div class="ip-token-val">'+fmt(i.costPrice||0)+'</div>';
-  html+='<div class="ip-token-sub">Tap to edit</div>';
-  html+='</div>';
+  html+='<button type="button" class="ip-token ip-cost-token" onclick="document.getElementById(\'ip-costs\').scrollIntoView({block:\'center\'});document.getElementById(\'ip-buy-cost\').focus({preventScroll:true})">';
+  html+='<div class="ip-token-label">Item cost</div><div class="ip-token-val">'+fmt((Number(i.costPrice)||0)+partsCost)+'</div>';
+  html+='<div class="ip-token-sub">Purchase + parts · edit costs</div></button>';
 
   // Promo %
   html+='<div class="ip-token" id="tok-promoPercent-'+id+'" onpointerdown="tokenPointerDown(\''+m+'\',\''+id+'\',\'promoPercent\')" onclick="openTokenEdit(\''+m+'\',\''+id+'\',\'promoPercent\')">';
@@ -6665,13 +6750,13 @@ function _renderItemPageInner(m,id){
   // stock continues to show the realised accounting result.
   const _onHandForExpected=!i.scrappedAt&&(!!i.isReturned||(!i.dateSold&&!i.resaleSalePrice));
   const _expectedHeadline=_onHandForExpected?calcEstProfit(i):null;
-  const _headlineVal=_onHandForExpected?_expectedHeadline:profit;
+  const _headlineVal=_onHandForExpected?_expectedHeadline:calcNetProfit(i);
   const _headlineClass=_headlineVal===null?'':_headlineVal>=0?'pos':'neg';
-  const _expectedAsk=(Number(i.estSalePrice)>0)?Number(i.estSalePrice):Number(i.salePrice)||0;
-  html+='<div class="ip-token locked '+_headlineClass+'">';
+  const _expectedAsk=(Number(i.salePrice)>0)?Number(i.salePrice):Number(i.estSalePrice)||0;
+  html+='<div class="ip-token locked ip-profit-token '+_headlineClass+'">';
   html+='<div class="ip-token-label">'+(_onHandForExpected?'Expected Profit':(hasReturn||i.resaleSalePrice?'Lifetime P&amp;L':'Net Profit'))+'</div>';
   html+='<div class="ip-token-val">'+(_headlineVal!==null?fmt(_headlineVal):'—')+'</div>';
-  html+='<div class="ip-token-sub">'+(_onHandForExpected?(_expectedAsk>0?'lifetime if sold at '+fmt(_expectedAsk):'add an expected sale price'):(hasReturn?'realised so far':(marginDisplay?marginDisplay+' margin · after fees':'after fees')))+'</div>';
+  html+='<div class="ip-token-sub">'+(_onHandForExpected?(_expectedAsk>0?(i.accountId&&_itemAccountType(i)!=='supplier'?'after partner · sold at ':'if sold at ')+fmt(_expectedAsk):'add an expected sale price'):(hasReturn?'realised so far':(i.accountId&&_itemAccountType(i)!=='supplier'?'after partner share':marginDisplay?marginDisplay+' margin · after fees':'after fees')))+'</div>';
   html+='</div>';
 
   html+='</div>'; // ip-tokens
@@ -6728,16 +6813,15 @@ function _renderItemPageInner(m,id){
     +'<select class="ip-field ip-field-select" onchange="ipSave(\''+m+'\',\''+i.id+'\',\'source\',this.value)"><option value="">—</option>'+srcOpts+'</select></div>';
   db+='<div class="ip-row"><div class="ip-label">Category</div>'
     +'<select class="ip-field ip-field-select" onchange="ipSave(\''+m+'\',\''+i.id+'\',\'category\',this.value)"><option value="">—</option>'+catOpts+'</select></div>';
-  db+='<div class="ip-row" style="grid-column:1/-1"><div class="ip-label">Partner / Account</div>'
-    +'<select class="ip-field ip-field-select" onchange="ipAssignAccount(\''+m+'\',\''+i.id+'\',this.value)">'+_accountSelectOptionsHTML(i.accountId||null)+'</select></div>';
   db+='<div class="ip-row" style="grid-column:1/-1"><div class="ip-label">Notes</div>'
     +'<input class="ip-field" value="'+esc(i.notes||'')+'" placeholder="Any notes..." onchange="ipSave(\''+m+'\',\''+i.id+'\',\'notes\',this.value)" onkeydown="if(event.key===\'Enter\')this.blur()"></div>';
   db+='</div>';
   // Body sections
   html+='<div class="ip-body">';
+  html+=_ipCostEditorHTML(m,i);
   // P&L Receipt
   const pnlOpen=!i.resaleSalePrice;
-  const pnlTitle=i.resaleSalePrice?'Sale 1 P&amp;L':'P&amp;L Receipt';
+  const pnlTitle=i.resaleSalePrice?'Sale 1 breakdown':freshListing?'Expected profit breakdown':'Profit breakdown';
   // v2.19.35 — when there are two sales, the header shows the LAST sale; the
   // per-sale cards below hold each sale's editable figures.
   html+=sec(pnlTitle,pb,pnlOpen,fmt(sale1Net),sale1Net>=0?'var(--green)':'var(--red)','ip-section-pnl');
@@ -6790,11 +6874,11 @@ function _renderItemPageInner(m,id){
   if(relistHTML)html+=relistHTML;
 
   // Details — no item name field (title is editable inline at top)
-  html+=sec('Details',db,true,null);
+  html+=sec('Item details',db,false,null,null,'ip-section-details');
 
   // Parts & Expenses
   const hasParts=(i.parts||[]).length>0;
-  html+=sec('Parts &amp; Expenses'+(hasParts?' ('+i.parts.length+')':''),partsHTML(m,id,'page'),hasParts,null);
+  html+=sec('Parts &amp; Expenses'+(hasParts?' ('+i.parts.length+')':''),partsHTML(m,id,'page'),hasParts,null,null,'ip-section-parts');
 
   // Timeline — always open
   // Listing maintenance — only for active (unsold, not returned) listings.
@@ -6832,18 +6916,22 @@ function _renderItemPageInner(m,id){
       +'<button class="btn btn-secondary" style="flex:1;justify-content:center;gap:6px" onclick="markRelisted(\''+m+'\',\''+id+'\')">'+icon('relist',15)+'Relisted</button>'
       +'</div>'
       +'<div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5">Refreshed = small price/photo tweak (keeps the clock). Relisted = ended &amp; re-created on the marketplace (resets the clock).</div>';
-    html+=sec('Listing maintenance',ageRow+countNote+maintBtns,true,null,null);
+    html+=sec('Listing maintenance',ageRow+countNote+maintBtns,false,null,null,'ip-section-maintenance');
   }
-  html+=sec('Timeline',timelineHTML||'<div style="color:var(--muted);font-size:13px;padding:4px 0">No history yet</div>',true,null,null);
+  html+=sec('Timeline',timelineHTML||'<div style="color:var(--muted);font-size:13px;padding:4px 0">No history yet</div>',false,null,null,'ip-section-timeline');
 
   html+='</div>'; // ip-body
   html+='</div>'; // ip-content
   html+='</div>'; // item-full-page
   page.innerHTML=html;
+  page.querySelectorAll('.ip-token[onclick]:not(button),.ip-title[onclick],.ip-section-header:not(button)').forEach(function(el){
+    el.setAttribute('role','button');el.tabIndex=0;
+    el.addEventListener('keydown',function(e){if(e.target===el&&(e.key==='Enter'||e.key===' ')){e.preventDefault();el.click();}});
+  });
   // Populate shipping policy dropdowns on item page
   ['ip-policy-sel-'+id].forEach(function(sid){
     const sel=document.getElementById(sid);
-    if(sel)_populateShippingPolicySelect(sel);
+    if(sel)_populateShippingPolicySelect(sel,{yourCost:Number(i.resaleSalePrice?(i.resaleShippingCost!=null?i.resaleShippingCost:i.shippingCost):i.shippingCost)||0,buyerPays:Number(i.resaleSalePrice?(i.resalePostage!=null?i.resalePostage:i.postage):i.postage)||0});
   });
 }
 
@@ -9098,7 +9186,7 @@ function _refreshSideNavSync(state){
   const tablet=document.getElementById('tablet-sync-status');
   const tabletText=document.getElementById('tablet-sync-text');
   const pending=(typeof _outboxPendingCount==='function')?_outboxPendingCount():0;
-  const labels={saving:'Saving to cloud',pending:'Waiting to sync',error:'Sync issue',synced:'Synced'};
+  const labels={saving:'Saving',pending:'Saved on device',error:'Sync issue',synced:'Synced'};
   const safeState=labels[state]?state:'synced';
   if(wrap&&txt){
     wrap.classList.remove('saving','pending','error');
@@ -9122,6 +9210,7 @@ function _refreshSideNavSync(state){
   mob.className='';
   mob.innerHTML='';
   mob.removeAttribute('title');
+  mob.removeAttribute('aria-label');
   if(safeState==='synced')return;
   const show=function(){
     if(_mobileSyncState!==safeState)return;
@@ -9143,7 +9232,7 @@ function _refreshSideNavSync(state){
     }
   };
   if(safeState==='error')show();
-  else _mobileSyncRevealTimer=setTimeout(show,450);
+  else _mobileSyncRevealTimer=setTimeout(show,safeState==='saving'?1200:450);
 }
 
 // Drop 4 — Sidebar settings popup (mirrors user-menu dropdown, gear-triggered).
@@ -11357,6 +11446,7 @@ function _accountSelectOptionsHTML(selectedId){
 function _assignItemAccountCore(item,accountId){
   if(!item)return {account:null,zeroed:false};
   const a=accountId?(_accounts||[]).find(function(x){return x.id===accountId;}):null;
+  item.partnerAgreedAmount=null;item.arrangementModelOverride=null;
   if(!a){
     item.accountId=null;item.accountType=null;item.accountSplitPercent=null;item.accountPaidAmount=null;item.accountSettled=false;
     return {account:null,zeroed:false};
@@ -11380,6 +11470,7 @@ function _accountPickerCostMode(accountId,costInputId){
 function _saveExistingItemAccount(m,id,accountId,origin){
   const item=(DB[m]||[]).find(function(x){return x.id===id;});if(!item)return;
   const before=item.accountId||null;if(before===(accountId||null))return;
+  if(_ipHasRecordedPayment(item)){toast('Review recorded partner payments in Partners before changing the account','err');return;}
   const result=_assignItemAccountCore(item,accountId||null);
   saveDB();
   toast((result.account?('Assigned to '+result.account.name):'Set as own stock')+(result.zeroed?' · cost set to £0 for consignment':''));
@@ -23637,7 +23728,7 @@ window._resetNavScrollState=function(){
 };
 window._resetNavScrollState();
 
-function _recalcRelist(currentPL,salePrice,bpf,shipping,packaging,postage,platformId,stockBasis){
+function _recalcRelist(currentPL,salePrice,bpf,shipping,packaging,postage,platformId,stockBasis,m,id){
   const promoInput=parseFloat(document.getElementById('rl-promo-input').value)||0;
   const grossInc=salePrice-bpf;
   const promoCost=_calcPromoFee(platformId||'ebay',salePrice,postage,promoInput/100);
@@ -23650,7 +23741,9 @@ function _recalcRelist(currentPL,salePrice,bpf,shipping,packaging,postage,platfo
   const lifetimeEl=document.getElementById('rl-lifetime');
   if(promoEl)promoEl.textContent='−'+fmt(promoCost);
   if(profitEl){profitEl.textContent=fmt(rlProfit);profitEl.style.color=rlProfit>=0?'var(--green)':'var(--red)';}
-  if(lifetimeEl){lifetimeEl.textContent=fmt(combinedP);lifetimeEl.style.color=combinedP>=0?'var(--green)':'var(--red)';}
+  const item=(DB[m]||[]).find(function(x){return x.id===id;}),partner=item?_estimatedPartnerCutFromProfit(item,combinedP):0,net=+(combinedP-partner).toFixed(2);
+  const partnerEl=document.getElementById('rl-partner');if(partnerEl)partnerEl.textContent='−'+fmt(partner);
+  if(lifetimeEl){lifetimeEl.textContent=fmt(net);lifetimeEl.style.color=net>=0?'var(--green)':'var(--red)';}
 }
 
 // v2.18.0 — KPI count-up.
