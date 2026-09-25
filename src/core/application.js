@@ -5286,7 +5286,7 @@ function _ipCostEditorHTML(m,i){
     +'<label class="ip-control" for="ip-buy-cost"'+(type==='consignment'&&!Number(i.costPrice)?' hidden':'')+'>'+(supplier?'Item cost · supplier payout (£)':type==='consignment'?'Recorded upfront cost (£)':type==='hybrid'?'Upfront item cost (£)':'Item cost (£)')
     +'<input id="ip-buy-cost" type="number" inputmode="decimal" min="0" step="0.01" required value="'+(Number(i.costPrice)||0)+'"'+(type==='consignment'||(locked&&supplier)?' readonly':'')+'></label>';
   if(hasShare){
-    h+='<label class="ip-control" for="ip-partner-method">Partner agreement<select id="ip-partner-method" onchange="ipCostMethodChanged()"'+disabled+'><option value="percent"'+(!fixed?' selected':'')+'>Share of profit</option><option value="fixed"'+(fixed?' selected':'')+'>Fixed payout</option></select></label>'
+    h+='<label class="ip-control" for="ip-partner-method">Partner agreement<select id="ip-partner-method" onchange="ipCostMethodChanged()"'+disabled+'><option value="percent"'+(!fixed?' selected':'')+'>Profit share</option><option value="fixed"'+(fixed?' selected':'')+'>Fixed cost</option></select></label>'
       +'<label class="ip-control" id="ip-percent-wrap" for="ip-partner-percent"'+(fixed?' hidden':'')+'>Partner share (%)<input id="ip-partner-percent" type="number" inputmode="decimal" min="0" max="100" step="0.01" value="'+percent+'"'+disabled+'></label>'
       +'<label class="ip-control" id="ip-fixed-wrap" for="ip-partner-fixed"'+(!fixed?' hidden':'')+'>Item cost · partner payout (£)<input id="ip-partner-fixed" type="number" inputmode="decimal" min="0" step="0.01" value="'+(fixed?Number(i.accountPaidAmount):0)+'"'+disabled+'></label>';
   }
