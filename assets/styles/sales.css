@@ -1,0 +1,29 @@
+/* Sales history presentation. Core owns dates and grouping; no DOM rewriting. */
+.rt #p-monthly[data-rt-sales-view="detail"]{max-width:1320px;margin-inline:auto;padding-bottom:100px;}
+.rt #p-monthly .sales-kpis-v2{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;}
+.rt #p-monthly .sales-kpis-v2 .card{border-radius:16px;padding:20px;min-width:0;}
+.rt #p-monthly .sales-kpis-v2 .kpi-value{font-size:clamp(24px,2.8vw,34px);}
+.rt #p-monthly #month-list{border:1px solid var(--border);border-radius:16px;overflow:visible;background:var(--surface);}
+.rt #p-monthly #month-list .rt-sales-day{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;padding:12px 18px;background:var(--surface2);font-size:13px;font-weight:750;letter-spacing:0;border-radius:0;}
+.rt #p-monthly #month-list .rt-sales-day:first-child{border-radius:16px 16px 0 0;}
+.rt #p-monthly #month-list .rt-sales-day-count{font-size:11px;font-weight:500;white-space:normal;text-align:right;}
+.rt #p-monthly #month-list .item-row{padding:16px 18px;min-height:90px;}
+.rt #p-monthly #month-list .item-row-inner{gap:12px;}
+.rt #p-monthly #month-list .item-row-body{min-width:0;}
+.rt #p-monthly #month-list .item-row-name{font-size:15px;line-height:1.4;white-space:normal;overflow-wrap:anywhere;}
+.rt #p-monthly #month-list .sales-date-tag{display:block!important;width:fit-content;margin:6px 0;color:var(--text-secondary);font-size:12px;line-height:1.4;font-weight:600;}
+.rt #p-monthly #month-list .item-row-right{min-width:90px;flex-shrink:0;font-variant-numeric:tabular-nums;}
+.rt #p-monthly #month-list .item-row-price{font-size:17px;}
+.rt #p-monthly #month-list .item-row-profit::before{content:'Profit ';font-size:11px;font-weight:400;}
+.rt #p-monthly #month-list .ddbtn{min-height:44px;min-width:36px;}
+.rt #p-monthly .sort-select{min-height:44px;font-size:16px;max-width:100%;}
+@media(max-width:700px){
+ .rt #p-monthly .sales-kpis-v2{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+ .rt #p-monthly .sales-kpis-v2 .card{padding:16px 13px;}
+ .rt #p-monthly #month-list .item-row{padding:14px 12px;}
+ .rt #p-monthly #month-list .item-row-inner{gap:8px;}
+ .rt #p-monthly #month-list .item-row-right{min-width:76px;}
+ .rt #p-monthly #month-list .item-row-name{font-size:14px;}
+ .rt #p-monthly #month-list .rt-sales-day{padding:12px;font-size:12px;}
+ .rt #p-monthly #month-list .item-row-meta{flex-wrap:wrap;}
+}

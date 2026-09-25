@@ -25,7 +25,10 @@
 .rt #p-item .ip-body{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;gap:18px;}
 .rt #p-item .ip-body>*,.rt #p-item .ip-control{min-width:0;}
 .rt #p-item .ip-section,.rt #p-item .ip-cost-card{border:1px solid var(--border);border-radius:16px;background:var(--surface);box-shadow:none;overflow:hidden;}
-.rt #p-item .ip-card-heading{margin-bottom:18px;}
+.rt #p-item .ip-card-heading{margin-bottom:8px;}
+.rt #p-item .ip-owner-details{font-size:12px;color:var(--text-secondary);}
+.rt #p-item .ip-owner-details summary{cursor:pointer;min-height:32px;padding:6px 0;}
+.rt #p-item .ip-owner-details[open] .ip-control{margin-top:8px;}
 .rt #p-item .ip-card-heading h2{font-size:17px;letter-spacing:-.02em;margin:0 0 6px;}
 .rt #p-item .ip-card-heading p,.rt #p-item .ip-form-note{font-size:12px;line-height:1.55;color:var(--text-secondary);margin:0;}
 .rt #p-item .ip-cost-card{padding:20px;scroll-margin-top:100px;}
@@ -82,7 +85,7 @@
   .rt #p-item .ip-section-header{padding:16px;}
   .rt #p-item .ip-section-body{padding:0 16px 16px;}
   .rt #p-item .ip-cost-form{gap:14px;}
-  .rt #p-item .ip-cost-form .ip-control:has(select){grid-column:1/-1;}
+  .rt #p-item .ip-cost-form .ip-control:has(select){grid-column:auto;}
   .rt #p-item .ip-details-grid{grid-template-columns:minmax(0,1fr);}
   .rt #p-item .ip-receipt-row{font-size:12px;gap:10px;}
   .rt #p-item .ip-section-badge{font-size:12px;}

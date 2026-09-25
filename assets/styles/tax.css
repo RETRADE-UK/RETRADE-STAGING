@@ -90,3 +90,9 @@
   .rt #p-tax .tax-month [data-label]::before{content:attr(data-label);display:block;font-size:10px;color:var(--muted);font-weight:400;margin-bottom:4px}
 }
 @media(max-width:360px){.rt #p-tax .tax-method-grid{grid-template-columns:minmax(0,1fr)}}
+/* Filing rows keep box references with the amount on narrow screens. */
+.rt .tax-filing-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 16px;padding:14px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.rt .tax-filing-row strong{font-variant-numeric:tabular-nums;white-space:nowrap;}
+.rt .tax-filing-row small{color:var(--text-secondary);font-size:12px;}
+.rt .tax-filing-row small:last-child{text-align:right;}
+.rt .tax-note a{color:var(--accent);text-underline-offset:3px;}

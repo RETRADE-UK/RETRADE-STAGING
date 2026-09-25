@@ -128,16 +128,15 @@ if(require.main===module)(async () => {
             DB._taxYear=2026;DB._taxMethod='ta';
             DB.expenses=(oldExpenses||[]).concat([{id:'allowance-regression',date:'2026-08-01',amount:5000,category:'Other',description:'Fixture'}]);
             renderTax();
-            const cards=[...document.querySelectorAll('#p-tax .tax-method-card')];
-            const actualSelected=cards[1]?.textContent.includes('SELECTED');
+            const actualSelected=_taxExportData.method==='Actual expenses';
             const bridge=[...document.querySelectorAll('#p-tax .tax-bridge-row')].map(e=>e.textContent.trim());
             DB._taxMethod='ta_manual';renderTax();
-            const manualSelected=[...document.querySelectorAll('#p-tax .tax-method-card')][0]?.textContent.includes('SELECTED');
+            const manualSelected=_taxExportData.method==='Actual expenses'&&!document.querySelector('#p-tax .tax-method-card');
             return {actualSelected,manualSelected,bridge};
           }finally{DB._taxYear=oldYear;DB._taxMethod=oldMethod;DB.expenses=oldExpenses;renderTax();}
         });
         assert(taxSelection.actualSelected,'Legacy automatic allowance must update when actual expenses exceed £1,000');
-        assert(taxSelection.manualSelected,'A newly selected manual trading allowance must remain selectable');
+        assert(taxSelection.manualSelected,'Legacy manual allowance must not change actual-expense filing totals');
         assert(taxSelection.bridge.some(row=>row.includes('Yearly Sales gross profit')),'Tax must compare against Yearly Sales gross');
         assert(taxSelection.bridge.some(row=>row.includes('Yearly Sales net profit')),'Tax must compare against Yearly Sales net');
         console.log('PASS lazy accounting fixtures',financial.map(r=>r.passed));
