@@ -643,7 +643,7 @@ function downloadTaxSummary(){
   rows.push(['Number of sales',d.saleCount]);
   rows.push([]);
   rows.push(['ALLOWABLE EXPENSES']);
-  d.expenseLines.filter(r=>r[1]>0).forEach(r=>rows.push([r[0],money(r[1])]));
+  d.expenseLines.filter(r=>r[1]!==0).forEach(r=>rows.push([r[0],money(r[1])]));
   rows.push([d.method.indexOf('Trading')===0?'Trading income allowance':'Total allowable expenses',money(d.box16)]);
   rows.push([]);
   rows.push(['TAXABLE PROFIT — HMRC CASH BASIS']);
@@ -693,9 +693,10 @@ const _EXPENSE_DETAIL_HEADERS=[
 function _expandedExpenseRows(pnl){
   const rows=[];
   let total=0;
+  const allTrips=DB.trips||[],tiered=calcTieredTrips(allTrips);
   (pnl.expenses.trips||[]).forEach(function(t){
-    const miles=t.mileage||0, rate=t.ratePerMile||0.45;
-    const mileageCost=+(miles*rate).toFixed(2);
+    const miles=Number(t.mileage)||0,allocation=tiered[allTrips.indexOf(t)];
+    const mileageCost=allocation?allocation.mileageCost:0,rate=miles?mileageCost/miles:0;
     total+=mileageCost;
     rows.push([t.date||'','Mileage',(t.description||'Sourcing trip'),'Mileage',(t.description||''),
       miles,+rate.toFixed(2),mileageCost,'',mileageCost]);
@@ -784,7 +785,7 @@ function _buildSA103Rows(pnl){
     let amt=0;
     if(bx===17){amt=(pnl.box17!=null?pnl.box17:pnl.cogs);}
     else{amt=pnl.byBox[bx]||0;}
-    if(bx===17||amt>0){
+    if(bx===17||amt!==0){
       amt=Number(amt)||0;
       rows.push([String(bx),SA103_BOX_LABELS[bx]||('Box '+bx),amt,expenseWhole(amt)]);
       totalExp+=amt;

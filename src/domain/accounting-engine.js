@@ -17,9 +17,9 @@
 function calcTieredTrips(trips){
   const _tyOf=function(ds){
     if(!ds)return null;
-    const d=new Date(ds);
-    const y=d.getFullYear();
-    return (d.getMonth()<3||(d.getMonth()===3&&d.getDate()<6))?y-1:y;
+    const date=String(ds).slice(0,10),y=Number(date.slice(0,4));
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!y)return null;
+    return date.slice(5)<'04-06'?y-1:y;
   }
   // Build tax-year buckets, each sorted by date asc to preserve walk order.
   const byYear={};
@@ -749,9 +749,10 @@ function _expensesInRange(from,to){
   const trips=(DB.trips||[]).filter(function(t){return inR(t.date);});
   const exps=(DB.expenses||[]).filter(function(e){return inR(e.date);});
   const rows=[]; let total=0;
+  const allTrips=DB.trips||[],tiered=calcTieredTrips(allTrips);
   trips.forEach(function(t){
-    const miles=t.mileage||0, rate=t.ratePerMile||0.45;
-    const mileageCost=+(miles*rate).toFixed(2);
+    const miles=Number(t.mileage)||0, row=tiered[allTrips.indexOf(t)];
+    const mileageCost=row?row.mileageCost:0,rate=miles?mileageCost/miles:0;
     const extraExps=(Array.isArray(t.expenses)?t.expenses:[]).reduce(function(s,e){return s+(e.amount||0);},0);
     const rowTotal=+(mileageCost+extraExps).toFixed(2);
     total+=rowTotal;
@@ -869,7 +870,9 @@ function _buildPnLSummary(from,to,label){
   // ── Manual expenses + mileage, categorised by SA103 box and P&L bucket ──
   const exp=_expensesInRange(from,to);
   // Mileage (trips) is always Box 20 / overhead. Sum the tiered mileage cost.
-  const _pnlTiered=calcTieredTrips(exp.trips||[]);
+  // Allocate from the full tax-year walk before slicing the requested period.
+  const _allPnlTrips=DB.trips||[],_allPnlTiered=calcTieredTrips(_allPnlTrips);
+  const _pnlTiered=exp.trips.map(function(t){return _allPnlTiered[_allPnlTrips.indexOf(t)];});
   const mileageCost=_pnlTiered.reduce(function(s,r){return s+(r.mileageCost||0);},0);
   const totalMiles=(exp.trips||[]).reduce(function(s,t){return s+(t.mileage||0);},0);
   // Trip-attached sub-expenses (parking, entry fees…) → their own category, default 'Other'.
@@ -896,7 +899,7 @@ function _buildPnLSummary(from,to,label){
 
   // Sale-level selling costs also belong to SA103 boxes — fold them into byBox
   // so the SA103 summary reconciles to real filings (fees→26, post/pkg→23).
-  if(feesSell>0)byBox[26]=+(((byBox[26]||0)+feesSell)).toFixed(2);
+  if(feesSell!==0)byBox[26]=+(((byBox[26]||0)+feesSell)).toFixed(2);
   if(postPkgSell>0)byBox[23]=+(((byBox[23]||0)+postPkgSell)).toFixed(2);
   // Returns/refunds → Box 30 (other allowable). Partner/consignment splits are a
   // direct cost of the goods sold → fold into Box 17. This makes the SA103 box
@@ -915,7 +918,16 @@ function _buildPnLSummary(from,to,label){
   // separately as genuine cash out, so it is unaffected by this choice.
   const motorActual=+(((byCategory['Motor, van & travel']||{}).amount)||0).toFixed(2);
   const motorMethod=(typeof DB!=='undefined'&&DB._motorMethod==='actual')?'actual':'mileage';
-  const motorDoubleClaim=(mileageCost>0&&motorActual>0);
+  // Decide the motor method over the tax year, not independently in every
+  // monthly slice (fuel in one month and mileage in another still overlap).
+  const rangeYear=Number(String(from).slice(0,4))-(String(from).slice(5,10)<'04-06'?1:0);
+  const motorFrom=rangeYear+'-04-06',motorTo=(rangeYear+1)+'-04-05';
+  const yearTrips=(DB.trips||[]).filter(function(t){return t.date>=motorFrom&&t.date<=motorTo;});
+  const yearExpenses=(DB.expenses||[]).filter(function(e){return e.date>=motorFrom&&e.date<=motorTo;})
+    .concat(...yearTrips.map(function(t){return t.expenses||[];}));
+  const yearHasMileage=yearTrips.some(function(t){return Number(t.mileage)>0;});
+  const yearHasMotor=yearExpenses.some(function(e){return Number(e.amount)>0&&_resolveExpenseCat(e.category).label==='Motor, van & travel';});
+  const motorDoubleClaim=(mileageCost>0&&motorActual>0)||(yearHasMileage&&yearHasMotor);
   let motorExcluded=0, motorExcludedLabel='';
   if(motorDoubleClaim){
     if(motorMethod==='actual'){
@@ -1040,42 +1052,63 @@ function _findPaidSettlementForItem(itemId){
 }
 
 function _taxCashStockAndPartner(from,to){
-  let goodsPaid=0, partnerPaid=0, supplierRefundIncome=0;
+  let goodsPaid=0, partnerPaid=0, supplierRefundIncome=0,ownStockPaid=0,supplierStockPaid=0,partsPaid=0;
+  const assumptions=[];
   const inR=function(d){return !!d&&d>=from&&d<=to;};
   allItems().forEach(function(i){
-    if(!i||!i.id)return;
-    const typ=_itemAccountType(i);
+    if(!i||!i.id||(i.item||'').trim().toUpperCase()==='MONTH END')return;
+    // _itemAccountType intentionally defaults unlinked stock to supplier for
+    // sale margins. Cash timing must distinguish our own paid purchases.
+    const typ=i.accountId?_itemAccountType(i):'own';
     const sourceDate=i.dateSourced||i.dateListed||null;
-    const parts=calcPartsCost(i);
-    // Parts are business purchases. RETRADE does not yet store a separate parts
-    // payment date, so the stock/source date is the documented fallback.
-    if(parts>0&&inR(sourceDate))goodsPaid+=parts;
+    (i.parts||[]).forEach(function(p){
+      const amount=Math.max(0,Number(p.cost)||0),date=p.date||sourceDate;
+      if(amount&&inR(date))partsPaid+=amount;
+    });
     let acquisition=0,payDate=null;
     if(typ==='consignment') acquisition=0;
     else if(typ==='supplier'){
-      if(i.accountSettled===true){
+      const acct=(_accounts||[]).find(function(a){return a.id===i.accountId;});
+      const payments=[];
+      ((acct&&acct.settlements)||[]).forEach(function(tx){
+        (tx.items||[]).forEach(function(a){if(a&&String(a.id||a.itemId)===String(i.id))payments.push({tx:tx,amount:Math.max(0,Number(a.amount)||0)});});
+      });
+      // A transaction is authoritative even if the item's settled flag is stale.
+      // Partial payments keep their individual dates; never charge the full cost twice.
+      if(payments.length){
+        payments.forEach(function(p){if(p.tx.paid===true&&inR(p.tx.date))supplierStockPaid+=p.amount;});
+      }else if(i.accountSettled===true){
         acquisition=i.accountPaidAmount!=null?Number(i.accountPaidAmount)||0:Number(i.costPrice)||0;
-        const st=_findPaidSettlementForItem(i.id); payDate=(st&&st.tx&&st.tx.date)||sourceDate;
+        payDate=sourceDate;
+        if(acquisition>0&&inR(payDate))assumptions.push({itemId:i.id,amount:acquisition,reason:'Settled supplier purchase uses its source date; no payment allocation is recorded.'});
       }
     } else { // hybrid: upfront stock cost is paid when acquired; later split is settlement-based
       acquisition=Number(i.costPrice)||0; payDate=sourceDate;
     }
-    if(acquisition>0&&inR(payDate))goodsPaid+=acquisition;
+    if(acquisition>0&&inR(payDate)){
+      if(typ==='supplier')supplierStockPaid+=acquisition;else ownStockPaid+=acquisition;
+    }
     if(i.scrapReason==='supplier_return'&&inR(i.scrappedAt))supplierRefundIncome+=Math.max(0,Number(i.supplierRefund)||0);
   });
   (_accounts||[]).forEach(function(acct){
     (acct.settlements||[]).forEach(function(tx){
       if(!tx||!tx.paid||!inR(tx.date))return;
       const allocs=tx.items||[];
-      if(allocs.length&&allocs.some(function(x){return x&&x.kind;})){
-        partnerPaid+=allocs.reduce(function(sum,x){return sum+((x&&x.kind!=='supplier')?Math.max(0,Number(x.amount)||0):0);},0);
+      if(allocs.length){
+        partnerPaid+=allocs.reduce(function(sum,x){
+          if(!x)return sum;
+          const kind=x.kind||tx.kind||acct.accountType||'supplier';
+          return sum+(kind!=='supplier'?Math.max(0,Number(x.amount)||0):0);
+        },0);
       }else{
         const kind=tx.kind||acct.accountType||'supplier';
         if(kind!=='supplier')partnerPaid+=Math.max(0,Number(tx.partnerAmount)||0);
       }
     });
   });
-  return{goodsPaid:+goodsPaid.toFixed(2),partnerPaid:+partnerPaid.toFixed(2),supplierRefundIncome:+supplierRefundIncome.toFixed(2)};
+  goodsPaid=ownStockPaid+supplierStockPaid+partsPaid;
+  return{goodsPaid:+goodsPaid.toFixed(2),partnerPaid:+partnerPaid.toFixed(2),supplierRefundIncome:+supplierRefundIncome.toFixed(2),
+    ownStockPaid:+ownStockPaid.toFixed(2),supplierStockPaid:+supplierStockPaid.toFixed(2),partsPaid:+partsPaid.toFixed(2),assumptions:assumptions};
 }
 
 function _buildTaxCashSummary(from,to,label){
@@ -1089,9 +1122,22 @@ function _buildTaxCashSummary(from,to,label){
   return Object.assign({},p,{
     basis:'HMRC cash basis', netProfit:netProfit, box17:box17, byBox:byBox,
     otherBusinessIncome:cash.supplierRefundIncome,
-    cashGoodsPaid:cash.goodsPaid,cashPartnerPaid:cash.partnerPaid,
+    cashGoodsPaid:cash.goodsPaid,cashPartnerPaid:cash.partnerPaid,cashDetail:cash,
     totalBusinessIncome:+(p.revenue+cash.supplierRefundIncome).toFixed(2)
   });
+}
+
+// Calendar slices covering the complete UK tax year, including its final
+// five April days. Kept in the engine so the UI and regression tests agree.
+function _taxYearPeriods(year){
+  const out=[];
+  for(let offset=0;offset<=12;offset++){
+    const month=(3+offset)%12,y=year+Math.floor((3+offset)/12);
+    const prefix=y+'-'+String(month+1).padStart(2,'0')+'-';
+    out.push({year:y,month:month,from:prefix+(offset===0?'06':'01'),
+      to:prefix+(offset===12?'05':String(new Date(y,month+1,0).getDate()).padStart(2,'0'))});
+  }
+  return out;
 }
 
 function calcMonthStatsBySale(m,ctx){
@@ -1144,7 +1190,7 @@ function calcMonthStatsBySale(m,ctx){
   // partner splits) minus trips and standalone expenses dated in this month.
   const _monthCode=keyCode(m),_monthYear=keyYear(m),_monthIndex=MONTHS.indexOf(_monthCode);
   const _monthStart=String(_monthYear)+'-'+String(_monthIndex+1).padStart(2,'0')+'-01';
-  const _monthEnd=new Date(_monthYear,_monthIndex+1,0).toISOString().split('T')[0];
+  const _monthEnd=String(_monthYear)+'-'+String(_monthIndex+1).padStart(2,'0')+'-'+String(new Date(_monthYear,_monthIndex+1,0).getDate()).padStart(2,'0');
   const _inMonth=function(ds){return !!ds&&ds>=_monthStart&&ds<=_monthEnd;};
   const _allTrips=DB.trips||[],_tieredTrips=(ctx&&Array.isArray(ctx.tieredTrips))?ctx.tieredTrips:calcTieredTrips(_allTrips);let tripsCost=0,expensesCost=0;
   _allTrips.forEach(function(t,idx){if(_inMonth(t.date))tripsCost+=(_tieredTrips[idx]?_tieredTrips[idx].totalCost:0);});

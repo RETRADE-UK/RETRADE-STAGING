@@ -42,8 +42,8 @@ _hydrateUserSettings=async()=>{};_startRealtimeSync=async()=>{};_stopRealtimeSyn
 saveDB=()=>{};_readSyncClockRevision=async()=>{};_refreshCloudOnResume=async()=>false;
 `;
 
-async function open(browser, { signedIn = false, mobile = false, reduced = false, slowCore = false, failedCore = false, failedBinding = false, slowData = false, items = 24 } = {}) {
-  const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 }, isMobile: mobile, hasTouch: mobile, reducedMotion: reduced ? 'reduce' : 'no-preference', serviceWorkers: 'block' });
+async function open(browser, { signedIn = false, mobile = false, reduced = false, slowCore = false, failedCore = false, failedBinding = false, slowData = false, items = 24, timezoneId } = {}) {
+  const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 }, isMobile: mobile, hasTouch: mobile, reducedMotion: reduced ? 'reduce' : 'no-preference', serviceWorkers: 'block',timezoneId });
   const page = await context.newPage();
   const errors = [];
   const missingAssets=[];
