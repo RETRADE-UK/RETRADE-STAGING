@@ -5312,8 +5312,9 @@ function ipSaveCosts(event,m,id){
     const el=document.getElementById(fixed?'ip-partner-fixed':'ip-partner-percent');agreement=Number(el.value);
     if(el.value===''||!isFinite(agreement)||agreement<0||(!fixed&&agreement>100)){el.reportValidity();return false;}
   }
-  if(type==='consignment')i.costPrice=0;
-  else if(!(locked&&type==='supplier'))i.costPrice=+cost.toFixed(2);
+  // Read-only acquisition values may belong to a historical arrangement.
+  // Assignment owns any explicit conversion; saving terms must preserve them.
+  if(type!=='consignment'&&!(locked&&type==='supplier'))i.costPrice=+cost.toFixed(2);
   if(i.accountId&&!locked){
     if(type==='supplier'){
       // Supplier costs already enter P&L through costPrice. Keep the agreed
