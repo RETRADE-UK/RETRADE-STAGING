@@ -5,7 +5,7 @@ try{for(const mobile of [true,false]){const {page,context,errors}=await open(bro
  await page.evaluate(()=>{saveDB=()=>{};_accounts=[{id:'p',name:'Upfront test',accountType:'supplier',arrangementModel:'fixed_cost',paymentTerms:'on_sale',settlements:[]}];
  const item=(id,state,cost,extra={})=>Object.assign({id,item:id,accountId:'p',accountType:'supplier',state,costPrice:cost,salePrice:100,dateSourced:'2026-09-01',dateListed:state==='listed'?'2026-09-02':null,dateSold:state==='sold'?'2026-09-03':null,parts:[],returnHistory:[],salePlatform:'fb'},extra);
  DB={'SEP-26':[item('listed','listed',30),item('unlisted','sourced',20),item('sold','sold',10),item('share','listed',0,{accountType:'consignment',arrangementModelOverride:'profit_share',accountSplitPercent:50}),item('paid','listed',40,{accountSettled:true}),item('disposed','sourced',50,{scrappedAt:'2026-09-04'})],trips:[],expenses:[]};
- _accounts[0].settlements=[{id:'old',paid:true,date:'2026-09-03',partnerAmount:40,items:[{id:'paid',amount:40}]}];openAccountPage('p');});
+ _accounts[0].settlements=[{id:'old',paid:true,kind:'supplier',date:'2026-09-03',partnerAmount:40,items:[{id:'paid',kind:'supplier',amount:40}]}];openAccountPage('p');});
  await page.waitForSelector('.rt-payalloc2');await page.waitForTimeout(250);
  if(await page.locator('.rt-payalloc2').evaluate(e=>e.classList.contains('closed')))await page.locator('.rt-payalloc2-head').click();
  assert.equal(await page.locator('[data-payalloc-id="listed"]').count(),0);
@@ -24,6 +24,8 @@ try{for(const mobile of [true,false]){const {page,context,errors}=await open(bro
  if(await page.locator('.rt-payalloc2').evaluate(e=>e.classList.contains('closed')))await page.locator('.rt-payalloc2-head').click();
  await page.locator('[data-payalloc-id="override"]').check();await page.locator('.payalloc-new').click();await page.locator('#payalloc-create-btn').click();
  await page.waitForFunction(()=>_accounts[0].settlements.length===3);
- assert.deepEqual(await page.evaluate(()=>{const tx=_accounts[0].settlements[0];return [tx.partnerAmount,tx.arrangementModel,tx.grossProfit,tx.yourAmount];}),[25,'fixed_cost',null,0],'Per-item fixed payout does not invent realised profit');
+  assert.deepEqual(await page.evaluate(()=>{const tx=_accounts[0].settlements[0];return [tx.partnerAmount,tx.arrangementModel,tx.grossProfit,tx.yourAmount];}),[25,'fixed_cost',null,0],'Per-item fixed payout does not invent realised profit');
+ assert.equal(await page.evaluate(()=>_accounts[0].settlements[0].items[0].kind),'consignment');
+ assert.equal(await page.evaluate(()=>_buildTaxCashSummary('2026-04-06','2027-04-05','').cashPartnerPaid),25,'Fixed consignment payout remains a tax deduction');
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert.deepEqual(errors,[]);await context.close();console.log('PASS upfront unsold stock, payment allocation, unchanged sale state and deduplication',mobile?'mobile':'desktop');
 }}finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
