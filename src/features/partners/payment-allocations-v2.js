@@ -18,6 +18,7 @@
   var activeAccountId=null;
   var selected=Object.create(null);
   var collapsed=Object.create(null);
+  var includeUnsold=Object.create(null);
   var draft=null;
   var renderQueued=false;
 
@@ -49,7 +50,11 @@
     itemsFor(a.id).forEach(function(e){
       var i=e.item,owed=debt(a,i),used=allocated(a,i.id,false),remaining=Math.max(0,round(owed-used));
       var legacy=!!i.accountSettled&&used<owed-0.009;
-      var due=owed>0.009&&(!onSale(a)||sold(i));
+      // An agreed fixed cost can be paid early without inventing a sale or a
+      // percentage-based liability. Keep disposed/returned stock out of this
+      // additional early-payment path; legacy reconstruction is unchanged.
+      var early=!sold(i)&&!i.scrappedAt&&!i.isReturned&&model(a,i)==='fixed_cost';
+      var due=owed>0.009&&(!onSale(a)||sold(i)||early);
       var unpaid=!i.accountSettled&&due&&remaining>0.009;
       if(!legacy&&!unpaid)return;
       if(remaining<=0.009)return;
@@ -72,11 +77,17 @@
 
   function render(a){
     var page=document.getElementById('p-item');if(!page||!page.classList.contains('on')||!a)return;activeAccountId=a.id;css();var old=page.querySelector('.rt-payalloc2');if(old)old.remove();
-    var rows=candidates(a),k=String(a.id),set=setFor(a);Array.from(set).forEach(function(id){if(!rows.some(function(r){return String(r.item.id)===String(id);}))set.delete(id);});
+    var k=String(a.id);if(!Object.prototype.hasOwnProperty.call(includeUnsold,k))includeUnsold[k]=!onSale(a);
+    var rows=candidates(a).filter(function(r){return includeUnsold[k]||sold(r.item)||r.legacy;}),set=setFor(a);Array.from(set).forEach(function(id){if(!rows.some(function(r){return String(r.item.id)===String(id);}))set.delete(id);});
     var legacyN=rows.filter(function(r){return r.legacy;}).length,total=round(rows.reduce(function(s,r){return s+r.remaining;},0)),isClosed=collapsed[k]===true;
     var rowHtml=rows.length?rows.map(function(r){var checked=set.has(r.item.id)?' checked':'';var date=r.item.dateSold||r.item.resaleDateSold||'';var status=r.legacy?'Legacy settled · payment not assigned':'Needs payment transaction';return '<label class="rt-payalloc2-row"><input type="checkbox" data-payalloc-id="'+esc(r.item.id)+'"'+checked+'><div><div class="rt-payalloc2-name">'+esc(r.item.item||'Untitled item')+'</div><div class="rt-payalloc2-meta '+(r.legacy?'rt-payalloc2-legacy':'rt-payalloc2-unpaid')+'">'+esc(status)+(date?' · sold '+esc(date):'')+'</div></div><div class="rt-payalloc2-amt">'+esc(money(r.remaining))+'</div></label>';}).join(''):'<div class="rt-payalloc2-empty">All payable items are assigned to payment transactions.</div>';
     var box=document.createElement('div');box.className='rt-payalloc2'+(isClosed?' closed':'');box.innerHTML='<button type="button" class="rt-payalloc2-head" aria-expanded="'+(isClosed?'false':'true')+'"><div class="rt-payalloc2-main"><div class="rt-payalloc2-title">Unsettled items</div><div class="rt-payalloc2-sub">Items that still need assigning to a payment transaction'+(legacyN?' · '+legacyN+' legacy settled item'+(legacyN===1?'':'s')+' need reconstructing':'')+'</div></div><span class="rt-payalloc2-count">'+rows.length+'</span><span class="rt-payalloc2-chevron">⌄</span></button><div class="rt-payalloc2-body">'+rowHtml+'<div class="rt-payalloc2-actions"><div class="rt-payalloc2-summary"></div><button type="button" class="btn btn-secondary payalloc-all">Select all</button><button type="button" class="btn btn-secondary payalloc-existing">Assign to payment</button><button type="button" class="btn btn-primary payalloc-new">New transaction</button></div></div>';
     var pt=point(page);if(pt.b)pt.p.insertBefore(box,pt.b);else pt.p.appendChild(box);
+    var filter=document.createElement('label');filter.className='rt-payalloc2-row';
+    filter.innerHTML='<input type="checkbox" class="payalloc-unsold"'+(includeUnsold[k]?' checked':'')+'><div><div class="rt-payalloc2-name">Include unsold stock</div><div class="rt-payalloc2-meta">Pay agreed fixed costs upfront, including listed and unlisted stock. Profit shares need a completed sale.</div></div>';
+    box.querySelector('.rt-payalloc2-body').prepend(filter);
+    filter.querySelector('input').addEventListener('change',function(ev){includeUnsold[k]=ev.target.checked;render(a);});
+    box.querySelectorAll('[data-payalloc-id]').forEach(function(cb){var r=rows.find(function(x){return String(x.item.id)===cb.getAttribute('data-payalloc-id');});if(r&&!sold(r.item)&&!r.legacy){var meta=cb.closest('label').querySelector('.rt-payalloc2-meta');meta.textContent=(r.item.state==='sourced'?'Unlisted stock':'Listed stock')+' · fixed cost · available to pay upfront';}});
     function refresh(){var ps=picked(a),sum=pickedTotal(a),plan=creditPlan(a,sum,today()),copy=box.querySelector('.rt-payalloc2-summary');copy.innerHTML=ps.length?'<strong>'+ps.length+' selected · '+esc(money(sum))+' gross</strong>'+(plan.credit>0?'Account credit '+esc(money(plan.credit))+' · bank payment '+esc(money(plan.net)):'One transaction will hold these item allocations.'):'<strong>'+rows.length+' items · '+esc(money(total))+'</strong>'+(rows.length?'Select items that were paid together.':'Nothing needs assigning.');var dis=!ps.length;box.querySelector('.payalloc-existing').disabled=dis;box.querySelector('.payalloc-new').disabled=dis;box.querySelector('.payalloc-all').disabled=!rows.length;box.querySelector('.payalloc-new').textContent=ps.length&&plan.credit>0?'New payment · '+money(plan.net):'New transaction';}
     box.querySelector('.rt-payalloc2-head').addEventListener('click',function(){collapsed[k]=!box.classList.contains('closed');box.classList.toggle('closed');box.querySelector('.rt-payalloc2-head').setAttribute('aria-expanded',box.classList.contains('closed')?'false':'true');});
     box.querySelectorAll('[data-payalloc-id]').forEach(function(cb){cb.addEventListener('change',function(){var id=cb.getAttribute('data-payalloc-id');if(cb.checked)set.add(id);else set.delete(id);refresh();});});
@@ -108,6 +119,7 @@
 
   function openNew(a){
     var rows=picked(a);if(!rows.length)return;var legacy=rows.filter(function(r){return r.legacy;}),unpaid=rows.filter(function(r){return r.unpaid;});if(legacy.length&&unpaid.length){try{toast('Select legacy settled items or unpaid items separately','error');}catch(_){}return;}
+    if(rows.some(function(r){return !sold(r.item);})&&rows.some(function(r){return model(a,r.item)!=='fixed_cost';})){try{toast('Record upfront stock costs separately from profit-share payments','error');}catch(_){}return;}
     var total=pickedTotal(a),reconstruct=legacy.length>0,plan=reconstruct?{credit:0,net:total}:creditPlan(a,total,today());draft={accountId:a.id,ids:rows.map(function(r){return r.item.id;}),mode:'new',reconstruct:reconstruct};
     var list=rows.map(function(r){return '<div class="rt-payalloc2-panel-row"><span>'+esc(r.item.item||'Item')+'</span><strong>'+esc(money(r.remaining))+'</strong></div>';}).join('');
     var intro=reconstruct?'This rebuilds one historical payment from items the old system marked settled but never linked to a transaction. The dated payment will also restore the matching historical cashflow outflow.':'This records one payment transaction. Item liabilities are allocated at their gross amount; any account credit reduces only the actual bank payment.';
@@ -123,14 +135,14 @@
   async function persistDB(){try{var result=saveDB();if(result&&typeof result.then==='function')await result;return true;}catch(e){console.warn('[RETRADE] payment allocation save failed',e);throw e;}}
   function finish(a,msg){selected[String(a.id)]=new Set();draft=null;try{closePaymentModal();}catch(_){}try{closePanel();}catch(_){}try{toast(msg);}catch(_){}try{_renderAccountPage(a);}catch(_){} }
 
-  window._rtPayAllocAssignExisting=async function(txId){var d=liveDraft(),a=d.a,rows=d.rows;if(!a||!rows.length)return;var tx=(a.settlements||[]).find(function(x){return x&&String(x.id)===String(txId);});if(!tx)return;var total=round(rows.reduce(function(s,r){return s+r.remaining;},0)),free=Math.max(0,round((Number(tx.partnerAmount)||0)-txUsed(tx)));if(free<total-0.009){try{toast('That payment no longer has enough unallocated balance','error');}catch(_){}return;}if(!Array.isArray(tx.items))tx.items=[];var prev=rows.map(function(r){return {item:r.item,settled:!!r.item.accountSettled};});rows.forEach(function(r){tx.items.push({id:r.item.id,itemId:r.item.id,name:r.item.item||'',amount:round(r.remaining)});markIfFullyPaid(a,r.item);});tx.updatedAt=new Date().toISOString();tx.allocationRepairedAt=tx.updatedAt;try{await persistDB();finish(a,'Assigned '+rows.length+' item'+(rows.length===1?'':'s')+' to '+money(tx.partnerAmount||0)+' payment');}catch(_){tx.items.splice(Math.max(0,tx.items.length-rows.length),rows.length);prev.forEach(function(x){x.item.accountSettled=x.settled;});try{toast('Could not save payment allocation','error');}catch(__){}}};
+  window._rtPayAllocAssignExisting=async function(txId){var d=liveDraft(),a=d.a,rows=d.rows;if(!a||!rows.length)return;var tx=(a.settlements||[]).find(function(x){return x&&String(x.id)===String(txId);});if(!tx)return;var total=round(rows.reduce(function(s,r){return s+r.remaining;},0)),free=Math.max(0,round((Number(tx.partnerAmount)||0)-txUsed(tx)));if(free<total-0.009){try{toast('That payment no longer has enough unallocated balance','error');}catch(_){}return;}if(!Array.isArray(tx.items))tx.items=[];var prev=rows.map(function(r){return {item:r.item,settled:!!r.item.accountSettled};});rows.forEach(function(r){tx.items.push({id:r.item.id,itemId:r.item.id,name:r.item.item||'',kind:typeof _itemAccountType==='function'?_itemAccountType(r.item):String(r.item.accountType||a.accountType||'supplier'),amount:round(r.remaining)});markIfFullyPaid(a,r.item);});tx.updatedAt=new Date().toISOString();tx.allocationRepairedAt=tx.updatedAt;try{await persistDB();finish(a,'Assigned '+rows.length+' item'+(rows.length===1?'':'s')+' to '+money(tx.partnerAmount||0)+' payment');}catch(_){tx.items.splice(Math.max(0,tx.items.length-rows.length),rows.length);prev.forEach(function(x){x.item.accountSettled=x.settled;});try{toast('Could not save payment allocation','error');}catch(__){}}};
 
   window._rtPayAllocCreate=async function(){
     var d=liveDraft(),a=d.a,rows=d.rows;if(!a||!rows.length)return;var total=round(rows.reduce(function(s,r){return s+r.remaining;},0));if(total<=0)return;
-    var date=(document.getElementById('payalloc-date')||{}).value||today(),note=String((document.getElementById('payalloc-note')||{}).value||'').trim();var fixed=model(a)==='fixed_cost',gross=0;
+    var date=(document.getElementById('payalloc-date')||{}).value||today(),note=String((document.getElementById('payalloc-note')||{}).value||'').trim();var fixed=rows.every(function(r){return model(a,r.item)==='fixed_cost';}),gross=0;
     if(!fixed)rows.forEach(function(r){try{if(typeof calcGrossProfit==='function')gross+=Number(calcGrossProfit(r.item))||0;}catch(_){} });gross=round(gross);
     var useCredit=!draft.reconstruct&&!!(document.getElementById('payalloc-apply-credit')&&document.getElementById('payalloc-apply-credit').checked),plan=useCredit?creditPlan(a,total,date):{gross:total,credit:0,net:total,applications:[]};
-    var tx={id:'stl_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),date:date,createdAt:new Date().toISOString(),paid:true,kind:fixed?'supplier':String(a.accountType||'consignment'),partnerAmount:round(plan.net),grossPartnerAmount:total,accountAdjustmentAmount:round(plan.credit),accountAdjustmentIds:(plan.applications||[]).map(function(x){return x.adjustmentId;}),yourAmount:fixed?0:round(gross-plan.net),grossProfit:fixed?null:gross,note:note||null,items:rows.map(function(r){return {id:r.item.id,itemId:r.item.id,name:r.item.item||'',amount:round(r.remaining)};}),arrangementModel:model(a),historicalReconstruction:!!draft.reconstruct};
+    var tx={id:'stl_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),date:date,createdAt:new Date().toISOString(),paid:true,kind:fixed?'supplier':String(a.accountType||'consignment'),partnerAmount:round(plan.net),grossPartnerAmount:total,accountAdjustmentAmount:round(plan.credit),accountAdjustmentIds:(plan.applications||[]).map(function(x){return x.adjustmentId;}),yourAmount:fixed?0:round(gross-plan.net),grossProfit:fixed?null:gross,note:note||null,items:rows.map(function(r){return {id:r.item.id,itemId:r.item.id,name:r.item.item||'',kind:typeof _itemAccountType==='function'?_itemAccountType(r.item):String(r.item.accountType||a.accountType||'supplier'),amount:round(r.remaining)};}),arrangementModel:fixed?'fixed_cost':model(a),historicalReconstruction:!!draft.reconstruct};
     if(!Array.isArray(a.settlements))a.settlements=[];var prev=rows.map(function(r){return {item:r.item,settled:!!r.item.accountSettled};});a.settlements.unshift(tx);rows.forEach(function(r){markIfFullyPaid(a,r.item);});
     var btn=document.getElementById('payalloc-create-btn');if(btn){btn.disabled=true;btn.textContent='Saving…';}
     try{
