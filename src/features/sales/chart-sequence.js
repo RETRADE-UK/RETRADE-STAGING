@@ -81,9 +81,9 @@
     var s=document.createElement('style');s.id='rt-sales-sequence-v32-css';
     s.textContent='\
 /* Sales layout: keep the plot wide on desktop, stack before it becomes cramped, and give each viewport a deliberate chart height. */\
-#p-monthly .monthly-charts-row{align-items:start!important}\
-#p-monthly .monthly-profitability-card{align-self:start!important;position:relative}\
-#p-monthly #monthly-profitability-svg{flex:0 0 auto!important;min-height:0!important;max-height:none!important;height:clamp(285px,26vw,350px)!important}\
+#p-monthly .monthly-charts-row{align-items:stretch!important}\
+#p-monthly .monthly-profitability-card{align-self:stretch!important;position:relative}\
+#p-monthly #monthly-profitability-svg{flex:1 1 auto!important;min-height:0!important;max-height:none!important;height:clamp(285px,26vw,350px)!important}\
 @media(min-width:861px){#p-monthly .monthly-charts-row{grid-template-columns:minmax(0,1.72fr) minmax(310px,.92fr)!important}}\
 @media(max-width:860px){\
  #p-monthly .monthly-charts-row{grid-template-columns:minmax(0,1fr)!important;gap:14px!important}\
@@ -104,6 +104,8 @@
 #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-dash{opacity:0!important;animation:none!important;transition:none!important}\
 #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-dash.rt-sales-dash-on{opacity:1!important;transition:opacity 80ms ease-out!important}\
 #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-dot{opacity:0!important;visibility:hidden!important;animation:none!important}\
+#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-endpoint-point{opacity:0!important;visibility:hidden!important;animation:none!important;transition:none!important}\
+#p-monthly #monthly-profitability-svg.rt-sales-sequence.rt-sales-endpoint-stage .rt-sales-endpoint-point{opacity:1!important;visibility:visible!important;transition:opacity '+ENDPOINT_MS+'ms ease-out!important}\
 #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-actual-dot{opacity:0!important;transform:scale(.94)!important;transform-box:fill-box;transform-origin:center;animation:none!important;transition:none!important}\
 #p-monthly #monthly-profitability-svg.rt-sales-sequence.rt-sales-forecast-stage .rt-sales-actual-dot{opacity:1!important;transform:scale(1)!important;transition:opacity 135ms ease-out,transform 135ms '+EASE+'!important}\
 #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-forecast-ring,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-forecast-label,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-range-label{opacity:0!important;visibility:hidden!important;animation:none!important;transition:none!important}\
@@ -116,6 +118,7 @@
 #p-monthly .monthly-profitability-card .rt-sales-forecast-popover.is-visible{opacity:1;visibility:visible;transform:translateY(0)}\
 @media(max-width:600px){#p-monthly .monthly-profitability-card .rt-sales-forecast-popover{font-size:10.5px;padding:6px 9px;max-width:calc(100% - 20px)}}\
 @media(prefers-reduced-motion:reduce){\
+ #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-endpoint-point{opacity:1!important;visibility:visible!important;transition:none!important}\
  #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-history-point,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-dash,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-actual-dot,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-forecast-ring,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-forecast-label,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-range-label,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-dot{opacity:1!important;visibility:visible!important;transform:none!important;transition:none!important}\
  #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-group{visibility:visible!important}\
  #p-monthly .monthly-profitability-card .rt-sales-forecast-popover{transition:none}\
@@ -181,8 +184,9 @@
     var paths=historyPaths(svg);paths.forEach(primePath);
     columns.forEach(function(col,idx){
       Array.prototype.forEach.call(col.querySelectorAll('circle'),function(c){
-        c.classList.remove('rt-sales-history-point','rt-sales-point-on');
+        c.classList.remove('rt-sales-history-point','rt-sales-point-on','rt-sales-endpoint-point');
         if(idx<historyColumns.length&&!c.classList.contains('rt-chart-partial-dot'))c.classList.add('rt-sales-history-point');
+        else if(c.classList.contains('rt-chart-tertiary-dot'))c.classList.add('rt-sales-endpoint-point');
       });
     });
     Array.prototype.forEach.call(svg.querySelectorAll('.rt-chart-partial-dash'),function(d){d.classList.remove('rt-sales-dash-on');});

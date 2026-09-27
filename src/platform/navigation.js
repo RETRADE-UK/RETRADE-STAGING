@@ -21,8 +21,10 @@
   var style=document.createElement('style');
   style.id='rt-navigation-stability-css';
   style.textContent=[
-    'html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-behavior:auto!important;}',
-    '.rt .page{overflow-anchor:none;}',
+    'html{-webkit-text-size-adjust:100%;text-size-adjust:100%;scroll-behavior:auto!important;overflow-anchor:none;}',
+    // Exclude the whole app, not only its pages: otherwise a footer/chrome
+    // anchor outside the page can pull the document as a disclosure expands.
+    '.rt,.rt .page{overflow-anchor:none;}',
     // Keep fixed app chrome on the browser hit-testing path. Explicit touch
     // handling prevents Safari/Android gesture arbitration from delaying or
     // retargeting taps after a scroll.

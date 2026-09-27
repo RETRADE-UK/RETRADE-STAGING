@@ -23,16 +23,48 @@
     var a=acct(accountId);if(!a)return;var tx=(a.settlements||[]).find(function(t){return t&&String(t.id)===String(settlementId);});if(!tx)return;
     var cash=round(tx.partnerAmount||0),allocated=allocTotal(tx),credit=round(tx.accountAdjustmentAmount||0),gross=round(tx.grossPartnerAmount!=null?tx.grossPartnerAmount:(allocated||cash+credit)),grossDiff=round(gross-allocated),cashDiff=round((gross-credit)-cash),adjustments=adjustmentRows(accountId,tx);
     if(!adjustments.length&&credit>0){adjustments.push({reason:'Account adjustment credit',amount:credit});}
-    var itemRows=(tx.items||[]).map(function(x){return '<div class="metric-inline rt-settle-breakdown-row"><div style="min-width:0;flex:1"><div class="metric-k">'+e(itemName(x))+'</div><div class="rt-settle-breakdown-note">Gross liability allocated to this item</div></div><strong>'+e(money(x.amount||0))+'</strong></div>';}).join('');
+    var itemRows=(tx.items||[]).map(function(x,index){
+      var id=x&&(x.id!=null?x.id:x.itemId),rec=id!=null?_findItemRecordById(id):null;
+      var tag=rec?'button':'div';
+      return '<'+tag+(rec?' type="button" data-settlement-item="'+index+'"':'')+' class="metric-inline rt-settle-breakdown-row rt-settle-item"><span style="min-width:0;flex:1"><span class="metric-k">'+e(itemName(x))+'</span><span class="rt-settle-breakdown-note">'+(rec?'View item · '+e(rec.item.state||'Stock'):'Item record unavailable')+'</span></span><strong>'+e(money(x.amount||0))+'</strong>'+(rec?'<span class="rt-settle-item-chevron" aria-hidden="true">›</span>':'')+'</'+tag+'>';
+    }).join('');
     var adjRows=adjustments.map(function(x){return '<div class="metric-inline rt-settle-breakdown-row rt-settle-adjustment-row"><div style="min-width:0;flex:1"><div class="metric-k">'+e(x.reason)+'</div><div class="rt-settle-breakdown-note">Non-cash account adjustment</div></div><strong>−'+e(money(x.amount||0))+'</strong></div>';}).join('');
     var note=tx.note?'<div class="rt-settle-detail-note">'+e(tx.note)+'</div>':'';
     var warnings='';if(Math.abs(grossDiff)>0.009)warnings+='<div class="rt-settle-allocation-warning">Gross item allocations differ from the recorded gross liability by '+e(money(Math.abs(grossDiff)))+'. Review this transaction.</div>';if(Math.abs(cashDiff)>0.009)warnings+='<div class="rt-settle-allocation-warning">Gross liability less account adjustments does not equal the recorded cash payment by '+e(money(Math.abs(cashDiff)))+'. Review this transaction.</div>';
-    var html='<div class="rt-settle-reconcile"><div class="rt-settle-reconcile-row"><span>Gross liability</span><strong>'+e(money(gross))+'</strong></div>'+(credit>0?'<div class="rt-settle-reconcile-row rt-settle-credit"><span>Account adjustments</span><strong>−'+e(money(credit))+'</strong></div>':'')+'<div class="rt-settle-reconcile-row rt-settle-cash"><span>Cash payment</span><strong>'+e(money(cash))+'</strong></div></div>'+
-      '<div class="rt-settle-explain"><strong>'+e(money(cash))+' is the actual transfer.</strong> The '+e(money(gross))+' gross liability is explained by the selected items below, then any non-cash adjustments reduce the amount that leaves the bank.</div>'+note+
-      '<div class="rt-settle-allocation-head"><span>Items being settled</span><strong>'+e(money(allocated))+' gross</strong></div>'+(itemRows||'<div class="rt-settle-empty">No item allocations recorded yet.</div>')+
+    var html='<div class="rt-transaction-account">'+e(a.name||'Partner')+'</div><div class="rt-transaction-status">'+(tx.paid?'Paid':'Unpaid allocation')+' · '+e(tx.date||'Date not recorded')+'</div><div class="rt-settle-reconcile"><div class="rt-settle-reconcile-row"><span>Item allocations</span><strong>'+e(money(gross))+'</strong></div>'+(credit>0?'<div class="rt-settle-reconcile-row rt-settle-credit"><span>Account adjustments</span><strong>−'+e(money(credit))+'</strong></div>':'')+'<div class="rt-settle-reconcile-row rt-settle-cash"><span>'+(tx.paid?'Cash paid':'Payment amount')+'</span><strong>'+e(money(cash))+'</strong></div></div>'+
+      '<p class="rt-transaction-help">'+(tx.paid?'This payment covers ':'This allocation covers ')+(tx.items||[]).length+' item'+((tx.items||[]).length===1?'':'s')+'. Each amount below is the portion allocated to that item.'+(credit>0?' Account adjustments reduce the cash payment.':'')+'</p>'+note+
+      '<div class="rt-settle-allocation-head"><span>Items covered</span><strong>'+e(money(allocated))+'</strong></div>'+(itemRows||'<div class="rt-settle-empty">No item allocations recorded yet.</div>')+
       (credit>0?'<div class="rt-settle-allocation-head"><span>Adjustments applied</span><strong>−'+e(money(credit))+'</strong></div>'+adjRows:'')+warnings+
-      '<div style="margin-top:14px"><button type="button" class="btn btn-secondary" onclick="closePanel()">Close</button></div>';
-    try{openPanel('Payment reconciliation · '+(a.name||'Partner'),html);}catch(_){}
+      '<details class="rt-payment-edit"><summary>Amend payment</summary><div class="rt-payment-edit-body">'+
+        '<div class="fg"><label for="settlement-action-date">'+(tx.paid?'Payment date':'Allocation date')+'</label><input type="date" id="settlement-action-date" value="'+e(tx.date||_todayISO())+'"></div>'+
+        '<div class="fg"><label for="settlement-detail-note">Note / payment reference</label><input type="text" id="settlement-detail-note" value="'+e(tx.note||'')+'"></div>'+
+        '<button type="button" class="btn btn-primary" id="settlement-save-details">Save date &amp; note</button>'+
+        '<p class="rt-transaction-help">To change the items or allocation amounts, open the partner account. A payment recorded in error can be reversed; its allocation will remain unpaid.</p>'+
+        '<button type="button" class="btn btn-secondary'+(tx.paid?' danger':'')+'" id="settlement-paid-action">'+(tx.paid?'Reverse payment':'Mark paid')+'</button></div></details>'+
+      '<div class="rt-transaction-actions"><button type="button" class="btn btn-secondary" id="settlement-view-account">Open partner account</button><button type="button" class="btn btn-secondary" onclick="closePanel()">Close</button></div>';
+    openPanel('Payment details',html);
+    document.querySelectorAll('#panel-content [data-settlement-item]').forEach(function(button){
+      button.onclick=function(){
+        var allocation=(tx.items||[])[Number(button.dataset.settlementItem)];
+        var record=allocation?_findItemRecordById(allocation.id!=null?allocation.id:allocation.itemId):null;
+        if(!record){toast('This item is no longer available.');return;}
+        closePanel();
+        if(document.getElementById('p-cash').classList.contains('on'))openItemPage(record.month,record.item.id,'p-cash');
+        else openAccountItemPage(record.month,record.item.id,accountId);
+      };
+    });
+    document.getElementById('settlement-view-account').onclick=function(){closePanel();openAccountPage(accountId);};
+    document.getElementById('settlement-paid-action').onclick=function(){if(tx.paid)_reverseSettlementPayment(accountId,settlementId);else _markSettlementPaid(accountId,settlementId);};
+    var originalDate=tx.date,originalNote=tx.note;
+    document.getElementById('settlement-save-details').onclick=function(){
+      var currentAccount=acct(accountId),current=currentAccount&&(currentAccount.settlements||[]).find(function(x){return String(x.id)===String(settlementId);});
+      if(!current||current.date!==originalDate||current.note!==originalNote){toast('This payment has changed. Reopen it before editing.','error');return;}
+      var date=document.getElementById('settlement-action-date').value,note=document.getElementById('settlement-detail-note').value.trim();
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){toast('Choose a valid payment date.','error');return;}
+      current.date=date;current.note=note;
+      if(current.paid&&!current.historicalReconstruction)_recordSystemCashEvent(_systemSettlementCashId(current.id),'partner_settlement',current.partnerAmount,date,'Settlement paid · '+(currentAccount.name||'Partner')+' · '+(current.items||[]).length+' items');
+      saveDB();refreshActivePage();toast('Payment details updated');_openSettlementDetail(accountId,settlementId);
+    };
   };
 
   function styles(){if(document.getElementById('rt-settle-breakdown-style'))return;var s=document.createElement('style');s.id='rt-settle-breakdown-style';s.textContent='\

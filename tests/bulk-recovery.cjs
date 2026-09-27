@@ -25,5 +25,8 @@ const backup=JSON.parse([...h.storage.values()][0]);assert.equal(Object.keys(bac
 h=harness(make(false),{failQuarantine:true});assert.equal(h.ctx._recoverOutbox(),0);assert.equal(h.ctx._outboxPendingCount(),120,'Storage failure retains every pending change');assert.equal(h.replayed.length,0);
 h=harness(make(false),{failClear:true});assert.equal(h.ctx._recoverOutbox(),0);assert.equal(h.ctx._outboxPendingCount(),120);assert.equal(h.replayed.length,0);
 h=harness(make(true,1),{remote:Array.from({length:120},(_,i)=>({id:String(i),revision:2}))});assert.equal(h.ctx._recoverOutbox(),0,'Newer cloud wins even for a modern queue');assert.equal(h.replayed.length,0);assert.equal(h.storage.size,1);
+assert.equal(h.notices.length,0,'Successful stale-device isolation must not pop up as a sync failure');
+h.ctx._recoverOutbox();assert.equal(h.storage.size,1,'Successful stale recovery does not repeat');assert.equal(h.notices.length,0);
+h=harness(make(true,1),{remote:Array.from({length:120},(_,i)=>({id:String(i),revision:2})),failClear:true});assert.equal(h.ctx._recoverOutbox(),0);assert.equal(h.ctx._outboxPendingCount(),120);assert.match(h.ctx._lastSyncError,/could not be saved/,'Real storage failure remains visible');
 h=harness(make(true,1),{remote:Array.from({length:120},(_,i)=>({id:String(i),revision:2})),failQuarantine:true});assert.equal(h.ctx._recoverOutbox(),0);assert.equal(h.ctx._outboxPendingCount(),120);
 console.log('PASS bulk recovery: valid large queues, legacy preservation, idempotency, failed storage, stale cloud guard');

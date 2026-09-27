@@ -1,0 +1,69 @@
+/* Shared mobile scale. Feature layouts and interaction layers retain ownership;
+   these tokens keep page gutters, type hierarchy and control chrome consistent.
+   Editable fields stay at 16px (application.css) to avoid iOS focus zoom. */
+@media(max-width:600px){
+  .rt{--ui-page-title:22px;--ui-metric:22px;--ui-hero:32px;--ui-gutter:16px;}
+  .rt .page{padding-left:var(--ui-gutter)!important;padding-right:var(--ui-gutter)!important;padding-top:16px;}
+  .rt .page .page-header{gap:10px;margin-bottom:16px;flex-wrap:wrap!important;}
+  .rt .page .page-header>div:first-child{flex:1 0 auto;max-width:100%;}
+  .rt .page .page-header .page-title{white-space:normal;overflow:visible;}
+  .rt .page .page-title,.rt #p-summary .summary-title,.rt #p-tax h1{font-size:var(--ui-page-title)!important;line-height:1.2!important;letter-spacing:-.03em;}
+  .rt .page .btn,.rt #panel-content .btn{font-size:12px;font-weight:600;min-height:44px;height:auto;padding:8px 12px;border-radius:10px;line-height:1.3;}
+  .rt .page .page-actions{gap:8px;}
+  .rt .page .section-card{padding:16px;border-radius:14px;margin-bottom:16px;}
+  .rt .page .section-card-title{font-size:14px;line-height:1.4;}
+  .rt .page .section-card-desc{font-size:12px;line-height:1.5;}
+  .rt .page .kpi-value,.rt .page .kval{font-size:var(--ui-metric)!important;line-height:1.2;letter-spacing:-.025em;font-variant-numeric:tabular-nums;}
+  .rt .page .kpi-foot,.rt .page .ksub{font-size:11px;line-height:1.45;}
+  .rt .page .item-row-name{font-size:13px;line-height:1.4;}
+  .rt .page .item-row-price{font-size:15px;line-height:1.35;}
+  .rt .page .item-row-profit{font-size:12px;line-height:1.4;}
+  .rt .page .item-row-right{font-variant-numeric:tabular-nums;}
+  .rt .page .sort-select{max-width:100%;min-width:0;font-weight:500;}
+
+  /* Dashboard: a readable heading and quieter headline figure. */
+  .rt #p-summary.page{padding-left:var(--ui-gutter)!important;padding-right:var(--ui-gutter)!important;}
+  .rt #p-summary .summary-header{flex-wrap:wrap;margin-bottom:16px!important;gap:8px!important;}
+  .rt #p-summary .summary-header-text{min-width:0;flex:1 1 160px;}
+  .rt #p-summary .summary-title{white-space:normal;overflow:visible;}
+  .rt #p-summary .summary-grid-v3{min-width:0;grid-template-columns:minmax(0,1fr)!important;gap:14px!important;}
+  .rt #p-summary .summary-grid-v3>*{min-width:0;}
+  .rt #p-summary .summary-hero-card .summary-hero-value{font-size:var(--ui-hero)!important;line-height:1.15!important;}
+  .rt #p-summary .summary-panel,.rt #p-summary .summary-mobile-twoup .kpi,
+  .rt #p-summary .summary-sourcing-cta,.rt #p-summary .summary-hero-card{border-radius:14px!important;}
+  .rt #p-summary .summary-sourcing-cta{min-height:60px!important;padding:12px 14px!important;}
+
+  /* Long action bars get their own row instead of squeezing the title. */
+  .rt #p-runs .page-header{flex-wrap:wrap!important;}
+  .rt #p-runs .page-header>div:first-child{flex-basis:100%;}
+  .rt #p-runs .page-header>div:last-child{display:flex;gap:8px;width:100%;}
+  .rt #p-runs .page-header>div:last-child .btn{flex:1;}
+  .rt #p-item .rt-partner-v4-navrow{flex-wrap:wrap;gap:6px!important;}
+  .rt #p-item .rt-partner-v4-navrow .btn{padding:8px 6px!important;font-size:11px!important;min-height:44px!important;margin-bottom:0!important;}
+  .rt #p-item .rt-partner-v4-navrow .rt-doc-settlement{margin-left:auto;}
+  .rt #p-item .rt-partner-v1503-settings{width:44px;height:44px;flex-basis:44px;}
+  .rt #p-item .rt-partner-mobile-summary .rt-partner-summary-v3-card[data-kind="outstanding"] .rt-partner-summary-v3-value{font-size:26px!important;line-height:1.2!important;}
+  .rt #p-accounts .rt-acct-op-row[data-account-id] .rt-acct-op-name{font-size:14px!important;}
+  .rt #p-accounts .rt-acct-op-row[data-account-id] .rt-acct-op-money strong{font-size:14px!important;}
+
+  .rt #p-cash .rt-cash-primary-value{font-size:var(--ui-hero);line-height:1.15;}
+  .rt #p-cash .rt-cash-primary{padding:16px;border-radius:14px;}
+  .rt #p-cash .cashflow-manager .btn,.rt #p-cash .cashflow-action-btn{font-size:12px;}
+  .rt #p-tax .tax-kpi-primary strong{font-size:var(--ui-hero);}
+  .rt #p-tax .tax-kpi:not(.tax-kpi-primary) strong{font-size:var(--ui-metric);}
+  .rt #p-tax .tax-kpi{padding:14px;border-radius:14px;}
+  .rt #p-tax .tax-view-switch button{font-size:12px;font-weight:600;}
+  .rt #p-tax .tax-download{min-height:44px;}
+  .rt #p-monthly .sales-kpis-v2 .card{padding:14px 12px;border-radius:14px;}
+  .rt #p-monthly #month-list .item-row-name{font-size:13px;}
+  .rt #p-monthly #month-list .item-row-price{font-size:15px;}
+  .rt #p-monthly #month-list .item-row{min-height:80px;padding:12px;}
+
+  /* A smaller icon keeps the header light while its 44px hit area stays intact. */
+  .rt .mtb-search{border-radius:10px;}
+  .rt .mtb-search svg{width:20px;height:20px;}
+}
+@media(max-width:360px){
+  .rt{--ui-page-title:20px;--ui-metric:20px;--ui-hero:30px;--ui-gutter:14px;}
+  .rt #p-item .ip-title{font-size:20px;}
+}

@@ -40,7 +40,7 @@ const {open,settled}=require('./startup-browser.cjs');
     await act('#bnt-more');await page.waitForSelector('#more-sheet',{state:'visible'});
     await act('#more-sheet [data-sheet-tab="tax"]');
     await page.waitForFunction(()=>document.querySelector('.page.on')?.id==='p-tax');
-    assert(await page.locator('#fab-dial').evaluate(el=>el.inert),'Read-only route hides and disables FAB');
+    await assertHit('.fab-main');await act('.fab-main');await page.waitForSelector('#fab-dial.open');await act('.fab-main');
     await route('summary');await assertHit('.fab-main');
     await act('.mtb-search');await page.locator('#global-search-mobile').click();await page.locator('#global-search-mobile').fill('Camera');await route('stock');
     await assertHit('.fab-main');

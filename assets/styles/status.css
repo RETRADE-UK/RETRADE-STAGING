@@ -1,16 +1,33 @@
-/* Sync belongs to app chrome, never document flow or the bottom of a page. */
-#mobile-sync-badge{display:none;}
+/* Compact sync status: stable footprint, shared meaning at every breakpoint. */
+.rt .rt-sync-status{display:inline-flex;align-items:center;justify-content:center;flex:0 0 44px;width:44px;height:44px;min-width:44px;min-height:44px;padding:0;border:0;border-radius:10px;background:transparent;color:var(--text-secondary);cursor:pointer;touch-action:manipulation}
+.rt .rt-sync-status:hover,.rt .rt-sync-status[aria-expanded="true"]{background:var(--surface2)}
+.rt .rt-sync-status .rt-sync-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.rt .rt-sync-mark{display:grid;place-items:center;box-sizing:border-box;width:12px;height:12px;border:2px solid var(--profit);border-radius:50%;background:var(--profit);font:700 10px/1 var(--font-body)}
+.rt .saving .rt-sync-mark{width:14px;height:14px;background:transparent;border-color:var(--border);border-top-color:var(--brand)}
+.rt .saving:not(.is-delayed) .rt-sync-mark{animation:rtSyncTurn 1s linear 14}
+.rt .pending .rt-sync-mark,.rt .waiting .rt-sync-mark{border-color:var(--brand);background:transparent}
+.rt .offline .rt-sync-mark{width:14px;height:14px;border-color:var(--brand);background:transparent;color:var(--brand)}
+.rt .error .rt-sync-mark{width:14px;height:14px;border-color:var(--red);background:transparent;color:var(--red)}
+#mobile-sync-badge,#tablet-sync-status{display:none}
 @media(max-width:600px){
-  .rt #mobile-top-bar{gap:10px;}
-  .rt #mobile-top-bar .mtb-brand{margin-right:auto;}
-  #mobile-sync-badge{align-items:center;justify-content:center;gap:6px;flex:none;min-width:24px;height:44px;color:var(--text-secondary);pointer-events:none;}
-  #mobile-sync-badge.saving,#mobile-sync-badge.pending,#mobile-sync-badge.error{display:flex;}
-  #mobile-sync-badge .rt-sync-label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;}
-  #mobile-sync-badge .rt-sync-mark{display:grid;place-items:center;width:14px;height:14px;border:2px solid var(--accent);border-radius:50%;font-size:11px;line-height:1;}
-  #mobile-sync-badge.saving .rt-sync-mark{border-color:var(--border);border-top-color:var(--accent);animation:rtSyncTurn 1s linear infinite;}
-  #mobile-sync-badge.pending .rt-sync-mark{background:var(--accent);border-color:var(--accent);font-size:0;}
-  #mobile-sync-badge.error .rt-sync-mark{color:var(--red);border-color:var(--red);}
-  #mobile-sync-badge .rt-sync-retry{pointer-events:auto;min-height:44px;border:0;border-radius:8px;background:transparent;color:var(--red);padding:0 5px;font:600 12px var(--font-body);cursor:pointer;}
+ .rt #mobile-top-bar{gap:6px}
+ .rt #mobile-top-bar .mtb-brand{margin-right:auto}
+ .rt #mobile-sync-badge{display:inline-flex}
 }
-@keyframes rtSyncTurn{to{transform:rotate(360deg);}}
-@media(prefers-reduced-motion:reduce){#mobile-sync-badge .rt-sync-mark{animation:none!important;}}
+@media(min-width:601px) and (max-width:999px){.rt #tablet-sync-status{display:inline-flex}}
+@media(min-width:1000px){
+ .rt #side-nav .side-nav-footer{flex-direction:row;align-items:center;gap:6px}
+ .rt #side-nav .side-user-menu{flex:1;min-width:0;order:1}
+ .rt #side-nav #side-nav-sync{order:2}
+ .rt #side-nav .side-nav-settings{width:calc(var(--sidebar-w) - 2 * var(--sidebar-pad))}
+}
+#rt-sync-details{position:fixed;z-index:380;box-sizing:border-box;width:min(300px,calc(100vw - 24px));padding:14px 16px;border:1px solid var(--border);border-radius:14px;background:var(--surface);color:var(--text);box-shadow:0 8px 28px #0003}
+#rt-sync-details[hidden],#rt-sync-retry[hidden]{display:none!important}
+.rt-sync-detail-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#rt-sync-details h2{font-size:14px;margin:0;line-height:1.4}
+.rt-sync-detail-heading button{width:32px;height:32px;border:0;background:transparent;color:var(--text-secondary);font-size:22px;cursor:pointer;border-radius:8px}
+#rt-sync-details p{font-size:12px;line-height:1.6;margin:6px 0 12px;color:var(--text-secondary)}
+#rt-sync-details p:last-child{margin-bottom:0}
+.rt .rt-sync-status:focus-visible,#rt-sync-details button:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+@keyframes rtSyncTurn{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.rt .rt-sync-mark{animation:none!important}}

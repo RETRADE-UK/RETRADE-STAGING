@@ -57,9 +57,10 @@ for name in (
 
 for marker in ('rt-launch-brand','BRAND_TO_SKELETON_MS','retrade:motion-ready'):
     assert marker in launch, f'launch marker missing: {marker}'
-for marker in ('const _bootMonthlyRoute=','const _hydratedBootPage=','.rt-chart-primary-bar','__rtAuthHandoff'):
+for marker in ('function _prepareSalesEntry()','const _hydratedBootPage=','.rt-chart-primary-bar','__rtAuthHandoff'):
     assert marker in core, f'core marker missing: {marker}'
 assert 'rt-sales-route-v1' not in perf and 'restoreSalesState()' not in perf
+assert 'MONTHLY_VIEW=' not in perf, 'Presentation layer must not override Sales entry'
 assert 'renderLoadingShell(a);' not in partner
 assert 'installPaintFirstNavigation();' not in partner_exp
 assert 'el.textContent=money(0' not in chart

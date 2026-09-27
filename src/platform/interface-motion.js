@@ -3,8 +3,8 @@
  *
  * Motion language:
  * - acknowledgement is immediate; travel is short and composited
- * - ordinary route navigation is spatially stable: the whole page never fades
- *   or translates into place
+ * - finished route/filter content settles with a short opacity transition
+ *   without translating pages, delaying input or replaying on background updates
  * - sheets, confirmations, charts and explicit component state changes may move
  *   when that motion explains what changed
  * - reduced-motion remains a first-class path
@@ -15,11 +15,6 @@
   'use strict';
 
   var EASE='cubic-bezier(.22,.61,.36,1)';
-  var FAST=135;
-
-  function reducedMotion(){
-    try{return !!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(_){return false;}
-  }
 
   function installStyles(){
     ['rt-global-motion-v1447','rt-global-motion-v1455','rt-global-motion-v1466','rt-global-motion-v1467','rt-global-motion-v1468'].forEach(function(id){
@@ -57,59 +52,28 @@
   }
   installStyles();
 
-  function clearHideTimer(el){
-    if(!el)return;
-    if(el.__rtFabHideTimer){clearTimeout(el.__rtFabHideTimer);el.__rtFabHideTimer=0;}
-  }
+  // Explicit render completion only: no subtree observers or layout reads.
+  // Cancel on quick repeated choices so transitions never form a queue.
+  var activeMotion=new WeakMap();
+  var reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
+  window._animateWorkspaceChange=function(root){
+    if(!root||!root.isConnected||reduceMotion.matches||!root.closest('.page.on'))return;
+    var targets=root.classList.contains('page')?Array.prototype.filter.call(root.children,function(el){
+      return !el.matches('.page-header,.rt-route-skeleton,script,style');
+    }):[root];
+    targets.slice(0,8).forEach(function(el){
+      var previous=activeMotion.get(el);if(previous)previous.cancel();
+      if(!el.animate)return;
+      var animation=el.animate([{opacity:.82},{opacity:1}],{duration:180,easing:EASE});
+      activeMotion.set(el,animation);
+      animation.onfinish=function(){activeMotion.delete(el);};
+    });
+  };
+  reduceMotion.addEventListener('change',function(e){
+    if(e.matches)document.querySelectorAll('.page').forEach(function(page){page.getAnimations({subtree:true}).forEach(function(a){a.cancel();});});
+  });
 
-  function motionVisibility(el,visible){
-    if(!el)return;
-    if(el.__rtMotionVisible===visible)return;
-    el.inert=!visible;
-    el.__rtMotionVisible=visible;
-    var token=el.__rtVisibilityToken=(el.__rtVisibilityToken||0)+1;
-    clearHideTimer(el);
-    if(reducedMotion()){
-      el.classList.toggle('rt-fab-motion-hidden',!visible);
-      el.style.visibility=visible?'':'hidden';
-      if(visible)el.removeAttribute('aria-hidden');else el.setAttribute('aria-hidden','true');
-      return;
-    }
-    if(visible){
-      el.classList.add('rt-fab-motion-hidden');
-      el.style.visibility='';
-      el.removeAttribute('aria-hidden');
-      requestAnimationFrame(function(){if(el.__rtVisibilityToken===token&&el.__rtMotionVisible)el.classList.remove('rt-fab-motion-hidden');});
-    }else{
-      el.setAttribute('aria-hidden','true');
-      el.classList.add('rt-fab-motion-hidden');
-      el.__rtFabHideTimer=setTimeout(function(){
-        el.__rtFabHideTimer=0;
-        if(el.classList.contains('rt-fab-motion-hidden'))el.style.visibility='hidden';
-      },FAST+30);
-    }
-  }
-
-  try{
-    if(typeof _syncFabVisibility==='function'){
-      var nativeSyncFab=_syncFabVisibility;
-      _syncFabVisibility=function(){
-        var dial=document.getElementById('fab-dial');
-        if(!dial)return;
-        try{
-          if(dial.style.display==='none'&&typeof DB!=='undefined'&&!DB._userOwned&&!(typeof _previewMode!=='undefined'&&_previewMode))return;
-        }catch(_){}
-        var activePage=(document.querySelector('.page.on')||{id:''}).id,hidden;
-        try{hidden=_FAB_HIDDEN_PAGES.has(activePage)||_fabOptionsForPage(activePage).length===0;}
-        catch(e){return nativeSyncFab.apply(this,arguments);}
-        var searchFab=document.getElementById('search-fab');
-        if(hidden)closeFabDial();
-        motionVisibility(dial,!hidden);
-        motionVisibility(searchFab,!hidden);
-      };
-      requestAnimationFrame(function(){try{_syncFabVisibility();}catch(_){};});
-    }
-  }catch(_){}
+  // Core navigation is the sole owner of FAB visibility and accessibility.
 
   /* Only page containers can change the active route. Watching every class
      mutation under <html> meant chips, dropdowns, chart classes and row state

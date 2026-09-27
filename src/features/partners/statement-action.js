@@ -64,4 +64,5 @@
   if(typeof _renderAccountPage==='function'){var baseRenderAccountPage=_renderAccountPage;_renderAccountPage=function(acct){if(acct&&acct.id!=null)activeAccountId=acct.id;var result=baseRenderAccountPage.apply(this,arguments);scheduleRepair(acct);return result;};}
   var page=document.getElementById('p-item');if(page){try{observer=new MutationObserver(function(){scheduleRepair();});observer.observe(page,{childList:true,subtree:true});}catch(_){} }
   scheduleRepair();console.info('[RETRADE] v1.5.00 adjustment-aware partner Statement action loaded');
+  (window.__rtPartnerRenderFinalizers=window.__rtPartnerRenderFinalizers||[]).push(repair);
 })();

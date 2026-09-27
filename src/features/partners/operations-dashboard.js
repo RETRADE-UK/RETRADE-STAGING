@@ -7,7 +7,7 @@
   if(window.__rtAccountsOperations1481)return;
   window.__rtAccountsOperations1481=true;
 
-  var state={q:'',filter:'all',sort:'attention',selecting:false,selected:new Set()};
+  var state={q:'',filter:'all',sort:'owed',selecting:false,selected:new Set()};
 
   function escHtml(v){
     try{if(typeof esc==='function')return esc(String(v==null?'':v));}catch(_){}
@@ -59,6 +59,7 @@
     var due=Number(s.dueNow)||0,unsettledSold=Number(s.unsettledSoldCount)||0,returned=Number(s.returnedCount)||0,unlisted=Number(s.unlistedCount)||0;
     return {acct:a,stats:s,due:due,unsettledSold:unsettledSold,returned:returned,unlisted:unlisted,attention:due>0||unsettledSold>0||returned>0||unlisted>0,last:lastActivity(a),model:accountModel(a),terms:arrangementLabel(a)};
   }
+  var preparedRows=[],preparedOwner=null;
   function allRows(){try{return (_accounts||[]).map(rowData);}catch(_){return [];}}
   function matches(r){
     var q=state.q.trim().toLowerCase();
@@ -72,6 +73,8 @@
   }
   function sortRows(rows){
     return rows.sort(function(a,b){
+      if(state.sort==='owed-asc')return a.due-b.due||(a.acct.name||'').localeCompare(b.acct.name||'');
+      if(state.sort==='name-desc')return (b.acct.name||'').localeCompare(a.acct.name||'');
       if(state.sort==='owed')return b.due-a.due||(a.acct.name||'').localeCompare(b.acct.name||'');
       if(state.sort==='recent')return String(b.last||'').localeCompare(String(a.last||''))||(a.acct.name||'').localeCompare(b.acct.name||'');
       if(state.sort==='name')return (a.acct.name||'').localeCompare(b.acct.name||'');
@@ -91,44 +94,41 @@
     return out.join('');
   }
   function overview(rows){
-    var totalDue=rows.reduce(function(n,r){return n+r.due;},0);
-    var attention=rows.filter(function(r){return r.attention;}).length;
-    var unsettled=rows.reduce(function(n,r){return n+r.unsettledSold;},0);
-    function card(label,value,sub,hot){return '<div class="rt-acct-op-kpi'+(hot?' hot':'')+'"><div>'+label+'</div><strong>'+value+'</strong><span>'+sub+'</span></div>';}
-    return '<div class="rt-acct-op-overview">'+
-      card('Accounts',String(rows.length),'Active partner/vendor accounts',false)+
-      card('Due now',money(totalDue),totalDue>0?'Across all accounts':'Nothing currently due',totalDue>0)+
-      card('Needs attention',String(attention),attention===1?'1 account with actions':attention+' accounts with actions',attention>0)+
-      card('Unsettled sold',String(unsettled),unsettled===1?'1 sold item awaiting payment':'Sold items awaiting payment',unsettled>0)+
-    '</div>';
+    var due=rows.reduce(function(n,r){return n+r.due;},0),owing=rows.filter(r=>r.due>0).length;
+    var potential=rows.reduce(function(n,r){return n+(Number(r.stats.forecastYourShare)||0);},0);
+    return '<div class="rt-accounts-overview"><div><span>Total outstanding</span><strong>'+money(due)+'</strong><small>Payable now across your accounts</small></div><div data-account-kpi="potential"><span>Potential profit</span><strong>'+money(potential)+'</strong><small>Remaining priced stock · after partner shares</small></div><div><span>Awaiting payment</span><strong>'+owing+'</strong><small>'+ (rows.length-owing)+' currently settled</small></div></div>';
   }
   function rowHtml(r){
-    var a=r.acct,s=r.stats,selected=state.selected.has(String(a.id));
-    var typeLabel=r.model==='fixed_cost'?'Fixed cost':'Profit share';
-    var stock=Number(s.stockOnHandCount)||0,listed=Number(s.listedCount)||0,unlisted=Number(s.unlistedCount)||0;
-    var dueHtml=r.due>0?'<strong class="rt-acct-op-due hot">'+money(r.due)+'</strong><span>due now</span>':'<strong class="rt-acct-op-due">£0.00</strong><span>settled up</span>';
-    return '<div class="rt-acct-op-row'+(selected?' selected':'')+'" data-account-id="'+escHtml(a.id)+'" onclick="_rtAcctOpOpen(event,this.dataset.accountId)">'+
-      (state.selecting?'<label class="rt-acct-op-check" onclick="event.stopPropagation()"><input type="checkbox" '+(selected?'checked ':'')+'onchange="_rtAcctOpToggle(\''+String(a.id).replace(/'/g,"\\'")+'\',this.checked)"></label>':'')+
-      '<div class="rt-acct-op-main"><div class="rt-acct-op-name">'+escHtml(a.name||'Unnamed account')+' '+badge(typeLabel,r.model==='fixed_cost'?'fixed':'share')+'</div><div class="rt-acct-op-terms">'+escHtml(r.terms)+'</div><div class="rt-acct-op-actions">'+actionBadges(r)+'</div></div>'+
-      '<div class="rt-acct-op-stock"><strong>'+stock+'</strong><span>stock on hand</span><small>'+listed+' listed · '+unlisted+' unlisted</small></div>'+
-      '<div class="rt-acct-op-activity"><span>Last activity</span><strong>'+escHtml(formatDate(r.last))+'</strong></div>'+
-      '<div class="rt-acct-op-money">'+dueHtml+'</div>'+
-      (state.selecting?'':'<span class="rt-acct-op-arrow">›</span>')+
-    '</div>';
+    var a=r.acct,s=r.stats,type=r.model==='fixed_cost'?'Fixed cost':'Profit share';
+    var outstandingCount=Number(s.unsettledCount)||Number(s.unsettledSoldCount)||0;
+    var term=r.model==='fixed_cost'?(paymentTiming(a)==='on_sale'?'After sale':'Upfront'):'';
+    return '<div class="rt-acct-op-row" data-account-id="'+escHtml(a.id)+'" role="link" tabindex="0" aria-label="Open '+escHtml(a.name||'account')+'" onclick="_rtAcctOpOpen(event,this.dataset.accountId)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_rtAcctOpOpen(event,this.dataset.accountId)}">'
+      +'<div class="rt-acct-op-main"><div class="rt-acct-op-name">'+escHtml(a.name||'Unnamed account')+'</div><div class="rt-acct-op-terms">'+badge(type,r.model==='fixed_cost'?'fixed':'share')+(term?'<span>'+term+'</span>':'')+'</div></div>'
+      +'<div class="rt-acct-op-stock"><strong>'+(Number(s.stockOnHandCount)||0)+'</strong><span>'+(Number(s.listedCount)||0)+' listed · '+(Number(s.unlistedCount)||0)+' unlisted</span></div>'
+      +'<div class="rt-acct-op-activity"><strong>'+escHtml(formatDate(r.last))+'</strong></div>'
+      +'<div class="rt-acct-op-money"><strong class="'+(r.due>0?'hot':'')+'">'+money(r.due)+'</strong><span>'+(r.due>0?outstandingCount+' item'+(outstandingCount===1?'':'s')+' outstanding':'Settled')+'</span></div><span class="rt-acct-op-arrow" aria-hidden="true">›</span></div>';
   }
+  var filters={all:'All accounts',due:'Outstanding',fixed:'Fixed cost',share:'Profit share',settled:'Settled'};
+  var sorts={owed:'Outstanding · high to low','owed-asc':'Outstanding · low to high',name:'Alphabetical · A–Z','name-desc':'Alphabetical · Z–A',recent:'Recent activity'};
   function controls(){
-    return '<div class="rt-acct-op-controls">'+
-      '<div class="rt-acct-op-search"><span>⌕</span><input id="rt-acct-op-search" type="search" value="'+escHtml(state.q)+'" placeholder="Search accounts…" oninput="_rtAcctOpSearch(this.value)"></div>'+
-      '<select aria-label="Filter accounts" onchange="_rtAcctOpFilter(this.value)">'+
-        '<option value="all"'+(state.filter==='all'?' selected':'')+'>All accounts</option><option value="attention"'+(state.filter==='attention'?' selected':'')+'>Needs attention</option><option value="due"'+(state.filter==='due'?' selected':'')+'>Money due</option><option value="fixed"'+(state.filter==='fixed'?' selected':'')+'>Fixed cost</option><option value="share"'+(state.filter==='share'?' selected':'')+'>Profit share</option><option value="settled"'+(state.filter==='settled'?' selected':'')+'>Settled</option></select>'+
-      '<select aria-label="Sort accounts" onchange="_rtAcctOpSort(this.value)">'+
-        '<option value="attention"'+(state.sort==='attention'?' selected':'')+'>Priority</option><option value="owed"'+(state.sort==='owed'?' selected':'')+'>Amount due</option><option value="recent"'+(state.sort==='recent'?' selected':'')+'>Recent activity</option><option value="name"'+(state.sort==='name'?' selected':'')+'>Name</option><option value="stock"'+(state.sort==='stock'?' selected':'')+'>Stock on hand</option></select>'+
-      '<button class="btn btn-secondary" onclick="_rtAcctOpSelectMode()">'+(state.selecting?'Cancel':'Select')+'</button></div>';
+    function options(values,kind){return Object.keys(values).map(function(key){return '<button type="button" class="filter-pill-dd-opt'+(state[kind]===key?' active':'')+'" data-account-'+kind+'="'+key+'" onclick="_rtAcctOp'+(kind==='filter'?'Filter':'Sort')+'(\''+key+'\');closeFilterPill(\'rt-acct-filter-sort\')">'+values[key]+'</button>';}).join('');}
+    return '<div class="rt-acct-op-controls rt-acct-compact-controls"><div class="rt-acct-op-search inlist-search">'+_selSearchIco(15)+'<input id="rt-acct-op-search" type="search" aria-label="Search accounts" value="'+escHtml(state.q)+'" placeholder="Search accounts…" oninput="_rtAcctOpSearch(this.value)"></div>'
+      +'<div id="rt-acct-filter-sort" class="filter-pill-dd rt-acct-combined-dd"><div class="filter-pill-dd-backdrop" onclick="closeFilterPill(\'rt-acct-filter-sort\')"></div><button type="button" class="filter-pill-dd-btn" aria-label="Filter and sort accounts" onclick="event.stopPropagation();toggleFilterPill(\'rt-acct-filter-sort\')">Filter / Sort ▾</button><div class="filter-pill-dd-menu rt-acct-combined-menu"><div class="rt-acct-fs-title">Filter</div>'+options(filters,'filter')+'<div class="rt-acct-fs-title">Sort</div>'+options(sorts,'sort')+'</div></div></div>';
   }
-  function selectionBar(visible){
-    if(!state.selecting)return '';
-    var count=state.selected.size;
-    return '<div class="rt-acct-op-selectbar"><strong>'+count+' selected</strong><div><button class="btn btn-secondary" onclick="_rtAcctOpSelectVisible()">Select all visible</button><button class="btn btn-secondary" '+(count?'':'disabled')+' onclick="_rtAcctOpTiming(\'upfront\')">Set upfront</button><button class="btn btn-secondary" '+(count?'':'disabled')+' onclick="_rtAcctOpTiming(\'on_sale\')">Set after sale</button><button class="btn btn-secondary rt-acct-op-danger" '+(count?'':'disabled')+' onclick="_rtAcctOpDeleteSelected()">Delete</button></div></div>';
+  function updateList(){
+    var page=document.getElementById('p-accounts'),list=page&&page.querySelector('.rt-acct-op-list');if(!list)return;
+    var visible=preparedRows.filter(matches),ids=new Set(visible.map(r=>String(r.acct.id)));
+    var nodes=new Map(Array.from(list.querySelectorAll('.rt-acct-op-row')).map(row=>[row.dataset.accountId,row]));
+    nodes.forEach((row,id)=>{row.hidden=!ids.has(id);});
+    var ordered=sortRows(preparedRows.slice()).map(r=>nodes.get(String(r.acct.id))).filter(Boolean);
+    // Search changes visibility only. Sort moves existing rows, preserving handlers.
+    ordered.forEach(function(row,index){if(list.children[index]!==row)list.insertBefore(row,list.children[index]||null);});
+    var count=page.querySelector('.rt-accounts-result');
+    var label=visible.length+' of '+preparedRows.length+' accounts · '+(filters[state.filter]||'All accounts');
+    if(count&&count.textContent!==label)count.textContent=label;
+    if(count)count.hidden=!state.q.trim()&&state.filter==='all';
+    var empty=page.querySelector('.rt-acct-op-empty');if(empty)empty.hidden=visible.length>0;
+    page.querySelectorAll('[data-account-filter],[data-account-sort]').forEach(function(button){var kind=button.hasAttribute('data-account-filter')?'filter':'sort';var active=button.getAttribute('data-account-'+kind)===state[kind];button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));});
   }
   function installStyles(){
     if(document.getElementById('rt-accounts-operations-style'))return;
@@ -148,15 +148,15 @@
   function render(){
     installStyles();
     var page=document.getElementById('p-accounts');if(!page)return;
-    var all=allRows(),visible=sortRows(all.filter(matches));
-    var header='<div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px"><div><div class="page-title">Partners</div><div class="page-subtitle" style="font-size:12px;margin-top:2px">Account operations · payments, stock and actions that need attention.</div></div><button class="btn btn-primary" onclick="openAddAccountModal()">+ Add partner</button></div>';
-    if(!all.length){page.innerHTML=header+'<div class="rt-acct-op-empty"><strong>No accounts yet</strong><div style="margin-top:5px">Add a partner or vendor to track stock, terms and payments.</div></div>';return;}
-    page.innerHTML=header+overview(all)+controls()+selectionBar(visible)+'<div class="rt-acct-op-list">'+(visible.length?visible.map(rowHtml).join(''):'<div class="rt-acct-op-empty">No accounts match this search/filter.</div>')+'</div>';
+    if(preparedOwner!==_currentUserId){state.q='';preparedOwner=_currentUserId;}
+    preparedRows=allRows();page.dataset.rtAccountsOwned='true';
+    var header='<div class="page-header rt-inline-header"><div><div class="page-title">Accounts</div><div class="page-subtitle">Partner balances, stock and payment activity.</div></div><button class="btn btn-primary" onclick="openAddAccountModal()">+ Add partner</button></div>';
+    page.innerHTML=header+overview(preparedRows)+controls()+'<div class="rt-accounts-result" role="status"></div><div class="rt-accounts-ledger-head" aria-hidden="true"><span>Account / arrangement</span><span>Stock on hand</span><span>Last activity</span><span>Outstanding</span><span></span></div><div class="rt-acct-op-list">'+sortRows(preparedRows.slice()).map(rowHtml).join('')+'</div><div class="rt-acct-op-empty" hidden>'+(preparedRows.length?'No accounts match your search or filter.':'Add a partner or supplier to start tracking stock and payments.')+'</div>';
+    updateList();
   }
-
-  window._rtAcctOpSearch=function(v){state.q=v||'';var pos=null;try{var x=document.getElementById('rt-acct-op-search');pos=x&&x.selectionStart;}catch(_){}render();var n=document.getElementById('rt-acct-op-search');if(n){n.focus();try{n.setSelectionRange(pos,pos);}catch(_){}}};
-  window._rtAcctOpFilter=function(v){state.filter=v||'all';render();};
-  window._rtAcctOpSort=function(v){state.sort=v||'attention';render();};
+  window._rtAcctOpSearch=function(v){state.q=v||'';updateList();};
+  window._rtAcctOpFilter=function(v){state.filter=v||'all';updateList();};
+  window._rtAcctOpSort=function(v){state.sort=v||'owed';updateList();};
   window._rtAcctOpSelectMode=function(){state.selecting=!state.selecting;if(!state.selecting)state.selected.clear();render();};
   window._rtAcctOpToggle=function(id,on){if(on)state.selected.add(String(id));else state.selected.delete(String(id));render();};
   window._rtAcctOpSelectVisible=function(){sortRows(allRows().filter(matches)).forEach(function(r){state.selected.add(String(r.acct.id));});render();};

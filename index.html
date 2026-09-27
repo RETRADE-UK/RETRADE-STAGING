@@ -151,12 +151,15 @@ html.rt-auth-bridge #auth-screen-login .rt-auth-brand{visibility:hidden}
 <!-- V2 Session 1 — JetBrains Mono (Inter is already loaded above with the full weight range V2 needs) -->
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <!-- V2 Session 4a: Chart.js removed — dashboard chart is hand-rolled SVG -->
-<link rel="stylesheet" href="./assets/styles/application.css?v=20260925-v1574-staging">
-<link rel="stylesheet" href="./assets/styles/tax.css?v=20260925-v1574-staging">
-<link rel="stylesheet" href="./assets/styles/item.css?v=20260925-v1574-staging">
-<link rel="stylesheet" href="./assets/styles/sales.css?v=20260925-v1574-staging">
-<link rel="stylesheet" href="./assets/styles/status.css?v=20260925-v1574-staging">
-<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./assets/styles/loading.css?v=20260925-v1574-staging">
+<link rel="stylesheet" href="./assets/styles/application.css?v=20260927-v1593-staging">
+<link rel="stylesheet" href="./assets/styles/tax.css?v=20260927-v1593-staging">
+<link rel="stylesheet" href="./assets/styles/item.css?v=20260927-v1593-staging">
+<link rel="stylesheet" href="./assets/styles/sales.css?v=20260927-v1593-staging">
+<link rel="stylesheet" href="./assets/styles/status.css?v=20260927-v1593-staging">
+<link rel="stylesheet" href="./assets/styles/responsive.css?v=20260927-v1593-staging">
+<link rel="stylesheet" href="./assets/styles/workspaces.css?v=20260927-v1593-staging">
+<link rel="stylesheet" href="./assets/styles/monitors.css?v=20260927-v1593-staging">
+<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./assets/styles/loading.css?v=20260927-v1593-staging">
 
 
 
@@ -221,7 +224,6 @@ html.rt-auth-bridge #auth-screen-login .rt-auth-brand{visibility:hidden}
 }
 </style>
 
-<link rel="stylesheet" href="./assets/styles/monitors.css?v=20260925-v1574-staging">
 </head>
 <body class="rt">
 
@@ -371,7 +373,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
           </button>
           <button data-tab="accounts" onclick="goToTab('accounts',this);closeNavMore()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            <span>Partners</span>
+            <span>Accounts</span>
           </button>
           <button data-tab="tax" onclick="goToTab('tax',this);closeNavMore()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
@@ -387,10 +389,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 
     <!-- Right: user menu -->
     <div class="nav-right">
-      <div id="tablet-sync-status" role="status" aria-live="polite" title="Cloud synced">
-        <span class="rt-tablet-sync-dot" aria-hidden="true"></span>
-        <span id="tablet-sync-text">Synced</span>
-      </div>
+      <button type="button" id="tablet-sync-status" class="rt-sync-status synced" onclick="toggleSyncDetails(this)" aria-label="Cloud synced. Show sync details" aria-expanded="false" aria-controls="rt-sync-details" title="Cloud synced"><span class="rt-sync-mark" aria-hidden="true"></span><span class="rt-sync-label">Synced</span></button>
       <div class="user-menu" id="user-menu">
         <button class="user-menu-btn" onclick="event.stopPropagation();toggleUserMenu()" id="user-menu-btn">
           <div class="user-avatar" id="user-avatar">R</div>
@@ -519,7 +518,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
     </span>
     <span class="mtb-brand-word">RE<span class="rt-word-accent">TRADE</span></span>
   </button>
-  <div id="mobile-sync-badge" role="status" aria-live="polite" aria-label="Cloud sync status"></div>
+  <button type="button" id="mobile-sync-badge" class="rt-sync-status synced" onclick="toggleSyncDetails(this)" aria-label="Cloud synced. Show sync details" aria-expanded="false" aria-controls="rt-sync-details" title="Cloud synced"><span class="rt-sync-mark" aria-hidden="true"></span><span class="rt-sync-label">Synced</span></button>
   <button class="mtb-search" onclick="toggleNavSearch()" aria-label="Search items">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
   </button>
@@ -563,7 +562,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
     </button>
     <button onclick="closeMoreSheet();goToTab('accounts',document.querySelector('[data-tab=\'accounts\']'))" class="more-sheet-row" data-sheet-tab="accounts">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      <span>Partners</span>
+      <span>Accounts</span>
     </button>
     <button onclick="closeMoreSheet();goToTab('tax',document.querySelector('[data-tab=\'tax\']'))" class="more-sheet-row" data-sheet-tab="tax">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="15" x2="15" y2="9"/><circle cx="9.5" cy="9.5" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="14.5" r="1" fill="currentColor" stroke="none"/></svg>
@@ -808,7 +807,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
     </button>
     <button class="side-nav-item" data-tab="accounts" onclick="goToTab('accounts',this)">
       <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-      <span class="side-nav-item-label">Partners</span>
+      <span class="side-nav-item-label">Accounts</span>
     </button>
     <button class="side-nav-item" data-tab="data" onclick="goToTab('data',this)">
       <span class="side-nav-item-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v4c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 9v5c0 1.66 4 3 9 3s9-1.34 9-3V9"/><path d="M3 14v5c0 1.66 4 3 9 3s9-1.34 9-3v-5"/></svg></span>
@@ -818,10 +817,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 
   <!-- Footer: sync indicator + user row (gear → settings popup) -->
   <div class="side-nav-footer">
-    <div class="side-nav-sync" id="side-nav-sync" title="Synced">
-      <span class="side-nav-sync-dot" aria-hidden="true"></span>
-      <span class="side-nav-sync-text" id="side-nav-sync-text">Synced</span>
-    </div>
+    <button type="button" id="side-nav-sync" class="rt-sync-status synced" onclick="toggleSyncDetails(this)" aria-label="Cloud synced. Show sync details" aria-expanded="false" aria-controls="rt-sync-details" title="Cloud synced"><span class="rt-sync-mark" aria-hidden="true"></span><span class="rt-sync-label">Synced</span></button>
     <div class="side-user-menu" id="side-user-menu">
       <button class="side-nav-user" id="side-nav-user-btn"
               onclick="event.stopPropagation();toggleSideNavSettings()"
@@ -1131,12 +1127,18 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 
 </div>
 
-<script src="./config/assets.js?v=20260925-v1574-staging"></script>
-<script src="./src/domain/accounting-engine.js?v=20260925-v1574-staging"></script>
-<script src="./src/domain/report-engine.js?v=20260925-v1574-staging"></script>
+<script src="./config/assets.js?v=20260927-v1593-staging"></script>
+<script src="./src/domain/accounting-engine.js?v=20260927-v1593-staging"></script>
+<script src="./src/domain/report-engine.js?v=20260927-v1593-staging"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.js" integrity="sha384-OUpie84zd1LdwNlK9uJJQRwab0BLqo3eKYKFh7hSVL58FSk7wPp2l0kfUMIIoaQd" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="./app.js?v=20260925-v1574-staging"></script>
+<script src="./app.js?v=20260927-v1593-staging"></script>
 
 <!-- RETRADE dashboard spacing cleanup: mobile/tablet/narrow-desktop rhythm v3 - 2026-06-29 -->
+<section id="rt-sync-details" aria-label="Cloud sync details" tabindex="-1" hidden>
+  <div class="rt-sync-detail-heading"><h2 id="rt-sync-detail-title">Synced</h2><button type="button" aria-label="Close sync details" onclick="closeSyncDetails(true)">×</button></div>
+  <p id="rt-sync-detail-text">Your changes are saved to the cloud.</p>
+  <button type="button" id="rt-sync-retry" class="btn btn-secondary rt-sync-retry" hidden onclick="retradeForceResync()">Retry sync</button>
+</section>
+<div id="rt-sync-announcement" class="rt-sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 </body>
 </html>

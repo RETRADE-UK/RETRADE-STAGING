@@ -35,7 +35,7 @@
   function arrangementMeta(a){
     var model=accountModel(a);
     if(model==='fixed_cost')return {type:'Fixed cost',kind:'fixed',term:paymentTiming(a)==='on_sale'?'After sale':'Upfront'};
-    return {type:'Profit share',kind:'share',term:'Split set per item'};
+    return {type:'Profit share',kind:'share',term:''};
   }
   function rowsData(){
     var out=[];
@@ -109,6 +109,7 @@
     var page=document.getElementById('p-accounts');if(!page||!page.classList.contains('on'))return;
     page.querySelectorAll('.rt-acct-op-overview').forEach(function(el){el.style.display='none';});
     page.querySelectorAll('.rt-acct-op-selectbar').forEach(function(el){el.remove();});
+    if(page.dataset.rtAccountsOwned==='true')return;
     var controls=page.querySelector('.rt-acct-op-controls');if(!controls)return;
 
     /* The old dashboard default was Priority, which included returns/unlisted.
@@ -152,6 +153,7 @@
     setTimeout(schedule,0);
   };
   window._rtAcctCompactSort=function(v){
+    if(document.getElementById('p-accounts').dataset.rtAccountsOwned==='true'){closeFilterPill('rt-acct-filter-sort');window._rtAcctOpSort(v);return;}
     try{closeFilterPill('rt-acct-filter-sort');}catch(_){}
     if(v==='name-desc'){customSort=v;if(typeof baseSort==='function')baseSort('name');setTimeout(schedule,0);return;}
     if(v==='owed-asc'){customSort=v;if(typeof baseSort==='function')baseSort('owed');setTimeout(schedule,0);return;}
@@ -184,12 +186,13 @@
     #p-accounts .rt-acct-op-row{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(128px,auto) 18px!important;gap:16px!important;align-items:center!important;min-height:92px!important;padding:14px 16px!important}#p-accounts .rt-acct-op-main{min-width:0!important}#p-accounts .rt-acct-op-name{display:block!important;min-width:0!important;font-size:15px!important;line-height:1.2!important}#p-accounts .rt-acct-snapshot-name{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#p-accounts .rt-acct-op-terms{display:flex!important;align-items:center!important;gap:7px!important;min-width:0!important;margin-top:8px!important;white-space:nowrap!important;overflow:hidden!important}#p-accounts .rt-acct-snapshot-term{font-size:11px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#p-accounts .rt-acct-op-actions,#p-accounts .rt-acct-op-stock,#p-accounts .rt-acct-op-activity{display:none!important}#p-accounts .rt-acct-op-money{display:flex!important;flex-direction:column!important;align-items:flex-end!important;justify-content:center!important;text-align:right!important;gap:3px!important;min-width:0}#p-accounts .rt-acct-op-money strong{font-size:16px!important;white-space:nowrap}#p-accounts .rt-acct-op-money span{font-size:10.5px!important;white-space:nowrap;color:var(--text-secondary)!important}#p-accounts .rt-acct-op-arrow{align-self:center!important}\
     @media(max-width:640px){.rt-acct-compact-strip{min-height:44px;padding:10px 12px}.rt-acct-compact-strip span{font-size:10px}.rt-acct-compact-strip strong{font-size:19px}.rt-acct-combined-btn{width:44px;justify-content:center;padding:0!important}.rt-acct-combined-label,.rt-acct-combined-btn .fpdd-chev{display:none}.rt-acct-combined-menu{min-width:min(250px,calc(100vw - 32px));right:0}.rt-acct-op-controls.rt-acct-compact-controls{gap:7px!important}#p-accounts .rt-acct-op-row{grid-template-columns:minmax(0,1fr) 108px 12px!important;gap:9px!important;min-height:88px!important;padding:13px 12px!important}#p-accounts .rt-acct-op-name{font-size:15px!important}#p-accounts .rt-acct-op-terms{gap:6px!important;margin-top:7px!important}#p-accounts .rt-acct-op-badge{font-size:9px!important;padding:3px 6px!important}#p-accounts .rt-acct-snapshot-term{font-size:10.5px}#p-accounts .rt-acct-op-money strong{font-size:15px!important}#p-accounts .rt-acct-op-money span{font-size:9.5px!important}}\
   ';document.head.appendChild(s);}
+  window.__rtPartnersListPolish=patch;
   function start(){
     styles();
     var page=document.getElementById('p-accounts');
     if(page){
       installNavigation(page);
-      new MutationObserver(schedule).observe(page,{childList:true,subtree:true});
+
     }
     window.addEventListener('hashchange',schedule);schedule();
   }

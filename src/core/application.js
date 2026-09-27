@@ -1031,9 +1031,9 @@ function _editMoneyRow(label,cls,m,id,val,color,sign){
 // v2.19.33 — platform picker row for a sale card. cls selects which handler
 // fires (sale 1 vs sale 2); sel is the currently-resolved platform id.
 function _salePlatformPickerRow(cls,m,id,sel){
-  return '<div class="ip-receipt-row" style="padding-bottom:8px;margin-bottom:6px;border-bottom:1px solid var(--border)">'
+  return '<div class="ip-receipt-row ip-platform-row">'
     +'<span style="flex:1;color:var(--text-secondary);font-weight:600">Sold on</span><span class="ip-receipt-val">'
-    +'<select class="'+cls+'" data-m="'+m+'" data-id="'+id+'" '
+    +'<select aria-label="Sale platform" class="'+cls+'" data-m="'+m+'" data-id="'+id+'" '
     +'style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:12px;padding:3px 8px;font-family:inherit;font-weight:600">'
     +Object.values(PLATFORMS).map(function(p){return '<option value="'+p.id+'"'+(p.id===sel?' selected':'')+(!p.live?' disabled':'')+'>'+(p.label||p.short)+'</option>';}).join('')
     +'</select></span></div>';
@@ -1123,6 +1123,10 @@ let MODAL_CALLBACK=null;
 let MONTH_FILTER='all';
 let MONTH_SORT='date-sold';
 // Costs & Trips page: period scope + active category filter (V2 redesign)
+let COST_SEARCH='', COST_SELECTION_MODE=false, COST_DELETE_PENDING=false;
+const COST_SELECTED=new Set();
+let COST_VISIBLE=[];
+let COST_SELECTION_OWNER=null;
 let COST_PERIOD='mtd';       // mtd|taxyear|lastMonth|last30|last90|all — defaults to This month to mirror Sales History (v2.11.3)
 let COST_CAT_FILTER='all';   // 'all' or a canonical EXPENSE_CATEGORY_DEFS label
 let SELECTION_MODE=false;
@@ -1152,7 +1156,7 @@ let _saleReconciliations=[];
 let _reconciliationSchemaAvailable=false;
 let _acctSelectMode=false;        // selection mode active on account detail page
 let _acctSelected=new Set();      // set of item IDs selected on account detail page
-let MONTHLY_VIEW='grid';          // 'grid' | 'detail'
+let MONTHLY_VIEW='detail';          // 'grid' | 'detail'
 let SUMMARY_PERIOD='7d';  // summary period filter — default Last 7 days (daily-use framing)
 let _sourcedPartsCost=0;          // parts cost carried from sourced item into List Item form (BPF preview)
 
@@ -4536,28 +4540,10 @@ async function initDB(){
     const _lastTab = (() => { if(_coldLaunch||_freshSession) return 'summary';
       try{ return localStorage.getItem(_SK.tab) || 'summary'; }catch(e){ return 'summary'; } })();
     const _safeTab = ['summary','monthly','stock','expenses','cash','returns','scrapped','tax','data','runs','activity'].includes(_lastTab) ? _lastTab : 'summary';
-    // v1.4.33 — Sales has two real sub-routes (calendar + month detail). Capture
-    // the COMPLETE route before any boot render and re-apply it after hydration.
-    // This prevents a stale in-memory MONTHLY_VIEW from painting Calendar for a
-    // frame before the remembered month-detail route takes over.
-    const _bootMonthlyRoute=(function(){
-      if(_safeTab!=='monthly')return null;
-      try{return {
-        view:localStorage.getItem(_SK.monthV),
-        selected:localStorage.getItem('_rt_mon_sel'),
-        filter:localStorage.getItem('_rt_mon_filter'),
-        sort:localStorage.getItem('_rt_mon_sort'),
-        origin:localStorage.getItem('_rt_mon_origin')
-      };}catch(e){return null;}
-    })();
-    const _restoreBootMonthlyRoute=function(){
-      const r=_bootMonthlyRoute;if(!r)return;
-      if(r.view==='grid'||r.view==='detail')MONTHLY_VIEW=r.view;
-      if(r.selected&&/^[A-Z]{3}-\d{2}$/.test(r.selected)&&MONTHS.includes(keyCode(r.selected)))SELECTED_MONTH=r.selected;
-      if(r.filter)MONTH_FILTER=r.filter;
-      if(r.sort)MONTH_SORT=r.sort;
-      if(r.origin)_monthOrigin=r.origin;
-    };
+    // Sales entry always starts in the current month, before either loading
+    // geometry or hydrated data can render. Explicit in-session month links
+    // remain contextual through goToMonth().
+    const _restoreBootMonthlyRoute=function(){if(_safeTab==='monthly')_prepareSalesEntry();};
     // Local UI state is synchronous and must be restored BEFORE the loading
     // renderer so its geometry/subview is the exact page the user left.
     _loadUIState();
@@ -4759,7 +4745,10 @@ function _markLoadingRegions(root){
     '.sales-kpi-value','.sales-kpi-sub','.kpi-foot','.summary-hero-sub',
     '.metric-sub','.item-row-profit','.item-row-roi','.money-value',
     '.mf-val','.mf-foot','.fy-stat-hide','.inv-stat-sub','.category-mini-meta',
-    '.mcard .msub'
+    '.mcard .msub','.tax-kpi strong','.tax-kpi small',
+    '.rt-cash-primary-value','.rt-cash-primary-sub','.rt-cash-meta-value',
+    '.rt-cash-flow-net','.rt-cash-stock-value','.rt-cash-flow-split strong',
+    '.rt-acct-op-money','.rt-acct-compact-strip strong'
   ].join(',')).forEach(function(el){el.classList.add('rt-data-loading');});
 
   // v1.5.31 — static labels are structure, not unknown data. Keep titles,
@@ -5179,10 +5168,6 @@ function finishRealLayoutLoading(tab){
   const page=document.getElementById('p-'+safe);
   if(page)_markLoadingRegions(page);
 
-  const now=(window.performance&&performance.now)?performance.now():Date.now();
-  const elapsed=Math.max(0,now-_realLayoutLoadingStartedAt);
-  const remaining=Math.max(0,440-elapsed);
-
   const finalize=function(){
     _clearLoadingRegions(page);
     _enableLoadingControls();
@@ -5204,7 +5189,7 @@ function finishRealLayoutLoading(tab){
   };
 
   requestAnimationFrame(function(){requestAnimationFrame(function(){
-    _realLayoutFinishTimer=setTimeout(finalize,remaining);
+    _realLayoutFinishTimer=setTimeout(finalize,0);
   });});
 }
 
@@ -5291,7 +5276,7 @@ function _ipCostEditorHTML(m,i){
       +'<label class="ip-control" id="ip-fixed-wrap" for="ip-partner-fixed"'+(!fixed?' hidden':'')+'>Item cost · partner payout (£)<input id="ip-partner-fixed" type="number" inputmode="decimal" min="0" step="0.01" value="'+(fixed?Number(i.accountPaidAmount):0)+'"'+disabled+'></label>';
   }
   h+='<p class="ip-form-note" id="ip-cost-preview" aria-live="polite">'+(hasShare?'Your retained profit is after item costs and the partner agreement.':'Cost includes the purchase amount; parts are shown in the breakdown.')+'</p>';
-  if(locked)h+='<p class="ip-form-note">A payment is recorded. Partner terms are locked here; review corrections in <button type="button" class="ip-text-button" onclick="openAccountPage(\''+esc(i.accountId)+'\')">Partners</button>.</p>';
+  if(locked)h+='<p class="ip-form-note">A payment is recorded. Partner terms are locked here; review corrections in <button type="button" class="ip-text-button" onclick="openAccountPage(\''+esc(i.accountId)+'\')">Accounts</button>.</p>';
   h+='<div class="ip-cost-footer"><span id="ip-cost-save-status" role="status"></span><button class="btn btn-primary" type="submit">Save costs</button></div></form></section>';
   return h;
 }
@@ -5468,7 +5453,7 @@ const _SK={tab:'_rt_tab',stockF:'_rt_stk_f',stockSF:'_rt_stk_sf',stockSo:'_rt_st
 const _SESSION_FRESH_MS=4*60*60*1000; // 4 hours
 let STOCK_COLLAPSED=new Set(); // F7: collapsed month keys in grouped stock view
 const _scrollMap={};
-function _saveUIState(){try{localStorage.setItem(_SK.tab,(document.querySelector('.page.on')||{id:'p-summary'}).id.replace('p-',''));localStorage.setItem(_SK.stockF,STOCK_FILTER);localStorage.setItem(_SK.stockSF,STOCK_STATE_FILTER);localStorage.setItem(_SK.stockSo,STOCK_SORT);localStorage.setItem(_SK.stockSoF,STOCK_SOURCED_FILTER);localStorage.setItem(_SK.stockGr,STOCK_GROUPED?'1':'0');localStorage.setItem(_SK.stkCol,JSON.stringify([...STOCK_COLLAPSED]));localStorage.setItem(_SK.runsSort,RUNS_SORT);localStorage.setItem(_SK.sumPer,SUMMARY_PERIOD);localStorage.setItem(_SK.monthV,MONTHLY_VIEW);localStorage.setItem(_SK.lastActive,String(Date.now()));}catch(e){}}
+function _saveUIState(){try{localStorage.setItem(_SK.tab,(document.querySelector('.page.on')||{id:'p-summary'}).id.replace('p-',''));localStorage.setItem(_SK.stockF,STOCK_FILTER);localStorage.setItem(_SK.stockSF,STOCK_STATE_FILTER);localStorage.setItem(_SK.stockSo,STOCK_SORT);localStorage.setItem(_SK.stockSoF,STOCK_SOURCED_FILTER);localStorage.setItem(_SK.stockGr,STOCK_GROUPED?'1':'0');localStorage.setItem(_SK.stkCol,JSON.stringify([...STOCK_COLLAPSED]));localStorage.setItem(_SK.runsSort,window._RUNS_SORT||'newest');localStorage.setItem(_SK.sumPer,SUMMARY_PERIOD);localStorage.setItem(_SK.monthV,MONTHLY_VIEW);localStorage.setItem(_SK.lastActive,String(Date.now()));}catch(e){}}
 // True if the last recorded activity is recent enough to be the SAME session.
 // Missing/old timestamp → treat as a new session (return false).
 function _isSameSession(){try{const t=parseInt(localStorage.getItem(_SK.lastActive),10);if(!t||isNaN(t))return false;return (Date.now()-t)<_SESSION_FRESH_MS;}catch(e){return false;}}
@@ -5477,7 +5462,7 @@ function _loadUIState(){try{
   // than resuming stale page/filter state. Collapsed-group state is harmless to
   // restore either way, but we skip it too for a fully clean start.
   if(!_isSameSession())return;
-  const sf=localStorage.getItem(_SK.stockF);const ssf=localStorage.getItem(_SK.stockSF);const sso=localStorage.getItem(_SK.stockSo);const ssof=localStorage.getItem(_SK.stockSoF);const sgr=localStorage.getItem(_SK.stockGr);const sc=localStorage.getItem(_SK.stkCol);const rs=localStorage.getItem(_SK.runsSort);const sp=localStorage.getItem(_SK.sumPer);const mv=localStorage.getItem(_SK.monthV);if(sf)STOCK_FILTER=sf;if(ssf){const _ssf=(ssf==='removed'?'listed':ssf);STOCK_STATE_FILTER=['all','listed','sourced','returned'].includes(_ssf)?_ssf:'listed';}if(sso)STOCK_SORT=sso;if(ssof)STOCK_SOURCED_FILTER=ssof;if(sgr)STOCK_GROUPED=sgr==='1';if(sc){try{STOCK_COLLAPSED=new Set(JSON.parse(sc));}catch(e){}}if(rs)RUNS_SORT=rs;if(sp)SUMMARY_PERIOD=sp;if(mv)MONTHLY_VIEW=mv;}catch(e){}}
+  const sf=localStorage.getItem(_SK.stockF);const ssf=localStorage.getItem(_SK.stockSF);const sso=localStorage.getItem(_SK.stockSo);const ssof=localStorage.getItem(_SK.stockSoF);const sgr=localStorage.getItem(_SK.stockGr);const sc=localStorage.getItem(_SK.stkCol);const rs=localStorage.getItem(_SK.runsSort);const sp=localStorage.getItem(_SK.sumPer);if(sf)STOCK_FILTER=sf;if(ssf){const _ssf=(ssf==='removed'?'listed':ssf);STOCK_STATE_FILTER=['all','listed','sourced','returned'].includes(_ssf)?_ssf:'listed';}if(sso)STOCK_SORT=sso;if(ssof)STOCK_SOURCED_FILTER=ssof;if(sgr)STOCK_GROUPED=sgr==='1';if(sc){try{STOCK_COLLAPSED=new Set(JSON.parse(sc));}catch(e){}}if(rs)window._RUNS_SORT=rs;if(sp)SUMMARY_PERIOD=sp;MONTHLY_VIEW='detail';}catch(e){}}
 // v1.4.23 — refresh-safe route + Sales subview persistence.
 // A hard refresh is continuation of the page the user is actively working on,
 // even if that page has been open longer than the four-hour fresh-session window.
@@ -5557,39 +5542,143 @@ function _queueInteractionRender(fn){
     _interactionRenderTimer=setTimeout(function(){
       _interactionRenderTimer=0;
       if(token!==_interactionRenderToken)return;
-      fn();
+      const render=function(){if(token===_interactionRenderToken)fn();};
+      if(window.__rtFeaturesReady===false&&window.__rtFeaturesPromise){
+        window.__rtFeatureLoadUrgent=true;
+        window.__rtFeaturesPromise.then(render);
+      }else render();
     },0);
   });
 }
 
 // A navigation tap gets a paintable destination before deferred computation.
 // Reuse populated content for refreshes; only empty/new layouts need a skeleton.
+function _routeSkeletonMarkup(name,yearly){
+  // Unknown values only. Known labels and controls retain the production type
+  // scale; placeholders never run analytics, manufacture records or write DB.
+  const value='<span class="skeleton rt-pending-value"></span>';
+  const foot='<span class="skeleton rt-pending-foot"></span>';
+  const button=function(text,primary){return '<button type="button" disabled class="btn btn-'+(primary?'primary':'secondary')+'">'+text+'</button>';};
+  const title={summary:'Dashboard',monthly:yearly?'Performance':'Monthly sales',stock:'Stock',accounts:'Accounts',expenses:'Trips &amp; Expenses',cash:'Cashflow',runs:'Sourcing',tax:'Tax overview',data:'Reports &amp; Data',returns:'Returns',scrapped:'Archive',activity:'Activity &amp; Undo',search:'Search',monitors:'Monitors'}[name]||'Loading';
+  const heading=function(actions,subtitle){return '<div class="page-header"><div><div class="page-title">'+title+'</div>'+(subtitle?'<div class="page-subtitle">'+subtitle+'</div>':'')+'</div>'+(actions?'<div class="page-actions">'+actions+'</div>':'')+'</div>';};
+  const card=function(label,primary){return '<div class="card kpi'+(primary?' rt-overview-primary':'')+'"><div class="kpi-label">'+label+'</div><div class="kpi-value num">'+value+'</div><div class="kpi-foot">'+foot+foot+'</div></div>';};
+  const overview=function(cls,labels){return '<div class="'+cls+' rt-overview">'+card(labels[0])+'<div class="rt-overview-side">'+labels.slice(1).map(function(label,i){return card(label,i===0);}).join('')+'</div></div>';};
+  const search=function(label){return '<div class="inlist-search"><input class="inlist-search-input" disabled placeholder="Search '+label+'…"></div>';};
+  const controls=function(label){return '<div class="rt-list-controls">'+search(label)+'<div class="filter-row"><div class="filter-chips"><button class="chip active" disabled>All</button></div><div class="filter-pill-dd"><button class="filter-pill-dd-btn" disabled>All</button></div><select class="sort-select" disabled><option>Newest first</option></select></div><div class="list-toolbar"><button class="select-toggle" disabled>Select</button></div></div>';};
+  const rows=function(cls){return '<div class="'+(cls||'item-table')+' rt-pending-rows">'+Array.from({length:4},function(){return '<div class="item-row rt-pending-row"><div class="rt-pending-row-main">'+foot+foot+'</div><div class="rt-pending-row-money">'+value+foot+'</div></div>';}).join('')+'</div>';};
+  const segments=function(labels,cls){return '<div class="'+(cls||'segmented')+'">'+labels.map(function(label){return button(label);}).join('')+'</div>';};
+  let header=heading(''),body='';
+  if(name==='monthly'&&yearly){
+    header=heading(button('Returns')+button('FY '+new Date().getFullYear()+' ▾'));
+    body=_monthlyNetProfitChartHTML().replace('<svg id=','<svg class="skeleton" id=').replace('<div id="monthly-money-flow" class="money-flow-rows"></div>','<div class="money-flow-rows rt-route-sales-flow">'+Array.from({length:6},function(){return '<div class="rt-pending-flow">'+foot+value+'</div>';}).join('')+'</div>')
+      +'<div class="fy-section"><div class="rt-route-fy">'+button('Financial year ▾')+'</div><div class="mgrid">'+Array.from({length:4},function(){return '<div class="mcard"><div class="mcard-body-left">'+foot+foot+'</div><div class="mcard-body-right">'+value+'</div></div>';}).join('')+'</div></div>';
+  }else if(name==='monthly'){
+    header='<div class="page-header rt-month-header"><div style="display:flex;align-items:center;gap:12px">'+button('<span class="rt-month-back-label">← Performance</span><span class="rt-month-back-icon" aria-hidden="true">←</span>')+'<button class="month-picker-title" disabled>'+keyName(SELECTED_MONTH)+' ▾</button></div></div>';
+    body=overview('sales-kpis-v2',['Net Revenue','Net Profit','Net Margin','Refund rate'])+controls('sales')+'<div class="rt-pending-day">'+foot+'</div>'+rows();
+  }else if(name==='stock'){
+    header='<div class="page-header"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:0"><div style="min-width:0;flex:1"><div class="page-title">Stock</div><div class="page-subtitle">Listed, unlisted and returned stock — everything physically on hand.</div></div><div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'+button('Archive')+button('By month')+button('Add ▾',true)+'</div></div></div>';
+    const labels=STOCK_STATE_FILTER==='stock'?['Items to list','Capital tied up','Est. potential','Longest sitting']:STOCK_STATE_FILTER==='returned'?['Capital tied up','Returned items','Oldest return','Next action']:STOCK_STATE_FILTER==='all'?['Capital tied up','Stock on hand','Listed asking','Returned']:['Capital in listings','Estimated profit','Aged capital','Sell-through'];
+    body=overview('stock-kpis-v2 stock-kpis',labels)+segments(['All','Listed','Unlisted','Returned'],'segmented stock-state-seg')+controls('stock')+rows();
+  }else if(name==='accounts'){
+    header=heading(button('+ Add partner',true),'Partner balances, stock and payment activity.').replace('class="page-header"','class="page-header rt-inline-header"');
+    body='<div class="rt-accounts-overview">'+['Total outstanding','Potential profit','Awaiting payment'].map(function(label){return '<div><span>'+label+'</span><strong>'+value+'</strong><small>'+foot+'</small></div>';}).join('')+'</div><div class="rt-acct-op-controls rt-acct-compact-controls">'+search('accounts')+button('Filter / Sort ▾')+'</div><div class="rt-accounts-ledger-head"><span>Account / arrangement</span><span>Stock on hand</span><span>Last activity</span><span>Outstanding</span><span></span></div><div class="rt-acct-op-list">'+Array.from({length:4},function(){return '<div class="rt-acct-op-row"><div class="rt-acct-op-main">'+foot+foot+'</div><div class="rt-acct-op-stock">'+value+foot+'</div><div class="rt-acct-op-activity">'+foot+'</div><div class="rt-acct-op-money">'+value+foot+'</div><span>›</span></div>';}).join('')+'</div>';
+  }else if(name==='tax'){
+    const y=DB._taxYear||((new Date().getMonth()<3||(new Date().getMonth()===3&&new Date().getDate()<6))?new Date().getFullYear()-1:new Date().getFullYear());
+    header='<header class="tax-header"><div><h1>Tax overview</h1><p>Your business profit, deductions and estimated tax.</p></div><label class="tax-year-control"><span class="tax-year-caption">Tax year<small>6 Apr '+y+' – 5 Apr '+(y+1)+'</small></span><select class="tax-year-select" disabled><option>'+y+'/'+String(y+1).slice(2)+'</option></select></label></header>';
+    body='<div class="tax-kpis tax-mobile-only">'+['Taxable profit','Estimated tax &amp; NI','Yearly Sales net profit'].map(function(label,i){return '<div class="tax-kpi'+(!i?' tax-kpi-primary':'')+'"><span>'+label+'</span><strong>'+value+'</strong><small>'+foot+'</small></div>';}).join('')+'</div>'+segments(['Overview','Filing guide','Monthly'],'tax-view-switch');
+    body=body.replace('<div class="tax-view-switch"','<div class="tax-kpis tax-desktop-only">'+['Business income','Allowable expenses','Business profit','Estimated tax &amp; NI'].map(function(label,i){return '<div class="tax-kpi'+(i===2?' tax-kpi-primary':'')+'"><span>'+label+'</span><strong>'+value+'</strong><small>'+foot+'</small></div>';}).join('')+'</div><div class="tax-view-switch"');
+    const view=window._taxWorkspaceView||'overview';
+    const section=function(label,contents){return '<section class="tax-card"><div class="tax-section-heading"><h2>'+label+'</h2>'+(contents.indexOf('<p>')===0?contents.slice(0,contents.indexOf('</p>')+4):'')+'</div>'+contents.replace(/^<p>.*?<\/p>/,'')+'</section>';};
+    body+='<div class="tax-layout'+(view==='monthly'?' tax-layout-monthly':view==='overview'?' tax-layout-overview':'')+'"><div class="tax-main">'+(view==='monthly'?section('Monthly cash-basis profit',rows('tax-months')):view==='filing'?section('Prepare your tax return',rows('tax-filing-lines')):section('How your profit compares','<p>Sales matches costs to sales. Tax uses payment timing and tax-year dates.</p>'+'<div class="tax-profit-bridge"><div class="tax-bridge-row"><span>Yearly Sales net profit<small>1 Apr '+y+' – 31 Mar '+(y+1)+'</small></span><strong>'+value+'</strong></div><div class="tax-bridge-row tax-bridge-total"><span>Cash-basis profit<small>6 Apr '+y+' – 5 Apr '+(y+1)+'</small></span><strong>'+value+'</strong></div></div><details class="tax-card tax-details"><summary>See the full reconciliation</summary></details>')+['Income &amp; deductions','Stock &amp; partner payment detail'].map(function(t){return '<details class="tax-card tax-details"><summary>'+t+'</summary></details>';}).join(''))+'</div>'+(view==='monthly'?'':'<aside class="tax-aside">'+(view==='filing'?['Filing references','How this estimate works']:['Tax settings &amp; estimate']).map(function(t){return '<details class="tax-card tax-details"><summary>'+t+'</summary></details>';}).join('')+'</aside>')+'</div><button disabled class="btn btn-primary tax-export-bottom">Download tax summary</button>';
+    if(view==='overview'&&window.matchMedia('(min-width:1281px)').matches){
+      const pendingRows=function(count){return Array.from({length:count},function(){return '<div class="tax-bridge-row"><span>'+foot+'</span><strong>'+value+'</strong></div>';}).join('');};
+      const pendingDetail=function(title,contents){return '<details open class="tax-card tax-details"><summary>'+title+'</summary><div class="tax-details-body">'+contents+'</div></details>';};
+      const overview='<div class="tax-layout tax-layout-overview"><div class="tax-main">'
+        +pendingDetail('Income &amp; deductions',pendingRows(8))
+        +section('Why this differs from Sales',pendingRows(5)+'<details class="tax-explanation"><summary>Explain these adjustments</summary></details>')
+        +'</div><aside class="tax-aside">'+pendingDetail('Estimate breakdown',pendingRows(4)+'<div class="tax-estimate-basis"><strong>'+foot+'</strong>'+foot+'</div><details class="tax-settings-disclosure"><summary>Edit estimate settings</summary></details><p class="tax-note">'+foot+'</p>')
+        +pendingDetail('Stock &amp; partner payment detail',pendingRows(4)+'<p class="tax-note">'+foot+foot+'</p>')+'</aside></div>';
+      body=body.slice(0,body.indexOf('<div class="tax-layout'))+overview+'<button disabled class="btn btn-primary tax-export-bottom">Download tax summary</button>';
+    }
+  }else if(name==='cash'){
+    header=heading(button('Reconcile')+button('Add',true));
+    body='<div class="rt-cash-dashboard"><div class="rt-cash-dashboard-grid"><article class="rt-cash-primary"><div><div class="rt-cash-eyebrow">Free cash</div><div class="rt-cash-primary-value num">'+value+'</div><div class="rt-cash-primary-sub">Available after current supplier and partner commitments.</div></div><div class="rt-cash-allocation"><div class="rt-cash-allocation-track skeleton"></div><div class="rt-cash-primary-meta"><div class="rt-cash-meta-block"><span class="rt-cash-meta-label">Cash held</span><strong class="rt-cash-meta-value">'+value+'</strong></div><div class="rt-cash-meta-block"><span class="rt-cash-meta-label">Committed</span><strong class="rt-cash-meta-value">'+value+'</strong></div></div></div></article><div class="rt-cash-side"><article class="rt-cash-flow-card"><div class="rt-cash-card-top"><div class="rt-cash-card-title">Net cash movement</div><span class="rt-cash-period">30 days</span></div><div class="rt-cash-flow-net num">'+value+'</div><div class="rt-cash-flow-split"><div class="in"><span>In</span><strong>'+value+'</strong></div><div class="out"><span>Out</span><strong>'+value+'</strong></div></div></article><article class="rt-cash-stock-card"><div class="rt-cash-card-title">Capital in stock</div><div class="rt-cash-stock-value num">'+value+'</div><div class="rt-cash-card-foot">Paid acquisition and parts still held in inventory.</div></article></div></div><details class="rt-cash-more"><summary><span><span class="rt-cash-more-title">More cash details</span><span class="rt-cash-more-sub">Commitments, owner activity and calculation context</span></span><span>⌄</span></summary></details></div><div class="sl">All cash movements</div>'+search('transactions')+segments(['All','In','Out','Filters'],'rtn-filters')+rows('ledger-list');
+  }else if(name==='runs'){
+    header=heading(button('Log past')+button('Start sourcing',true));
+    body='<div class="runs-kpis-v2 runs-kpis-stack">'+['Total profit','Avg per run','Best session'].map(function(t){return card(t);}).join('')+'</div>'+controls('sourcing runs')+rows('runs-list');
+  }else if(name==='expenses'){
+    header=heading(button('Add ▾',true),'Log mileage, sourcing runs and business spend');
+    body=segments(['All time','This year','This month'],'cost-period-row')+'<div class="cost-total-banner"><div class="cost-total-left"><div class="cost-total-label">Deductions</div><div class="cost-total-val">'+value+'</div><div class="cost-total-sub">'+foot+'</div></div>'+button('Tax return ready →')+'</div><div class="cost-list-controls">'+search('trips &amp; expenses')+'<div>'+button('Select')+'</div></div>'+rows();
+  }else if(name==='returns'){
+    body='<div class="kgrid">'+['Refunds logged','Return rate','Total refunded','Return postage'].map(function(t){return card(t);}).join('')+'</div>'+segments(['All time','This tax year','All','Full','Partial'],'rtn-filters')+rows();
+  }else if(name==='data'){
+    header='';body=_dataWorkspaceMarkup('<option>Choose month</option>','<option>Choose year</option>',true);
+  }else if(name==='summary'){
+    header='<div class="summary-header"><div class="summary-title">Dashboard</div>'+button('Period ▾')+'</div>';
+    body='<div class="card summary-sourcing-cta summary-mobile-only">Start a sourcing run</div><div class="card summary-hero-card summary-mobile-only"><div class="kpi-label">Gross revenue</div><div class="summary-hero-value">'+value+'</div>'+foot+'<div class="skeleton rt-pending-plot"></div></div><div class="summary-mobile-twoup summary-mobile-only">'+card('Gross profit')+card('Gross margin')+'</div><div class="rt-pending-desktop"><div class="kgrid">'+['Gross revenue','Gross profit','Gross margin','Stock'].map(function(t){return card(t);}).join('')+'</div><div class="card"><div class="skeleton rt-pending-plot"></div></div></div>';
+  }else if(name==='activity'){
+    header=heading('', 'Review what changed and safely reverse the latest eligible item action.');
+    body='<div class="act-toolbar"><div class="act-filters">'+['All','Can undo','Sales','Stock','Returns','Job Lots','Disposed','Review'].map(function(t){return button(t);}).join('')+'</div>'+search('item, action, amount')+'</div><div class="act-feed">'+Array.from({length:4},function(){return '<div class="act-entry"><div class="act-rail"><div class="act-node"></div></div><div class="act-card">'+foot+foot+'</div></div>';}).join('')+'</div>';
+  }else{
+    // Archive/search are collections, not four invented KPI cards.
+    body=controls(name==='scrapped'?'archive':name)+rows();
+  }
+  return '<div class="rt-route-skeleton'+(name==='tax'?' tax-workspace':'')+'" data-view="'+(yearly?'yearly':name==='monthly'?'monthly':name)+'"><div aria-hidden="true" inert>'+header+body+'</div></div>';
+}
+
+function _routeLoadingStatus(text){
+  let status=document.getElementById('rt-route-status');
+  if(!status){status=document.createElement('div');status.id='rt-route-status';status.className='rt-sr-only';status.setAttribute('role','status');status.setAttribute('aria-live','polite');status.setAttribute('aria-atomic','true');document.body.appendChild(status);}
+  status.textContent=text;
+}
+
+function _clearRoutePending(page){
+  if(!page)return;
+  ['__rtSkeletonTimer','__rtSlowTimer'].forEach(function(key){if(page[key])clearTimeout(page[key]);page[key]=0;});
+  if(page.__rtLoadingAnnounced){_routeLoadingStatus(page.classList.contains('on')&&!page.querySelector('.rt-route-skeleton')?'View ready.':'');page.__rtLoadingAnnounced=false;}
+  const completed=page.hasAttribute('aria-busy')&&!page.querySelector('.rt-route-skeleton');
+  page.removeAttribute('aria-busy');
+  if(completed&&window._animateWorkspaceChange)window._animateWorkspaceChange(page);
+  const note=page.querySelector('.rt-route-wait');if(note)note.remove();
+}
+
 function _showRoutePending(name){
-  document.querySelectorAll('.page[aria-busy="true"]').forEach(function(p){p.removeAttribute('aria-busy');if(p.__rtSkeletonTimer){clearTimeout(p.__rtSkeletonTimer);p.__rtSkeletonTimer=0;}});
+  document.querySelectorAll('.page[aria-busy="true"]').forEach(_clearRoutePending);
   const page=document.getElementById('p-'+name);if(!page)return;
   page.setAttribute('aria-busy','true');
-  const changedSales=name==='monthly'&&page.dataset.rtSalesView!==MONTHLY_VIEW;
+  const changedSales=name==='monthly'&&(page.dataset.rtSalesView!==MONTHLY_VIEW||(MONTHLY_VIEW==='detail'&&page.dataset.rtSalesMonth!==SELECTED_MONTH));
   if(page.children.length&&!changedSales)return;
+  // Never reveal cached Yearly content while Monthly is being prepared.
+  if(changedSales){page.replaceChildren();page.dataset.rtSalesView=MONTHLY_VIEW;page.dataset.rtSalesMonth=SELECTED_MONTH;}
   const yearly=name==='monthly'&&MONTHLY_VIEW==='grid';
-  function mountSkeleton(){
-    const titles={summary:'Command Centre',monthly:yearly?'Sales overview':'Monthly sales',stock:'Stock',accounts:'Partners',expenses:'Costs',cash:'Cashflow',runs:'Sourcing',tax:'Tax Return',data:'Reports & Data',returns:'Returns',scrapped:'Archive',activity:'Activity',search:'Search',monitors:'Monitors'};
-    const line='<span class="skeleton rt-route-line"></span>';
-    const cards='<div class="rt-route-stats">'+Array.from({length:4},function(){return '<div class="card">'+line+line+'</div>';}).join('')+'</div>';
-    const charts='<div class="rt-route-charts"><div class="card skeleton"></div><div class="card skeleton"></div></div>';
-    const calendar='<div class="card rt-route-fy">'+line+'</div><div class="mgrid rt-route-months">'+Array.from({length:12},function(){return '<div class="mcard">'+line+line+'</div>';}).join('')+'</div>';
-    const rows='<div class="card rt-route-rows">'+Array.from({length:6},function(){return line;}).join('')+'</div>';
-    const body=yearly?calendar+charts:cards+(name==='summary'?charts:rows);
-    page.innerHTML='<div class="rt-route-skeleton" data-view="'+(yearly?'yearly':name==='monthly'?'monthly':name)+'"><div class="page-header"><div class="page-title">'+(yearly?'Sales':titles[name])+'</div></div><span class="rt-sr-only" role="status">Loading view…</span><div aria-hidden="true">'+body+'</div></div>';
-  }
-  if(page.children.length){
-    page.__rtSkeletonTimer=setTimeout(function(){
-      page.__rtSkeletonTimer=0;
-      if(page.hasAttribute('aria-busy')&&page.classList.contains('on'))mountSkeleton();
-    },180);
-  }else mountSkeleton();
+  // Fast routes paint directly. Never hold finished data to show a loader.
+  // A populated, same-layout page remains readable during a refresh.
+  page.__rtSkeletonTimer=setTimeout(function(){
+    page.__rtSkeletonTimer=0;
+    if(page.hasAttribute('aria-busy')&&page.classList.contains('on')){page.innerHTML=_routeSkeletonMarkup(name,yearly);page.__rtLoadingAnnounced=true;_routeLoadingStatus('Loading view…');}
+  },300);
+  page.__rtSlowTimer=setTimeout(function(){
+    page.__rtSlowTimer=0;
+    if(!page.hasAttribute('aria-busy')||!page.classList.contains('on'))return;
+    const note=document.createElement('p');note.className='rt-route-wait';
+    note.textContent='Still loading this view. You can switch pages while you wait.';
+    _routeLoadingStatus(note.textContent);
+    page.prepend(note);
+  },8000);
+}
+
+function _prepareSalesEntry(){
+  _monthOrigin='calendar-top';SELECTED_MONTH=currentMonthKey();MONTHLY_VIEW='detail';MONTH_FILTER='all';MONTH_SORT='date-sold';
+  delete _scrollMap.monthly;
 }
 
 function goToTab(name,sourceEl){
+  if(name==='monthly'&&!_monthOpenFromContext){
+    const repeatSales=sourceEl&&sourceEl.dataset.tab==='monthly'&&document.getElementById('p-monthly').classList.contains('on');
+    if(repeatSales&&MONTHLY_VIEW==='detail'){MONTHLY_VIEW='grid';delete _scrollMap.monthly;}
+    else _prepareSalesEntry();
+  }
+  closeSyncDetails(false);
   // Restore nav search wrap visibility (may have been hidden while on p-search)
   const _gttSW=document.querySelector('.nav-inner .search-wrap');
   if(_gttSW)_gttSW.style.visibility='';
@@ -5651,6 +5740,7 @@ function goToTab(name,sourceEl){
   }
   handleNavResize();
   _saveTabScroll();
+  if(name==='monthly'&&!_monthOpenFromContext)delete _scrollMap.monthly;
   _saveUIState();
   window.scrollTo(0,0);
   if(typeof window._resetNavScrollState==='function')window._resetNavScrollState();
@@ -5658,38 +5748,28 @@ function goToTab(name,sourceEl){
     _showRoutePending(name);
     _queueInteractionRender(function(){
       const page=document.getElementById('p-'+name);
-      try{fn();_restoreTabScroll(name);}
-      finally{if(page)page.removeAttribute('aria-busy');}
+      try{if(page&&page.classList.contains('on')){fn();_restoreTabScroll(name);}}
+      finally{_clearRoutePending(page);}
     });
   };
-  if(name==='summary'){delete _chartDrawKey['summary-chart-svg'];delete _chartDrawKey['summary-chart-svg-mobile'];_renderTab(renderSummary);}
+  if(name==='summary'){delete _chartDrawKey['summary-chart-svg'];delete _chartDrawKey['summary-chart-svg-mobile'];_renderTab(function(){renderSummary();});}
   else if(name==='monthly'){
-    // A deliberate Sales-tab click is the fast daily workflow: open THIS month.
-    // Calendar remains a real sub-route and hard reload restores it through the
-    // boot-route snapshot in initDB(); only an explicit nav click resets to live month.
-    if(!_monthOpenFromContext){
-      _monthOrigin='calendar-top';
-      SELECTED_MONTH=currentMonthKey();
-      MONTHLY_VIEW='detail';
-      MONTH_FILTER='all';
-      MONTH_SORT='date-sold';
-    }
-    _renderTab(renderMonthlyPage);
+    _renderTab(function(){renderMonthlyPage();});
     _saveUIState();
   }
-  else if(name==='stock'){_stockFromSummary=false;_renderTab(renderStock);}
-  else if(name==='expenses')_renderTab(renderExpenses);
-  else if(name==='cash')_renderTab(renderCash);
-  else if(name==='returns')_renderTab(renderReturns);
-  else if(name==='scrapped')_renderTab(renderScrapped);
-  else if(name==='activity')_renderTab(renderActivity);
-  else if(name==='accounts')_renderTab(renderAccountsPage);
-  else if(name==='tax')_renderTab(renderTax);
-  else if(name==='data')_renderTab(renderData);
-  else if(name==='search')_renderTab(renderSearchResults);
-  else if(name==='runs')_renderTab(renderRunsPage);
+  else if(name==='stock'){_stockFromSummary=false;_renderTab(function(){renderStock();});}
+  else if(name==='expenses')_renderTab(function(){renderExpenses();});
+  else if(name==='cash')_renderTab(function(){renderCash();});
+  else if(name==='returns')_renderTab(function(){renderReturns();});
+  else if(name==='scrapped')_renderTab(function(){renderScrapped();});
+  else if(name==='activity')_renderTab(function(){renderActivity();});
+  else if(name==='accounts')_renderTab(function(){renderAccountsPage();});
   else if(name==='monitors')_renderTab(renderMonitors);
-  // Patch A — FAB visibility per page (hides on p-item/p-search/p-tax/p-data)
+  else if(name==='tax')_renderTab(function(){renderTax();});
+  else if(name==='data')_renderTab(function(){renderData();});
+  else if(name==='search')_renderTab(function(){renderSearchResults();});
+  else if(name==='runs')_renderTab(function(){renderRunsPage();});
+  // Keep authenticated route chrome and contextual quick actions consistent.
   if(typeof _syncFabVisibility==='function')_syncFabVisibility();
 }
 
@@ -5735,7 +5815,7 @@ function openItemPage(m,id,origin){
   document.getElementById('p-item').classList.add('on');
   window.scrollTo(0,0);
   renderItemPage(m,id);
-  // Patch A — hide FAB on item page
+  // Reset quick actions for this item context.
   if(typeof _syncFabVisibility==='function')_syncFabVisibility();
 }
 
@@ -6086,6 +6166,7 @@ function saveSDFree(m,id,buyerPays){
 // title, sourcing date, age in stock, photo, notes. A "List this item"
 // CTA stub points to a future patch that handles the stock→listed transition.
 function _renderStockItemPage(m,i){
+  delete document.getElementById('p-item').dataset.rtAccountId;
   const page=document.getElementById('p-item');
   if(!page)return;
   const id=i.id;
@@ -6232,6 +6313,7 @@ function _estPartnerCut(i){
 }
 
 function renderItemPage(m,id){
+  delete document.getElementById('p-item').dataset.rtAccountId;
   // Wrapper: a throw inside the render must NOT silently abort and leave the
   // previously-opened item on screen (which looks like "tapping a new item
   // reopens the old one"). Surface the error in the page so the issue is
@@ -6496,8 +6578,29 @@ function _renderItemPageInner(m,id){
   }
   const freshListing=!i.dateSold&&!i.resaleSalePrice&&!hasReturn;
   if(freshListing){sale1Net=calcEstProfit(i)||0;sale1Partner=_estimatedPartnerCutFromProfit(i,calcEstGrossProfit(i));}
-  if(i.accountId&&_itemAccountType(i)!=='supplier')pb+=rcp(i.accountPaidAmount!=null?'Item cost · partner payout':'Partner share','−'+fmt(sale1Partner),'var(--red)');
-  pb+='<div class="ip-receipt-row total"><span style="flex:1">'+(freshListing?'Your expected profit':i.resaleSalePrice?'Your Sale 1 profit':'Your profit / loss')+'</span><span class="ip-receipt-val" style="color:'+(sale1Net>=0?'var(--green)':'var(--red)')+'">'+fmt(sale1Net)+'</span></div>';
+  // Presentation only: the receipt's canonical net and partner deduction already
+  // reconcile. Show that bridge explicitly without recalculating an agreement.
+  const profitSplitRows=function(net,cut,totalLabel,netLabel){
+    const partnered=i.accountId&&_itemAccountType(i)!=='supplier';
+    const total=+(net+cut).toFixed(2);
+    let rows='';
+    if(partnered){
+      const fixed=i.accountPaidAmount!=null;
+      let shareLabel=fixed?'Partner payout · fixed':'Partner share';
+      if(!fixed&&total>0&&cut>0){
+        const acct=(_accounts||[]).find(function(a){return a.id===i.accountId;});
+        const agreed=i.accountSplitPercent!=null?Number(i.accountSplitPercent):(freshListing&&acct&&acct.defaultSplitPercent!=null?Number(acct.defaultSplitPercent):null);
+        const matches=agreed!=null&&Math.abs(total*agreed/100-cut)<=.011;
+        const pct=matches?agreed:+(cut/total*100).toFixed(1);
+        shareLabel+=' <span class="ip-share-percent">'+pct+'%'+(matches?'':' of total')+'</span>';
+      }
+      rows+='<div class="ip-receipt-row ip-profit-before"><span>'+totalLabel+'</span><span class="ip-receipt-val" style="color:'+(total>=0?'var(--green)':'var(--red)')+'">'+fmt(total)+'</span></div>';
+      rows+=rcp(shareLabel,(cut<0?'+':'−')+fmt(Math.abs(cut)),cut<0?'var(--green)':'var(--text-secondary)');
+    }
+    rows+='<div class="ip-receipt-row total"><span>'+netLabel+'</span><span class="ip-receipt-val" style="color:'+(net>=0?'var(--green)':'var(--red)')+'">'+fmt(net)+'</span></div>';
+    return '<div class="ip-profit-split">'+rows+'</div>';
+  };
+  pb+=profitSplitRows(sale1Net,sale1Partner,freshListing?'Total expected profit':i.resaleSalePrice?'Sale 1 profit before partner':'Total item profit',freshListing?'Your expected profit':i.resaleSalePrice?'Your Sale 1 profit':'Your profit / loss');
 
   // sec2 must be declared before the Sale 2 block that uses it (TDZ fix).
   // sec2: variant that allows a title accent color override
@@ -6552,8 +6655,7 @@ function _renderItemPageInner(m,id){
     if(br.itemCost>0)b+=rcp('Item cost','−'+fmt(br.itemCost),'var(--red)');
     if(br.parts>0)b+=rcp('Parts & expenses','−'+fmt(br.parts),'var(--red)');
     if(br.partialRefund>0)b+=rcp('Partial refunds','−'+fmt(br.partialRefund),'var(--accent)');
-    if(br.partnerSplit)b+=rcp('Partner payout','−'+fmt(br.partnerSplit),'var(--red)');
-    b+='<div class="ip-receipt-row total"><span style="flex:1">Sale '+saleNo+' net</span><span class="ip-receipt-val" style="color:'+(br.netProfit>=0?'var(--green)':'var(--red)')+'">'+fmt(br.netProfit)+'</span></div>';
+    b+=profitSplitRows(br.netProfit,br.partnerSplit,'Sale '+saleNo+' profit before partner','Your Sale '+saleNo+' profit');
     const cycleReturns=(i.returnHistory||[]).filter(function(r){return (Number(r.saleNo)||1)===saleNo;});
     let cycleNet=br.netProfit;
     if(cycleReturns.length){
@@ -7661,9 +7763,7 @@ const _FAB_PAGE_OPTIONS = {
   'p-active-run':  ['sourced','endrun'],   // Active run: add finds without losing context
   'p-accounts':    ['account']             // Partners: create a partner/account
 };
-const _FAB_HIDDEN_PAGES = new Set([
-  'p-search','p-returns','p-scrapped','p-activity','p-tax','p-data','p-run'
-]);
+const _FAB_HIDDEN_PAGES = new Set();
 
 function _fabAccountContext(){
   const active=(document.querySelector('.page.on')||{id:''}).id;
@@ -7672,9 +7772,9 @@ function _fabAccountContext(){
 }
 function _fabOptionsForPage(pageId){
   const acct=_fabAccountContext();
-  if(pageId==='p-item') return acct?['account-sourced','account-list']:[];
+  if(pageId==='p-item') return acct?['account-sourced','account-list']:_FAB_ALL_OPTIONS.slice();
   if(pageId==='p-runs'&&_activeSourcingRun)return ['sourced','endrun'];
-  return (_FAB_PAGE_OPTIONS[pageId]||[]).slice();
+  return (_FAB_PAGE_OPTIONS[pageId]||_FAB_ALL_OPTIONS).slice();
 }
 
 // Single tap may fire the sole primary action immediately. Multi-action pages
@@ -7854,25 +7954,23 @@ function _syncFabVisibility(){
   // sign-in / preview entry sets display:'').
   if(dial.style.display==='none' && !DB._userOwned && !_previewMode) return;
   const activePage=(document.querySelector('.page.on')||{id:''}).id;
-  // The search loop FAB sits beside the + FAB. On pages where the + FAB is
-  // hidden (Accounts, Tax, Data, Search), a lone search loop looks orphaned
-  // and — on Accounts especially — searching the list isn't a useful action,
-  // so hide it alongside the dial. CSS shows it via display:flex!important on
-  // mobile, so we override with visibility (which beats the !important rule).
+  // One owner resets both visual and accessibility state on every route.
   const searchFab=document.getElementById('search-fab');
+  [dial,searchFab].forEach(function(el){if(el){clearTimeout(el.__rtFabHideTimer);el.classList.remove('rt-fab-motion-hidden');}});
   const noContextActions=_fabOptionsForPage(activePage).length===0;
-  const hidden=_FAB_HIDDEN_PAGES.has(activePage)||noContextActions;
+  const selecting=(activePage==='p-stock'&&STOCK_SELECTION_MODE)||(activePage==='p-monthly'&&SELECTION_MODE)||(activePage==='p-expenses'&&COST_SELECTION_MODE);
+  const hidden=_FAB_HIDDEN_PAGES.has(activePage)||noContextActions||selecting;
   if(hidden){
     closeFabDial();
     dial.inert=true;
     dial.style.visibility='hidden';
     dial.setAttribute('aria-hidden','true');
-    if(searchFab){searchFab.style.visibility='hidden';searchFab.setAttribute('aria-hidden','true');}
+    if(searchFab){searchFab.inert=true;searchFab.style.visibility='hidden';searchFab.setAttribute('aria-hidden','true');}
   } else {
     dial.inert=false;
     dial.style.visibility='';
     dial.removeAttribute('aria-hidden');
-    if(searchFab){searchFab.style.visibility='';searchFab.removeAttribute('aria-hidden');}
+    if(searchFab){searchFab.inert=false;searchFab.style.visibility='';searchFab.removeAttribute('aria-hidden');}
   }
 }
 
@@ -8885,6 +8983,25 @@ function _openRunOverheadExpense(idxStr){
 
 
 // ── Section 4: Run history (rendered inside renderStock) ──────────────────────
+// Search is session-only; sort uses the existing saved UI preference.
+// Search updates rows without replacing the input.
+function _filterRunsHistory(value){
+  window._RUNS_SEARCH=String(value||'');
+  const q=window._RUNS_SEARCH.trim().toLowerCase();
+  const rows=document.querySelectorAll('#p-runs .run-history-row');
+  let count=0;
+  rows.forEach(function(row){row.hidden=q&&!row.dataset.runSearch.includes(q);if(!row.hidden)count++;});
+  const result=document.getElementById('runs-result-count');
+  if(result)result.textContent=(q?count+' of '+rows.length:count)+' run'+(rows.length===1?'':'s');
+  const empty=document.getElementById('runs-empty-search');if(empty)empty.hidden=count>0;
+}
+function _setRunsSort(value){
+  if(!['newest','oldest','items','spend','profit','roi'].includes(value))return;
+  const y=window.scrollY;window._RUNS_SORT=value;renderRunsPage();
+  const control=document.querySelector('#p-runs .past-runs-sort');if(control)control.focus({preventScroll:true});
+  window.scrollTo(0,y);_saveUIState();
+}
+
 function renderRunsPage(){
   const page=document.getElementById('p-runs');
   if(!page)return;
@@ -8895,24 +9012,22 @@ function renderRunsPage(){
 
 
 
-  // Sort ended runs per current sort
-  const sortedRuns=function(runs){
-    const copy=runs.slice();
-    // Normalise to YYYY-MM-DD before comparing — an edited run stores a
-    // date-only string while auto-created runs store a full ISO timestamp;
-    // comparing them raw makes the edited one sort as "earlier".
-    const _d=function(r){return (r.dateEnded||r.dateStarted||'').slice(0,10);};
-    if(RUNS_SORT==='newest')copy.sort(function(a,b){return _d(b).localeCompare(_d(a));});
-    else if(RUNS_SORT==='oldest')copy.sort(function(a,b){return _d(a).localeCompare(_d(b));});
-    else if(RUNS_SORT==='items')copy.sort(function(a,b){return _runItems(b.id).length-_runItems(a.id).length;});
-    else if(RUNS_SORT==='profit')copy.sort(function(a,b){return _runProfit(b.id)-_runProfit(a.id);});
-    else if(RUNS_SORT==='roi')copy.sort(function(a,b){
-      const roiA=_runROI(a.id)??-Infinity;
-      const roiB=_runROI(b.id)??-Infinity;
-      return roiB-roiA;
-    });
-    return copy;
-  };
+  // One directly sorted collection: month grouping must not override ranking.
+  const runStats=new Map(ended.map(function(run){
+    const items=_runItems(run.id),cost=_runCost(run.id),profit=_runProfit(run.id);
+    return [run.id,{items:items.length,sold:items.filter(function(i){return i.state==='sold'||i.resaleSalePrice;}).length,cost:cost,profit:profit,roi:cost>0?profit/cost*100:null}];
+  }));
+  const dateKey=function(r){return String(r.dateEnded||r.dateStarted||'').slice(0,10);};
+  const sorted=ended.slice().sort(function(a,b){
+    const x=runStats.get(a.id),y=runStats.get(b.id);
+    let diff=0;
+    if(RUNS_SORT==='items')diff=y.items-x.items;
+    else if(RUNS_SORT==='profit')diff=y.profit-x.profit;
+    else if(RUNS_SORT==='spend')diff=y.cost-x.cost;
+    else if(RUNS_SORT==='roi')diff=(y.roi===null?-Infinity:y.roi)-(x.roi===null?-Infinity:x.roi);
+    else if(RUNS_SORT==='oldest')diff=(dateKey(a)||'9999').localeCompare(dateKey(b)||'9999');
+    return diff||dateKey(b).localeCompare(dateKey(a))||String(a.id).localeCompare(String(b.id));
+  });
 
   // Build active run card if run is active
   let activeCardHTML='';
@@ -8942,93 +9057,45 @@ function renderRunsPage(){
       '</div>';
   }
 
-  // Build past runs list
+  // Comparable facts remain visible; opening a run reveals its items and costs.
   let pastHTML='';
   if(ended.length>0){
-    const sortOpts=[
-      {v:'newest',label:'Newest first'},
-      {v:'oldest',label:'Oldest first'},
-      {v:'items', label:'Most items'},
-      {v:'profit',label:'Highest profit'},
-      {v:'roi',   label:'Highest ROI'}
-    ];
-    const sortSel=sortOpts.map(function(o){return '<option value="'+o.v+'"'+(RUNS_SORT===o.v?' selected':'')+'>'+o.label+'</option>';}).join('');
-
-    const MNTHS_R=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const _runMK=function(run){
-      const raw=(run.dateEnded||run.dateStarted||'').slice(0,10);
-      const d=new Date(raw+'T00:00:00');
-      return isNaN(d.getTime())?'Unknown':String(d.getFullYear())+'-'+String(d.getMonth()+1).padStart(2,'0');
-    }
-    const _fmtRunMK=function(mk){
-      if(mk==='Unknown')return 'Unknown';
-      const p=mk.split('-');return MNTHS_R[parseInt(p[1],10)-1]+' '+p[0];
-    }
-    const curMK=new Date().toISOString().slice(0,7);
-
-    const mMap={};
-    sortedRuns(ended).forEach(function(run){
-      const mk=_runMK(run);
-      if(!mMap[mk])mMap[mk]=[];
-      mMap[mk].push(run);
-    });
-    const sortedMKs=Object.keys(mMap).sort(function(a,b){return b.localeCompare(a);});
-
-    const monthGroups=sortedMKs.map(function(mk){
-      const runs=mMap[mk];
-      const mkProfit=runs.reduce(function(s,r){return s+_runProfit(r.id);},0);
-      const rows=runs.map(function(run){
-        const items=_runItems(run.id);
-        const spent=_runCost(run.id);
-        const profit=_runProfit(run.id);
-        const sold=items.filter(function(i){return i.state==='sold'||i.resaleSalePrice;});
-        const profitStr=sold.length>0?(profit>=0?'+':'')+'£'+profit.toFixed(2):'—';
-        const profitCol=sold.length>0?(profit>=0?'var(--green)':'var(--red)'):'var(--muted)';
-        const dateStr=(run.dateEnded||run.dateStarted||'').slice(0,10);
-        const loc=run.location?(esc(run.location)+' \u00b7 '):''; 
-        const _metaFull=loc+dateStr+' · '+items.length+' item'+(items.length!==1?'s':'')+' · £'+spent.toFixed(2)+' spent';
-        const _metaCompact=dateStr+(dateStr?' · ':'')+profitStr;
-        return '<div class="run-history-row" data-runid="'+run.id+'" onclick="openRunPageFromRuns(this.dataset.runid)">'
-          +'<div class="rh-body">'
-            +'<div class="rh-name">'+esc(run.name)+'</div>'
-            +'<div class="rh-meta rh-meta-full">'+_metaFull+'</div>'
-            +'<div class="rh-meta rh-meta-compact">'+_metaCompact+'</div>'
-          +'</div>'
-          +'<span class="rh-profit" style="color:'+profitCol+';">'+profitStr+'</span>'
-          +'<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-        +'</div>';
-      }).join('');
-      return '<div class="exp-month-group'+(mk===curMK?'':' collapsed')+'">'
-        +'<div class="exp-month-header" onclick="this.closest(\'.exp-month-group\').classList.toggle(\'collapsed\')">'
-          +'<div style="display:flex;align-items:center;gap:8px;">'
-            +'<span class="exp-month-toggle">▾</span>'
-            +'<span style="font-weight:700;font-size:14px;">'+_fmtRunMK(mk)+'</span>'
-            +'<span style="font-size:12px;color:var(--muted);">'+runs.length+' sourcing session'+(runs.length!==1?'s':'')+'</span>'
-          +'</div>'
-          +'<span style="font-weight:700;font-size:13px;color:'+(mkProfit>=0?'var(--green)':'var(--red)')+';">'+'£'+mkProfit.toFixed(2)+'</span>'
-        +'</div>'
-        +'<div class="exp-month-body">'+rows+'</div>'
-      +'</div>';
+    const sortOpts=[['newest','Newest first'],['oldest','Oldest first'],['items','Most items'],['spend','Highest spend'],['profit','Highest profit'],['roi','Highest ROI']];
+    const sortSel=sortOpts.map(function(o){return '<option value="'+o[0]+'"'+(RUNS_SORT===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('');
+    const rows=sorted.map(function(run){
+      const st=runStats.get(run.id),date=dateKey(run);
+      const parsed=new Date(date+'T12:00:00');
+      const dateLabel=isNaN(parsed.getTime())?'Date not set':parsed.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+      const profitCol=st.profit>0?'var(--green)':st.profit<0?'var(--red)':'var(--text)';
+      const search=[run.name,run.location,date,dateLabel].join(' ').toLowerCase();
+      const accessible=[run.name||'Sourcing run',dateLabel,run.location||'',st.sold+' of '+st.items+' items sold','Spent '+fmt(st.cost),'Net profit '+fmt(st.profit),'ROI '+(st.roi===null?'not available':st.roi.toFixed(0)+'%')].join(', ');
+      return '<button type="button" class="run-history-row" aria-label="'+esc(accessible)+'" data-runid="'+esc(run.id)+'" data-run-search="'+esc(search)+'" onclick="openRunPageFromRuns(this.dataset.runid)">'
+        +'<span class="rh-body"><span class="rh-name">'+esc(run.name||'Sourcing run')+'</span><span class="rh-meta">'+esc(dateLabel)+(run.location?' · '+esc(run.location):'')+'</span></span>'
+        +'<span class="rh-sold"><span class="rh-mobile-label">Items </span><strong>'+st.sold+' / '+st.items+'</strong><span class="rh-sold-label"> sold</span></span>'
+        +'<span class="rh-fact"><span class="rh-mobile-label">Spent</span><strong>'+fmt(st.cost)+'</strong></span>'
+        +'<span class="rh-fact rh-profit" style="color:'+profitCol+'"><span class="rh-mobile-label">Net profit</span><strong>'+fmt(st.profit)+'</strong></span>'
+        +'<span class="rh-fact"><span class="rh-mobile-label">ROI</span><strong>'+(st.roi===null?'—':st.roi.toFixed(0)+'%')+'</strong></span>'
+        +'<span class="rh-chevron" aria-hidden="true">›</span></button>';
     }).join('');
-
-    pastHTML=
-      '<div class="past-runs-hdr">'
-        +'<div class="past-runs-lbl">Sourcing history</div>'
-        +'<select class="sort-select past-runs-sort" onchange="RUNS_SORT=this.value;window._RUNS_SORT=this.value;renderRunsPage();_saveUIState()">'+sortSel+'</select>'
-      +'</div>'
-      +monthGroups;
+    pastHTML='<section class="runs-history" aria-label="Sourcing history">'
+      +'<div class="runs-history-title"><h2>Sourcing history</h2><span id="runs-result-count" role="status" aria-live="polite">'+ended.length+' runs</span></div>'
+      +'<div class="runs-history-controls"><div class="inlist-search"><span class="inlist-search-ic">'+_selSearchIco(15)+'</span><input class="inlist-search-input" id="runs-search" type="search" aria-label="Search sourcing runs" placeholder="Search runs or places…" value="'+esc(window._RUNS_SEARCH||'')+'" oninput="_filterRunsHistory(this.value)"></div>'
+      +'<select aria-label="Sort sourcing runs" class="sort-select past-runs-sort" onchange="_setRunsSort(this.value)">'+sortSel+'</select></div>'
+      +'<p class="runs-history-help">Spend includes items, parts and run costs. Profit is from sales to date, after run costs.</p>'
+      +'<div class="runs-list-head" aria-hidden="true"><span>Run / location</span><span>Sold / items</span><span>Spent</span><span>Net profit</span><span>ROI</span><span></span></div>'
+      +'<div class="runs-list">'+rows+'</div><div id="runs-empty-search" class="inlist-empty" hidden>No runs match your search.</div></section>';
   }
 
   // ── Metrics strip — only when there's history to show ───────────────────
   let metricsHTML='';
   if(ended.length>0){
-    const totalProfit=ended.reduce(function(s,r){return s+_runProfit(r.id);},0);
+    const totalProfit=ended.reduce(function(s,r){return s+runStats.get(r.id).profit;},0);
     const avgProfit=totalProfit/ended.length;
     // Best run by ROI — "should I go back?" signal
     let bestRun=null,bestROI=-Infinity;
-    ended.forEach(function(r){const roi=_runROI(r.id);if(roi!==null&&roi>bestROI){bestROI=roi;bestRun=r;}});
+    ended.forEach(function(r){const roi=runStats.get(r.id).roi;if(roi!==null&&roi>bestROI){bestROI=roi;bestRun=r;}});
     // Total capital deployed and overall ROI
-    const totalCapital=ended.reduce(function(s,r){return s+_runCost(r.id);},0);
+    const totalCapital=ended.reduce(function(s,r){return s+runStats.get(r.id).cost;},0);
     const overallROI=totalCapital>0?(totalProfit/totalCapital)*100:null;
 
     const mc=function(label,val,sub,valCol,clickRunId){
@@ -9048,10 +9115,10 @@ function renderRunsPage(){
 
     metricsHTML='<div class="runs-kpis-v2 runs-kpis-stack" style="margin-bottom:18px;">'
       +mc('Return on runs',overallROI!==null?overallROI.toFixed(0)+'%':'\u2014',
-        '\u00a3'+totalProfit.toFixed(0)+' profit on \u00a3'+totalCapital.toFixed(0)+' deployed \u00b7 '+ended.length+' sourcing session'+(ended.length!==1?'s':''),
+        fmtK(totalProfit)+' profit · '+fmtK(totalCapital)+' spent',
         overallROI!==null&&overallROI>0?'var(--green)':overallROI!==null&&overallROI<0?'var(--red)':'var(--text)')
       +mc('Avg per session','\u00a3'+avgProfit.toFixed(0),
-        'net after overhead \u00b7 '+ended.length+' sourcing session'+(ended.length!==1?'s':''),
+        ended.length+' completed run'+(ended.length!==1?'s':''),
         avgProfit>0?'var(--green)':avgProfit<0?'var(--red)':'var(--text)')
       +mc('Best session',bestRun?'\u00a3'+_runProfit(bestRun.id).toFixed(0):'\u2014',
         bestRun?esc(bestRun.name)+' \u00b7 '+bestROI.toFixed(0)+'% ROI'+((_activeSourcingRun?' \u00b7 1 active':'')):'No completed sourcing sessions',
@@ -9076,17 +9143,17 @@ function renderRunsPage(){
       '<div style="min-width:0;"><div class="page-title" style="white-space:nowrap;">Sourcing</div>'+
       '<div class="page-subtitle" style="display:none;">Track sourcing sessions, spend and profitability.</div></div>'+
       '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">'+
-        '<button class="btn btn-secondary" style="font-size:12px;white-space:nowrap;padding:7px 12px;" onclick="openLogPastRunModal()" title="Log past sourcing">'+
+        '<button class="btn btn-secondary" style="white-space:nowrap;" onclick="openLogPastRunModal()" title="Log past sourcing">'+
         '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="display:inline-block;vertical-align:-2px"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>'+
         '<span class="btn-label-hide-xs"> Log past sourcing</span>'+
       '</button>'+
         (!_activeSourcingRun?
-          '<button class="btn btn-primary" style="gap:6px;padding:9px 14px;font-size:13px;white-space:nowrap;" onclick="openStartRunModal()">'+
+          '<button class="btn btn-primary" style="gap:6px;white-space:nowrap;" onclick="openStartRunModal()">'+
             '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>'+
             '<span class="btn-label-hide-xs">Start sourcing</span>'+
             '<span class="btn-label-show-xs" style="display:none">Start</span>'+
           '</button>':
-          '<button class="btn btn-primary" style="gap:6px;padding:9px 14px;font-size:13px;background:var(--green);border-color:var(--green);color:#fff;white-space:nowrap;" onclick="openActiveRunPage()">'+
+          '<button class="btn btn-primary" style="gap:6px;background:var(--green);border-color:var(--green);color:#fff;white-space:nowrap;" onclick="openActiveRunPage()">'+
             '<span style="width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block;flex-shrink:0;animation:navDotPulse 2s ease-in-out infinite;"></span>'+
             '<span class="btn-label-hide-xs">Sourcing active \u203a</span>'+
             '<span class="btn-label-show-xs" style="display:none">Active \u203a</span>'+
@@ -9098,6 +9165,7 @@ function renderRunsPage(){
     (hasRuns||_activeSourcingRun?pastHTML:emptyHTML);
 
   page.innerHTML=html;
+  _filterRunsHistory(window._RUNS_SEARCH||'');
 }
 
 // ── Patch C-3: Nav refresh — updates active-run dot on Runs nav item ─────────
@@ -9198,62 +9266,98 @@ function _refreshSideNavUser(){
   if(nmEl)nmEl.textContent=name;
 }
 
-// One sync state for desktop sidebar and mobile status. Keep brief saves quiet.
-let _mobileSyncRevealTimer=0, _mobileSyncState='';
-function _refreshSideNavSync(state){
-  const wrap=document.getElementById('side-nav-sync');
-  const txt=document.getElementById('side-nav-sync-text');
-  const mob=document.getElementById('mobile-sync-badge');
-  const tablet=document.getElementById('tablet-sync-status');
-  const tabletText=document.getElementById('tablet-sync-text');
-  const pending=(typeof _outboxPendingCount==='function')?_outboxPendingCount():0;
-  const labels={saving:'Saving',pending:'Saved on device',error:'Sync issue',synced:'Synced'};
-  const safeState=labels[state]?state:'synced';
-  if(wrap&&txt){
-    wrap.classList.remove('saving','pending','error');
-    if(safeState!=='synced')wrap.classList.add(safeState);
-    txt.textContent=labels[safeState];
-    wrap.title=safeState==='error'?(_lastSyncError||'Cloud sync needs attention'):
-      safeState==='pending'?(pending+' change'+(pending===1?'':'s')+' saved on this device; retrying automatically'):
-      safeState==='saving'?'Saving changes to cloud':'Cloud synced';
-    wrap.setAttribute('aria-label',wrap.title);
-  }
-  if(tablet&&tabletText){
-    tablet.classList.remove('saving','pending','error');
-    if(safeState!=='synced')tablet.classList.add(safeState);
-    tabletText.textContent=labels[safeState];
-    tablet.title=wrap?wrap.title:labels[safeState];
-  }
-  if(!mob)return;
-  if(safeState===_mobileSyncState)return;
-  _mobileSyncState=safeState;
-  clearTimeout(_mobileSyncRevealTimer);
-  mob.className='';
-  mob.innerHTML='';
-  mob.removeAttribute('title');
-  mob.removeAttribute('aria-label');
-  if(safeState==='synced')return;
-  const show=function(){
-    if(_mobileSyncState!==safeState)return;
-    mob.className=safeState;
-    const detail=safeState==='pending'?'Changes saved on this device; retrying automatically':
-      safeState==='error'?(_lastSyncError||'Cloud sync needs attention'):labels[safeState];
-    mob.setAttribute('aria-label',detail);
-    mob.title=detail;
-    const glyph=safeState==='error'?'!':safeState==='pending'?'•':'';
-    mob.innerHTML='<span class="rt-sync-mark" aria-hidden="true">'+glyph+'</span><span class="rt-sync-label">'+labels[safeState]+'</span>';
-    if(safeState==='error'&&typeof retradeForceResync==='function'){
-      const button=document.createElement('button');
-      button.type='button';
-      button.className='rt-sync-retry';
-      button.textContent='Retry';
-      button.setAttribute('aria-label','Retry cloud sync');
-      button.addEventListener('click',function(){retradeForceResync();});
-      mob.appendChild(button);
-    }
+// One compact status across breakpoints. Writer/outbox remain authoritative.
+let _syncRevealTimer=0,_syncPresentationState='',_syncStatusTimer=0,_syncStatusStarted=0,_syncDetailsAnchor=null;
+function _reconcileSyncStatus(){
+  if(navigator.onLine===false){_refreshSideNavSync('offline');return;}
+  const active=typeof _syncing!=='undefined'&&_syncing;
+  const pending=typeof _outboxPendingCount==='function'?_outboxPendingCount():0;
+  if(!active){_refreshSideNavSync(_lastSyncError?'error':pending?'pending':'synced');return;}
+  if(!_syncStatusStarted)_syncStatusStarted=Date.now();
+  _refreshSideNavSync(Date.now()-_syncStatusStarted>=15000?'waiting':'saving');
+}
+document.addEventListener('visibilitychange',function(){if(!document.hidden)_reconcileSyncStatus();});
+window.addEventListener('pageshow',_reconcileSyncStatus);
+document.addEventListener('animationend',function(event){
+  if(event.animationName==='rtSyncTurn'&&_syncPresentationState==='saving')_reconcileSyncStatus();
+});
+window.addEventListener('online',_reconcileSyncStatus);
+window.addEventListener('offline',_reconcileSyncStatus);
+function _syncStatusCopy(state){
+  const pending=typeof _outboxPendingCount==='function'?_outboxPendingCount():0;
+  const copy={
+    synced:['Synced','Your changes are saved to the cloud.'],
+    saving:['Syncing','Saving your changes to the cloud. You can keep working.'],
+    waiting:['Sync pending','Cloud confirmation is taking longer than usual. We will keep trying.'],
+    pending:['Saved on this device',pending+' change'+(pending===1?'':'s')+' waiting to sync. We will retry automatically.'],
+    offline:['Offline','Cloud sync will resume when your connection returns.'],
+    error:['Sync needs attention','Your latest changes have not been confirmed in the cloud. Check your connection and retry.']
   };
-  if(safeState==='error')show();
-  else _mobileSyncRevealTimer=setTimeout(show,safeState==='saving'?1200:450);
+  return copy[state]||copy.synced;
+}
+function _refreshSyncDetails(){
+  const panel=document.getElementById('rt-sync-details');if(!panel)return;
+  const copy=_syncStatusCopy(_syncPresentationState);
+  document.getElementById('rt-sync-detail-title').textContent=copy[0];
+  document.getElementById('rt-sync-detail-text').textContent=copy[1];
+  const retry=document.getElementById('rt-sync-retry');
+  const canRetry=['error','pending','waiting'].includes(_syncPresentationState);
+  if(!canRetry&&document.activeElement===retry&&_syncDetailsAnchor)_syncDetailsAnchor.focus({preventScroll:true});
+  retry.hidden=!canRetry;
+  if(!panel.hidden&&_syncDetailsAnchor){
+    const r=_syncDetailsAnchor.getBoundingClientRect();
+    panel.style.left=Math.max(12,Math.min(innerWidth-panel.offsetWidth-12,r.right-panel.offsetWidth))+'px';
+    const y=r.bottom+8+panel.offsetHeight<innerHeight-12?r.bottom+8:r.top-panel.offsetHeight-8;
+    panel.style.top=Math.max(12,y)+'px';
+  }
+}
+function closeSyncDetails(restoreFocus){
+  const panel=document.getElementById('rt-sync-details');if(panel)panel.hidden=true;
+  if(_syncDetailsAnchor){_syncDetailsAnchor.setAttribute('aria-expanded','false');if(restoreFocus)_syncDetailsAnchor.focus({preventScroll:true});}
+  _syncDetailsAnchor=null;
+}
+function toggleSyncDetails(button){
+  const panel=document.getElementById('rt-sync-details');if(!panel)return;
+  const closing=!panel.hidden&&_syncDetailsAnchor===button;
+  closeSyncDetails(false);if(closing)return;
+  _syncDetailsAnchor=button;button.setAttribute('aria-expanded','true');panel.hidden=false;_refreshSyncDetails();panel.focus({preventScroll:true});
+}
+document.addEventListener('pointerdown',function(e){if(_syncDetailsAnchor&&!e.target.closest('#rt-sync-details,.rt-sync-status'))closeSyncDetails(false);});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&_syncDetailsAnchor)closeSyncDetails(true);});
+window.addEventListener('resize',function(){closeSyncDetails(false);});
+window.addEventListener('scroll',function(){closeSyncDetails(false);},{passive:true});
+function _refreshSideNavSync(state){
+  clearTimeout(_syncStatusTimer);
+  const pending=typeof _outboxPendingCount==='function'?_outboxPendingCount():0;
+  if(state==='synced'&&(_syncing||pending||_lastSyncError))state=_lastSyncError?'error':_syncing?'saving':'pending';
+  if(navigator.onLine===false&&state!=='error')state='offline';
+  if(state==='saving'||state==='waiting'){
+    if(!_syncStatusStarted)_syncStatusStarted=Date.now();
+    if(Date.now()-_syncStatusStarted>=15000)state='waiting';
+    _syncStatusTimer=setTimeout(_reconcileSyncStatus,1000);
+  }else if(state==='synced')_syncStatusStarted=0;
+  // Keep the unresolved episode's clock across pending/error/offline retries.
+  // Only a clean cloud confirmation starts a fresh animation budget.
+  const safeState=['saving','waiting','pending','offline','error','synced'].includes(state)?state:'synced';
+  const copy=_syncStatusCopy(safeState),changed=safeState!==_syncPresentationState;
+  const badges=document.querySelectorAll('.rt-sync-status');
+  const wasVisible=Array.from(badges).some(b=>b.classList.contains('saving')&&!b.classList.contains('is-delayed'));
+  const previous=_syncPresentationState;
+  _syncPresentationState=safeState;
+  badges.forEach(function(b){
+    b.title=copy[0]+'. '+copy[1];b.setAttribute('aria-label',copy[0]+'. Show sync details');
+    b.querySelector('.rt-sync-label').textContent=copy[0];
+    if(changed){b.className='rt-sync-status '+safeState+(safeState==='saving'?' is-delayed':'');b.querySelector('.rt-sync-mark').textContent=safeState==='error'?'!':safeState==='offline'?'−':'';}
+  });
+  _refreshSyncDetails();
+  if(!changed)return;
+  clearTimeout(_syncRevealTimer);
+  const announce=function(){const el=document.getElementById('rt-sync-announcement');if(el)el.textContent=copy[0];};
+  if(safeState==='saving')_syncRevealTimer=setTimeout(function(){
+    if(_syncPresentationState!==safeState)return;
+    badges.forEach(function(b){b.classList.remove('is-delayed');});announce();
+  },1200);
+  else if(safeState!=='synced'||wasVisible||(previous&&previous!=='saving'))announce();
 }
 
 // Drop 4 — Sidebar settings popup (mirrors user-menu dropdown, gear-triggered).
@@ -9572,6 +9676,11 @@ function _accountStats(accountId){
 }
 
 function openAccountPage(accountId){
+  if(window.__rtFeaturesReady===false&&window.__rtFeaturesPromise){
+    goToTab('accounts');const token=_interactionRenderToken;
+    window.__rtFeaturesPromise.then(function(){if(token===_interactionRenderToken&&document.getElementById('p-accounts').classList.contains('on'))openAccountPage(accountId);});
+    return;
+  }
   const acct=_accounts.find(function(a){return a.id===accountId;});
   if(!acct){toast('Account not found','error');return;}
   _itemPageOrigin='p-accounts';
@@ -9592,8 +9701,8 @@ function backToAccountsList(){
 // ── Account detail page selection mode ────────────────────────────────────────
 function _acctCurrentAcct(){
   const page=document.getElementById('p-item');
-  const titleEl=page&&page.querySelector('.page-title');
-  return titleEl?(_accounts.find(function(a){return a.name===titleEl.textContent;})||null):null;
+  const id=page&&page.dataset.rtAccountId;
+  return id?(_accounts.find(function(a){return String(a.id)===id;})||null):null;
 }
 function _acctToggleSelectMode(){
   _acctSelectMode=!_acctSelectMode;
@@ -9775,7 +9884,7 @@ function _applySettlementPaidState(acct,tx,paid,date){
   if(!acct||!tx)return false;
   _snapshotSettlementKinds(acct,tx);
   if(paid){
-    tx.paid=true;tx.date=date||todayISO();tx.paidAt=new Date().toISOString();delete tx.reversedAt;
+    tx.paid=true;tx.date=date||_todayISO();tx.paidAt=new Date().toISOString();delete tx.reversedAt;
     if((Number(tx.partnerAmount)||0)>0){
       _recordSystemCashEvent(_systemSettlementCashId(tx.id),'partner_settlement',Number(tx.partnerAmount)||0,tx.date,'Settlement paid · '+(acct.name||'Partner')+' · '+((tx.items||[]).length)+' item'+(((tx.items||[]).length)!==1?'s':''));
     }
@@ -9792,15 +9901,15 @@ function _markSettlementPaid(accountId,settlementId){
   const ids=(tx.items||[]).map(_settlementAllocationItemId).filter(Boolean);
   const duplicate=ids.find(function(id){return _paidSettlementRefsForItem(id).some(function(r){return r.tx.id!==settlementId;});});
   if(duplicate){toast('An item in this allocation already belongs to another paid settlement. Resolve that duplicate first.','error');return;}
-  const date=((document.getElementById('settlement-action-date')||{}).value)||todayISO();
-  _applySettlementPaidState(acct,tx,true,date);saveDB();toast('Settlement marked paid');_openSettlementDetail(accountId,settlementId);
+  const date=((document.getElementById('settlement-action-date')||{}).value)||_todayISO();
+  _applySettlementPaidState(acct,tx,true,date);saveDB();toast('Settlement marked paid');refreshActivePage();_openSettlementDetail(accountId,settlementId);
 }
 function _reverseSettlementPayment(accountId,settlementId){
   const acct=(_accounts||[]).find(function(a){return a.id===accountId;});if(!acct)return;
   const tx=(acct.settlements||[]).find(function(t){return t.id===settlementId;});if(!tx||!tx.paid)return;
   showConfirm('Reverse this payment?','The allocation is kept, but it becomes unpaid and the cash outflow is removed. Use this only to correct a payment recorded in error.',{icon:'warn',okLabel:'Reverse payment'}).then(function(ok){
     if(!ok)return;
-    _applySettlementPaidState(acct,tx,false);saveDB();toast('Payment reversed · allocation remains unpaid');_openSettlementDetail(accountId,settlementId);
+    _applySettlementPaidState(acct,tx,false);saveDB();toast('Payment reversed · allocation remains unpaid');refreshActivePage();_openSettlementDetail(accountId,settlementId);
   });
 }
 
@@ -10178,6 +10287,7 @@ function _accountGroupHTML(acct,key,label,count,body,defaultCollapsed,extraStyle
 }
 
 function _renderAccountPage(acct){
+  document.getElementById('p-item').dataset.rtAccountId=String(acct.id);
   const page=document.getElementById('p-item');
   if(!page)return;
   const stats=_accountStats(acct.id);
@@ -11063,7 +11173,7 @@ function renderAccountsPage(){
 
   const html=
     '<div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">'
-      +'<div><div class="page-title">Partners</div>'
+      +'<div><div class="page-title">Accounts</div>'
       +'<div class="page-subtitle" style="font-size:12px;margin-top:2px;">Partners &amp; vendors \u2014 stock, profit split &amp; settlement.</div></div>'
       +(hasAccounts?'<button class="btn btn-primary" style="gap:6px;padding:9px 14px;font-size:13px;white-space:nowrap;" onclick="openAddAccountModal()">'
         +'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
@@ -11722,7 +11832,7 @@ function submitListFromSourced(m, srcId){
 
   saveDB();
   closePanel();
-  SELECTED_MONTH=newMonth; MONTH_SORT='date-listed'; MONTH_FILTER='all';
+  SELECTED_MONTH=newMonth; MONTH_SORT='date-sold'; MONTH_FILTER='all';
   SELECTION_MODE=false; SELECTED_ITEMS.clear();
   openItemPage(newMonth,srcId,'p-stock');
   toast(esc(rawName)+' listed ✓');
@@ -11809,7 +11919,7 @@ function submitQuickAdd(){
   _autoTagToActiveRun(item); // Patch C: tag to active sourcing run if one is running
   if(!Array.isArray(DB[m])) DB[m]=[];
   DB[m].push(item);saveDB();closePanel();
-  SELECTED_MONTH=m;MONTH_SORT='date-listed';MONTH_FILTER='all';
+  SELECTED_MONTH=m;MONTH_SORT='date-sold';MONTH_FILTER='all';
   SELECTION_MODE=false;SELECTED_ITEMS.clear();
   const _ctxAcct=_quickAddAccount(_quickAddAccountId);
   if(_ctxAcct){_renderAccountPage(_ctxAcct);}
@@ -13135,8 +13245,7 @@ function setSummaryPeriod(p){
       _summaryPeriodRenderFrame=0;
       if(token!==_summaryPeriodRenderToken)return;
       const started=(window.performance&&performance.now)?performance.now():Date.now();
-      renderSummary();
-      if(page)page.removeAttribute('data-rt-period-pending');
+      try{renderSummary();}finally{if(page)page.removeAttribute('data-rt-period-pending');}
       try{
         window.__rtLastSummaryRenderMs=((window.performance&&performance.now)?performance.now():Date.now())-started;
         window.__rtLastSummaryPeriod=p;
@@ -13785,7 +13894,7 @@ function _renderChartInto(svgEl,labels,revData,profitData,handlers,opts){
     const _ds=function(c){return _isLast?c:'var(--surface-1)';};
     return '<g class="rt-chart-col'+(has?' clickable':'')+'" data-idx="'+i+'">'
       +'<rect x="'+(cx-colW/2).toFixed(1)+'" y="'+pad.t+'" width="'+colW.toFixed(1)+'" height="'+innerH+'" fill="transparent"/>'
-      +(hasT&&!tertiaryBars&&!tertiaryEvents&&(showDots||tertiaryAlwaysDots)?'<circle cx="'+cx.toFixed(1)+'" cy="'+sy(t).toFixed(1)+'" r="'+tertiaryDotR+'" fill="'+_df(tertiaryColor)+'" stroke="'+_ds(tertiaryColor)+'" stroke-width="1.1" opacity="'+tertiaryDotOpacity+'"/>':'')
+      +(hasT&&!tertiaryBars&&!tertiaryEvents&&(showDots||tertiaryAlwaysDots)?'<circle class="rt-chart-tertiary-dot" cx="'+cx.toFixed(1)+'" cy="'+sy(t).toFixed(1)+'" r="'+tertiaryDotR+'" fill="'+_df(tertiaryColor)+'" stroke="'+_ds(tertiaryColor)+'" stroke-width="1.1" opacity="'+tertiaryDotOpacity+'"/>':'')
       +(hasP&&!secondaryBarsInPrimary&&(showDots||(_isLast&&showLastProfitDot))?'<circle class="'+(_isLast?'rt-chart-partial-dot':'')+'" cx="'+cx.toFixed(1)+'" cy="'+sy(p).toFixed(1)+'" r="'+profitDotR+'" fill="'+_df(secondaryColor)+'" stroke="'+_ds(secondaryColor)+'" stroke-width="1.2"/>':'')
       +((hasR&&!primaryBars&&(showDots||_isLast))?'<circle class="'+(_isLast?'rt-chart-partial-dot':'')+'" cx="'+cx.toFixed(1)+'" cy="'+sy(r).toFixed(1)+'" r="'+revDotR+'" fill="'+_df(primaryColor)+'" stroke="'+_ds(primaryColor)+'" stroke-width="1.5"/>':'')
       +'<title>'+esc(l)+' · '+primaryLabel+' '+fmtMoney(r)+' · '+secondaryLabel+' '+fmtMoney(p)+(hasT?' · '+tertiaryLabel+(tertiaryCounts&&tertiaryCounts[i]?' ('+tertiaryCounts[i]+')':'')+' -'+fmtMoney(t):'')+'</title>'
@@ -14062,7 +14171,7 @@ function renderSummary(){
     if(_isFirstRunEmpty){
       el.innerHTML=`
         <div class="summary-header">
-          <div class="summary-header-text"><div class="summary-title">Command Centre</div><div class="summary-subtitle">Your reseller operation, in one place.</div></div>
+          <div class="summary-header-text"><div class="summary-title">Dashboard</div><div class="summary-subtitle">Your reseller operation, in one place.</div></div>
         </div>
         <section class="card" aria-labelledby="onboarding-title" style="max-width:760px;margin:24px auto 0;padding:clamp(20px,5vw,34px);border:1px solid var(--border);background:var(--surface);box-shadow:0 10px 34px var(--shadow);">
           <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:22px">
@@ -14202,10 +14311,10 @@ function renderSummary(){
     const html=`
       <div class="summary-header">
         <div class="summary-header-text">
-          <div class="summary-title">Command Centre</div>
+          <div class="summary-title">Dashboard</div>
           <div class="summary-subtitle">Revenue, sourcing quality, stock health and velocity.</div>
         </div>
-        <select class="period-select-inline summary-period-sel" onchange="setSummaryPeriod(this.value)">${periods.map(p=>`<option value="${p.key}"${SUMMARY_PERIOD===p.key?' selected':''}>${p.label}</option>`).join('')}</select>
+        <select aria-label="Dashboard period" class="period-select-inline summary-period-sel" onchange="setSummaryPeriod(this.value)">${periods.map(p=>`<option value="${p.key}"${SUMMARY_PERIOD===p.key?' selected':''}>${p.label}</option>`).join('')}</select>
       </div>
       <div class="summary-grid-v3">
         <!-- ─ Mobile-only blocks. Hidden on desktop via .summary-mobile-only.
@@ -14437,7 +14546,7 @@ function renderSummary(){
     })();
   }catch(err){
     console.error('renderSummary failed', err);
-    el.innerHTML=`<div class="page-header"><div><div class="page-title">Command Centre</div><div class="page-subtitle">Your business at a glance.</div></div></div><div class="section-card"><div class="section-card-title">Dashboard unavailable</div><div class="section-card-desc">There was a rendering issue. Reload the page or switch period to retry.</div><button class="btn btn-primary" onclick="renderSummary()">Retry dashboard</button></div>`;
+    el.innerHTML=`<div class="page-header"><div><div class="page-title">Dashboard</div><div class="page-subtitle">Your business at a glance.</div></div></div><div class="section-card"><div class="section-card-title">Dashboard unavailable</div><div class="section-card-desc">There was a rendering issue. Reload the page or switch period to retry.</div><button class="btn btn-primary" onclick="renderSummary()">Retry dashboard</button></div>`;
   }
 }
 
@@ -14560,8 +14669,9 @@ function backToMonthlyGrid(restoreMonth){
   _showRoutePending('monthly');
   _queueInteractionRender(function(){
     const page=document.getElementById('p-monthly');
+    if(!page||!page.classList.contains('on')||MONTHLY_VIEW!=='grid')return;
     try{renderMonthlyGrid();if(!restoreMonth)window.scrollTo(0,0);}
-    finally{if(page)page.removeAttribute('aria-busy');}
+    finally{_clearRoutePending(page);}
   });
 }
 
@@ -14583,17 +14693,16 @@ function _getFYLabelHTML(fyStart){
 
 
 function toggleFYSection(fyStart){
-  const next=!_fyCollapsed[fyStart];
+  const next=!(_fyCollapsed[fyStart]===undefined?fyStart!==_currentFYStart():_fyCollapsed[fyStart]);
   _fyCollapsed[fyStart]=next;
 
   const section=document.querySelector('#p-monthly [data-fy-section="'+fyStart+'"]');
   const grid=section&&section.querySelector('[data-fy-grid="'+fyStart+'"]');
   const chevron=section&&section.querySelector('[data-fy-chevron="'+fyStart+'"]');
+  const head=section&&section.firstElementChild;
+  if(head)head.setAttribute('aria-expanded',next?'false':'true');
 
-  /* v1.5.44 — a disclosure is local UI, not a Sales-page render. If this FY is
-     already materialised, collapse/expand that existing grid only. Past FYs are
-     intentionally lazy: their first ever expansion still asks renderMonthlyGrid
-     to build the cards, after which future toggles stay local. */
+  // Disclosures mutate only their mounted grid, never the page or chart.
   if(section&&grid){
     section.style.marginBottom=next?'12px':'20px';
     if(chevron)chevron.style.transform='rotate('+(next?'-90deg':'0deg')+')';
@@ -14642,8 +14751,6 @@ function toggleFYSection(fyStart){
     return;
   }
 
-  // A never-opened past FY has no month cards yet; build it once.
-  if(!next)renderMonthlyGrid();
 }
 
 
@@ -14744,9 +14851,8 @@ function setMonthlyPeriod(v){
     _monthlyPeriodRenderFrame=requestAnimationFrame(function(){
       _monthlyPeriodRenderFrame=0;
       if(token!==_monthlyPeriodRenderToken)return;
-      if(MONTHLY_VIEW==='grid')renderMonthlyGrid();
-      else renderMonthlyProfitabilityChart();
-      if(page)page.removeAttribute('data-rt-period-pending');
+      try{if(MONTHLY_VIEW==='grid')renderMonthlyGrid();else renderMonthlyProfitabilityChart();}
+      finally{if(page)page.removeAttribute('data-rt-period-pending');}
     });
   });
 }
@@ -14838,6 +14944,8 @@ function renderMonthlyMoneyFlow(){
 function renderMonthlyProfitabilityChart(statsForMonth){
   const svg=document.getElementById('monthly-profitability-svg');
   if(!svg)return;
+  // The breakdown determines the shared card height; measure after it is populated.
+  renderMonthlyMoneyFlow();
   const _box=svg.getBoundingClientRect();
   const _W=Math.max(320,Math.round(_box.width)||800);
   const _H=Math.max(200,Math.round(_box.height)||360);
@@ -14849,7 +14957,6 @@ function renderMonthlyProfitabilityChart(statsForMonth){
   });
   if(!keys.length){
     svg.innerHTML='<text x="50%" y="50%" text-anchor="middle" font-size="13" fill="var(--text-tertiary)" font-family="var(--font-body)">No completed months in this period yet</text>';
-    renderMonthlyMoneyFlow();
     return;
   }
   const showYear=keys.length>12;
@@ -14909,7 +15016,6 @@ function renderMonthlyProfitabilityChart(statsForMonth){
     gradientId:'rt-monthly-profit-fill',
     partialLast:currentIsLast
   });
-  renderMonthlyMoneyFlow();
 }
 
 function renderMonthlyGrid(){
@@ -14964,7 +15070,7 @@ function renderMonthlyGrid(){
   let html='<div style="padding-bottom:80px;">';
   // Period selector lives in the page header (right side), mirroring the
   // Dashboard. .page-header is flex/space-between, so it right-aligns.
-  html+='<div class="page-header"><div><div class="page-title">Sales</div><div class="page-subtitle">Sales performance, returns and monthly history.</div></div>'
+  html+='<div class="page-header rt-inline-header rt-performance-header"><div><div class="page-title">Performance</div><div class="page-subtitle">Sales performance, returns and monthly history.</div></div>'
     +'<div class="page-actions"><button class="btn btn-secondary" style="padding:7px 10px;font-size:12px;white-space:nowrap" onclick="goToTab(\'returns\')">Returns</button>'+_monthlyPeriodSelectHTML()+'</div>'
     +'</div>';
   html+=_monthlyNetProfitChartHTML();
@@ -14972,15 +15078,8 @@ function renderMonthlyGrid(){
   fyYears.forEach(function(fy){
     const months=_fyKeys(fy); // full Apr-Mar ordered list of 'MMM-YY' keys
     const isCurrentFY=fy===currentFY;
-    // Default collapse: current FY always open; previous FY open if within 6 months
-    // of its end (March) — i.e. before October of the current year; future + older always collapsed
-    let defaultCollapsed;
-    if(fy===currentFY){ defaultCollapsed=false; }
-    else if(fy===currentFY-1){
-      // Previous FY ended March of currentFY. Stay open until Oct 1 of currentFY.
-      const cutoff=new Date(currentFY,9,1); // Oct 1 (month index 9)
-      defaultCollapsed=now>=cutoff;
-    } else { defaultCollapsed=true; }
+    // One owner for disclosure defaults: current FY open, history closed.
+    const defaultCollapsed=fy!==currentFY;
     const isCollapsed=_fyCollapsed[fy]!==undefined?_fyCollapsed[fy]:defaultCollapsed;
 
     let fyProfit=0,fySold=0,fyROISum=0,fyROICount=0,fyMarginSum=0,fyMarginCount=0;
@@ -14999,14 +15098,14 @@ function renderMonthlyGrid(){
     const fyAvgMargin=fyMarginCount>0?(fyMarginSum/fyMarginCount):null;
     const fyLabel=_getFYLabelHTML(fy);
     const profitColor=fyProfit>0?'var(--green)':fyProfit<0?'var(--red)':'var(--muted)';
-    const chevronRot=isCollapsed?'0deg':'180deg';
-    const borderCol=isCurrentFY?'var(--accent)':'var(--border)';
+    const chevronRot=isCollapsed?'-90deg':'0deg';
+    const borderCol='var(--border)';
     const labelCol=isCurrentFY?'var(--accent)':'var(--text)';
     const currentBadge=isCurrentFY?'<span class="fy-current-badge" style="font-size:10px;font-weight:700;background:var(--accent);color:#000;border-radius:4px;padding:2px 7px;letter-spacing:0.5px;flex-shrink:0;">CURRENT</span>':'';
     const roiSpan=fyAvgMargin!==null?'<span style="color:var(--text-secondary)">'+fyAvgMargin.toFixed(1)+'% avg margin</span>':'';
 
     let gridHTML='';
-    if(!isCollapsed){
+    {
       // Past FYs: show most-recent month first (MAR→APR). Current FY: chronological (APR→now).
       const displayMonths=isCurrentFY?months:[...months].reverse();
       // Keep the current month visible for orientation; omit empty months
@@ -15038,12 +15137,11 @@ function renderMonthlyGrid(){
           const profVal=ms.netProfit>0?'pos':ms.netProfit<0?'neg':'nil';
           cardContent='<div class="mval '+profVal+'">'+(ms.soldCount>0?fmt(ms.netProfit):'—')+'</div>';
         }
-        const nowBadge=isCurrent?'<span style="font-size:10px;font-weight:700;color:var(--accent);letter-spacing:0.5px;text-transform:uppercase;">Now</span>':'';
         const monthLabel=MONTH_NAMES[keyCode(k)]; // e.g. 'April'
-        return '<div class="mcard'+(trulyEmpty?' mcard-empty':'')+'" style="'+borderStyle+'" onclick="goToMonth(\''+k+'\')">' 
+        return '<div class="mcard'+(trulyEmpty?' mcard-empty':'')+'"'+(isCurrent?' aria-current="date"':'')+' style="'+borderStyle+'" onclick="goToMonth(\''+k+'\')">'
           +'<div class="mcard-body-left">'
           +'<div style="display:flex;align-items:center;gap:6px;">'
-          +'<div class="mname" style="margin-bottom:0">'+monthLabel+'</div>'+nowBadge+'</div>'
+          +'<div class="mname" style="margin-bottom:0">'+monthLabel+'</div></div>'
           +'<div class="msub">'+
             (trulyEmpty?'No items yet · tap to add':
              hasListedOnly?'0 sold · '+ms.listedCount+' active':
@@ -15055,11 +15153,13 @@ function renderMonthlyGrid(){
           +'</div>'
           +'</div>';
       }).join('');
-      gridHTML='<div class="mgrid" data-fy-grid="'+fy+'" style="margin-top:10px;">'+cards+'</div>';
+      // Keep cards mounted even while collapsed. Opening a year must not
+      // replace the page/chart and let the browser clamp the document scroll.
+      gridHTML='<div class="mgrid" data-fy-grid="'+fy+'" style="margin-top:10px;'+(isCollapsed?'display:none;':'')+'">'+cards+'</div>';
     }
 
     html+='<div class="fy-section" data-fy-section="'+fy+'" style="margin-bottom:'+(isCollapsed?'12px':'20px')+'">'
-      +'<div onclick="toggleFYSection('+fy+')" style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:var(--surface);border:1.5px solid '+borderCol+';border-radius:10px;cursor:pointer;user-select:none;transition:border-color 0.15s;">'
+      +'<div role="button" tabindex="0" aria-expanded="'+(!isCollapsed)+'" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleFYSection('+fy+');}" onclick="toggleFYSection('+fy+')" style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:var(--surface);border:1.5px solid '+borderCol+';border-radius:10px;cursor:pointer;user-select:none;transition:border-color 0.15s;">'
       +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;min-width:0;">'
       +'<span style="font-size:13px;font-weight:700;letter-spacing:0.02em;color:'+labelCol+';white-space:nowrap;">FY '+fyLabel+'</span>'
       +currentBadge+'</div>'
@@ -15099,6 +15199,8 @@ function toggleMonthPicker(){
   if(!el)return;
   const wasOpen=el.classList.contains('open');
   el.classList.toggle('open');
+  const triggerButton=el.querySelector('button.month-picker-title');
+  if(triggerButton)triggerButton.setAttribute('aria-expanded',String(!wasOpen));
   if(!wasOpen){
     // On mobile: position the fixed dropdown just below the trigger,
     // clamped so it never extends beyond the viewport bottom.
@@ -15145,14 +15247,20 @@ function toggleFilterPill(id){
     closeMoreSheet();
   }
   document.querySelectorAll('.filter-pill-dd.open').forEach(other=>{
-    if(other!==el)other.classList.remove('open');
+    if(other!==el)closeFilterPill(other.id);
   });
   el.classList.toggle('open',!wasOpen);
+  const trigger=el.querySelector('.filter-pill-dd-btn');if(trigger)trigger.setAttribute('aria-expanded',String(!wasOpen));
 }
 function closeFilterPill(id){
   const el=document.getElementById(id);
-  if(el)el.classList.remove('open');
+  if(el){el.classList.remove('open');const trigger=el.querySelector('.filter-pill-dd-btn');if(trigger)trigger.setAttribute('aria-expanded','false');}
 }
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape')return;
+  const picker=document.querySelector('.filter-pill-dd.open');if(!picker)return;
+  closeFilterPill(picker.id);picker.querySelector('.filter-pill-dd-btn')?.focus();
+});
 // Close picker on outside click
 document.addEventListener('click',function(e){
   const el=document.getElementById('month-picker');
@@ -15163,7 +15271,7 @@ function _queueMonthDetailRender(){
   const page=document.getElementById('p-monthly');if(page)page.setAttribute('data-rt-filter-pending','1');
   _queueLocalControlRender('month-detail-filter',function(){
     renderMonth();
-    const current=document.getElementById('p-monthly');if(current)current.removeAttribute('data-rt-filter-pending');
+    const current=document.getElementById('p-monthly');if(current){current.removeAttribute('data-rt-filter-pending');if(window._animateWorkspaceChange)window._animateWorkspaceChange(current);}
   });
 }
 function setMonthFilter(f){
@@ -15180,8 +15288,12 @@ function setMonthSort(s){
 }
 
 function renderMonth(){
+  _syncFabVisibility();
+  // Old stored routes and item-save paths used the retired listing-date key.
+  if(!['date-sold','profit','price','margin'].includes(MONTH_SORT))MONTH_SORT='date-sold';
   const routeHost=document.getElementById('p-monthly');if(routeHost)routeHost.dataset.rtSalesView='detail';
   const m=SELECTED_MONTH;
+  if(routeHost)routeHost.dataset.rtSalesMonth=m;
   // Session B: Monthly = sales-history view. KPIs and items list are driven by
   // sale-event attribution (dateSold / resaleDateSold), NOT by listing month.
   const stats=calcMonthStatsBySale(m);
@@ -15215,7 +15327,7 @@ function renderMonth(){
   window.__monthAll=visible;                                 // pre-search (v2.21.18)
   if(MONTH_SEARCH){visible=visible.filter(function(e){return _selItemMatchesSearch(e.item,MONTH_SEARCH);});}
   window.__monthItems=visible;
-  const backLabel=(_monthOrigin==='grid'||_monthOrigin==='calendar-top')?'← Calendar':_monthOrigin==='p-summary'?'← Dashboard':'← Back';
+  const backLabel=(_monthOrigin==='grid'||_monthOrigin==='calendar-top')?'← Performance':_monthOrigin==='p-summary'?'← Dashboard':'← Back';
   const backAction=_monthOrigin==='grid'
     ?`backToMonthlyGrid(true)`
     :_monthOrigin==='calendar-top'
@@ -15239,14 +15351,14 @@ function renderMonth(){
   if(cReturned===0&&(MONTH_FILTER==='sold'||MONTH_FILTER==='returned'))MONTH_FILTER='all';
 
   const html=`
-    <div class="page-header">
+    <div class="page-header rt-month-header">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:nowrap;min-width:0;">
-        <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px;flex-shrink:0;" onclick="${backAction}">${backLabel}</button>
+        <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px;flex-shrink:0;" onclick="${backAction}" aria-label="${esc(backLabel.replace('← ','Back to '))}"><span class="rt-month-back-label">${backLabel}</span><span class="rt-month-back-icon" aria-hidden="true">←</span></button>
         <div class="month-picker-wrap" id="month-picker" style="min-width:0;">
-          <div class="month-picker-title" onclick="toggleMonthPicker()">
+          <button type="button" class="month-picker-title" onclick="toggleMonthPicker()" aria-label="Choose sales month" aria-expanded="false" aria-controls="month-picker-list" onkeydown="if(event.key==='Escape'&amp;&amp;this.closest('.month-picker-wrap').classList.contains('open')){event.stopPropagation();toggleMonthPicker();}">
             ${keyName(m)}
             <span class="month-picker-chevron">▾</span>
-          </div>
+          </button>
           <div class="month-picker-backdrop" onclick="toggleMonthPicker()"></div>
           <div class="month-picker-dropdown" id="month-picker-list">
             ${(()=>{
@@ -15314,16 +15426,17 @@ function renderMonth(){
       </div>
     </div>
 
-    <div class="sales-kpis-v2">
+    <div class="sales-kpis-v2 rt-overview">
       <div class="card kpi">
         <div class="kpi-label">Net Revenue</div>
         <div class="kpi-value num">${fmtK(stats.totalRev)}</div>
         ${stats.returnsAmt>0?`<div class="kpi-foot revenue-breakdown">${fmt(stats.grossRev)} gross − ${fmt(stats.returnsAmt)} refunds</div>`:''}
         <div class="kpi-foot">${stats.soldCount} sale${stats.soldCount!==1?'s':''}${stats.returnedCount>0?' · '+stats.returnedCount+' returned':''}</div>
       </div>
-      <div class="card kpi kpi-realised">
+      <div class="rt-overview-side">
+      <div class="card kpi kpi-realised rt-overview-primary">
         <div class="kpi-label">Net Profit</div>
-        <div class="kpi-value num">${fmtK(stats.netProfit)}</div>
+        <div class="kpi-value num ${stats.netProfit<0?'negative':''}">${fmtK(stats.netProfit)}</div>
         <div class="kpi-foot">${fmtK(stats.grossProfit)} gross · ${fmtK(stats.overheads)} overheads</div>
       </div>
       <div class="card kpi">
@@ -15336,8 +15449,11 @@ function renderMonth(){
         <div class="kpi-value num">${refundLabel}</div>
         <div class="kpi-foot">${refundSub}</div>
       </div>
+      </div>
     </div>
 
+    <div class="rt-list-controls">
+    ${cAll>0?_inlistSearchHTML('month'): ''}
     <div class="filter-row" style="gap:8px;">
       <div class="filter-chips">
         <button data-month-filter="all" class="chip chip-all ${MONTH_FILTER==='all'?'active':''}" onclick="setMonthFilter('all')">All <span class="chip-count">${cAll}</span></button>
@@ -15364,28 +15480,14 @@ function renderMonth(){
             <div class="filter-pill-dd-menu" onclick="event.stopPropagation()">${optsHTML}</div>
           </div>`;
       })()}
-      <select class="sort-select" onchange="setMonthSort(this.value)">
-        <option value="date-sold" ${MONTH_SORT==='date-sold'?'selected':''}>Date sold</option>
-        <option value="profit" ${MONTH_SORT==='profit'?'selected':''}>Profit</option>
-        <option value="price" ${MONTH_SORT==='price'?'selected':''}>Price</option>
-        <option value="margin" ${MONTH_SORT==='margin'?'selected':''}>Margin</option>
+      <select aria-label="Sort sales" class="sort-select" onchange="setMonthSort(this.value)">
+        <option value="date-sold" ${MONTH_SORT==='date-sold'?'selected':''}>Newest sales</option>
+        <option value="profit" ${MONTH_SORT==='profit'?'selected':''}>Highest profit</option>
+        <option value="price" ${MONTH_SORT==='price'?'selected':''}>Highest price</option>
+        <option value="margin" ${MONTH_SORT==='margin'?'selected':''}>Highest margin</option>
       </select>
     </div>
 
-    ${cAll>0?_inlistSearchHTML('month'):''}
-    ${cAll===0?`
-      <div class="empty-state">
-        <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div>
-        <div class="empty-state-text">No sales in ${keyName(m)}</div>
-        <div class="empty-state-sub">${stats.listedCount>0?stats.listedCount+' item'+(stats.listedCount!==1?'s':'')+' listed in this month — view in <span style="color:var(--accent);cursor:pointer;font-weight:600" onclick="goToTab(\'stock\',document.querySelector(\'[data-tab=stock]\'))">Stock</span>':'Switch month or add new sales'}</div>
-      </div>
-    `:(visible.length===0&&!MONTH_SEARCH)?`
-      <div class="empty-state">
-        <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
-        <div class="empty-state-text">No ${MONTH_FILTER} sales</div>
-        <div class="empty-state-sub"><span style="color:var(--accent);cursor:pointer;font-weight:600" onclick="setMonthFilter('all')">Show all ${cAll}</span></div>
-      </div>
-    `:`
       <div class="list-toolbar">
         ${SELECTION_MODE?`
           <button class="sel-check" onclick="${SELECTED_ITEMS.size===visible.length?'SELECTED_ITEMS.clear();renderMonth()':'selectAllMonth()'}">
@@ -15400,9 +15502,23 @@ function renderMonth(){
           `:''}
           <button class="sel-exit" onclick="toggleSelectionMode()">\u2715 Done</button>
         `:`
-          <button class="select-toggle" onclick="toggleSelectionMode()">Select</button>
+          <button class="select-toggle" ${visible.length?'':'disabled'} onclick="toggleSelectionMode()">Select</button>
         `}
       </div>
+    </div>
+    ${cAll===0?`
+      <div class="empty-state">
+        <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></div>
+        <div class="empty-state-text">No sales in ${keyName(m)}</div>
+        <div class="empty-state-sub">${stats.listedCount>0?stats.listedCount+' item'+(stats.listedCount!==1?'s':'')+' listed in this month — view in <span style="color:var(--accent);cursor:pointer;font-weight:600" onclick="goToTab(\'stock\',document.querySelector(\'[data-tab=stock]\'))">Stock</span>':'Switch month or add new sales'}</div>
+      </div>
+    `:(visible.length===0&&!MONTH_SEARCH)?`
+      <div class="empty-state">
+        <div class="empty-state-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+        <div class="empty-state-text">No ${MONTH_FILTER} sales</div>
+        <div class="empty-state-sub"><span style="color:var(--accent);cursor:pointer;font-weight:600" onclick="setMonthFilter('all')">Show all ${cAll}</span></div>
+      </div>
+    `:`
       <div class="item-table" id="month-list">
         ${(()=>{window.__monthItems=visible;return visible.length?_renderMonthList(visible):(MONTH_SEARCH?'<div class="inlist-empty">No sales match \u201c'+esc(MONTH_SEARCH)+'\u201d</div>':'');})()}
       </div>
@@ -16147,7 +16263,7 @@ function _queueStockRender(){
   const page=document.getElementById('p-stock');if(page)page.setAttribute('data-rt-filter-pending','1');
   _queueLocalControlRender('stock-filter',function(){
     renderStock();
-    const current=document.getElementById('p-stock');if(current)current.removeAttribute('data-rt-filter-pending');
+    const current=document.getElementById('p-stock');if(current){current.removeAttribute('data-rt-filter-pending');if(window._animateWorkspaceChange)window._animateWorkspaceChange(current);}
   });
 }
 function setStockSort(s){
@@ -17458,7 +17574,7 @@ function _inlistSearchHTML(ctx){
   const cnt = val?(shownN+' of '+base):'';
   return '<div class="inlist-search">'
     +'<span class="inlist-search-ic">'+_selSearchIco(15)+'</span>'
-    +'<input id="'+ctx+'-search-input" class="inlist-search-input" type="text" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Search this list\u2026" value="'+esc(val||'')+'" oninput="'+fn+'(this.value)">'
+    +'<input id="'+ctx+'-search-input" class="inlist-search-input" type="text" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" aria-label="Search '+(ctx==='stock'?'stock':'sales')+'" placeholder="Search '+(ctx==='stock'?'stock':'sales')+'\u2026" value="'+esc(val||'')+'" oninput="'+fn+'(this.value)">'
     +(val?'<button class="inlist-search-clear" onclick="_selClear(\''+ctx+'\')" title="Clear search">\u2715</button>':'')
     +'<span id="'+ctx+'-search-count" class="inlist-search-count">'+esc(cnt)+'</span>'
     +'</div>';
@@ -17732,9 +17848,12 @@ function _renderStockCore(){
       {cls:'r',label:'Returned',         val:String(cAllReturned), sub:cAllReturned?'Need a decision':'Nothing waiting'}
     ];
   }
-  const kpiHTML=kpis.map(k=>'<div class="card kpi'+(k.click?' clickable':'')+'"'+(k.click?' onclick="'+k.click+'"':'')+'>'+
-    '<div class="kpi-label">'+String(k.label).replace(/<br>/g,' ')+'</div><div class="kpi-value num">'+k.val+'</div><div class="kpi-foot">'+k.sub+'</div>'+
-  '</div>').join('');
+  const primaryKpi=isListedOnly?1:0;
+  const kpiCards=kpis.map((k,n)=>'<div class="card kpi'+(n===primaryKpi?' rt-overview-primary':'')+(k.click?' clickable':'')+'"'+(k.click?' role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}" onclick="'+k.click+'"':'')+'>'+
+    '<div class="kpi-label">'+String(k.label).replace(/<br>/g,' ')+'</div><div class="kpi-value num'+(k.cls==='g'&&((isListedOnly&&listedPotentialProfit<0)||(isStockOnly&&estPotential<0))?' negative':'')+'">'+k.val+'</div><div class="kpi-foot">'+k.sub+'</div>'+
+  '</div>');
+  const supportingKpis=kpiCards.filter((_,n)=>n!==primaryKpi);
+  const kpiHTML=supportingKpis[0]+'<div class="rt-overview-side">'+kpiCards[primaryKpi]+supportingKpis.slice(1).join('')+'</div>';
 
   const _stockSelectedRows=items.filter(function(i){return STOCK_SELECTED.has(i.id);});
   const _stockCanBulkSell=_stockSelectedRows.length>0&&_stockSelectedRows.every(function(i){return i.state==='listed'&&!i.isReturned&&!i.dateSold&&!i.resaleSalePrice&&!i.scrappedAt;});
@@ -17745,7 +17864,7 @@ function _renderStockCore(){
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:0;">
         <div style="min-width:0;flex:1;">
           ${_stockFromSummary?`<button class="btn btn-secondary" onclick="goToTab('summary',document.querySelector('[data-tab=\\'summary\\']'));_stockFromSummary=false;" style="margin-bottom:10px;font-size:13px">← Dashboard</button>`:''}
-          <div class="page-title">Inventory</div>
+          <div class="page-title">Stock</div>
           <div class="page-subtitle">Listed, unlisted and returned stock — everything physically on hand.</div>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
@@ -17764,12 +17883,14 @@ function _renderStockCore(){
         </div>
       </div>
     </div>
-    <div class="stock-kpis-v2 stock-kpis">${kpiHTML}</div>
+    <div class="stock-kpis-v2 stock-kpis rt-overview">${kpiHTML}</div>
     ${_stockSeg}
     ${cAll===0?`<div class="empty-state">
       <div class="empty-state-text">${isStockOnly?'No unlisted items':isReturnedOnly?'No returned items':isAllView?'No stock on hand':'No active listings'}</div>
       <div class="empty-state-sub">${isStockOnly?'Add stock or withdraw a listing to place it here.':isReturnedOnly?'Customer returns that come back into your possession appear here.':isAllView?'Add your first item to start tracking inventory.':'Use Add to create your first listing.'}</div>
     </div>`:`
+      <div class="rt-list-controls">
+      ${((window.__stockAll&&window.__stockAll.length)||STOCK_SEARCH)?_inlistSearchHTML('stock'):''}
       ${isStockOnly?(()=>{
         // ── Sourced view: age distribution bar + bucket chips + sort ──────
         // Buckets: New 0–3d · List soon 4–7d · Overdue 8–14d · Stagnant 15d+
@@ -17810,7 +17931,7 @@ function _renderStockCore(){
         }).join('');
         const sortOpts=[
           {v:'cost-desc', label:'Highest cost first'},
-          {v:'days-desc', label:'Oldest first (longest sitting)'},
+          {v:'days-desc', label:'Oldest first'},
           {v:'days-asc',  label:'Newest first'}
         ];
         const sortHTML=sortOpts.map(o=>`<option value="${o.v}" ${STOCK_SORT===o.v?'selected':''}>${o.label}</option>`).join('');
@@ -17827,7 +17948,7 @@ function _renderStockCore(){
               </button>
               <div class="filter-pill-dd-menu" onclick="event.stopPropagation()">${ddOpts}</div>
             </div>
-            <select class="sort-select" onchange="setStockSort(this.value)">${sortHTML}</select>
+            <select aria-label="Sort stock" class="sort-select" onchange="setStockSort(this.value)">${sortHTML}</select>
           </div>`;
       })():isListedOnly?(()=>{
         // ── Listed view: aging bar + chips + sort ──────────────────────────
@@ -17879,11 +18000,9 @@ function _renderStockCore(){
               </button>
               <div class="filter-pill-dd-menu" onclick="event.stopPropagation()">${ddOpts}</div>
             </div>
-            <select class="sort-select" onchange="setStockSort(this.value)">${sortHTML}</select>
+            <select aria-label="Sort stock" class="sort-select" onchange="setStockSort(this.value)">${sortHTML}</select>
           </div>`;
       })():''}
-      ${visibleLots.length?`<div class="sl" style="margin-top:14px">${icon('joblot',13)} Job Lots</div><div class="item-table" style="margin-bottom:14px">${visibleLots.map(function(l){return renderJobLotCard(l);}).join('')}</div>`:''}
-      ${((window.__stockAll&&window.__stockAll.length)||STOCK_SEARCH)?_inlistSearchHTML('stock'):''}
       <div class="list-toolbar">
         ${STOCK_SELECTION_MODE?`
           <button class="sel-check" onclick="${STOCK_SELECTED.size===items.length?'STOCK_SELECTED.clear();renderStock()':'selectAllStockVisible()'}">
@@ -17907,10 +18026,17 @@ function _renderStockCore(){
           <button class="select-toggle" onclick="toggleStockSelection()">Select</button>
         `}
       </div>
+      </div>
+      ${visibleLots.length?`<div class="sl" style="margin-top:14px">${icon('joblot',13)} Job Lots</div><div class="item-table" style="margin-bottom:14px">${visibleLots.map(function(l){return renderJobLotCard(l);}).join('')}</div>`:''}
       ${_useGroup
         ?`${(()=>{window.__stockItems=items;return groupedHTML;})()}`
         :`<div class="item-table" id="stock-list">${(()=>{window.__stockItems=items;return items.length?items.map(i=>renderStockRow(i.month,i)).join(''):(STOCK_SEARCH?'<div class="inlist-empty">No stock matches \u201c'+esc(STOCK_SEARCH)+'\u201d</div>':'');})()}</div>`}`}`;
-  document.getElementById('p-stock').innerHTML=html;
+  const stockPage=document.getElementById('p-stock');
+  stockPage.innerHTML=html;
+  // Keep the existing age distribution immediately below the state filters.
+  const ageBar=stockPage.querySelector('.age-bar-wrap');
+  const stateFilters=stockPage.querySelector('.stock-state-seg');
+  if(ageBar&&stateFilters)stateFilters.after(ageBar);
   _paintSelBar('stock');
 }
 
@@ -17942,6 +18068,7 @@ function _renderStockCore(){
 // by Diagnostics and logged to console; this only keeps the UI recoverable.
 function renderStock(){
   const el=document.getElementById('p-stock');
+  _syncFabVisibility();
   try{
     _renderStockCore();
   }catch(err){
@@ -18036,11 +18163,12 @@ function _queueExpensesRender(){
   const page=document.getElementById('p-expenses');if(page)page.setAttribute('data-rt-filter-pending','1');
   _queueLocalControlRender('expenses-filter',function(){
     renderExpenses();
-    const current=document.getElementById('p-expenses');if(current)current.removeAttribute('data-rt-filter-pending');
+    const current=document.getElementById('p-expenses');if(current){current.removeAttribute('data-rt-filter-pending');if(window._animateWorkspaceChange)window._animateWorkspaceChange(current);}
   });
 }
 function setCostPeriod(kind){
   if(kind===COST_PERIOD&&COST_CAT_FILTER==='all')return;
+  COST_SELECTED.clear();
   COST_PERIOD=kind;COST_CAT_FILTER='all';
   _ackChoice('#p-expenses','cost-period',kind,'active');
   _ackChoice('#p-expenses','cost-category','all','active');
@@ -18049,6 +18177,7 @@ function setCostPeriod(kind){
 function setCostCatFilter(label){
   const next=COST_CAT_FILTER===label?'all':label;
   if(next===COST_CAT_FILTER)return;
+  COST_SELECTED.clear();
   COST_CAT_FILTER=next;
   _ackChoice('#p-expenses','cost-category',next,'active');
   _queueExpensesRender();
@@ -18220,8 +18349,8 @@ function _cashflowLedgerHTML(led,filtered){
   if(!filtered.length)return '<div class="card" style="padding:18px;text-align:center;color:var(--text-secondary);line-height:1.5;"><b style="display:block;color:var(--text);margin-bottom:5px;">No matching movements</b>Try changing the search or filters.<div><button class="cashflow-action-btn" style="margin-top:12px" onclick="clearCashflowFilters()">Clear filters</button></div></div>';
   let html='<div class="section-card cashflow-ledger-list" style="padding:0;overflow:hidden;">';
   filtered.forEach(function(m){
-    const isOut=m.direction==='out';const editable=!!m.editableId;
-    html+='<div class="cashflow-ledger-row" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);'+(editable?'cursor:pointer;':'cursor:default;')+'"'+(editable?' onclick="editCashMove(\''+m.editableId+'\')"':'')+'><div style="flex:1;min-width:0;"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(m.description||m.type||'Cash movement')+'</div><div style="font-size:12px;color:var(--text-secondary);">'+esc((m.type||'cash').replace(/_/g,' '))+' · '+esc(m.date||'Undated')+(editable?' · editable':' · from '+esc(m.source||'app'))+'</div></div><div class="num" style="font-weight:700;flex-shrink:0;color:'+(isOut?'var(--warn)':'#3b82f6')+';">'+(isOut?'−':'+')+fmt(Number(m.amount)||0)+'</div></div>';
+    const isOut=m.direction==='out';
+    html+='<div class="cashflow-ledger-row" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;" role="button" tabindex="0" data-cash-event="'+esc(m.id)+'" onclick="openCashflowTransaction(this.dataset.cashEvent)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}"><div style="flex:1;min-width:0;"><div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(m.description||m.type||'Cash movement')+'</div><div style="font-size:12px;color:var(--text-secondary);">'+esc((m.type||'cash').replace(/_/g,' '))+' · '+esc(m.date||'Undated')+' · View details'+'</div></div><div class="num" style="font-weight:700;flex-shrink:0;color:'+(isOut?'var(--warn)':'#3b82f6')+';">'+(isOut?'−':'+')+fmt(Number(m.amount)||0)+'</div></div>';
   });
   return html+'</div>';
 }
@@ -18241,6 +18370,7 @@ function _updateCashflowResults(){
   if(clearSlot)clearSlot.innerHTML=state.filtersActive?'<button class="cashflow-action-btn" onclick="clearCashflowFilters()">Clear filters</button>':'';
   const results=document.getElementById('cashflow-results');
   if(results)results.innerHTML=_cashflowLedgerHTML(led,state.filtered);
+  if(typeof window.refreshCashflowLedger==='function')window.refreshCashflowLedger(state.filtered);
 }
 function _scheduleCashflowResultsUpdate(afterPaint){
   _updateCashflowResults();
@@ -18249,6 +18379,8 @@ function setCashflowFilter(key,value){
   if(key==='direction')_cashflowDirection=value||'all';
   else if(key==='type')_cashflowType=value||'all';
   else if(key==='range')_cashflowRange=value||'all';
+  const control=document.getElementById({direction:'cashflow-direction',type:'cashflow-type',range:'cashflow-range'}[key]);
+  if(control)control.value=value||'all';
   // One paint first lets the native select close/acknowledge immediately.
   _scheduleCashflowResultsUpdate(true);
 }
@@ -19101,7 +19233,75 @@ function renderReturns(){
 }
 // ===== END RETURNS PAGE ======================================================
 
-function renderExpenses(){
+// Session-only controls. Keys include record type so a trip and expense can share an ID.
+function _costSearchMatch(record,kind){
+  const words=COST_SEARCH.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  const text=[record.description,record.date,kind==='trip'?'trip sourcing mileage Motor, van & travel':'expense',
+    record.category?_expenseCanonLabel(record.category):'',record.amount,record.mileage,
+    ...(Array.isArray(record.expenses)?record.expenses.map(e=>[e.desc,e.description,e.category,e.amount].join(' ')):[])]
+    .join(' ').toLocaleLowerCase();
+  return words.every(word=>text.includes(word));
+}
+function searchCosts(value){
+  COST_SEARCH=value;COST_SELECTED.clear();renderExpenses(true);
+}
+function toggleCostSelection(){
+  COST_SELECTION_MODE=!COST_SELECTION_MODE;COST_SELECTED.clear();renderExpenses(true);
+  const toggle=document.querySelector('#cost-selection-controls .select-toggle,#cost-selection-controls .sel-exit');if(toggle)toggle.focus({preventScroll:true});
+}
+function toggleCostSelected(key,checked){
+  if(!COST_VISIBLE.some(row=>row.key===key))return;
+  if(checked)COST_SELECTED.add(key);else COST_SELECTED.delete(key);
+  _paintCostSelection();
+}
+function selectAllCosts(checked){
+  COST_SELECTED.clear();if(checked)COST_VISIBLE.forEach(row=>COST_SELECTED.add(row.key));
+  _paintCostSelection();
+}
+function _paintCostSelection(){
+  const page=document.getElementById('p-expenses');if(!page)return;
+  page.querySelectorAll('[data-cost-key]').forEach(input=>{
+    input.checked=COST_SELECTED.has(input.dataset.costKey);
+    input.closest('.expense-item').classList.toggle('cost-selected',input.checked);
+  });
+  const all=page.querySelector('#cost-select-all');
+  if(all){
+    const checked=COST_VISIBLE.length>0&&COST_SELECTED.size===COST_VISIBLE.length,some=COST_SELECTED.size>0&&!checked;
+    all.setAttribute('aria-checked',some?'mixed':String(checked));all.disabled=!COST_VISIBLE.length||COST_DELETE_PENDING;
+    const box=all.querySelector('.sel-check-box');box.classList.toggle('all',checked);box.classList.toggle('some',some);box.textContent=checked?'✓':some?'−':'';
+  }
+  const count=page.querySelector('#cost-selected-count');if(count)count.textContent=COST_SELECTED.size?COST_SELECTED.size+' selected':'Select all';
+  const del=page.querySelector('#cost-delete-selected');if(del){del.hidden=!COST_SELECTED.size;del.disabled=COST_DELETE_PENDING;}
+  _syncFabVisibility();
+}
+async function deleteSelectedCosts(){
+  if(COST_DELETE_PENDING)return;
+  const owner=_currentUserId;
+  const selected=COST_VISIBLE.filter(row=>COST_SELECTED.has(row.key)).map(row=>({key:row.key,kind:row.kind,id:row.record.id,json:JSON.stringify(row.record)}));
+  if(!selected.length)return;
+  const tripCount=selected.filter(row=>row.kind==='trip').length;
+  const expCount=selected.length-tripCount;
+  const label=[tripCount?tripCount+' trip'+(tripCount===1?'':'s'):'',expCount?expCount+' expense'+(expCount===1?'':'s'):''].filter(Boolean).join(' and ');
+  COST_DELETE_PENDING=true;_paintCostSelection();
+  try{
+    if(!await showConfirm('Delete '+label+'?', 'These entries will be permanently removed.'+(tripCount?' Any extra costs recorded inside the selected trips will also be removed.':'')+' This cannot be undone.',{icon:'delete',okLabel:'Delete '+selected.length+' entries'}))return;
+    // Re-resolve by stable ID after confirmation: sync can reorder or edit arrays.
+    if(owner!==_currentUserId){COST_SELECTED.clear();return;}
+    const unchanged=selected.every(row=>{
+      const matches=(row.kind==='trip'?(DB.trips||[]):(DB.expenses||[])).filter(record=>record.id===row.id);
+      return matches.length===1&&JSON.stringify(matches[0])===row.json;
+    });
+    if(!unchanged){toast('Some entries changed. Review your selection and try again.');renderExpenses(true);return;}
+    const keys=new Set(selected.map(row=>row.key));
+    DB.trips=(DB.trips||[]).filter(record=>!keys.has('trip:'+record.id));
+    DB.expenses=(DB.expenses||[]).filter(record=>!keys.has('exp:'+record.id));
+    COST_SELECTED.clear();COST_SELECTION_MODE=false;
+    saveDB();renderExpenses();toast('Deleted '+label);
+  }finally{COST_DELETE_PENDING=false;_paintCostSelection();}
+}
+
+function renderExpenses(listOnly){
+  if(COST_SELECTION_OWNER!==_currentUserId){COST_SELECTED.clear();COST_SEARCH='';COST_SELECTION_MODE=false;COST_SELECTION_OWNER=_currentUserId;}
   const trips=DB.trips||[];
   const expenses=DB.expenses||[];
   const tiered=calcTieredTrips(trips);
@@ -19116,8 +19316,18 @@ function renderExpenses(){
   // so a trip shows under 'all' or the Motor filter; standalone expenses match
   // their own resolved category.
   const _catAll=(COST_CAT_FILTER==='all');
-  const _tripMatch=function(t){return _inR(t.date)&&(_catAll||COST_CAT_FILTER==='Motor, van & travel');};
-  const _expMatch=function(e){return _inR(e.date)&&(_catAll||_resolveExpenseCat(e.category).label===COST_CAT_FILTER);};
+  const _tripMatch=function(t){return _inR(t.date)&&(_catAll||COST_CAT_FILTER==='Motor, van & travel')&&_costSearchMatch(t,'trip');};
+  const _expMatch=function(e){return _inR(e.date)&&(_catAll||_resolveExpenseCat(e.category).label===COST_CAT_FILTER)&&_costSearchMatch(e,'exp');};
+
+  const candidates=trips.filter(_tripMatch).map(record=>({kind:'trip',key:'trip:'+record.id,record}))
+    .concat(expenses.filter(_expMatch).map(record=>({kind:'exp',key:'exp:'+record.id,record})));
+  const keyCounts=new Map();
+  trips.forEach(record=>keyCounts.set('trip:'+record.id,(keyCounts.get('trip:'+record.id)||0)+1));
+  expenses.forEach(record=>keyCounts.set('exp:'+record.id,(keyCounts.get('exp:'+record.id)||0)+1));
+  COST_VISIBLE=candidates.filter(row=>row.record.id&&keyCounts.get(row.key)===1);
+  const visibleKeys=new Set(COST_VISIBLE.map(row=>row.key));
+  for(const key of COST_SELECTED)if(!visibleKeys.has(key))COST_SELECTED.delete(key);
+  const checkbox=(record,kind)=>COST_SELECTION_MODE?`<label class="cost-row-select" onclick="event.stopPropagation()"><input type="checkbox" data-cost-key="${esc(kind+':'+record.id)}" aria-label="Select ${esc(record.description||(kind==='trip'?'trip':'expense'))}" ${visibleKeys.has(kind+':'+record.id)?'':'disabled'} onchange="toggleCostSelected(this.dataset.costKey,this.checked)"></label>`:'';
 
   // Month grouping
   const _mKey=function(d){return d?(d.slice(0,7)):'0000-00';}
@@ -19138,7 +19348,7 @@ function renderExpenses(){
     if(t.date)metaParts.push(t.date);
     const ddId='dd-trip-'+origIdx;
     return `<div class="expense-item clickable" onclick="showTripBreakdown(${origIdx})">
-      <div class="exp-dot trip"></div>
+      ${checkbox(t,'trip')}<div class="exp-dot trip"></div>
       <div class="expense-main"><div class="expense-label">${esc(t.description||'Sourcing trip')}</div><div class="expense-meta">${metaParts.join('<span style="color:var(--border2)">&nbsp;·&nbsp;</span>')}</div></div>
       <div class="expense-right"><div class="expense-amount">${r.totalCost>0?fmt(r.totalCost):'<span style="color:var(--muted)">—</span>'}</div></div>
       <div class="expense-actions" onclick="event.stopPropagation()">
@@ -19156,7 +19366,7 @@ function renderExpenses(){
   const _expRow=function({e,idx}){
     const ddId='dd-exp-'+idx;
     return `<div class="expense-item">
-      <div class="exp-dot expense"></div>
+      ${checkbox(e,'exp')}<div class="exp-dot expense"></div>
       <div class="expense-main"><div class="expense-label">${esc(e.description||'Expense')}</div><div class="expense-meta">${[e.date,e.category?esc(_expenseCanonLabel(e.category)):''].filter(Boolean).join('<span style="color:var(--border2)">&nbsp;·&nbsp;</span>')}</div></div>
       <div class="expense-right"><div class="expense-amount">${e.amount<0?'<span style="color:var(--green);font-weight:700">+'+fmt(-e.amount)+'</span>':((e.amount||0)>0?fmt(e.amount):'<span style="color:var(--muted)">—</span>')}</div></div>
       <div class="expense-actions" onclick="event.stopPropagation()">
@@ -19213,6 +19423,18 @@ function renderExpenses(){
       +'<div class="ccc-count">'+c.count+' item'+(c.count!==1?'s':'')+'</div></div>';
   }).join('');
 
+  const selectionHTML=COST_SELECTION_MODE?`<button id="cost-select-all" class="sel-check" role="checkbox" aria-label="Select all shown" aria-checked="false" onclick="selectAllCosts(COST_SELECTED.size!==COST_VISIBLE.length)"><span class="sel-check-box" aria-hidden="true"></span><span id="cost-selected-count" role="status">Select all</span></button>
+    <button id="cost-delete-selected" class="bulk-ctrl is-danger" onclick="deleteSelectedCosts()" hidden>${icon('trash',14)} Delete</button>
+    <button class="sel-exit" onclick="toggleCostSelection()">✕ Done</button>`:`<button class="select-toggle" aria-pressed="false" onclick="toggleCostSelection()">Select</button>`;
+  const resultLabel=candidates.length+' '+(COST_SEARCH.trim()?'matching ':'')+'entr'+(candidates.length===1?'y':'ies');
+  const ledgerHTML=sortedMonths.length?monthSections:`<div class="empty-state"><div class="empty-state-text">${COST_SEARCH.trim()?'No matching trips or expenses':'Nothing in this view'}</div><div class="empty-state-sub">${COST_SEARCH.trim()?'Try another description, date or category.':'Try a wider period or clear the category filter.'}</div></div>`;
+  const page=document.getElementById('p-expenses');
+  if(listOnly&&page.querySelector('#cost-ledger')){
+    page.querySelector('#cost-ledger').innerHTML=ledgerHTML;
+    page.querySelector('#cost-selection-controls').innerHTML=selectionHTML;
+    page.querySelector('#cost-result-count').textContent=resultLabel;
+    _paintCostSelection();return;
+  }
   const filterNote=_catAll?'':' · '+esc(COST_CAT_FILTER);
   const html=`
     <div class="page-header">
@@ -19242,9 +19464,15 @@ function renderExpenses(){
 
     ${_brk.cats.length>0?`<div class="cost-cat-row">${allCard}${catCards}</div>`:''}
 
-    ${sortedMonths.length===0?`<div class="empty-state"><div class="empty-state-text">${_catAll&&COST_PERIOD==='all'?'No expenses yet':'Nothing in this view'}</div><div class="empty-state-sub">${_catAll&&COST_PERIOD==='all'?'Tap + to log a sourcing trip or business expense':'Try a wider period or clear the category filter'}</div></div>`:monthSections}
+    <div class="cost-list-controls">
+      <div class="inlist-search">${_selSearchIco(15)}<input id="cost-search" type="search" class="inlist-search-input" placeholder="Search trips &amp; expenses" aria-label="Search trips and expenses" value="${esc(COST_SEARCH)}" oninput="searchCosts(this.value)"></div>
+      <div id="cost-selection-controls" class="list-toolbar">${selectionHTML}</div>
+      <div id="cost-result-count" role="status">${resultLabel}</div>
+    </div>
+    <div id="cost-ledger">${ledgerHTML}</div>
   `;
-  document.getElementById('p-expenses').innerHTML=html;
+  page.innerHTML=html;
+  _paintCostSelection();
 }
 
 // BUG-07: shared HTML builder for the per-trip extras repeater. existing is
@@ -19580,7 +19808,7 @@ function saveExpense(){
   saveDB();
   closePanel();
   toast('Expense saved');
-  renderExpenses();
+  if(document.getElementById('p-cash')?.classList.contains('on'))renderCash();else renderExpenses();
 }
 
 function editTrip(idx){
@@ -19631,7 +19859,7 @@ function saveTripEdit(idx){
     const _r=_sourcingRuns.find(function(r){return r.id===_overheadReturnId;});
     if(_r&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){ _renderRunPage(_r); return; }
   }
-  renderExpenses();
+  if(document.getElementById('p-cash')?.classList.contains('on'))renderCash();else renderExpenses();
 }
 async function deleteTrip(idx){
   if(!await showConfirm('Delete this trip?','This sourcing trip will be permanently removed.'))return;
@@ -19641,7 +19869,7 @@ async function deleteTrip(idx){
     const _r=_sourcingRuns.find(function(r){return r.id===_overheadReturnId;});
     if(_r&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){ _renderRunPage(_r); return; }
   }
-  renderExpenses();
+  if(document.getElementById('p-cash')?.classList.contains('on'))renderCash();else renderExpenses();
 }
 
 // BUG-07: Trip cost breakdown panel — opened by tapping a trip row.
@@ -19796,7 +20024,7 @@ function saveExpenseEdit(idx){
     const _r=_sourcingRuns.find(function(r){return r.id===_overheadReturnId;});
     if(_r&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){ _renderRunPage(_r); return; }
   }
-  renderExpenses();
+  if(document.getElementById('p-cash')?.classList.contains('on'))renderCash();else renderExpenses();
 }
 async function deleteExpense(idx){
   if(!await showConfirm('Delete this expense?','This expense will be permanently removed.'))return;
@@ -19806,13 +20034,13 @@ async function deleteExpense(idx){
     const _r=_sourcingRuns.find(function(r){return r.id===_overheadReturnId;});
     if(_r&&document.getElementById('p-item')&&document.getElementById('p-item').classList.contains('on')){ _renderRunPage(_r); return; }
   }
-  renderExpenses();
+  if(document.getElementById('p-cash')?.classList.contains('on'))renderCash();else renderExpenses();
 }
 
 // DATA PAGE
 function renderData(){
   // Build FY list for annual export selector
-  const fySet=new Set([_currentFYStart()-1,_currentFYStart(),_currentFYStart()+1]);
+  const fySet=new Set([_currentFYStart()]);
   allDBKeys().forEach(function(k){
     const mo=MONTHS.indexOf(keyCode(k)),yr=keyYear(k);
     if(mo>=0) fySet.add(mo>=3?yr:yr-1);
@@ -19839,243 +20067,40 @@ function renderData(){
     return '<option value="'+k+'"'+(k===_defaultMonth?' selected':'')+'>'+keyName(k)+'</option>';
   }).join('');
 
-  const html=`
-    <div style="padding-bottom:80px">
-      <div class="page-header"><div><div class="page-title">Reports &amp; Data</div><div class="page-subtitle">Exports, activity history and data management.</div></div><button class="btn btn-secondary" style="padding:7px 10px;font-size:12px;white-space:nowrap" onclick="goToTab('activity')">Activity Log</button></div>
-
-      <!-- ── DOWNLOADS ───────────────────────────────────────────── -->
-      <div class="sl">Downloads</div>
-
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:24px;">
-
-        <!-- Monthly Statement -->
-        <div style="padding:16px 18px;border-bottom:1px solid var(--border);">
-          <div style="font-size:14px;font-weight:600;margin-bottom:3px;">Monthly Statement</div>
-          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Sales, profit and ROI for a single month — one row per transaction.</div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <select id="dl-month-sel" style="font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);flex:1;min-width:120px;max-width:220px;">
-              ${monthOpts||'<option value="">No sales yet</option>'}
-            </select>
-            <div class="ddwrap" id="dd-dl-month" style="position:relative;">
-                  <button class="btn btn-secondary" style="font-size:13px;display:flex;align-items:center;gap:6px;padding:8px 14px;" onclick="event.stopPropagation();toggleDD('dd-dl-month',this)">
-                    Download <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-
-
-                  </button>
-                  <div class="ddmenu up" style="min-width:140px;right:0;left:auto;">
-                    <button onclick="event.stopPropagation();toggleDD('dd-dl-month');(function(){const m=document.getElementById('dl-month-sel')?.value;if(m)downloadMonthlyStatement(m);else toast('No month selected','error');})()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> CSV</button><button onclick="event.stopPropagation();toggleDD('dd-dl-month');(function(){const m=document.getElementById('dl-month-sel')?.value;if(m)downloadMonthlyExcel(m);else toast('No month selected','error');})()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> Excel</button>
-                  </div>
-                </div>
-          </div>
-        </div>
-
-        <!-- Annual FY P&L -->
-        <div style="padding:16px 18px;border-bottom:1px solid var(--border);">
-          <div style="font-size:14px;font-weight:600;margin-bottom:3px;">Annual P&amp;L Summary</div>
-          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Full UK tax year (6 Apr–5 Apr). Excel includes management P&amp;L plus a separate HMRC cash-basis SA103 working sheet.</div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <select id="dl-fy-sel" style="font-size:13px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);flex:1;min-width:120px;max-width:220px;">
-              ${fyOpts}
-            </select>
-            <div class="ddwrap" id="dd-dl-annual" style="position:relative;">
-                  <button class="btn btn-secondary" style="font-size:13px;display:flex;align-items:center;gap:6px;padding:8px 14px;" onclick="event.stopPropagation();toggleDD('dd-dl-annual',this)">
-                    Download <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  </button>
-                  <div class="ddmenu up" style="min-width:140px;right:0;left:auto;">
-                    <button onclick="event.stopPropagation();toggleDD('dd-dl-annual');(function(){const fy=parseInt(document.getElementById('dl-fy-sel')?.value);if(fy)downloadAnnualStatement(fy);else toast('No year selected','error');})()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> CSV</button><button onclick="event.stopPropagation();toggleDD('dd-dl-annual');(function(){const fy=parseInt(document.getElementById('dl-fy-sel')?.value);if(fy)downloadAnnualExcel(fy);else toast('No year selected','error');})()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> Excel</button>
-                  </div>
-                </div>
-          </div>
-        </div>
-
-        <!-- Stock Snapshot -->
-        <div style="padding:16px 18px;border-bottom:1px solid var(--border);">
-          <div style="font-size:14px;font-weight:600;margin-bottom:3px;">Stock Snapshot</div>
-          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">All current sourced and listed items — cost, est. price, days held, run tag.</div>
-          <div class="ddwrap" id="dd-dl-stock" style="position:relative;display:inline-block;">
-                  <button class="btn btn-secondary" style="font-size:13px;display:flex;align-items:center;gap:6px;padding:8px 14px;" onclick="event.stopPropagation();toggleDD('dd-dl-stock',this)">
-                    Download <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  </button>
-                  <div class="ddmenu up" style="min-width:140px;right:0;left:auto;">
-                    <button onclick="event.stopPropagation();toggleDD('dd-dl-stock');downloadStockSnapshot()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> CSV</button><button onclick="event.stopPropagation();toggleDD('dd-dl-stock');downloadStockExcel()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> Excel</button>
-                  </div>
-                </div>
-        </div>
-
-        <!-- Custom Range Statement -->
-        <div style="padding:16px 18px;">
-          <div style="font-size:14px;font-weight:600;margin-bottom:3px;">Custom Range Statement</div>
-          <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Pick any date range for operational analysis — sale-matched revenue, costs and profit, plus stock tied up. Not an HMRC cash-basis return.</div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <label style="font-size:12px;color:var(--text-secondary);display:flex;align-items:center;gap:6px;">From
-              <input id="dl-range-from" type="date" style="font-size:13px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);">
-            </label>
-            <label style="font-size:12px;color:var(--text-secondary);display:flex;align-items:center;gap:6px;">To
-              <input id="dl-range-to" type="date" style="font-size:13px;padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);">
-            </label>
-            <div class="ddwrap" id="dd-dl-range" style="position:relative;">
-              <button class="btn btn-secondary" style="font-size:13px;display:flex;align-items:center;gap:6px;padding:8px 14px;" onclick="event.stopPropagation();toggleDD('dd-dl-range',this)">
-                Download <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <div class="ddmenu up" style="min-width:140px;right:0;left:auto;">
-                <button onclick="event.stopPropagation();toggleDD('dd-dl-range');(function(){const f=document.getElementById('dl-range-from')?.value,t=document.getElementById('dl-range-to')?.value;downloadRangeStatement(f,t);})()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> CSV</button><button onclick="event.stopPropagation();toggleDD('dd-dl-range');(function(){const f=document.getElementById('dl-range-from')?.value,t=document.getElementById('dl-range-to')?.value;downloadRangeExcel(f,t);})()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg> Excel</button>
-              </div>
-            </div>
-          </div>
-          <!-- Quick presets -->
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;">
-            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="_setRangePreset('mtd')">This month</button>
-            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="_setRangePreset('lastMonth')">Last month</button>
-            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="_setRangePreset('last30')">Last 30 days</button>
-            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="_setRangePreset('last90')">Last 90 days</button>
-            <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;" onclick="_setRangePreset('ytd')">Year to date</button>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- ── BACKUP / RESTORE ────────────────────────────────────── -->
-      <div class="sl">Backup &amp; Restore</div>
-
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:24px;">
-        <div style="padding:18px 20px;border-bottom:1px solid var(--border);">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-            <div>
-              <div style="font-size:14px;font-weight:600;margin-bottom:2px;">Export full backup</div>
-              <div style="font-size:12px;color:var(--text-secondary);">Portable JSON data backup including items, returns, job lots, sale reconciliations, partners, settlements, cash ledger, runs, activity and settings. Photo files stay in secure cloud storage; their paths are preserved.</div>
-            </div>
-            <div class="ddwrap" id="dd-export-backup" style="position:relative;">
-              <button class="btn btn-primary" style="font-size:13px;display:flex;align-items:center;gap:6px;" onclick="event.stopPropagation();toggleDD('dd-export-backup',this)">
-                Export
-                <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <div class="ddmenu up" style="min-width:160px;right:0;left:auto;">
-                <button onclick="event.stopPropagation();toggleDD('dd-export-backup');exportDB()">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  JSON backup
-                </button>
-                <button onclick="event.stopPropagation();toggleDD('dd-export-backup');exportItemsAsExcel()">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-                  Excel spreadsheet
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style="padding:18px 20px;border-bottom:1px solid var(--border);">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-            <div>
-              <div style="font-size:14px;font-weight:600;margin-bottom:2px;">Import JSON backup</div>
-              <div style="font-size:12px;color:var(--text-secondary);">Merge a RETRADE JSON data backup, or import item rows from an Excel spreadsheet.</div>
-            </div>
-            <input type="file" id="import-file" accept=".json" style="display:none" onchange="importDB(event)">
-            <input type="file" id="import-file-xlsx-backup" accept=".xlsx" style="display:none" onchange="importExcel(event)">
-            <div class="ddwrap" id="dd-import-backup" style="position:relative;">
-              <button class="btn btn-secondary" style="font-size:13px;display:flex;align-items:center;gap:6px;" onclick="event.stopPropagation();toggleDD('dd-import-backup',this)">
-                Import
-                <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <div class="ddmenu up" style="min-width:160px;right:0;left:auto;">
-                <button onclick="event.stopPropagation();toggleDD('dd-import-backup');document.getElementById('import-file').click()">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  JSON backup
-                </button>
-                <button onclick="event.stopPropagation();toggleDD('dd-import-backup');document.getElementById('import-file-xlsx-backup').click()">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-                  Excel spreadsheet
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div style="padding:18px 20px;">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:14px;font-weight:600;margin-bottom:2px;">Import / Export via Excel</div>
-              <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px;">Download a blank template, fill it in, and import it back. Or export your current items as a spreadsheet you can open and edit.</div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <input type="file" id="import-excel" accept=".xlsx" style="display:none" onchange="importExcel(event)">
-                <button class="btn btn-secondary" style="font-size:12px;" onclick="downloadExcelTemplate()">${icon('save',14)} Template</button>
-                <button class="btn btn-secondary" style="font-size:12px;" onclick="exportItemsAsExcel()">${icon('save',14)} Export items</button>
-                <button class="btn btn-primary" style="font-size:12px;" onclick="document.getElementById('import-excel').click()">${icon('save',14)} Import xlsx</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ── TOOLS ───────────────────────────────────────────────── -->
-      <div class="sl">Tools</div>
-
-      <!-- DATA INTEGRITY CHECKER -->
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:4px;">
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Data Integrity Check</div>
-            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Scans items, trips and expenses for missing data, suspicious values, state inconsistencies and run-date mismatches that could affect your P&L or exports.</div>
-            <details style="margin-bottom:12px;">
-              <summary style="font-size:12px;color:var(--accent);cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:4px;">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="transition:transform 0.2s" class="ic-chev"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                What does it check?
-              </summary>
-              <div style="margin-top:8px;padding:12px;background:var(--surface2);border-radius:8px;font-size:12px;color:var(--text-secondary);line-height:1.7;">
-                <div style="margin-bottom:6px;"><strong style="color:var(--red)">ERRORS</strong> — problems that are definitely wrong and will cause incorrect P&L or exports:</div>
-                <div>• <strong>Missing item name</strong> — item has no title, will show as blank in exports</div>
-                <div>• <strong>Sold with £0 sale price</strong> — marked sold but no price recorded; profit will be wrong</div>
-                <div>• <strong>Sold / re-sold with missing or invalid dates</strong> — cannot be placed reliably in monthly or tax reports</div>
-                <div>• <strong>Negative cost price</strong> — cost recorded as a negative number (probably a typo)</div>
-                <div>• <strong>Listed without a list date</strong> — age calculations and aging bar will be wrong</div>
-                <div>• <strong>Sourced without a source date</strong> — days-in-stock counter can't work</div>
-                <div>• <strong>Run-linked date mismatch</strong> — linked trips and expenses must use the sourcing run date</div>
-                <div>• <strong>Missing linked run</strong> — trip or expense points to a run that no longer exists</div>
-                <div style="margin-top:8px;margin-bottom:6px;"><strong style="color:var(--accent)">WARNINGS</strong> — unusual values that may be intentional but are worth reviewing:</div>
-                <div>• <strong>Promo rate outside a valid range</strong> — catches legacy values such as 5 instead of 0.05</div>
-                <div>• <strong>Return/resale cycle contradictions</strong> — e.g. Sale 2 without a Sale 1 return, or adjustments tagged to a sale that does not exist</div>
-                <div>• <strong>Incomplete Sale 1 relist snapshot</strong> — price, shipping, postage, packaging or promo data needed for accurate lifetime P&amp;L</div>
-                <div>• <strong>Cash ledger inconsistencies</strong> — duplicate opening balances, invalid amounts or dates</div>
-                <div>• <strong>Tax timing gaps</strong> — supplier/partner payments without usable settlement dates can affect cash-basis expense timing</div>
-                <div>• <strong>Supplier settlement mismatches</strong> — a settlement total does not equal its linked item allocations</div>
-              </div>
-            </details>
-          </div>
-        </div>
-        <button class="btn btn-primary" style="font-size:13px;" onclick="runIntegrityCheck()">Run check</button>
-        <div id="integrity-check-out" style="margin-top:16px"></div>
-      </div>
-
-      <!-- REPORTING READINESS -->
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px;">
-        <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Reporting Readiness</div>
-        <div style="font-size:12px;color:var(--text-secondary);line-height:1.55;margin-bottom:12px;">Runs the same integrity scan with a reporting focus: sale dates/prices, relist snapshots, expense categories, trip dates/mileage, settlement reconciliation and cash-ledger issues that can distort statements or tax working.</div>
-        <button class="btn btn-primary" style="font-size:13px;" onclick="runIntegrityCheck();setTimeout(function(){var e=document.getElementById('integrity-check-out');if(e)e.scrollIntoView({behavior:'smooth',block:'center'});},80)">${icon('check',14)} Check reporting data</button>
-      </div>
-
-      <!-- ── CLOUD SYNC ─────────────────────────────────────────── -->
-      <div class="sl">Cloud Sync</div>
-      <div class="section-card">
-        <div class="section-card-title">Force resync to Supabase</div>
-        <div class="section-card-desc">Pushes every durable business record to Supabase — items, returns, accounts, cash entries, trips, expenses, sourcing runs, Activity, Job Lots and historical-sale reconciliations. Use it after a schema migration or when the sync indicator shows a persistent warning. Success is only reported when the durable outbox is empty.</div>
-        <button class="btn btn-secondary" onclick="retradeForceResync()">${icon('refresh',14)} Force resync</button>
-      </div>
-
-      ${_renderDataIntegritySection()}
-
-      ${_renderRecentlyDeletedSection()}
-
-      ${_diagRenderSection()}
-
-      <!-- ── DANGER ──────────────────────────────────────────────── -->
-      <div class="sl">Danger Zone</div>
-      <div class="section-card danger">
-        <div class="section-card-title">Clear Business Data</div>
-        <div class="section-card-desc">Permanently deletes inventory and sales history, costs/trips, runs, partners/settlements, cash ledger, activity history and item photos. Keeps your login and app preferences.</div>
-        <button class="btn btn-destructive" onclick="clearAllData()">${icon('trash',14)} Clear business data</button>
-      </div>
-    </div>
-  `;
-  document.getElementById('p-data').innerHTML=html;
-  // Default the custom range to month-to-date
+  document.getElementById('p-data').innerHTML=_dataWorkspaceMarkup(monthOpts,fyOpts,false);
   try{_setRangePreset('mtd');}catch(e){}
+}
+
+// Shared by the loaded page and inert route placeholder so their geometry agrees.
+function _dataWorkspaceMarkup(monthOpts,fyOpts,pending){
+  const button=function(label,action,primary){return '<button type="button" class="btn '+(primary?'btn-primary':'btn-secondary')+'" onclick="'+action+'">'+label+'</button>';};
+  const formats=function(csv,xlsx,disabled,pdf){return '<div class="data-formats" role="group" aria-label="Download format">'+['CSV','Excel'].map(function(label,i){return '<button type="button" class="btn btn-secondary"'+(disabled?' disabled':'')+(pdf&&i?' data-rt-annual-pdf-sibling="1"':'')+' onclick="'+(i?xlsx:csv)+'">'+label+'</button>';}).join('')+(pdf?button('PDF',pdf):'')+'</div>';};
+  const report=function(title,desc,controls){return '<section class="data-card data-report"><h2>'+title+'</h2><p>'+desc+'</p><div class="data-controls">'+controls+'</div></section>';};
+  const month="document.getElementById('dl-month-sel').value";
+  const year="Number(document.getElementById('dl-fy-sel').value)";
+  const range="document.getElementById('dl-range-from').value,document.getElementById('dl-range-to').value";
+  return `<div class="data-workspace">
+    <header class="page-header"><div><div class="page-title">Reports &amp; Data</div><div class="page-subtitle">Your reports, backups and activity history.</div></div>${button('Activity log',"goToTab('activity')")}</header>
+    <div class="sl">Reports</div>
+    <div class="data-report-grid">
+      ${report('Monthly sales','Sales, costs and profit, with one row per transaction.','<select id="dl-month-sel" aria-label="Report month">'+(monthOpts||'<option value="">No sales yet</option>')+'</select>'+formats('downloadMonthlyStatement('+month+')','downloadMonthlyExcel('+month+')',!monthOpts))}
+      ${report('Annual summary','6 April–5 April. Excel also includes cash-basis tax working.','<select id="dl-fy-sel" aria-label="Report year">'+fyOpts+'</select>'+formats('downloadAnnualStatement('+year+')','downloadAnnualExcel('+year+')',false,'generateRetradeAnnualStatement('+year+')'))}
+      ${report('Current stock','Unsold items, purchase costs, asking prices and days held.',formats('downloadStockSnapshot()','downloadStockExcel()'))}
+      ${report('Custom date range','Sales-based performance for your chosen dates.','<div class="data-date-range"><label>From<input id="dl-range-from" type="date"></label><label>To<input id="dl-range-to" type="date"></label></div>'+formats('downloadRangeStatement('+range+')','downloadRangeExcel('+range+')')+'<div class="data-presets">'+[['mtd','This month'],['lastMonth','Last month'],['last90','Last 90 days']].map(function(p){return button(p[1],"_setRangePreset('"+p[0]+"')");}).join('')+'</div>')}
+    </div>
+    <div class="sl">Backup &amp; import</div>
+    <div class="data-support-grid">
+      <section class="data-card"><h2>Full backup</h2><p>Save all business records and settings as JSON. Photo links are included; photo files stay in cloud storage.</p><div class="data-actions">${button('Download backup','exportDB()',true)}${button('Restore backup',"document.getElementById('import-file').click()")}</div><p class="data-caption">Restoring merges records using the existing import checks.</p><input type="file" id="import-file" accept=".json" hidden onchange="importDB(event)"></section>
+      <section class="data-card"><h2>Item spreadsheet</h2><p>Move item rows into or out of RETRADE with Excel. Use a full backup to preserve your complete history.</p><div class="data-actions">${button('Export items','exportItemsAsExcel()')}${button('Import items',"document.getElementById('import-excel').click()")}${button('Blank template','downloadExcelTemplate()')}</div><input type="file" id="import-excel" accept=".xlsx" hidden onchange="importExcel(event)"></section>
+    </div>
+    ${pending?'':_renderRecentlyDeletedSection()}
+    <details class="data-card data-maintenance"><summary>Data checks &amp; recovery<span>Check records or troubleshoot a sync issue</span></summary><div class="data-maintenance-body">
+      <section><h2>Check your records</h2><p>Review missing dates, unusual values, return history and reporting issues. Checks do not change your records.</p>${button('Run data check',"runIntegrityCheck();document.getElementById('data-return-check').innerHTML=_renderDataIntegritySection()",true)}<div id="integrity-check-out"></div><div id="data-return-check"></div></section>
+      <section><h2>Retry cloud sync</h2><p>Retry pending records if your sync status stays unresolved.</p>${button('Retry sync','retradeForceResync()')}</section>
+      <details ontoggle="if(this.open&&!this.dataset.loaded){this.querySelector('.data-diagnostics').innerHTML=_diagRenderSection();this.dataset.loaded='true'}"><summary>Device diagnostics</summary><div class="data-diagnostics"></div></details>
+      <details class="data-danger"><summary>Clear business data</summary><p>Permanently deletes business records and item photos. Your login and app preferences are kept.</p>${button('Clear business data','clearAllData()')}</details>
+    </div></details>
+  </div>`;
 }
 
 // Custom Range presets — writes ISO dates into the two date inputs.
@@ -20095,16 +20120,8 @@ function _setRangePreset(kind){
     const first=new Date(today.getFullYear(),today.getMonth()-1,1);
     const last=new Date(today.getFullYear(),today.getMonth(),0);
     from=iso(first); to=iso(last);
-  } else if(kind==='last30'){
-    const d=new Date(today); d.setDate(d.getDate()-29); from=iso(d);
   } else if(kind==='last90'){
     const d=new Date(today); d.setDate(d.getDate()-89); from=iso(d);
-  } else if(kind==='ytd'){
-    // Use UK tax year start (6 Apr) if we're past it, else previous 6 Apr
-    const y=today.getFullYear();
-    const fyStart=(today.getMonth()>2||(today.getMonth()===3&&today.getDate()>=6))
-      ? new Date(y,3,6) : new Date(y-1,3,6);
-    from=iso(fyStart);
   }
   if(from){fromEl.value=from; toEl.value=to;}
 }
@@ -22272,7 +22289,7 @@ function duplicateItem(m,id,context){
     openItemDetail(m,copy.id);
     return;
   }
-  SELECTED_MONTH=m;MONTH_SORT='date-listed';MONTH_FILTER='all';
+  SELECTED_MONTH=m;MONTH_SORT='date-sold';MONTH_FILTER='all';
   // v2.09.1 — Duplicate is a fresh active listing. Back should return to Stock
   // Room (where the new item now lives), not the Sales/Monthly page — even when
   // the source item was sold and the user came from Sales.
@@ -23144,7 +23161,10 @@ function setTaxRegion(v){
 
 function renderTax(){
   const page=document.getElementById('p-tax');
-  const openSections=new Set(Array.from(page.querySelectorAll('details[open]')).map(function(el){return el.id;}));
+  const previousSettings=page.querySelector('#tax-estimate-settings');
+  const desktopSettingsOpen=previousSettings&&(previousSettings.dataset.desktopMode==='true'?previousSettings.open:previousSettings.dataset.desktopOpen==='true');
+  const focusedSetting=page.contains(document.activeElement)&&/^(tax-region|tax-other-income|tax-motor)$/.test(document.activeElement.id)?document.activeElement.id:null;
+  const openSections=new Set(Array.from(page.querySelectorAll('details[open]:not([data-mobile-open="false"])')).map(function(el){return el.id;}));
   const now=new Date(),currentYear=(now.getMonth()>3||(now.getMonth()===3&&now.getDate()>=6))?now.getFullYear():now.getFullYear()-1;
   const year=Number(DB._taxYear)||currentYear,label=year+'/'+String(year+1).slice(2);
   const from=year+'-04-06',to=(year+1)+'-04-05';
@@ -23198,44 +23218,60 @@ function renderTax(){
   let options='';
   for(let y=Math.max(currentYear,year);y>=Math.min(currentYear-2,year);y--)options+='<option value="'+y+'"'+(y===year?' selected':'')+'>'+y+'/'+String(y+1).slice(2)+'</option>';
   let html='<div class="tax-workspace"><header class="tax-header"><div><h1>Tax overview</h1><p>Your business profit, deductions and estimated tax.</p></div>'
-    +'<label class="tax-year-control"><span>Tax year</span><select id="tax-year" class="tax-year-select" onchange="DB._taxYear=Number(this.value);DB._taxMethod=null;saveDB();renderTax()">'+options+'</select><small>6 Apr '+year+' – 5 Apr '+(year+1)+'</small></label></header>'
-    +'<div class="tax-kpis">'+kpi(profit<0?'Business loss':'Taxable profit',money(profit),usingTA?'Trading allowance selected':'After allowable expenses',true)
-    +kpi('Estimated tax & NI',money(totalTax),'Uses your other income below')+kpi('Yearly Sales net profit',money(salesNet),'April–March · after overheads')+'</div>'
+    +'<label class="tax-year-control"><span class="tax-year-caption">Tax year<small>6 Apr '+year+' – 5 Apr '+(year+1)+'</small></span><select id="tax-year" class="tax-year-select" onchange="DB._taxYear=Number(this.value);DB._taxMethod=null;saveDB();renderTax()">'+options+'</select></label></header>'
+    +'<div class="tax-kpis tax-mobile-only">'+kpi(profit<0?'Business loss':'Taxable profit',money(profit),usingTA?'Trading allowance selected':'After allowable expenses',true)
+    +kpi('Estimated tax & NI',money(totalTax),'Other income: '+money(otherIncome))+kpi('Yearly Sales net profit',money(salesNet),'April–March · after overheads')+'</div>'
+    +'<div class="tax-kpis tax-desktop-only">'+kpi('Business income',money(income),'Cash received')+kpi('Allowable expenses',money(expenses),'Recorded deductions')+kpi(profit<0?'Business loss':'Business profit',money(profit),'After allowable expenses',true)+kpi('Estimated tax & NI',money(totalTax),'Based on income entered')+'</div>'
+    +'<div class="tax-view-switch" role="group" aria-label="Tax sections"><button type="button" data-tax-view="overview" onclick="setTaxWorkspaceView(\'overview\')">Overview</button><button type="button" data-tax-view="filing" onclick="setTaxWorkspaceView(\'filing\')">Filing guide</button><button type="button" data-tax-view="monthly" onclick="setTaxWorkspaceView(\'monthly\')">Monthly</button></div>'
     +'<div class="tax-layout"><div class="tax-main">';
 
   // Show the actual reasons for the difference instead of making two accounting
   // bases artificially equal. Calendar, motor rules and write-offs are separate.
   const dateAdjustment=round(management.netProfit+(management.archiveLoss||0)-(management.motorExcluded||0)-salesNet);
-  let bridge=row('Yearly Sales gross profit',money(salesGross),'April–March · after item costs and partner shares')
-    +row('Yearly Sales net profit',money(salesNet),'After trips and logged overheads','tax-bridge-total');
+  const grossRow=row('Yearly Sales gross profit',money(salesGross),'April–March · after item costs and partner shares');
+  const netRow=row('Yearly Sales net profit',money(salesNet),'After trips and logged overheads','tax-bridge-total');
   const adjustment=function(name,value,note){return value?row(name,signed(value),note):'';};
-  bridge+=adjustment('Tax-year dates',dateAdjustment,'Replace 1–5 April '+year+' with 1–5 April '+(year+1))
+  const dateRows=adjustment('Tax-year dates',dateAdjustment,'Replace 1–5 April '+year+' with 1–5 April '+(year+1))
     +adjustment('Motor costs excluded',management.motorExcluded||0,'One motor expense method; no duplicate deduction')
-    +adjustment('Removed stock / write-offs',-(management.archiveLoss||0),'Management profit adjustment')
-    +row('Sales-basis profit · 6 Apr–5 Apr',money(management.netProfit),'Same tax-year dates','tax-bridge-total')
-    +adjustment('Stock purchase timing',round(management.cogs-pnl.cashGoodsPaid),'Sale-matched stock and parts: '+money(management.cogs)+'; purchases paid: '+money(pnl.cashGoodsPaid))
+    +adjustment('Removed stock / write-offs',-(management.archiveLoss||0),'Management profit adjustment');
+  const cashRows=adjustment('Stock purchase timing',round(management.cogs-pnl.cashGoodsPaid),'Sale-matched stock and parts: '+money(management.cogs)+'; purchases paid: '+money(pnl.cashGoodsPaid))
     +adjustment('Partner payment timing',round(management.selling.partner-pnl.cashPartnerPaid),'Share recognised on sales: '+money(management.selling.partner)+'; paid: '+money(pnl.cashPartnerPaid))
     +adjustment('Write-off timing',management.archiveLoss||0,'Paid stock is already deducted when purchased')
-    +adjustment('Supplier refunds received',pnl.otherBusinessIncome||0,'Recovery recorded on the removal / refund date')
-    +row('Profit on cash basis · actual expenses',money(pnl.netProfit),'Income received less allowable costs paid','tax-bridge-total');
-  html+='<section class="tax-card"><div class="tax-section-heading"><h2>How your profit compares</h2><p>Sales matches costs to sales. Tax uses payment timing and tax-year dates.</p></div>'
-    +'<div class="tax-profit-bridge">'+row('Yearly Sales net profit',money(salesNet),'1 Apr '+year+' – 31 Mar '+(year+1))
+    +adjustment('Supplier refunds received',pnl.otherBusinessIncome||0,'Recovery recorded on the removal / refund date');
+  const profitRow=row('Profit on cash basis · actual expenses',money(pnl.netProfit),'Income received less allowable costs paid','tax-bridge-total');
+  const bridge=grossRow+netRow+dateRows+row('Sales-basis profit · 6 Apr–5 Apr',money(management.netProfit),'Same tax-year dates','tax-bridge-total')+cashRows+profitRow;
+  // Desktop uses the same adjustments once; mobile retains the full original bridge.
+  const desktopBridge=netRow+dateRows+cashRows+profitRow;
+  html+='<section class="tax-card" id="tax-comparison"><div class="tax-section-heading"><h2><span class="tax-mobile-only">How your profit compares</span><span class="tax-desktop-only">Why this differs from Sales</span></h2><p class="tax-mobile-only">Sales matches costs to sales. Tax uses payment timing and tax-year dates.</p></div>'
+    +'<div class="tax-profit-bridge tax-mobile-only">'+row('Yearly Sales net profit',money(salesNet),'1 Apr '+year+' – 31 Mar '+(year+1))
     +row('Cash-basis profit',money(pnl.netProfit),'6 Apr '+year+' – 5 Apr '+(year+1),'tax-bridge-total')+'</div>'
-    +details('tax-reconciliation','See the full reconciliation',bridge)+'</section>';
+    +details('tax-reconciliation','See the full reconciliation',bridge).replace('tax-card tax-details','tax-card tax-details tax-mobile-only')
+    +'<div class="tax-desktop-only tax-desktop-reconciliation">'+desktopBridge+'</div>'
+    +'<details id="tax-explain-adjustments" class="tax-desktop-only tax-explanation"'+(openSections.has('tax-explain-adjustments')?' open':'')+'><summary>Explain these adjustments</summary><p class="tax-note">Sales matches costs to the items sold. Tax uses the tax-year dates and the recorded timing of payments. The notes above explain each adjustment.</p></details></section>';
   const shortBoxes={17:11,20:12,21:14,22:15,23:18,24:19,25:17,26:17,28:16,30:19};
-  const filingRows=expenseLines.map(function(r){return '<div class="tax-filing-row"><span>'+r[1]+'</span><strong>'+money(r[2])+'</strong><small>Short · box '+shortBoxes[r[0]]+'</small><small>Full · box '+r[0]+'</small></div>';}).join('');
-  html+='<section class="tax-card"><div class="tax-section-heading"><h2>Prepare your tax return</h2><p>Actual expenses · cash basis. Match these recorded costs to your self-employment form.</p></div>'
+  const filingForm=window._taxFilingForm==='full'?'full':'short';
+  const filingGroups=new Map();
+  expenseLines.forEach(function(r){const box=filingForm==='full'?r[0]:shortBoxes[r[0]];if(!filingGroups.has(box))filingGroups.set(box,{amount:0,labels:[]});const g=filingGroups.get(box);g.amount+=r[2];g.labels.push(r[1]);});
+  const filingRow=function(box,name,amount,note){return '<div class="tax-filing-row"><span><b>'+(filingForm==='full'?'Full':'Short')+' · box '+box+'</b> · '+name+'</span><strong>'+money(amount)+'</strong><small>'+note+'</small></div>';};
+  const filingRows=filingRow(filingForm==='full'?15:9,'Turnover',pnl.revenue,'Sales receipts, including buyer-paid postage')
+    +filingRow(filingForm==='full'?16:10,'Other business income',pnl.otherBusinessIncome||0,'Recorded supplier refunds and other business income')
+    +Array.from(filingGroups.entries()).sort((a,b)=>a[0]-b[0]).map(function(entry){const [box,g]=entry;return filingRow(box,'Allowable costs',+g.amount.toFixed(2),g.labels.join(' + '));}).join('')
+    +filingRow(filingForm==='full'?31:20,'Total allowable expenses',expenses,'Total of the expense boxes above; not an additional expense')
+    +filingRow(filingForm==='full'?(profit<0?48:47):(profit<0?22:21),profit<0?'Net loss':'Net profit',Math.abs(profit),'Bookkeeping result before capital allowances, losses and other tax adjustments');
+  html+='<section class="tax-card" id="tax-filing-guide"><div class="tax-section-heading"><h2>Prepare your tax return</h2><p>Actual expenses · cash basis. Match these recorded costs to your self-employment form.</p></div>'
+    +'<label class="tax-filing-form" for="tax-filing-form">Your self-employment form<select id="tax-filing-form" onchange="window._taxFilingForm=this.value;renderTax();document.getElementById(\'tax-filing-form\').focus({preventScroll:true})"><option value="short"'+(filingForm==='short'?' selected':'')+'>Short · SA103S</option><option value="full"'+(filingForm==='full'?' selected':'')+'>Full · SA103F</option></select></label>'
+    +'<p class="tax-note">Use the amount on the right for the matching box. Costs sharing a box are combined below. These are the boxes supported by your RETRADE records; complete any other applicable sections using your own records.</p>'
     +'<div class="tax-filing-lines">'+filingRows+'</div>'
-    +row('Total allowable expenses',money(expenses),'Short SA103S box 20 · Full SA103F box 31','tax-bridge-total')
     +'<p class="tax-note">Amounts sharing a box must be added together; do not claim the total again alongside its individual lines. Review category assignments and business-only use before filing. Partner means a stock supplier / consignor here, not a legal business partnership.</p>'
     +'<p class="tax-note">Box references use the published 2025/26 forms. Confirm the form for '+label+'. These are bookkeeping totals, before any capital allowances, losses or other tax adjustments. The Personal Allowance remains part of your tax estimate.</p>'
     +'<p class="tax-note"><a href="https://www.gov.uk/government/publications/self-assessment-self-employment-short-sa103s" target="_blank" rel="noopener">HMRC short form &amp; notes</a> · <a href="https://www.gov.uk/government/publications/self-assessment-self-employment-full-sa103f" target="_blank" rel="noopener">HMRC full form &amp; notes</a></p></section>';
-  let breakdown=row('Sales receipts',money(pnl.revenue),'Includes buyer-paid postage')
-    +(pnl.otherBusinessIncome?row('Supplier refunds',money(pnl.otherBusinessIncome)):'')
+  let breakdown=row('Sales receipts',money(pnl.revenue),'Short box 9 · Full box 15 · includes buyer-paid postage')
+    +(pnl.otherBusinessIncome?row('Supplier refunds',money(pnl.otherBusinessIncome),'Short box 10 · Full box 16'):'')
     +row('Total business income',money(income),'','tax-bridge-total');
   if(usingTA)breakdown+=row('Trading allowance','−'+money(allowance));
-  else breakdown+=expenseLines.map(function(r){return row(r[1],signed(-r[2]),'SA103F box '+r[0],'tax-exp-row');}).join('');
-  breakdown+=row('Total deduction','−'+money(deduction),'','tax-bridge-total')+row(profit<0?'Business loss':'Taxable profit',money(profit),'','tax-bridge-total');
+  else breakdown+=expenseLines.map(function(r){return row(r[1],signed(-r[2]),'Short box '+shortBoxes[r[0]]+' · Full box '+r[0],'tax-exp-row');}).join('');
+  breakdown+=row('Total deduction','−'+money(deduction),'Short box 20 · Full box 31','tax-bridge-total')+row(profit<0?'Business loss':'<span class="tax-mobile-only">Taxable profit</span><span class="tax-desktop-only">Business profit</span>',money(profit),profit<0?'Short box 22 · Full box 48 · before tax adjustments':'Short box 21 · Full box 47 · before tax adjustments','tax-bridge-total')
+    +'<p class="tax-note">Box numbers: Short = SA103S · Full = SA103F. <button class="tax-inline-action" onclick="setTaxWorkspaceView(\'filing\')">See what to enter in each box →</button></p>';
   html+=details('tax-income-expenses','Income & deductions',breakdown);
   const paidDetail=row('Own / upfront stock purchases',money(cash.ownStockPaid))+row('Supplier purchases paid',money(cash.supplierStockPaid))
     +row('Parts & repairs paid',money(cash.partsPaid))+row('Partner shares paid',money(cash.partnerPaid))
@@ -23243,19 +23279,21 @@ function renderTax(){
     +(cash.assumptions.length?'<p class="tax-note tax-notice">'+cash.assumptions.length+' settled supplier purchase(s) have no payment allocation. Their source dates are used; check these in Partners before filing.</p>':'');
   html+=details('tax-purchases','Stock & partner payment detail',paidDetail);
   if(monthly.length){
-    html+='<section class="tax-card"><div class="tax-section-heading"><h2>Monthly cash-basis profit</h2><p>Actual expenses · includes 1–5 April '+(year+1)+'. Set-aside shares add up to the annual estimate.</p></div><div class="tax-months">';
+    html+='<section class="tax-card" id="tax-monthly-summary"><div class="tax-section-heading"><h2>Monthly cash-basis profit</h2><p>Actual expenses · includes 1–5 April '+(year+1)+'. Set-aside shares add up to the annual estimate.</p></div><div class="tax-months">';
     html+='<div class="tax-month-head"><span>Period</span><span>Income</span><span>Costs</span><span>Profit</span><span>Set aside</span></div>';
     monthly.forEach(function(m){html+='<div class="tax-month"><div class="tax-month-name"><strong>'+m.label+'</strong><small>'+m.range+'</small></div>'
       +'<div data-label="Income">'+money(m.income)+'</div><div data-label="Costs">'+money(m.costs)+'</div><div data-label="Profit" class="tax-month-profit">'+money(m.profit)+'</div><div data-label="Set aside">'+money(m.setAside)+'</div></div>';});
     html+='<div class="tax-month tax-month-total"><strong>Tax year total</strong><div data-label="Income">'+money(income)+'</div><div data-label="Costs">'+money(expenses)+'</div><div data-label="Profit">'+money(pnl.netProfit)+'</div><div data-label="Set aside">'+money(totalTax)+'</div></div></div></section>';
   }
-  html+='</div><aside class="tax-aside"><section class="tax-card"><div class="tax-section-heading"><h2>Your tax estimate</h2><p>Other income affects your tax band.</p></div><div class="tax-settings">'
+  if(!monthly.length)html+='<section class="tax-card" id="tax-monthly-summary"><h2>Monthly cash-basis profit</h2><p>No activity recorded in this tax year.</p></section>';
+  html+='</div><aside class="tax-aside"><details class="tax-card tax-details" id="tax-estimate"'+(openSections.has('tax-estimate')?' open':'')+'><summary><span class="tax-mobile-only">Tax settings & estimate</span><span class="tax-desktop-only">Estimate breakdown</span></summary><div class="tax-details-body"><details id="tax-estimate-settings" class="tax-settings-disclosure" data-desktop-open="'+Boolean(desktopSettingsOpen)+'" open><summary class="tax-desktop-only">Edit estimate settings</summary><div class="tax-section-heading"><p>Other income affects your tax band.</p></div><div class="tax-settings">'
     +'<label for="tax-region">Tax region<select id="tax-region" onchange="setTaxRegion(this.value)"><option value="rUK"'+(region==='rUK'?' selected':'')+'>England, Wales & Northern Ireland</option><option value="scotland"'+(region==='scotland'?' selected':'')+'>Scotland</option></select></label>'
-    +'<label for="tax-other-income">Other taxable income (£)<small>Salary, pension etc. before Personal Allowance</small><input id="tax-other-income" type="number" inputmode="decimal" min="0" step="0.01" value="'+otherIncome+'" onchange="setTaxOtherIncome(this.value)"></label></div>'
-    +row('Income Tax',money(incomeTax))+row('Class 2 NI',money(class2))+row('Class 4 NI',money(class4))+row('Estimated total',money(totalTax),'','tax-bridge-total')
+    +'<label for="tax-other-income">Other taxable income (£)<small>Salary, pension etc. before Personal Allowance</small><input id="tax-other-income" type="number" inputmode="decimal" min="0" step="0.01" value="'+otherIncome+'" onchange="setTaxOtherIncome(this.value)"></label></div></details>'
+    +'<div class="tax-estimate-values">'+row('Income Tax',money(incomeTax))+row('Class 2 NI',money(class2))+row('Class 4 NI',money(class4))+row('Estimated total',money(totalTax),'','tax-bridge-total')+'</div>'
+    +'<div class="tax-desktop-only tax-estimate-basis"><strong>Other income · '+money(otherIncome)+'</strong><span>'+esc(region==='scotland'?'Scotland':'England, Wales & Northern Ireland')+'</span></div>'
     +'<p class="tax-note">'+(totalTax===0?'No estimated tax or self-employed NI on this profit at the figures entered.':'Payments on account may apply. This estimate is the extra tax on your business profit.')+'</p>';
   if(pnl.motorDoubleClaim)html+='<div class="tax-note"><label for="tax-motor">Motor deduction<select id="tax-motor" onchange="DB._motorMethod=this.value;saveDB();renderTax()"><option value="mileage"'+(pnl.motorMethod==='mileage'?' selected':'')+'>Simplified mileage</option><option value="actual"'+(pnl.motorMethod==='actual'?' selected':'')+'>Actual motor costs</option></select></label><p>'+money(pnl.motorExcluded)+' of '+esc(pnl.motorExcludedLabel)+' excluded to avoid claiming both.</p></div>';
-  html+='</section>';
+  html+='</div></details>';
   const references=row('Turnover',money(pnl.revenue),'SA103F 15 / SA103S 9')
     +(pnl.otherBusinessIncome?row('Other business income',money(pnl.otherBusinessIncome),'SA103F 16 / SA103S 10'):'')
     +row(usingTA?'Trading allowance':'Allowable expenses',money(deduction),usingTA?'SA103F 16.1 / SA103S 10.1':'SA103F 31 / SA103S 20')
@@ -23263,7 +23301,7 @@ function renderTax(){
   html+=details('tax-filing','Filing references',references+'<p class="tax-note">Latest published SA103 layout; confirm the form for '+label+' before filing.</p>');
   html+=details('tax-assumptions','How this estimate works','<p class="tax-note">Recorded sale dates stand in for receipt dates; expense dates stand in for payment dates. Keep these aligned with your records. Supplier refunds use the recorded removal / refund date. This is a working estimate; verify it before filing.</p>'
     +'<p class="tax-note">This workspace uses actual expenses, not the trading allowance. Sales and Tax can differ because of dates, unsold stock, unpaid partner costs and motor deductions.</p>');
-  html+='<button type="button" class="btn btn-primary tax-download" onclick="downloadTaxSummary()">'+icon('save',16)+'Download tax summary</button></aside></div></div>';
+  html+='</aside></div><button type="button" class="btn btn-primary tax-export-bottom" onclick="downloadTaxSummary()">Download tax summary</button></div>';
   window._taxExportData={year:label,method:usingTA?'Trading allowance (£1,000)':'Actual expenses',income:income,turnover:pnl.revenue,
     otherBusinessIncome:pnl.otherBusinessIncome||0,saleCount:pnl.events.filter(function(e){return !e.isReturnAdjustment;}).length,
     expenseLines:usingTA?[['Trading allowance',allowance]]:expenseLines.map(function(r){return [r[1],r[2]];}),sa103Rows:_buildSA103Rows(pnl),
@@ -23272,15 +23310,68 @@ function renderTax(){
     mileageMiles:pnl.mileage.miles,motorDoubleClaim:pnl.motorDoubleClaim,incomeTax:incomeTax,class2:class2,class4:class4,totalTax:totalTax,
     otherIncome:otherIncome,taxRegion:region,effectivePA:effectivePA};
   page.innerHTML=html;
+  setTaxWorkspaceView(window._taxWorkspaceView||'overview');
+  _syncTaxDesktopDetails();
+  if(focusedSetting&&window.matchMedia('(min-width:1281px)').matches){const field=document.getElementById(focusedSetting);if(field)field.focus({preventScroll:true});}
+}
+
+// Expand useful detail on desktop while retaining each mobile disclosure state.
+function _syncTaxDesktopDetails(){
+  const wide=window.matchMedia('(min-width:1281px)').matches;
+  const income=document.getElementById('tax-income-expenses'),purchases=document.getElementById('tax-purchases'),aside=document.querySelector('#p-tax .tax-aside'),main=document.querySelector('#p-tax .tax-main'),monthly=document.getElementById('tax-monthly-summary');
+  if(income&&purchases&&aside&&main){
+    if(wide){
+      // Match reading/focus order to the visible statement, then reconciliation.
+      const comparison=document.getElementById('tax-comparison');
+      if(comparison&&comparison.previousElementSibling!==income)comparison.before(income);
+      if(purchases.parentElement!==aside)aside.append(purchases);
+    }else{
+      // Restore the established mobile/tablet reading order exactly.
+      if(monthly){monthly.before(income);monthly.before(purchases);}
+      else{main.append(income,purchases);}
+    }
+  }
+  const settings=document.getElementById('tax-estimate-settings'),basis=document.querySelector('#p-tax .tax-estimate-basis');
+  if(settings&&basis){
+    if(wide&&settings.dataset.desktopMode!=='true'){
+      settings.open=settings.dataset.desktopOpen==='true';settings.dataset.desktopMode='true';basis.after(settings);
+    }else if(!wide){
+      if(settings.dataset.desktopMode==='true')settings.dataset.desktopOpen=String(settings.open);
+      settings.dataset.desktopMode='false';settings.open=true;settings.parentElement.prepend(settings);
+    }
+  }
+  document.querySelectorAll('#p-tax #tax-reconciliation,#p-tax #tax-income-expenses,#p-tax #tax-purchases,#p-tax #tax-estimate').forEach(function(el){
+    if(wide&&el.dataset.mobileOpen===undefined){el.dataset.mobileOpen=String(el.open);el.open=true;}
+    else if(!wide&&el.dataset.mobileOpen!==undefined){el.open=el.dataset.mobileOpen==='true';delete el.dataset.mobileOpen;}
+  });
+}
+window.matchMedia('(min-width:1281px)').addEventListener('change',_syncTaxDesktopDetails);
+
+function setTaxWorkspaceView(view){
+  if(!['overview','filing','monthly'].includes(view))view='overview';
+  window._taxWorkspaceView=view;
+  const page=document.getElementById('p-tax');if(!page)return;
+  const sections={overview:['tax-comparison','tax-income-expenses','tax-purchases','tax-estimate'],filing:['tax-filing-guide','tax-filing','tax-assumptions'],monthly:['tax-monthly-summary']};
+  Object.values(sections).flat().forEach(function(id){const el=document.getElementById(id);if(el)el.hidden=!sections[view].includes(id);});
+  page.querySelectorAll('[data-tax-view]').forEach(function(button){button.setAttribute('aria-pressed',String(button.dataset.taxView===view));});
+  const aside=page.querySelector('.tax-aside');if(aside)aside.hidden=view==='monthly';
+  const layout=page.querySelector('.tax-layout');if(layout){layout.classList.toggle('tax-layout-monthly',view==='monthly');layout.classList.toggle('tax-layout-overview',view==='overview');if(!page.hasAttribute('aria-busy')&&window._animateWorkspaceChange)window._animateWorkspaceChange(layout);}
 }
 
 // Build a clean, accountant-friendly CSV of the current tax year's SA103 figures.
+let _taxOtherIncomeUpdating=false;
 function setTaxOtherIncome(v){
-  DB._taxOtherIncome=Math.max(0,parseFloat(v)||0);
-  try{localStorage.setItem('retrade_tax_other_income',String(DB._taxOtherIncome));}catch(e){}
-  _syncUserSettingsToCloud();
-  saveDB();
-  renderTax();
+  // Replacing the focused number field can emit a second native change event.
+  // Finish the original save/render once, including normalisation of invalid input.
+  if(_taxOtherIncomeUpdating)return;
+  _taxOtherIncomeUpdating=true;
+  try{
+    DB._taxOtherIncome=Math.max(0,parseFloat(v)||0);
+    try{localStorage.setItem('retrade_tax_other_income',String(DB._taxOtherIncome));}catch(e){}
+    _syncUserSettingsToCloud();
+    saveDB();
+    renderTax();
+  }finally{_taxOtherIncomeUpdating=false;}
 }
 
 
@@ -27245,9 +27336,10 @@ console.info('[RETRADE] 1.4.10 expected-profit consistency + return fee-credit v
         var q=quarantine(blocked,'Cloud changed since this device staged the queued work. Automatic stale-device replay was blocked; cloud kept authoritative.');
         if(!q){_lastSyncError='Pending changes could not be preserved — keep this device open';return 0;}
         console.warn('[RETRADE] blocked '+Object.keys(blocked).length+' stale boot write(s); cloud kept authoritative'+(q?' - '+q:''));
-        try{toast('Older device changes were isolated - latest cloud data kept','');}catch(e){}
+        // Successful quarantine is recorded above and remains recoverable.
+        // It is not an unresolved sync failure and must not toast on each boot.
       }
-      if(changed&&!_outboxSave(ob))return 0;
+      if(changed&&!_outboxSave(ob)){_lastSyncError='Pending recovery could not be saved — keep this device open';return 0;}
     }catch(e){
       console.error('[RETRADE] stale-device recovery safety check failed; automatic replay blocked:',e&&e.message);
       return 0;

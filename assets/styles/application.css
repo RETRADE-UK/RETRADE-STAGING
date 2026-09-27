@@ -3881,12 +3881,6 @@ svg.cat-donut-draw circle.donut-seg-last{
   .rt #p-monthly .sales-kpis-v2 .kpi{padding:14px 14px;}
   .rt #p-monthly .sales-kpis-v2 .kpi-value{font-size:22px;line-height:26px;}
 }
-/* Ultra-wide: cap Sales History content so list rows keep a readable line
-   length instead of stretching to the global 1600px page width. */
-@media(min-width:1400px){
-  .rt #p-monthly.page{max-width:1400px;}
-}
-
 /* ── Runs KPI cards — V2 flat treatment (v2.11.0) ───────────────────────────
    Active Run + Runs list KPI cards move off legacy .kcard (b/g/r decorative
    top-border accents) onto the flat .card kpi surface. Semantic green/red is
@@ -4757,37 +4751,6 @@ svg.cat-donut-draw circle.donut-seg-last{
     position:relative;
     z-index:20;              /* footer (+ its upward settings popup) always paints above .side-nav-items (v2.11.3) */
   }
-  .rt #side-nav .side-nav-sync{
-    display:flex;align-items:center;gap:8px;
-    padding:2px 4px;
-    color:var(--text-tertiary);
-    font-family:var(--font-body);
-    font-size:11px;font-weight:600;
-    letter-spacing:0.04em;text-transform:uppercase;
-  }
-  .rt #side-nav .side-nav-sync-dot{
-    width:8px;height:8px;
-    border-radius:50%;
-    background:var(--profit);
-    box-shadow:0 0 0 2px rgba(64,163,102,0.20);
-    flex:none;
-    transition:background var(--dur-fast) var(--ease-out),box-shadow var(--dur-fast) var(--ease-out);
-  }
-  .rt #side-nav .side-nav-sync.saving .side-nav-sync-dot{
-    background:var(--brand);
-    box-shadow:0 0 0 2px rgba(242,179,61,0.24);
-    animation:sideSyncPulse 1.2s ease-in-out infinite;
-  }
-  .rt #side-nav .side-nav-sync.error .side-nav-sync-dot{
-    background:var(--state-returned,#dc5b5b);
-    box-shadow:0 0 0 2px rgba(220,91,91,0.24);
-    animation:none;
-  }
-  .rt #side-nav .side-nav-sync.pending .side-nav-sync-dot{
-    background:var(--brand);
-    box-shadow:0 0 0 2px rgba(242,179,61,0.20);
-    animation:none;
-  }
   /* User row (avatar + name + gear) */
   .rt #side-nav .side-user-menu{position:relative;}
   .rt #side-nav .side-nav-user{
@@ -5627,17 +5590,6 @@ svg.rt-chart-draw .rt-chart-profit-bar{animation-delay:calc(var(--bar-i) * 26ms 
 }
 @media(min-width:640px){
   #month-list .rt-sales-day{padding-left:16px;padding-right:16px}
-}
-
-/* Tablet nav uses a compact inline status; the desktop footer and phone capsule
-   carry the same state at their respective widths. */
-#tablet-sync-status{display:none;}
-@media(min-width:601px) and (max-width:999px){
-  #tablet-sync-status{display:flex;align-items:center;gap:7px;flex:none;min-width:102px;
-    color:var(--text-secondary);font-size:11px;font-weight:650;white-space:nowrap;}
-  #tablet-sync-status .rt-tablet-sync-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--profit);}
-  #tablet-sync-status.saving .rt-tablet-sync-dot,#tablet-sync-status.pending .rt-tablet-sync-dot{background:var(--brand);}
-  #tablet-sync-status.error .rt-tablet-sync-dot{background:var(--red);}
 }
 
 /* iOS keeps the visual viewport steady when editable text is at least 16px. */
