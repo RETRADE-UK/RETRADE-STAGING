@@ -1,7 +1,7 @@
 /* RETRADE Command Centre chart polish v1.4.39
  * Dashboard-only enhancement layered over the existing renderer:
  * - band-centred blue revenue bars with inset green gross-profit bars
- * - thin red refund trend line instead of side-by-side refund columns
+ * - isolated red refund event dots
  * - current-period forecast shell based on a 14-day weighted run-rate
  * - tighter money axis, responsive geometry and restrained motion
  *
@@ -163,32 +163,25 @@
 #p-summary .rt-chart-primary-bar,#p-summary .rt-chart-profit-bar,#p-summary .rt-chart-actual-overlay,#p-summary .rt-chart-forecast-shell{will-change:transform,opacity;}\
 #p-summary .rt-chart-forecast-shell{fill-opacity:.10!important;stroke-dasharray:4 3!important;stroke-opacity:.56!important;}\
 #p-summary .rt-chart-actual-overlay{pointer-events:none;}\
-#p-summary .rt-chart-refund-trend{fill:none;stroke:var(--red);stroke-width:1.35;stroke-linecap:round;stroke-linejoin:round;opacity:.62;vector-effect:non-scaling-stroke;}\
 #p-summary .rt-chart-refund-dot{fill:var(--red);stroke:var(--surface-1);stroke-width:1.2;opacity:.90;vector-effect:non-scaling-stroke;}\
 #p-summary .rt-chart-forecast-label{font-family:var(--font-body);fill:var(--text-tertiary);font-weight:600;letter-spacing:.01em;}\
 @keyframes rtRevenueBarPolishIn{from{transform:scaleY(.025);opacity:.18}to{transform:scaleY(1);opacity:1}}\
 @keyframes rtProfitBarPolishIn{from{transform:scaleY(.025);opacity:.12}to{transform:scaleY(1);opacity:1}}\
 @keyframes rtForecastShellIn{from{opacity:0}to{opacity:1}}\
-@keyframes rtRefundTrendDraw{from{stroke-dashoffset:var(--rt-refund-len)}to{stroke-dashoffset:0}}\
 @keyframes rtRefundDotIn{from{opacity:0;transform:scale(.5)}to{opacity:.9;transform:scale(1)}}\
 #p-summary svg.rt-chart-draw .rt-chart-primary-bar:not(.rt-chart-profit-bar):not(.rt-chart-forecast-shell),#p-summary svg.rt-chart-draw .rt-chart-primary-actual{animation:rtRevenueBarPolishIn 420ms cubic-bezier(.22,.61,.36,1) both;animation-delay:calc(var(--bar-i) * 38ms);}\
 #p-summary svg.rt-chart-draw .rt-chart-profit-bar:not(.rt-chart-forecast-shell),#p-summary svg.rt-chart-draw .rt-chart-profit-actual{animation:rtProfitBarPolishIn 360ms cubic-bezier(.22,.61,.36,1) both;animation-delay:calc(var(--bar-i) * 38ms + 68ms);}\
 #p-summary svg.rt-chart-draw .rt-chart-forecast-shell{animation:rtForecastShellIn 260ms ease-out both;animation-delay:calc(var(--bar-i) * 38ms + 115ms);}\
-#p-summary svg.rt-chart-draw .rt-chart-refund-trend{stroke-dasharray:var(--rt-refund-len);animation:rtRefundTrendDraw 520ms cubic-bezier(.22,.61,.36,1) both;animation-delay:110ms;}\
 #p-summary svg.rt-chart-draw .rt-chart-refund-dot{transform-box:fill-box;transform-origin:center;animation:rtRefundDotIn 180ms ease-out both;animation-delay:330ms;}\
-@media(prefers-reduced-motion:reduce){#p-summary svg.rt-chart-draw .rt-chart-primary-bar,#p-summary svg.rt-chart-draw .rt-chart-actual-overlay,#p-summary svg.rt-chart-draw .rt-chart-forecast-shell,#p-summary svg.rt-chart-draw .rt-chart-refund-trend,#p-summary svg.rt-chart-draw .rt-chart-refund-dot{animation:none!important;transform:none!important;opacity:1!important;stroke-dashoffset:0!important;}}';
+@media(prefers-reduced-motion:reduce){#p-summary svg.rt-chart-draw .rt-chart-primary-bar,#p-summary svg.rt-chart-draw .rt-chart-actual-overlay,#p-summary svg.rt-chart-draw .rt-chart-forecast-shell,#p-summary svg.rt-chart-draw .rt-chart-refund-dot{animation:none!important;transform:none!important;opacity:1!important;stroke-dashoffset:0!important;}}';
     document.head.appendChild(s);
   }
   function removeLegacyRefundMarks(svgEl){
     Array.prototype.forEach.call(svgEl.querySelectorAll('.rt-chart-refund-bar,.rt-chart-refund-event'),function(el){el.remove();});
   }
-  function addRefundTrend(svgEl,refundData,sx,sy,n,beforeNode){
+  function addRefundDots(svgEl,refundData,sx,sy,n,beforeNode){
     if(!refundData||!n||!refundData.some(function(v){return num(v)>0;}))return;
-    var d='';
-    for(var i=0;i<n;i++)d+=(i===0?'M ':' L ')+sx(i).toFixed(1)+' '+sy(Math.max(0,num(refundData[i]))).toFixed(1);
     var g=document.createElementNS(NS,'g');g.setAttribute('class','rt-chart-refund-layer');
-    var path=document.createElementNS(NS,'path');path.setAttribute('class','rt-chart-refund-trend');path.setAttribute('d',d);
-    g.appendChild(path);
     refundData.forEach(function(v,i){
       v=Math.max(0,num(v));if(v<=0)return;
       var c=document.createElementNS(NS,'circle');
@@ -196,10 +189,6 @@
       g.appendChild(c);
     });
     svgEl.insertBefore(g,beforeNode||null);
-    try{
-      var len=path.getTotalLength();
-      if(isFinite(len)&&len>0)path.style.setProperty('--rt-refund-len',len.toFixed(1)+'px');
-    }catch(_){}
   }
   function cloneActualBar(rect,actual,sy,kind){
     if(!rect)return null;
@@ -294,7 +283,7 @@
 
     addForecastTreatment(svgEl,revData,profitData,forecast,sy,fontSize,pad,W);
     var firstHit=svgEl.querySelector('.rt-chart-col');
-    addRefundTrend(svgEl,refunds,sx,sy,n,firstHit);
+    addRefundDots(svgEl,refunds,sx,sy,n,firstHit);
 
     svgEl.setAttribute('preserveAspectRatio','xMidYMid meet');
     svgEl.setAttribute('role','img');
@@ -316,7 +305,7 @@
 
     var shouldDraw=(drawBefore===undefined)||(drawBefore!==opts.drawKey);
     svgEl.classList.remove('rt-chart-draw');
-    if(shouldDraw&&svgEl.querySelector('.rt-chart-primary-bar,.rt-chart-refund-trend')){
+    if(shouldDraw&&svgEl.querySelector('.rt-chart-primary-bar,.rt-chart-refund-dot')){
       try{void svgEl.getBoundingClientRect().width;}catch(_){}
       svgEl.classList.add('rt-chart-draw');
     }

@@ -383,7 +383,7 @@
     _renderAccountPage=function(acct){
       if(acct&&acct.id!=null)activeAccountId=acct.id;
       var result=baseRenderAccountPage.apply(this,arguments);
-      scheduleEnhance(acct);
+      enhance(acct);
       return result;
     };
   }

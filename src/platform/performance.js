@@ -120,12 +120,7 @@
   // v1.5.20 — Sales route state has ONE owner: app-core's _saveUIState /
   // _loadUIState. A second JSON route cache could restore a different grid/detail
   // value after the boot layout was already painted, creating the wrong skeleton.
-  function currentView(){try{return MONTHLY_VIEW==='detail'?'detail':'grid';}catch(_){return 'grid';}}
-  function activePageId(){var p=document.querySelector('.page.on');return p?p.id:'';}
-  function safeCurrentMonth(){try{return typeof currentMonthKey==='function'?currentMonthKey():'';}catch(_){return '';}}
-  function bumpSalesMotion(){window.__rtSalesMotionReplayToken=(window.__rtSalesMotionReplayToken||0)+1;}
   function persistSalesState(){try{if(typeof _saveUIState==='function')_saveUIState();}catch(_){}}
-  var restoredSalesState=false;
 
   function removeOldSalesSwitcher(){
     var old=document.querySelector('#p-monthly .rt-sales-mode-switch');if(old)old.remove();
@@ -167,10 +162,7 @@
   }
   function polishCurrentPage(){polishStockUI();polishRunsUI();removeOldSalesSwitcher();}
 
-  /* Sales-nav behaviour:
-     - from another page: return to the remembered Sales sub-view
-     - while already on Sales: the next Sales tap toggles Yearly <-> Monthly
-     Contextual month routing (calendar/month links) remains authoritative. */
+  // Route state belongs to core. This wrapper only polishes Stock/Sourcing.
   try{
     if(typeof goToTab==='function'){
       var nativeGoToTab=goToTab;
@@ -187,27 +179,7 @@
           requestAnimationFrame(polishRunsUI);
           return runsOut;
         }
-        if(name!=='monthly')return nativeGoToTab.apply(this,arguments);
-
-        var contextual=false;try{contextual=!!_monthOpenFromContext;}catch(_){}
-        if(contextual)return nativeGoToTab.apply(this,arguments);
-
-        var alreadySales=activePageId()==='p-monthly';
-        if(alreadySales){
-          try{MONTHLY_VIEW=currentView()==='grid'?'detail':'grid';}catch(_){}
-          if(currentView()==='detail'){
-            try{if(!SELECTED_MONTH)SELECTED_MONTH=safeCurrentMonth();}catch(_){}
-          }
-        }
-        if(currentView()==='grid')bumpSalesMotion();
-
-        var prior=false;try{prior=_monthOpenFromContext;_monthOpenFromContext=true;}catch(_){}
-        try{return nativeGoToTab.apply(this,arguments);}
-        finally{
-          try{_monthOpenFromContext=prior;}catch(_){}
-          persistSalesState();
-          requestAnimationFrame(removeOldSalesSwitcher);
-        }
+        return nativeGoToTab.apply(this,arguments);
       };
     }
   }catch(_){}
@@ -270,8 +242,6 @@
   // structure is available consistently on desktop and mobile.
 
   try{
-    var active=document.querySelector('.page.on');
-    if(restoredSalesState&&active&&active.id==='p-monthly'&&typeof renderMonthlyPage==='function')renderMonthlyPage();
     polishCurrentPage();
   }catch(_){}
 })();

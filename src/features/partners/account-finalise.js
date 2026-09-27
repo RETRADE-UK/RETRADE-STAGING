@@ -95,7 +95,7 @@
     var paid=paidInfo(acct);
     Array.prototype.slice.call(grid.querySelectorAll('.rt-partner-summary-v3-card')).forEach(function(card){
       var kind=cardKind(card);if(kind)card.setAttribute('data-kind',kind);if(kind!=='paid')return;
-      var v=card.querySelector('.rt-partner-summary-v3-value'),s=card.querySelector('.rt-partner-summary-v3-sub');if(v)v.textContent=money(paid.total);if(s)s.textContent=paid.count+' completed payment'+(paid.count===1?'':'s')+' recorded';
+      var v=card.querySelector('.rt-partner-summary-v3-value'),s=card.querySelector('.rt-partner-summary-v3-sub');if(v&&v.textContent!==money(paid.total))v.textContent=money(paid.total);var note=paid.count+' completed payment'+(paid.count===1?'':'s')+' recorded';if(s&&s.textContent!==note)s.textContent=note;
     });
     grid.classList.remove('rt-partner-finance-only-grid');
     grid.setAttribute('data-card-count','4');
@@ -142,4 +142,5 @@
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
   console.info('[RETRADE] v1.4.91 scoped partner finance finaliser loaded');
+  (window.__rtPartnerRenderFinalizers=window.__rtPartnerRenderFinalizers||[]).push(fix);
 })();

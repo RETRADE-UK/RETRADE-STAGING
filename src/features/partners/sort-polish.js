@@ -20,6 +20,7 @@
     queued=false;
     var page=document.getElementById('p-accounts');
     if(!page||!page.classList.contains('on'))return;
+    if(page.dataset.rtAccountsOwned==='true')return;
     var controls=page.querySelector('.rt-acct-op-controls');
     if(!controls)return;
     if(controls.querySelector('.rt-acct-op-sort-dd'))return;

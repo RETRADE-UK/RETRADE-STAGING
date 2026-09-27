@@ -1,7 +1,7 @@
 /* Runtime asset contract. Ordered classic scripts: do not alphabetise.
  * Shared by the browser loader, service worker and validation tools. */
 globalThis.RT_ASSETS = Object.freeze({
-  "build": "20260925-v1574-staging",
+  "build": "20260927-v1593-staging",
   "environment": "staging",
   "entry": [
     "src/domain/accounting-engine.js",
@@ -21,7 +21,6 @@ globalThis.RT_ASSETS = Object.freeze({
   ],
   "deferred": [
     "src/platform/staging-auth.js",
-    "src/features/sales/defaults.js",
     "src/features/bundles/orders.js",
     "src/features/bundles/panel.js",
     "src/features/bundles/row-polish.js",
@@ -31,6 +30,7 @@ globalThis.RT_ASSETS = Object.freeze({
     "src/features/cashflow/dashboard-v2.js",
     "src/features/cashflow/movement-card-polish.js",
     "src/features/cashflow/performance-v1509.js",
+    "src/features/cashflow/transaction-details.js",
     "src/features/partners/item-navigation.js",
     "src/features/partners/actions-v2.js",
     "src/features/partners/statement-action.js",
@@ -60,6 +60,7 @@ globalThis.RT_ASSETS = Object.freeze({
   "lazy": [
     "src/features/monitors/cloud.js",
     "src/features/monitors/page.js",
+    "src/features/sales/defaults.js",
     "src/features/partners/statements.js",
     "src/features/partners/statements-accounting-v3.js",
     "src/features/partners/account-adjustment-statements.js",
@@ -76,6 +77,8 @@ globalThis.RT_ASSETS = Object.freeze({
     "assets/styles/item.css",
     "assets/styles/status.css",
     "assets/styles/sales.css",
+    "assets/styles/responsive.css",
+    "assets/styles/workspaces.css",
     "assets/styles/monitors.css"
   ],
   "icons": [

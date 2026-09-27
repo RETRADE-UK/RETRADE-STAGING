@@ -9,37 +9,24 @@
  * - Add item and Adjustment become the two explicit account actions.
  * - Add item owns new stock, new listed item and add-existing workflows.
  * - The global FAB opens the same account quick actions (no duplicate logic).
- * - Account navigation paints a full final-layout loading shell before the
- *   authoritative renderer runs, preventing partial-content/layout flashes.
+ * - Account rendering completes all presentation owners before first paint.
  */
 (function(){
   'use strict';
   if(window.__rtPartnerPageUnified1503)return;
   window.__rtPartnerPageUnified1503=true;
 
-  var activeAccountId=null;
   var queued=false;
   var observer=null;
-  var navToken=0;
-  var ACCOUNT_MIN_MS=360,ACCOUNT_MAX_MS=1800;
 
   function norm(v){return String(v==null?'':v).replace(/\s+/g,' ').trim();}
   function escHtml(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c];});}
   function accountById(id){try{return (_accounts||[]).find(function(a){return a&&String(a.id)===String(id);})||null;}catch(_){return null;}}
   function currentAccount(){
-    try{if(typeof _acctCurrentAcct==='function'){var a=_acctCurrentAcct();if(a)return a;}}catch(_){}
-    var a=accountById(activeAccountId);if(a)return a;
-    var page=document.getElementById('p-item');if(!page)return null;
-    var tagged=page.querySelector('[data-account-id],[data-accountid]');
-    if(tagged){a=accountById(tagged.getAttribute('data-account-id')||tagged.getAttribute('data-accountid'));if(a)return a;}
-    var h=page.querySelector('.page-title,h1,h2,h3'),title=norm(h&&h.textContent).toLowerCase();
-    if(title){try{var matches=(_accounts||[]).filter(function(x){var n=norm(x&&x.name).toLowerCase();return n&&(title===n||title.indexOf(n)!==-1);});if(matches.length===1)return matches[0];}catch(_){} }
-    return null;
+    try{return typeof _acctCurrentAcct==='function'?_acctCurrentAcct():null;}catch(_){return null;}
   }
   function isAccountPage(){var p=document.getElementById('p-item');return !!(p&&p.classList.contains('on')&&currentAccount());}
   function arrangement(a){try{if(typeof _rtArrangementForAccount==='function')return _rtArrangementForAccount(a);}catch(_){}return String(a&&a.accountType||'supplier').toLowerCase()==='supplier'?'fixed_cost':'profit_share';}
-  function timing(a){try{if(typeof _rtPartnerPaymentTiming==='function')return _rtPartnerPaymentTiming(a);}catch(_){}return String(a&&a.paymentTiming||a&&a.paymentTerms||'upfront').toLowerCase()==='on_sale'?'on_sale':'upfront';}
-  function arrangementLabel(a){return arrangement(a)==='fixed_cost'?('Fixed cost · '+(timing(a)==='on_sale'?'After sale':'Upfront')):'Profit share';}
 
   function installStyles(){
     if(document.getElementById('rt-partner-unified-1503-style'))return;
@@ -58,41 +45,19 @@
       .rt-partner-v1503-choice:hover{background:var(--surface2);}\
       .rt-partner-v1503-choice-icon{width:34px;height:34px;border-radius:9px;background:var(--surface2);display:flex;align-items:center;justify-content:center;flex:0 0 34px;color:var(--accent);font-size:18px;font-weight:800;}\
       .rt-partner-v1503-choice-copy{min-width:0;flex:1}.rt-partner-v1503-choice-copy strong{display:block;font-size:12.5px}.rt-partner-v1503-choice-copy span{display:block;font-size:10.5px;color:var(--text-secondary);margin-top:2px;line-height:1.35;}\
-      #p-item[data-rt-account-transition]{position:relative;}\
-      #p-item .rt-account-shell1503.rt-account-shell1503-overlay{position:absolute;inset:0;z-index:60;min-height:100%;background:var(--bg);padding:0 0 28px;box-sizing:border-box;opacity:1;pointer-events:auto;transition:opacity 160ms cubic-bezier(.22,.61,.36,1);}\
-      #p-item .rt-account-shell1503.rt-account-shell1503-overlay.rt-account-shell1503-exit{opacity:0;}\
-      #p-item .rt-account-shell1503{padding:0 0 28px;min-height:70vh;}\
-      #p-item .rt-account-shell1503-nav{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px;}\
-      #p-item .rt-account-shell1503-navright{display:flex;align-items:center;gap:8px;margin-left:auto;}\
-      #p-item .rt-account-shell1503-head{margin:0 0 12px;}\
-      #p-item .rt-account-shell1503-title{font-size:clamp(26px,3.2vw,38px);font-weight:800;line-height:1.08;letter-spacing:-.035em;}\
-      #p-item .rt-account-shell1503-tag{display:inline-flex;margin-top:7px;padding:4px 8px;border-radius:999px;background:var(--surface2);color:var(--accent);font-size:11px;font-weight:750;}\
-      #p-item .rt-account-shell1503-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0 16px;}\
-      #p-item .rt-account-shell1503-kpi{min-height:94px;padding:13px;border:1px solid var(--border);border-radius:13px;background:var(--surface);box-sizing:border-box;}\
-      #p-item .rt-account-shell1503-line{height:10px;border-radius:999px;background:var(--surface2);overflow:hidden;position:relative;}\
-      #p-item .rt-account-shell1503-line:after,#p-item .rt-account-shell1503-block:after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 20%,color-mix(in srgb,var(--text) 7%,transparent) 45%,transparent 70%);transform:translateX(-100%);animation:rt-shell1503 1.15s ease-in-out infinite;}\
-      #p-item .rt-account-shell1503-kpi .rt-account-shell1503-line:first-child{width:58%;height:8px;margin-bottom:12px;}\
-      #p-item .rt-account-shell1503-kpi .rt-account-shell1503-line:nth-child(2){width:72%;height:20px;margin-bottom:9px;}\
-      #p-item .rt-account-shell1503-kpi .rt-account-shell1503-line:nth-child(3){width:86%;height:7px;}\
-      #p-item .rt-account-shell1503-actions{display:flex;gap:9px;margin:0 0 14px;}\
-      #p-item .rt-account-shell1503-action{width:116px;height:42px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);}\
-      #p-item .rt-account-shell1503-toolbar{display:flex;gap:9px;margin:0 0 14px}.rt-account-shell1503-search{height:42px;flex:1;border:1px solid var(--border);border-radius:10px;background:var(--surface);}.rt-account-shell1503-select{width:72px;height:42px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);}\
-      #p-item .rt-account-shell1503-groups{display:grid;gap:9px}.rt-account-shell1503-group{height:50px;border:1px solid var(--border);border-radius:12px;background:var(--surface);display:flex;align-items:center;padding:0 14px;gap:10px;box-sizing:border-box}.rt-account-shell1503-group strong{font-size:12.5px}.rt-account-shell1503-group span{margin-left:auto;width:30px;height:8px;border-radius:999px;background:var(--surface2)}\
-      @keyframes rt-shell1503{to{transform:translateX(100%)}}\
-      @media(max-width:760px){#p-item .rt-account-shell1503-kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}#p-item .rt-account-shell1503-kpi{min-height:82px;padding:11px}#p-accounts .rt-acct-compact-strip{grid-template-columns:minmax(0,1fr) minmax(108px,auto) 14px!important;gap:12px!important;}}\
-      @media(max-width:640px){#p-item .rt-account-shell1503-kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}#p-item .rt-account-shell1503-kpi{min-height:78px;padding:10px 9px}#p-item .rt-account-shell1503-kpi:first-child{grid-column:1/-1;min-height:102px;padding:14px 16px}#p-item .rt-partner-v1503-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}#p-item .rt-partner-v1503-actions .btn{width:100%}#p-item .rt-account-shell1503-actions{display:grid;grid-template-columns:1fr 1fr}.rt-account-shell1503-action{width:auto!important}}\
-      @media(max-width:380px){#p-item .rt-account-shell1503-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#p-item .rt-account-shell1503-kpi:first-child{grid-column:1/-1}#p-item .rt-account-shell1503-kpi:last-child{grid-column:1/-1;min-height:68px}}\
-      @media(prefers-reduced-motion:reduce){#p-item .rt-account-shell1503-line:after,#p-item .rt-account-shell1503-block:after{animation:none!important;}}\
+      @media(max-width:760px){#p-accounts .rt-acct-compact-strip{grid-template-columns:minmax(0,1fr) minmax(108px,auto) 14px!important;gap:12px!important;}}\
+      @media(max-width:640px){#p-item .rt-partner-v1503-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}#p-item .rt-partner-v1503-actions .btn{width:100%}}\
     ';
     document.head.appendChild(s);
   }
 
   function patchPartnersList(){
     var page=document.getElementById('p-accounts');if(!page||!page.classList.contains('on'))return;
+    if(page.dataset.rtAccountsOwned==='true')return;
     page.querySelectorAll('.rt-acct-op-row[data-account-id]').forEach(function(row){
       var a=accountById(row.getAttribute('data-account-id'));if(!a)return;
       var term=row.querySelector('.rt-acct-snapshot-term');
-      if(term&&arrangement(a)==='profit_share')term.textContent='';
+      if(term&&arrangement(a)==='profit_share'&&term.textContent!=='')term.textContent='';
     });
   }
 
@@ -163,43 +128,38 @@
     });
   }
 
+  // One presentation owner groups the existing ledger nodes; their actions,
+  // payment allocations and collapse state remain owned by the original modules.
+  function arrangeWorkspace(page){
+    var first=page.querySelector('.account-group');if(!first)return;
+    var layout=page.querySelector('.rt-account-workspace');
+    if(!layout){
+      layout=document.createElement('div');layout.className='rt-account-workspace';
+      layout.innerHTML='<section class="rt-account-inventory" aria-label="Stock and sales"><div class="rt-account-section-heading"><h2>Stock &amp; sales</h2><p>Search items, review their status and manage your share.</p></div></section><aside class="rt-account-payments" aria-label="Payments and adjustments"><div class="rt-account-section-heading"><h2>Payments &amp; adjustments</h2><p>Assign outstanding items and review payment history.</p></div></aside>';
+      var actions=page.querySelector('.rt-partner-v1503-actions');if(actions)actions.after(layout);else first.before(layout);
+    }
+    var inventory=layout.querySelector('.rt-account-inventory'),payments=layout.querySelector('.rt-account-payments');
+    var move=function(el,host){if(el&&el.parentElement!==host)host.appendChild(el);};
+    move(page.querySelector('.rt-partner-v2-toolbar'),inventory);
+    move(page.querySelector('.rt-partner-v2-selection'),inventory);
+    ['listed','unlisted','returned','sales'].forEach(function(key){move(page.querySelector('.account-group[data-group-key="'+key+'"]'),inventory);});
+    move(page.querySelector('.rt-payalloc2'),payments);
+    move(page.querySelector('.account-group[data-group-key="settlements"]'),payments);
+    move(page.querySelector('.rt-account-adjustments'),payments);
+    // Preserve all unknown/legacy groups rather than dropping records.
+    page.querySelectorAll('.account-group').forEach(function(group){if(!layout.contains(group))move(group,payments);});
+    var noHistory=payments.querySelector('.rt-account-no-history');
+    if(!page.querySelector('.account-group[data-group-key="settlements"]')&&!noHistory){noHistory=document.createElement('p');noHistory.className='rt-account-no-history';noHistory.textContent='No payment transactions recorded yet.';payments.appendChild(noHistory);}
+    if(noHistory&&page.querySelector('.account-group[data-group-key="settlements"]'))noHistory.remove();
+    page.querySelectorAll('.page-header button').forEach(function(button){if(/^\+?\s*add$/i.test(norm(button.textContent)))button.classList.add('rt-partner-v1503-hidden-action');});
+  }
+
   function polishAccount(){
     queued=false;
-    var page=document.getElementById('p-item'),a=currentAccount(),transition=page&&page.getAttribute('data-rt-account-transition');if(!page||!page.classList.contains('on')||!a||transition==='v1503')return;
-    activeAccountId=a.id;classifySummary(page);ensureSettings(page,a);ensureActionRow(page,a);
+    var page=document.getElementById('p-item'),a=currentAccount();if(!page||!page.classList.contains('on')||!a)return;
+    classifySummary(page);ensureSettings(page,a);ensureActionRow(page,a);arrangeWorkspace(page);
   }
   function schedule(){if(queued)return;queued=true;requestAnimationFrame(function(){requestAnimationFrame(function(){patchPartnersList();polishAccount();});});}
-
-  function shellGroup(label){return '<div class="rt-account-shell1503-group"><strong>'+label+'</strong><span></span></div>';}
-  function renderLoadingShell(a){
-    var page=document.getElementById('p-item');if(!page)return;
-    page.setAttribute('data-rt-account-transition','v1503');page.setAttribute('aria-busy','true');
-    page.innerHTML=''
-      +'<div class="rt-account-shell1503">'
-        +'<div class="rt-account-shell1503-nav"><button type="button" class="btn btn-secondary" disabled>← Accounts</button><div class="rt-account-shell1503-navright"><button type="button" class="btn btn-secondary" disabled>Statement</button><button type="button" class="btn btn-secondary rt-partner-v1503-settings" disabled>'+settingsSvg()+'</button></div></div>'
-        +'<div class="rt-account-shell1503-head"><div class="rt-account-shell1503-line" style="width:min(48%,260px);height:28px;margin-bottom:9px"></div><div class="rt-account-shell1503-line" style="width:112px;height:22px"></div></div>'
-        +'<div class="rt-account-shell1503-kpis">'
-          +'<div class="rt-account-shell1503-kpi"><div class="rt-account-shell1503-line"></div><div class="rt-account-shell1503-line"></div><div class="rt-account-shell1503-line"></div></div>'
-          +'<div class="rt-account-shell1503-kpi"><div class="rt-account-shell1503-line"></div><div class="rt-account-shell1503-line"></div><div class="rt-account-shell1503-line"></div></div>'
-          +'<div class="rt-account-shell1503-kpi"><div class="rt-account-shell1503-line"></div><div class="rt-account-shell1503-line"></div><div class="rt-account-shell1503-line"></div></div>'
-          +'<div class="rt-account-shell1503-kpi"><div class="rt-account-shell1503-line"></div><div class="rt-account-shell1503-line"></div><div class="rt-account-shell1503-line"></div></div>'
-        +'</div>'
-        +'<div class="rt-account-shell1503-actions"><button class="rt-account-shell1503-action" disabled></button><button class="rt-account-shell1503-action" disabled></button></div>'
-        +'<div class="rt-account-shell1503-toolbar"><div class="rt-account-shell1503-search"></div><div class="rt-account-shell1503-select"></div></div>'
-        +'<div class="rt-account-shell1503-groups">'+shellGroup('Sales')+shellGroup('Listed stock')+shellGroup('Unlisted stock')+shellGroup('Returns')+shellGroup('Unsettled items')+shellGroup('Payment history')+'</div>'
-      +'</div>';
-  }
-
-  function installNavigation(){
-    var current=window.openAccountPage;
-    if(typeof current!=='function'||current.__rtUnified1503)return;
-    var base=current.__rtBase||current;
-    function wrapped(accountId){
-      var a=accountById(accountId);if(a)activeAccountId=a.id;
-      var out=base.apply(this,arguments);schedule();setTimeout(schedule,60);return out;
-    }
-    wrapped.__rtUnified1503=true;wrapped.__rtBase=base;window.openAccountPage=wrapped;try{openAccountPage=wrapped;}catch(_){}
-  }
 
   function openFabMenu(){var a=currentAccount();if(!a)return false;var body=''
     +'<button type="button" class="rt-partner-v1503-choice" data-rt-v1503-fab="item"><span class="rt-partner-v1503-choice-icon">＋</span><span class="rt-partner-v1503-choice-copy"><strong>Add item</strong><span>New stock, new listing, or assign an existing RETRADE item.</span></span></button>'
@@ -212,8 +172,20 @@
     var wrapped=function(){if(isAccountPage()&&openFabMenu())return;return base.apply(this,arguments);};wrapped.__rtUnified1503=true;wrapped.__rtBase=base;window.onFabClick=wrapped;try{onFabClick=wrapped;}catch(_){}
   }
 
+  // Complete the existing presentation layers before the browser can paint.
+  // Observers still handle later data updates; they no longer own first render.
+  if(typeof _renderAccountPage==='function'){
+    var renderBase=_renderAccountPage;
+    _renderAccountPage=function(a){
+      var result=renderBase.apply(this,arguments);
+      (window.__rtPartnerRenderFinalizers||[]).forEach(function(f){f();});
+      polishAccount();
+      return result;
+    };
+  }
+
   function start(){
-    installStyles();installNavigation();installFab();schedule();
+    installStyles();installFab();schedule();
     var pa=document.getElementById('p-accounts');if(pa){new MutationObserver(schedule).observe(pa,{childList:true,subtree:true});}
     var pi=document.getElementById('p-item');if(pi){observer=new MutationObserver(function(muts){for(var i=0;i<muts.length;i++){if(muts[i].type==='childList'){schedule();return;}}});observer.observe(pi,{childList:true,subtree:true});}
     window.addEventListener('retrade:motion-ready',schedule);window.addEventListener('popstate',schedule);window.addEventListener('hashchange',schedule);

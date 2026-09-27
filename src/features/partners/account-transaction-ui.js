@@ -96,4 +96,5 @@
   window.__rtOpenPartnerAccountAdjustment=function(accountId,opts){openAdjustmentModal(accountId,opts||{});};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
   console.info('[RETRADE] partner transaction-first adjustment UI v1.4.82 loaded');
+  (window.__rtPartnerRenderFinalizers=window.__rtPartnerRenderFinalizers||[]).push(cleanupMainPage);
 })();

@@ -47,12 +47,17 @@ const {open,settled}=require('./startup-browser.cjs');
   assert(Math.abs(totals.net-totals.gross/2)<.011);
   assert((await page.locator('.ip-profit-token').innerText()).includes(totals.net.toFixed(2)),'Headline includes partner deduction');
   assert((await page.locator('.ip-section-pnl').innerText()).includes('Partner share'),'Receipt includes partner deduction');
+  const expectedSplit=await page.locator('.ip-profit-split').first().innerText();
+  assert(expectedSplit.includes('Total expected profit')&&expectedSplit.includes(totals.gross.toFixed(2)),'Expected receipt shows the total before the partner share');
+  assert(expectedSplit.includes('50%')&&expectedSplit.includes(totals.net.toFixed(2)),'Expected share percentage and retained profit reconcile');
   await page.locator('#ip-partner-method').selectOption('fixed');await page.locator('#ip-partner-fixed').fill('40');await page.locator('.ip-cost-form button[type=submit]').tap();
   assert.deepEqual(await page.evaluate(()=>{const i=DB['SEP-26'][0];return [i.accountPaidAmount,i.accountSplitPercent,i.partnerAgreedAmount,calcEstProfit(i),+(calcEstGrossProfit(i)-40).toFixed(2)];}),[40,null,40,+(totals.gross-40).toFixed(2),+(totals.gross-40).toFixed(2)]);
+  assert((await page.locator('.ip-profit-split').first().innerText()).includes('Partner payout · fixed'),'Fixed payout is not described as a percentage agreement');
   await page.evaluate(()=>{const i=DB['SEP-26'][0];i.dateSold='2026-09-20';i.state='sold';renderItemPage('SEP-26','item-test');});
   const roundtrip=await page.evaluate(()=>{const i=DB['SEP-26'][0],row=_itemToRow(i,'SEP-26'),copy=_rowToItem(row);return [copy.accountPaidAmount,copy.partnerAgreedAmount,calcNetProfit(i),calcGrossProfit(i)-40];});
   assert.equal(roundtrip[0],40);assert.equal(roundtrip[1],40);assert(Math.abs(roundtrip[2]-roundtrip[3])<.011);
   assert((await page.locator('.ip-profit-token').innerText()).includes(roundtrip[2].toFixed(2)),'Sold headline is net, not gross');
+  assert((await page.locator('.ip-profit-before').first().innerText()).includes('Total item profit'),'Completed sale uses a realised total label');
   await page.evaluate(()=>{const i=DB['SEP-26'][0];i.accountSettled=true;renderItemPage('SEP-26','item-test');});
   assert(await page.locator('#ip-partner').isDisabled());assert(await page.locator('#ip-partner-fixed').isDisabled());
   await page.evaluate(()=>{DB['SEP-26'][0].costPrice=25;renderItemPage('SEP-26','item-test');});
@@ -88,20 +93,34 @@ const {open,settled}=require('./startup-browser.cjs');
   for(const width of [320,390,768,1024,1440]){
    await page.setViewportSize({width,height:900});
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Item page overflow '+width);
+   assert(await page.locator('.ip-platform-row select').first().evaluate(e=>{const r=e.getBoundingClientRect(),card=e.closest('.ip-section').getBoundingClientRect();return r.left>=card.left&&r.right<=card.right;}),'Sale platform stays inside its card at '+width);
    await page.evaluate(()=>window.scrollTo(0,0));
    if(process.env.RETRADE_CAPTURE&&(width===390||width===1440))await page.screenshot({path:process.env.RETRADE_CAPTURE+'/item-'+width+'.png',fullPage:true});
   }
   await page.setViewportSize({width:390,height:844});
-  await page.evaluate(()=>_refreshSideNavSync('saving'));
-  await page.waitForFunction(()=>document.getElementById('mobile-sync-badge').classList.contains('saving'));
+  await page.evaluate(()=>_setSyncing(true));
+  await page.waitForFunction(()=>document.getElementById('mobile-sync-badge').classList.contains('saving')&&!document.getElementById('mobile-sync-badge').classList.contains('is-delayed'));
   const status=await page.locator('#mobile-sync-badge').evaluate(el=>{const r=el.getBoundingClientRect();return {inHeader:el.parentElement.id==='mobile-top-bar',top:r.top,bottom:r.bottom,labelWidth:el.querySelector('.rt-sync-label').getBoundingClientRect().width};});
   assert(status.inHeader&&status.top>=0&&status.bottom<180&&status.labelWidth<=1,'No page-bottom sync text: '+JSON.stringify(status));
-  await page.evaluate(()=>_refreshSideNavSync('synced'));assert.equal(await page.locator('#mobile-sync-badge').innerText(),'');
+  await page.evaluate(()=>{_syncStatusStarted=Date.now()-16000;_reconcileSyncStatus();});
+  await page.waitForFunction(()=>document.getElementById('mobile-sync-badge').classList.contains('waiting'));
+  assert(await page.locator('#mobile-sync-badge').evaluate(e=>e.classList.contains('waiting')),'Long saves use static pending indicator');
+  assert.equal(await page.evaluate(()=>_syncing),true,'Status timeout does not cancel a save');
+  await page.evaluate(()=>_setSyncing(false));assert(await page.locator('#mobile-sync-badge').evaluate(e=>e.classList.contains('synced')));
   await page.evaluate(()=>{window.retries=0;retradeForceResync=()=>{window.retries++;};_refreshSideNavSync('error');});
-  await page.locator('#mobile-sync-badge .rt-sync-retry').tap();assert.equal(await page.evaluate(()=>retries),1);
+  await page.locator('#mobile-sync-badge').tap();await page.locator('#rt-sync-retry').tap();assert.equal(await page.evaluate(()=>retries),1);
   await page.setViewportSize({width:320,height:844});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Error status fits narrow header');
   await page.evaluate(()=>{_refreshSideNavSync('synced');DB['SEP-26'][0]=itemFixture({state:'sourced',salePrice:0,estSalePrice:200,accountId:'partner',accountType:'consignment',costPrice:0,accountSplitPercent:50});renderItemPage('SEP-26','item-test');});
   assert(await page.locator('#ip-partner-percent').isVisible(),'Unlisted stock also has partner editor');
+  for(const salePrice of [200,1,0]){
+   await page.evaluate(price=>{DB['SEP-26'][0]=itemFixture({state:'sold',dateSold:'2026-09-20',salePrice:price,costPrice:50,accountId:'partner',accountType:'consignment',accountSplitPercent:50});renderItemPage('SEP-26','item-test');},salePrice);
+   const split=await page.locator('.ip-profit-split').first().innerText();
+   const figures=await page.evaluate(()=>{const i=DB['SEP-26'][0],cycle=_saleCycleSnapshot(i,1),br=_saleBreakdown(_saleEventForCycle(i,'SEP-26',cycle));return {total:br.netProfit+br.partnerSplit,cut:br.partnerSplit,net:br.netProfit};});
+   const shown=(await page.locator('.ip-profit-split').first().locator('.ip-receipt-val').allTextContents()).map(t=>Number(t.replace(/−/g,'-').replace(/[^\d.-]/g,''))||0);
+   assert.deepEqual(shown,[figures.total,-figures.cut,figures.net].map(v=>+v.toFixed(2)),'Displayed bridge preserves canonical sale/loss amounts');
+   assert(!/NaN|Infinity/.test(split));
+   if(figures.total<=0)assert(!split.includes('%'),'No misleading percentage of zero/negative profit');
+  }
   assert.deepEqual(errors,[]);await context.close();console.log('PASS item policy atomicity/current sale, partner edits/persistence/net totals, responsive layout and header sync');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

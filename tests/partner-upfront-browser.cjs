@@ -6,18 +6,31 @@ try{for(const mobile of [true,false]){const {page,context,errors}=await open(bro
  const item=(id,state,cost,extra={})=>Object.assign({id,item:id,accountId:'p',accountType:'supplier',state,costPrice:cost,salePrice:100,dateSourced:'2026-09-01',dateListed:state==='listed'?'2026-09-02':null,dateSold:state==='sold'?'2026-09-03':null,parts:[],returnHistory:[],salePlatform:'fb'},extra);
  DB={'SEP-26':[item('listed','listed',30),item('unlisted','sourced',20),item('sold','sold',10),item('share','listed',0,{accountType:'consignment',arrangementModelOverride:'profit_share',accountSplitPercent:50}),item('paid','listed',40,{accountSettled:true}),item('disposed','sourced',50,{scrappedAt:'2026-09-04'})],trips:[],expenses:[]};
  _accounts[0].settlements=[{id:'old',paid:true,kind:'supplier',date:'2026-09-03',partnerAmount:40,items:[{id:'paid',kind:'supplier',amount:40}]}];openAccountPage('p');});
+ const frames=await page.evaluate(async()=>{
+   const snap=()=>({legacy:[...document.querySelectorAll('#p-item .accounts-kpis-v2')].filter(e=>e.getClientRects().length).length,summary:document.querySelectorAll('#p-item .rt-partner-summary-v3').length,text:document.getElementById('p-item').innerText});
+   _renderAccountPage(_accounts[0]);const out=[snap()];for(let n=0;n<6;n++){await new Promise(requestAnimationFrame);out.push(snap());}return out;
+ });
+ assert(frames.every(f=>f.legacy===0&&f.summary===1),'Only the completed partner layout is painted');
+ assert(frames.every(f=>f.text===frames[0].text),'Partner content stays stable across initial frames: '+JSON.stringify(frames.filter((f,i)=>i===0||f.text!==frames[0].text)));
  await page.waitForSelector('.rt-payalloc2');await page.waitForTimeout(250);
  if(await page.locator('.rt-payalloc2').evaluate(e=>e.classList.contains('closed')))await page.locator('.rt-payalloc2-head').click();
  assert.equal(await page.locator('[data-payalloc-id="listed"]').count(),0);
  await page.locator('.payalloc-unsold').check();
  assert.equal(await page.locator('[data-payalloc-id]').count(),3);
+ assert.equal(await page.locator('[data-unsettled-stock=share]').count(),1,'Unsold profit share remains visible with explanation');
+ assert((await page.locator('[data-unsettled-stock=share]').innerText()).includes('Profit share needs a sale'));
  assert((await page.locator('.rt-payalloc2').innerText()).includes('Listed stock · fixed cost'));
+ assert.equal(await page.evaluate(()=>_buildTaxCashSummary('2026-04-06','2027-04-05','').cashGoodsPaid),40,'Only previously paid partner stock is deductible before payment');
  await page.locator('[data-payalloc-id="listed"]').check();await page.locator('[data-payalloc-id="unlisted"]').check();
  await page.locator('.payalloc-new').click();await page.locator('#payalloc-create-btn').click();
  await page.waitForFunction(()=>_accounts[0].settlements.length===2);
  const result=await page.evaluate(()=>({tx:_accounts[0].settlements[0],items:DB['SEP-26'].slice(0,2).map(i=>({state:i.state,date:i.dateSold,paid:i.accountSettled})),sales:getSaleEventsInMonth('SEP-26').length}));
+ assert.equal(await page.evaluate(()=>_buildTaxCashSummary('2026-04-06','2027-04-05','').cashGoodsPaid),90,'Unsold supplier stock becomes deductible on payment');
  assert.equal(result.tx.partnerAmount,50);assert.equal(result.tx.items.length,2);assert.equal(result.tx.grossProfit,null);assert.equal(result.sales,1);
  assert.deepEqual(result.items,[{state:'listed',date:null,paid:true},{state:'sourced',date:null,paid:true}]);
+ await page.evaluate(()=>{const i=DB['SEP-26'][0];i.state='sold';i.dateSold='2026-09-22';});
+ assert.equal(await page.evaluate(()=>_buildTaxCashSummary('2026-04-06','2027-04-05','').cashGoodsPaid),90,'Sale does not deduct an advance payment again');
+ await page.evaluate(()=>{const i=DB['SEP-26'][0];i.state='listed';i.dateSold=null;});
   await page.waitForTimeout(250);assert.equal(await page.locator('[data-payalloc-id="listed"]').count(),0,'No double allocation');
  await page.evaluate(()=>{const a=_accounts[0];a.accountType='consignment';a.arrangementModel='profit_share';DB['SEP-26'].push({id:'override',item:'Agreed fixed payout',accountId:'p',accountType:'consignment',arrangementModelOverride:'fixed_cost',partnerAgreedAmount:25,accountPaidAmount:25,costPrice:0,salePrice:100,state:'listed',dateSold:null,dateListed:'2026-09-02',parts:[],returnHistory:[]});_renderAccountPage(a);});
  await page.waitForSelector('[data-payalloc-id="override"]');await page.waitForTimeout(250);
@@ -27,5 +40,39 @@ try{for(const mobile of [true,false]){const {page,context,errors}=await open(bro
   assert.deepEqual(await page.evaluate(()=>{const tx=_accounts[0].settlements[0];return [tx.partnerAmount,tx.arrangementModel,tx.grossProfit,tx.yourAmount];}),[25,'fixed_cost',null,0],'Per-item fixed payout does not invent realised profit');
  assert.equal(await page.evaluate(()=>_accounts[0].settlements[0].items[0].kind),'consignment');
  assert.equal(await page.evaluate(()=>_buildTaxCashSummary('2026-04-06','2027-04-05','').cashPartnerPaid),25,'Fixed consignment payout remains a tax deduction');
+ assert.equal(await page.evaluate(()=>_cashEventsAll().filter(e=>e.type==='partner_settlement').reduce((s,e)=>s+e.amount,0)),115,'Each payment appears once in cashflow');
+ await page.evaluate(()=>openAccountItemPage('SEP-26','listed','p'));await page.waitForTimeout(150);
+ assert.equal(await page.locator('#p-item .rt-partner-v1503-actions,#p-item .rt-payalloc2').count(),0,'Account presentation cannot leak onto an item');
+ assert.equal(await page.evaluate(()=>_fabAccountContext()),null,'Item quick actions do not retain the previous partner');
+ await page.evaluate(()=>{_accounts.push({id:'q',name:'Upfront test',accountType:'supplier',settlements:[]});openAccountPage('q');});
+ assert.equal(await page.evaluate(()=>_acctCurrentAcct().id),'q','Account identity does not depend on duplicate display names');
+ // One bank payment can cover three upfront fixed payouts and one sold share.
+ // Use the same four £39 allocations as the reported blocked selection.
+ for(const mixed of [true,false]){
+ await page.evaluate(mixed=>{
+   _accounts=[{id:'mixed',name:'Mixed payment test',accountType:'consignment',arrangementModel:'profit_share',settlements:[]}];
+   DB={'SEP-26':Array.from({length:4},(_,n)=>({id:'mix-'+n,item:'Payment item '+n,accountId:'mixed',accountType:n===3&&mixed?'consignment':'supplier',arrangementModelOverride:n===3&&mixed?'profit_share':'fixed_cost',accountPaidAmount:39,partnerAgreedAmount:n===3&&mixed?null:39,costPrice:n===3&&mixed?0:39,salePrice:100,state:n===3?'sold':'listed',dateSold:n===3?'2026-09-23':null,dateListed:'2026-09-02',dateSourced:'2026-09-01',salePlatform:'fb',parts:[],returnHistory:[]})),trips:[],expenses:[]};
+   openAccountPage('mixed');
+ },mixed);
+ if(await page.locator('.rt-payalloc2').evaluate(e=>e.classList.contains('closed')))await page.locator('.rt-payalloc2-head').click();
+ await page.locator('.payalloc-unsold').check();
+ await page.locator('.payalloc-all').click();
+ assert.equal(await page.locator('[data-payalloc-id]:checked').count(),4);
+ await page.locator('.payalloc-new').click();
+ assert.equal(await page.locator('#payalloc-create-btn').count(),1,'Mixed sold/unsold selection opens one payment dialog');
+ await page.locator('#payalloc-date').fill('2026-09-25');
+ await page.locator('#payalloc-create-btn').click();
+ await page.waitForFunction(()=>_accounts[0].settlements.length===1);
+ const paid=await page.evaluate(()=>({tx:_accounts[0].settlements[0],states:DB['SEP-26'].map(i=>[i.state,i.dateSold,i.accountSettled]),tax:_buildTaxCashSummary('2026-04-06','2027-04-05',''),before:_buildTaxCashSummary('2026-04-06','2026-09-24',''),cash:_cashEventsAll().filter(e=>e.type==='partner_settlement').reduce((s,e)=>s+e.amount,0)}));
+ assert.equal(paid.tx.partnerAmount,156);assert.equal(paid.tx.items.length,4);
+ assert(paid.tx.items.every(i=>i.amount===39));
+ assert.equal(paid.tx.grossProfit,null,'A stock/mixed payment does not invent a realised profit total');assert.equal(paid.tx.yourAmount,0);
+ assert.deepEqual(paid.states,[['listed',null,true],['listed',null,true],['listed',null,true],['sold','2026-09-23',true]]);
+ assert.equal(paid.tax.cashGoodsPaid,mixed?117:156);assert.equal(paid.tax.cashPartnerPaid,mixed?39:0);
+ assert.equal(paid.before.cashGoodsPaid+paid.before.cashPartnerPaid,0,'Costs follow payment date');assert.equal(paid.cash,156);
+ assert.equal(await page.locator('[data-payalloc-id]').count(),0,'All four allocations settle once');
+ await page.evaluate(()=>{DB['SEP-26'][0].state='sold';DB['SEP-26'][0].dateSold='2026-09-26';});
+ assert.equal(await page.evaluate(()=>{const t=_buildTaxCashSummary('2026-04-06','2027-04-05','');return t.cashGoodsPaid+t.cashPartnerPaid;}),156,'Later sale does not deduct upfront costs again');
+ }
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert.deepEqual(errors,[]);await context.close();console.log('PASS upfront unsold stock, payment allocation, unchanged sale state and deduplication',mobile?'mobile':'desktop');
 }}finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

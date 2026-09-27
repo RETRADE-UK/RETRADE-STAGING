@@ -49,4 +49,5 @@
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
   console.info('[RETRADE] v1.4.91 scoped partner cleanup loaded');
+  (window.__rtPartnerRenderFinalizers=window.__rtPartnerRenderFinalizers||[]).push(clean);
 })();

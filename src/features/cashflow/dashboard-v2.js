@@ -195,18 +195,35 @@
     var desktop='<div class="rt-cash-table"><div class="rt-cash-table-head"><span>Date</span><span>Description</span><span>Type</span><span>Source</span><span style="text-align:right">Amount</span></div>';
     var mobile='<div class="rt-cash-mobile-list">';
     rows.forEach(function(m){
-      var isOut=m&&m.direction==='out',editable=!!(m&&m.editableId),amount=(isOut?'−':'+')+money(Math.max(0,num(m&&m.amount)));
+      var isOut=m&&m.direction==='out',amount=(isOut?'−':'+')+money(Math.max(0,num(m&&m.amount)));
       var desc=esc((m&&m.description)||(m&&m.type)||'Cash movement'),date=esc((m&&m.date)||'Undated'),type=esc(label(m&&m.type)),source=esc((m&&m.source)||'app');
-      desktop+='<div class="rt-cash-table-row'+(editable?' editable':'')+'" data-edit-id="'+(editable?esc(m.editableId):'')+'"><span class="rt-cash-date">'+date+'</span><span class="rt-cash-desc" title="'+desc+'">'+desc+'</span><span class="rt-cash-type">'+type+'</span><span class="rt-cash-source">'+source+'</span><span class="rt-cash-amount '+(isOut?'out':'in')+'">'+amount+'</span></div>';
-      mobile+='<div class="rt-cash-mobile-row'+(editable?' editable':'')+'" data-edit-id="'+(editable?esc(m.editableId):'')+'"><div><div class="rt-cash-mobile-desc">'+desc+'</div><div class="rt-cash-mobile-meta">'+date+' · '+type+(editable?' · editable':'')+'</div></div><div class="rt-cash-mobile-amount '+(isOut?'out':'in')+'">'+amount+'</div></div>';
+      desktop+='<div class="rt-cash-table-row details-row" role="button" tabindex="0" aria-label="View '+desc+' · '+amount+'" data-cash-event="'+esc(m.id)+'"><span class="rt-cash-date">'+date+'</span><span class="rt-cash-desc" title="'+desc+'">'+desc+'</span><span class="rt-cash-type">'+type+'</span><span class="rt-cash-source">'+source+'</span><span class="rt-cash-amount '+(isOut?'out':'in')+'">'+amount+'</span></div>';
+      mobile+='<div class="rt-cash-mobile-row details-row" role="button" tabindex="0" aria-label="View '+desc+' · '+amount+'" data-cash-event="'+esc(m.id)+'"><div><div class="rt-cash-mobile-desc">'+desc+'</div><div class="rt-cash-mobile-meta">'+date+' · '+type+' · View details'+'</div></div><div class="rt-cash-mobile-amount '+(isOut?'out':'in')+'">'+amount+'</div></div>';
     });
     desktop+='</div>';mobile+='</div>';box.innerHTML=desktop+mobile;
-    Array.prototype.forEach.call(box.querySelectorAll('[data-edit-id]'),function(row){
-      var id=row.getAttribute('data-edit-id');if(!id)return;
-      row.addEventListener('click',function(){try{if(typeof editCashMove==='function')editCashMove(id);}catch(_){}});
+    Array.prototype.forEach.call(box.querySelectorAll('[data-cash-event]'),function(row){
+      var id=row.getAttribute('data-cash-event');
+      row.addEventListener('click',function(){window.openCashflowTransaction(id);});
+      row.addEventListener('keydown',function(event){if(event.key==='Enter'||event.key===' '){event.preventDefault();row.click();}});
     });
     return box;
   }
+
+  // Search/filter updates replace the native result container without rebuilding
+  // the page, preserving input focus. Paint the same interactive rows there too.
+  window.refreshCashflowLedger=function(rows){
+    var page=document.getElementById('p-cash');if(!page)return;
+    page.querySelectorAll('.rt-cash-ledger,.rt-cash-history-window1509').forEach(function(node){node.remove();});
+    var native=page.querySelector('.cashflow-ledger-list');
+    if(native)native.insertAdjacentElement('afterend',buildLedger(sortRows(rows||[])));
+    var direction=page.querySelector('#cashflow-direction');
+    page.querySelectorAll('[data-dir]').forEach(function(btn){btn.classList.toggle('active',!!direction&&btn.getAttribute('data-dir')===direction.value);});
+    var type=page.querySelector('#cashflow-type'),range=page.querySelector('#cashflow-range');
+    var active=(type&&type.value!=='all'?1:0)+(range&&range.value!=='all'?1:0);
+    var toggle=page.querySelector('.rt-cash-filter-toggle');
+    if(toggle)toggle.innerHTML='Filters'+(active?'<span class="rt-cash-filter-badge">'+active+'</span>':'');
+    compactResultCount(page);
+  };
 
   function compactResultCount(page){
     var el=page.querySelector('.cashflow-result-count');if(!el)return;

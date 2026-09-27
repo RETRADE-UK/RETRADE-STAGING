@@ -16,6 +16,9 @@
   var v=assets.build;
   window.__rtBuildId=v;
   var motionReady=false;
+  var featuresDone;
+  window.__rtFeaturesReady=false;
+  window.__rtFeaturesPromise=new Promise(function(resolve){featuresDone=resolve;});
 
   window.__rtMotionStackReady=false;
   document.documentElement.classList.add('rt-app-cold','rt-motion-prep');
@@ -82,7 +85,7 @@
       loadDeferred.started=true;
       var index=0;
       function next(){
-        if(index>=files.length){window.__rtFeaturesReady=true;return;}
+        if(index>=files.length){window.__rtFeaturesReady=true;featuresDone();window.dispatchEvent(new Event('retrade:features-ready'));return;}
         // Preserve dependency order while allowing a paint between modules.
         // Login may start a new reveal while this queue is in progress.
         if(!window.__rtLaunchSettled){setTimeout(next,180);return;}
@@ -91,7 +94,8 @@
           var src=files[index++];
           append(src,'low',schedule,schedule);
         };
-        if('requestIdleCallback' in window)requestIdleCallback(run,{timeout:600});
+        if(window.__rtFeatureLoadUrgent)setTimeout(run,0);
+        else if('requestIdleCallback' in window)requestIdleCallback(run,{timeout:600});
         else setTimeout(run,32);
       }
       function schedule(){requestAnimationFrame(next);}
