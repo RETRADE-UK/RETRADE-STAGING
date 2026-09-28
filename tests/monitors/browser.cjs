@@ -27,15 +27,17 @@ const { open, settled } = require("../startup-browser.cjs");
             status: "waiting",
           },
         ],
-        calls = 0;
+        calls = 0, failBootstrap = true, delayedSave = null, releaseSave = null,
+        statusState = "blocked", feedRows = [];
       await page.route("**/functions/v1/monitor-service", async (route) => {
         calls++;
         const d = route.request().postDataJSON();
         let response = {};
         let status = 200;
-        if (d.op === "bootstrap")
+        if (d.op === "bootstrap" || d.op === "status")
           response = {
             monitors,
+            canonModels: preset().recipe.models,
             anonymous: false,
             devices: 0,
             pushKey: "A".repeat(87),
@@ -45,13 +47,19 @@ const { open, settled } = require("../startup-browser.cjs");
               checkedAt: "2026-09-24T09:19:06Z",
             },
           };
+        if (d.op === "bootstrap" && failBootstrap) {
+          failBootstrap = false; status = 503; response = { error: "Temporary startup failure" };
+        }
+        if (d.op === "status") response.source.status = statusState;
         if (d.op === "feed")
           response = {
-            matches: [],
+            matches: feedRows,
             comparison: {
-              rows: [],
-              observedDiscordIds: 0,
-              pairedIds: 0,
+              rows: feedRows.length ? [{listingId:'12345',retradeAt:'2026-09-27T10:00:00Z',discordAt:'2026-09-27T10:00:01Z',differenceMs:-1000}] : [],
+              observedDiscordIds: feedRows.length ? 1 : 0,
+              pairedIds: feedRows.length ? 1 : 0,
+              medianDifferenceMs: -1000,
+              p95DifferenceMs: -1000,
               discordOnly: 0,
               retradeOnly: 0,
             },
@@ -62,9 +70,13 @@ const { open, settled } = require("../startup-browser.cjs");
             status = 400;
             response = { error: "Storage rejected the save" };
           } else {
+            if (d.name === "Slow save") {
+              delayedSave = new Promise(resolve => { releaseSave = resolve; });
+              await delayedSave;
+            }
             const m = {
               ...d,
-              id: d.id || "22222222-2222-4222-8222-222222222222",
+              id: d.id || (monitors.length === 1 ? "22222222-2222-4222-8222-222222222222" : "33333333-3333-4333-8333-333333333333"),
               revision: (d.revision || 0) + 1,
             };
             monitors = monitors.filter((x) => x.id !== m.id).concat(m);
@@ -80,8 +92,15 @@ const { open, settled } = require("../startup-browser.cjs");
       await page.evaluate(() => {
         _currentUserId = "ui-test";
         window.__fixtureSession.access_token = "synthetic-test";
+        const interval = window.setInterval;
+        window.setInterval = function(fn, ms, ...args) {
+          if(ms === 30000) window.__monitorPoll = fn;
+          return interval(fn, ms, ...args);
+        };
         goToTab("monitors");
       });
+      await page.getByText("Temporary startup failure", { exact: true }).waitFor();
+      await page.getByRole("button", { name: "Refresh", exact: true }).click();
       await page
         .getByText("Live source not connected", { exact: true })
         .waitFor();
@@ -102,6 +121,50 @@ const { open, settled } = require("../startup-browser.cjs");
       await page.getByText("Monitor saved.", { exact: true }).waitFor();
       assert.equal(monitors.length, 2);
       assert.deepEqual(monitors[1].recipe.customModels, ["Hero 12", "Hero 13"]);
+      // Closing an in-flight editor must not close a later editor or lose the save.
+      await page.getByRole("button", { name: "+ New monitor", exact: true }).click();
+      await dialog.getByLabel("Name", { exact: true }).fill("Slow save");
+      await dialog.getByLabel("Search terms").fill("Canon");
+      await dialog.getByLabel("Model names").fill("600D");
+      const saveRequest = page.waitForRequest(r=>r.url().includes('monitor-service') && r.postDataJSON().name === 'Slow save');
+      await dialog.getByRole("button", { name: "Save monitor" }).click();
+      await saveRequest;
+      await dialog.getByRole("button", { name: "Close builder" }).click();
+      await page.getByRole("button", { name: "+ New monitor", exact: true }).click();
+      await dialog.getByLabel("Name", { exact: true }).fill("Keep this draft");
+      releaseSave();
+      await page.getByText("Slow save", { exact: true }).waitFor();
+      assert.equal(await dialog.getByLabel("Name", { exact: true }).inputValue(),"Keep this draft");
+      await dialog.getByRole("button", { name: "Close builder" }).click();
+      // The existing Canon codes keep their aliases; added phrases are custom.
+      await page.locator('[data-action="edit"][data-id="11111111-1111-4111-8111-111111111111"]').click();
+      await dialog.getByLabel("Model names").fill("600D, vintage camera");
+      await dialog.getByRole("button", { name: "Save monitor" }).click();
+      await dialog.waitFor({state:"detached"});
+      assert.deepEqual(monitors.find(x=>x.id.startsWith('1111')).recipe.customModels,['vintage camera']);
+      assert.deepEqual(monitors.find(x=>x.id.startsWith('1111')).recipe.models,['600D']);
+      const searchLink = new URL(await page.getByRole('link',{name:'Search Canon on Vinted ↗'}).first().getAttribute('href'));
+      assert.equal(searchLink.searchParams.get('price_from'),'51.00');
+      statusState = 'degraded';
+      await page.evaluate(()=>window.__monitorPoll());
+      await page.getByText("Catalogue temporarily unavailable", {exact:true}).waitFor();
+      // Feed output remains text-safe and gallery preserves native disclosure state.
+      feedRows = [{ listing: { id:'12345', title:'<script>hostile title</script>', itemPricePence:8500,
+        imageUrls:['https://images.vinted.net/one.jpg','https://images.vinted.net/two.jpg','javascript:alert(1)'] },
+        result:{status:'match',warnings:[]}, observed_at:'2026-09-27T10:00:00Z' }];
+      await page.getByRole('button',{name:'Refresh',exact:true}).click();
+      await page.getByText('<script>hostile title</script>',{exact:true}).waitFor();
+      assert.equal(await page.locator('.monitor-feed script').count(),0);
+      await page.locator('.monitor-gallery summary').click();
+      assert.equal(await page.locator('.monitor-gallery img').count(),2);
+      await page.getByRole('button',{name:'Refresh',exact:true}).click();
+      assert(await page.locator('.monitor-gallery').evaluate(e=>e.open));
+      const downloadEvent=page.waitForEvent('download');
+      await page.getByRole('button',{name:'Export sample CSV'}).click();
+      const download=await downloadEvent;
+      const csv=require('node:fs').readFileSync(await download.path(),'utf8');
+      assert(csv.includes('"12345","2026-09-27T10:00:00Z","2026-09-27T10:00:01Z","-1000"'));
+      assert(csv.includes('retrade_minus_discord_ms'));
       await page.getByRole("button", { name: "Preview example cards" }).click();
       await page
         .getByText("Canon EOS 600D with kit lens", { exact: true })
@@ -114,6 +177,10 @@ const { open, settled } = require("../startup-browser.cjs");
         false,
         "No horizontal overflow",
       );
+      for (const width of mobile ? [320,390] : [1024,1440]) {
+        await page.setViewportSize({width,height:900});
+        assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth > innerWidth),false,'Width '+width);
+      }
       await page.screenshot({
         path: "/tmp/monitors-" + (mobile ? "mobile" : "desktop") + ".png",
         fullPage: true,
@@ -125,7 +192,7 @@ const { open, settled } = require("../startup-browser.cjs");
       console.log(
         "Monitor browser " +
           (mobile ? "mobile" : "desktop") +
-          ": custom save, failure retention, preview isolation and navigation disposal passed.",
+          ": startup retry, custom/Canon save, delayed-close race, live health, safe gallery, preview, responsive widths and disposal passed.",
       );
     }
   } finally {

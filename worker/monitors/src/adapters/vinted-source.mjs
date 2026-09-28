@@ -94,7 +94,7 @@ export function createVintedSource({ request, now = Date.now, timeoutMs = 10000,
 
 /** Bounded overlapping catalog scan, not a persistent scheduler. Partial coverage
  * is explicit; a caller must not establish a baseline from an incomplete scan. */
-export async function scanCatalog({ source, recipe: input, maxPages = 2, perPage = 50, maxRequests = 6, signal }) {
+export async function scanCatalog({ source, recipe: input, maxPages = 2, perPage = 50, maxRequests = 6, knownIds = new Set(), signal }) {
   const recipe = createRecipe(input);
   if (!Number.isSafeInteger(maxPages) || maxPages < 1 || maxPages > 10 || !Number.isSafeInteger(maxRequests) || maxRequests < 1 || maxRequests > 30) throw new TypeError('Invalid scan budget');
   if (!Number.isSafeInteger(perPage) || perPage < 1 || perPage > 100) throw new TypeError('Invalid page size');
@@ -114,6 +114,9 @@ export async function scanCatalog({ source, recipe: input, maxPages = 2, perPage
         candidates.set(listing.id, previous ? mergeListing(previous, listing) : listing);
       }
       if (result.rawCount < perPage) break;
+      // A whole distinct page already recorded by a previous cycle establishes
+      // overlap with durable history. Full duplicate/malformed pages never do.
+      if (result.listings.length === result.rawCount && result.listings.every(x => knownIds.has(x.id))) break;
       if (page === maxPages) incomplete.push({ searchText, reason: 'page_limit' });
     }
   }

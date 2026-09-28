@@ -29,12 +29,15 @@
       data = null,
       selected = null,
       feedToken = 0,
+      refreshToken = 0,
+      lastControls = null,
+      comparison = null,
       lastFeed = null,
       preview = false,
       timer = null,
       dialog = null;
     root.innerHTML =
-      '<div class="monitor-page"><header class="monitor-header"><div><span class="monitor-eyebrow">SOURCING INTELLIGENCE · STAGING</span><h1>Monitors</h1><p>Your searches. New finds. One place.</p></div><button class="btn btn-primary" data-action="new">+ New monitor</button></header><div class="monitor-message" role="status" aria-live="polite"></div><section class="monitor-health skeleton" aria-label="Loading source status"><p>Checking source connection…</p></section><div class="monitor-layout"><aside><div class="monitor-section-title"><h2>Your monitors</h2><button class="btn" data-action="refresh">Refresh</button></div><div class="monitor-list"><div class="monitor-card skeleton" style="height:160px"></div><div class="monitor-card skeleton" style="height:120px"></div></div><section class="monitor-card monitor-phone"><h2>Alerts on this phone</h2><p>Receive new matches even when RETRADE is closed. Alerts are separate from buying recommendations.</p><p class="monitor-push-help">On iPhone: Safari → Share → Add to Home Screen. Open that shortcut, then enable notifications.</p><div class="monitor-actions"><button class="btn" data-action="push">Enable notifications</button><button class="btn" data-action="test">Send test</button><button class="btn" data-action="unpush">Disable this device</button></div><p class="monitor-device-state"></p></section></aside><section class="monitor-results"><div class="monitor-section-title"><h2>Listing feed</h2><button class="btn" data-action="preview">Preview example cards</button></div><p class="monitor-feed-note"></p><div class="monitor-feed" aria-live="polite"></div><section class="monitor-card monitor-comparison"><h2>Compare with Discord</h2><p>Record the Vinted link and the actual Discord message time. This does not read your Discord account.</p><form class="monitor-compare-form"><label>Vinted listing link or ID<input name="listingId" required maxlength="2048" placeholder="https://www.vinted.co.uk/items/…"></label><label>Discord message time (your local time)<input name="observedAt" type="datetime-local" step="1" required></label><button class="btn" type="submit">Record observation</button></form><div class="monitor-stats"></div><div class="monitor-comparison-rows"></div></section></section></div></div>';
+      '<div class="monitor-page"><header class="monitor-header"><div><span class="monitor-eyebrow">SOURCING INTELLIGENCE · STAGING</span><h1>Monitors</h1><p>Your searches. New finds. One place.</p></div><button class="btn btn-primary" data-action="new">+ New monitor</button></header><div class="monitor-message" role="status" aria-live="polite"></div><section class="monitor-health skeleton" aria-label="Loading source status"><p>Checking source connection…</p></section><div class="monitor-layout"><aside><div class="monitor-section-title"><h2>Your monitors</h2><button class="btn" data-action="refresh">Refresh</button></div><div class="monitor-list"><div class="monitor-card skeleton" style="height:160px"></div><div class="monitor-card skeleton" style="height:120px"></div></div><section class="monitor-card monitor-phone"><h2>Alerts on this phone</h2><p>Receive new matches even when RETRADE is closed. Alerts are separate from buying recommendations.</p><p class="monitor-push-help">On iPhone: Safari → Share → Add to Home Screen. Open that shortcut, then enable notifications.</p><div class="monitor-actions"><button class="btn" data-action="push">Enable notifications</button><button class="btn" data-action="test">Send test</button><button class="btn" data-action="unpush">Disable this device</button></div><p class="monitor-device-state"></p></section></aside><section class="monitor-results"><div class="monitor-section-title"><h2>Listing feed</h2><button class="btn" data-action="preview">Preview example cards</button></div><p class="monitor-feed-note"></p><div class="monitor-feed" aria-live="polite"></div><section class="monitor-card monitor-comparison"><div class="monitor-section-title"><h2>Compare with Discord</h2><button class="btn" data-action="export" disabled>Export sample CSV</button></div><p>Record the Vinted link and the actual Discord message time. This does not read your Discord account.</p><form class="monitor-compare-form"><label>Vinted listing link or ID<input name="listingId" required maxlength="2048" placeholder="https://www.vinted.co.uk/items/…"></label><label>Discord message time (your local time)<input name="observedAt" type="datetime-local" step="1" required></label><button class="btn" type="submit">Record observation</button></form><div class="monitor-stats"></div><div class="monitor-comparison-rows"></div></section></section></div></div>';
     var $ = function (s) {
       return root.querySelector(s);
     };
@@ -52,7 +55,29 @@
         })
       );
     }
+    function clearFeed() {
+      ++feedToken;
+      lastFeed = null;
+      comparison = null;
+      $(".monitor-feed").innerHTML = '<p role="status">Loading this monitor…</p>';
+      $(".monitor-feed-note").textContent = "";
+      $(".monitor-stats").replaceChildren();
+      $(".monitor-comparison-rows").replaceChildren();
+      $('[data-action="export"]').disabled = true;
+    }
+    function select(id) {
+      selected = id;
+      preview = false;
+      $('.monitor-results [data-action="preview"]').textContent = "Preview example cards";
+      clearFeed();
+    }
     function controls() {
+      var signature = JSON.stringify([data, selected]);
+      if (signature === lastControls) return;
+      lastControls = signature;
+      var focus = document.activeElement;
+      var focusAction = focus && focus.dataset && focus.dataset.action;
+      var focusId = focus && focus.dataset && focus.dataset.id;
       var health = $(".monitor-health");
       health.classList.remove("skeleton");
       health.innerHTML =
@@ -60,19 +85,22 @@
         esc(
           data.source.status === "ready"
             ? "Catalogue reachable"
-            : "Live source not connected",
+            : data.source.status === "degraded"
+              ? "Catalogue temporarily unavailable"
+              : "Live source not connected",
         ) +
         "</strong><p>" +
         esc(data.source.message) +
         "</p><small>Checked " +
         esc(time(data.source.checkedAt)) +
+        (data.source.retryAt && data.source.status !== "blocked" ? " · Next attempt " + esc(time(data.source.retryAt)) : "") +
         "</small></div>";
+      health.dataset.state = data.source.status;
       $(".monitor-device-state").textContent = data.anonymous
         ? "Developer bypass: builder testing only. Sign in with a registered staging account for background scans and phone alerts."
         : data.devices +
-          " subscribed device" +
-          (data.devices === 1 ? "" : "s") +
-          ". Enable alerts on each monitor you want.";
+          " subscribed device" + (data.devices === 1 ? "" : "s") +
+          " across this account. Enable alerts on each monitor you want.";
       $(".monitor-list").innerHTML = data.monitors
         .map(function (m) {
           return (
@@ -109,7 +137,7 @@
             '">Edit</button><button class="btn" data-action="toggle" data-id="' +
             esc(m.id) +
             '" ' +
-            (data.anonymous ? "disabled" : "") +
+            (data.anonymous || m.archived ? "disabled" : "") +
             ">" +
             (m.enabled ? "Pause" : "Resume") +
             '</button><button class="btn" data-action="duplicate" data-id="' +
@@ -118,17 +146,34 @@
             esc(m.id) +
             '">' +
             (m.archived ? "Restore" : "Archive") +
-            "</button></div></article>"
+            "</button></div>" +
+            (m.message ? '<p class="monitor-meta">' + esc(m.message) + '</p>' : '') +
+            '<div class="monitor-search-links">' + m.recipe.searchTerms.map(function (term) {
+              var u = new URL("https://www.vinted.co.uk/catalog");
+              u.searchParams.set("search_text", term);
+              u.searchParams.set("price_from", (m.recipe.minPricePence / 100).toFixed(2));
+              if (m.recipe.maxPricePence != null) u.searchParams.set("price_to", (m.recipe.maxPricePence / 100).toFixed(2));
+              u.searchParams.set("currency", "GBP");
+              u.searchParams.set("order", "newest_first");
+              return '<a target="_blank" rel="noopener noreferrer" href="' + esc(u.href) + '">Search ' + esc(term) + ' on Vinted ↗</a>';
+            }).join('') + '<small>Manual search; model rules still need checking.</small></div></article>'
           );
         })
         .join("");
+      if (focusAction && focusId && !document.contains(focus)) {
+        var replacement = Array.from(root.querySelectorAll('[data-action]')).find(function (b) {
+          return b.dataset.action === focusAction && b.dataset.id === focusId;
+        });
+        if (replacement) replacement.focus({ preventScroll: true });
+      }
     }
     async function refresh() {
-      var result = await api.request("bootstrap");
-      if (!alive) return;
+      var token = ++refreshToken;
+      var result = await api.request(data ? "status" : "bootstrap");
+      if (!alive || token !== refreshToken) return;
       data = result;
       if (!selected || !current())
-        selected = data.monitors[0] && data.monitors[0].id;
+        select(data.monitors[0] && data.monitors[0].id);
       controls();
       await loadFeed();
     }
@@ -159,10 +204,11 @@
       $(".monitor-feed").innerHTML = rows
         .map(function (row) {
           var l = row.listing,
-            photo = (l.imageUrls || []).map(safePhoto).find(Boolean),
+            photos = (l.imageUrls || []).map(safePhoto).filter(Boolean).slice(0, 8),
+            photo = photos[0],
             id = /^[1-9]\d{0,19}$/.test(l.id) ? l.id : null;
           return (
-            '<article class="monitor-card monitor-listing">' +
+            '<article class="monitor-card monitor-listing" data-listing="' + esc(l.id) + '">' +
             (photo
               ? '<img loading="lazy" referrerpolicy="no-referrer" alt="" src="' +
                 esc(photo) +
@@ -203,6 +249,10 @@
                 : "Review count unknown",
             ) +
             '</p><p class="monitor-meta">Buyer fee and delivery: not verified</p>' +
+            (photos.length > 1 ? '<details class="monitor-gallery"><summary>' + photos.length + ' listing photos</summary><div>' + photos.map(function (src) {
+              return '<img loading="lazy" referrerpolicy="no-referrer" alt="Listing photo" src="' + esc(src) + '">';
+            }).join('') + '</div></details>' : '') +
+            (!isPreview && l.sourceUpdatedAt ? '<p class="monitor-meta">Updated on Vinted ' + esc(time(l.sourceUpdatedAt)) + '</p>' : '') +
             ((row.result.warnings || []).length
               ? '<p class="monitor-warning">Check: ' +
                 esc(row.result.warnings.join(", ").replaceAll("_", " ")) +
@@ -211,7 +261,7 @@
             '<div class="monitor-section-title"><small>' +
             (isPreview
               ? "Preview only"
-              : "Detected " + esc(time(row.observed_at))) +
+              : (row.result.status === "match" ? "Confirmed " + esc(time(row.confirmed_at || row.observed_at)) : "First seen " + esc(time(row.observed_at)))) +
             "</small>" +
             (id && !isPreview
               ? '<a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.vinted.co.uk/items/' +
@@ -225,6 +275,8 @@
     }
     function stats(result) {
       var c = result.comparison;
+      comparison = c;
+      $('[data-action="export"]').disabled = !c.rows.length;
       $(".monitor-stats").innerHTML = [
         ["Discord IDs", c.observedDiscordIds],
         ["Seen by both", c.pairedIds],
@@ -238,15 +290,17 @@
         })
         .join("");
       var note = result.truncated
-        ? "Recent sample only; export/full-history comparison is not available yet. "
+        ? "Recent sample only; exported rows are not a full-history audit. "
         : "";
+      if (result.baselineReady === false) note += "Initial baseline is not complete. These observations do not establish detection coverage. ";
       note +=
         result.baselineExclusions +
         " baseline observations excluded. " +
         (c.pairedIds
           ? "Median RETRADE − Discord: " +
             (c.medianDifferenceMs / 1000).toFixed(1) +
-            "s; negative means RETRADE was earlier."
+            "s; p95: " + (c.p95DifferenceMs / 1000).toFixed(1) +
+            "s. Negative means RETRADE was earlier."
           : "No paired timings yet. Coverage and speed are unproven.");
       $(".monitor-comparison-rows").innerHTML =
         '<p class="monitor-meta">' +
@@ -269,21 +323,34 @@
           })
           .join("");
     }
+    function exportComparison() {
+      if (!comparison || !comparison.rows.length) return;
+      var rows = [["listing_id", "retrade_observed_at_utc", "discord_observed_at_utc", "retrade_minus_discord_ms"]];
+      comparison.rows.forEach(function (r) { rows.push([r.listingId, r.retradeAt, r.discordAt, r.differenceMs]); });
+      var csv = rows.map(function (r) { return r.map(function (v) { return '"' + String(v == null ? '' : v).replaceAll('"', '""') + '"'; }).join(','); }).join('\r\n');
+      var url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      var a = document.createElement('a'); a.href = url; a.download = 'retrade-monitor-comparison-sample.csv'; a.click();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }
     async function loadFeed() {
       if (!selected || preview) return;
       var token = ++feedToken,
         id = selected;
       var result = await api.request("feed", { id: id });
-      if (!alive || token !== feedToken || preview) return;
+      if (!alive || token !== feedToken || id !== selected || preview) return;
       $(".monitor-feed-note").textContent =
         current().name +
-        " · latest 200 candidates; pending details are not confirmed matches.";
+        " · latest 200 matches/candidates; pending details are not confirmed matches.";
       var signature = JSON.stringify([id, result]);
       if (signature !== lastFeed) {
         var focused = $(".monitor-feed").contains(document.activeElement)
           ? document.activeElement.href
           : null;
+        var galleries = Array.from($(".monitor-feed").querySelectorAll('.monitor-gallery[open]')).map(function (el) { return el.closest('[data-listing]').dataset.listing; });
         cards(result.matches, false);
+        Array.from($(".monitor-feed").querySelectorAll('.monitor-gallery')).forEach(function (el) {
+          el.open = galleries.includes(el.closest('[data-listing]').dataset.listing);
+        });
         stats(result);
         lastFeed = signature;
         if (focused) {
@@ -384,10 +451,9 @@
         if (dialog === this) dialog = null;
       });
       dialog.showModal();
+      var ownDialog = dialog;
       dialog.querySelector("[data-close]").onclick = function () {
-        dialog.close();
-        dialog.remove();
-        dialog = null;
+        ownDialog.close();
       };
       dialog.querySelector("form").onsubmit = async function (event) {
         event.preventDefault();
@@ -404,9 +470,13 @@
             .filter(Boolean);
         }
         var models = terms("models");
+        var canonModels = data.canonModels || recipe.models;
+        function canonCode(name) {
+          return canonModels.find(function (code) { return code.toLowerCase() === name.toLowerCase(); });
+        }
         var next = Object.assign({}, recipe, {
-          models: recipe.kind === "canon" ? models : [],
-          customModels: recipe.kind === "canon" ? [] : models,
+          models: recipe.kind === "canon" ? models.map(canonCode).filter(Boolean) : [],
+          customModels: recipe.kind === "canon" ? models.filter(function (name) { return !canonCode(name); }) : models,
           searchTerms: terms("terms"),
           minPricePence: Math.round(Number(fd.get("min")) * 100),
           maxPricePence:
@@ -426,18 +496,19 @@
             archived: editing ? m.archived : false,
           });
           if (!alive) return;
-          selected = result.monitor.id;
-          dialog.close();
-          dialog.remove();
-          dialog = null;
+          select(result.monitor.id);
+          if (ownDialog.open) ownDialog.close();
+          ownDialog.remove();
+          if (dialog === ownDialog) dialog = null;
           await refresh();
           message(
             "Monitor saved" +
               (data.anonymous ? " paused in your test workspace." : "."),
           );
         } catch (e) {
-          if (alive)
+          if (alive && ownDialog.isConnected)
             form.querySelector(".monitor-form-error").textContent = e.message;
+          else message(e.message, true);
         } finally {
           button.disabled = false;
         }
@@ -503,9 +574,10 @@
     }
     root.onclick = async function (event) {
       var b = event.target.closest("[data-action]");
-      if (!b || !data) return;
+      if (!b) return;
+      if (!data && b.dataset.action !== "refresh") return;
       var action = b.dataset.action,
-        m = data.monitors.find(function (x) {
+        m = data && data.monitors.find(function (x) {
           return x.id === b.dataset.id;
         });
       b.disabled = true;
@@ -514,16 +586,13 @@
         if (action === "edit") editor(m, false);
         if (action === "duplicate") editor(m, true);
         if (action === "select") {
-          selected = m.id;
-          preview = false;
-          lastFeed = null;
-          $('.monitor-results [data-action="preview"]').textContent =
-            "Preview example cards";
+          select(m.id);
           controls();
           await loadFeed();
         }
         if (action === "preview") await examples();
-        if (action === "refresh") await refresh();
+        if (action === "export") exportComparison();
+        if (action === "refresh") { await refresh(); message("Monitors refreshed."); }
         if (["push", "test", "unpush"].includes(action)) await push(action);
         if (action === "toggle" || action === "archive") {
           await api.request(
@@ -549,6 +618,7 @@
         fd = new FormData(form);
       button.disabled = true;
       try {
+        if (!selected) throw new Error("Choose a monitor first.");
         await api.request("compare", {
           id: selected,
           listingId: fd.get("listingId"),
@@ -575,13 +645,16 @@
     dispose = function () {
       alive = false;
       ++feedToken;
+      ++refreshToken;
       api.close();
       clearInterval(timer);
       authSub.data.subscription.unsubscribe();
       root.onclick = null;
       if (dialog) {
-        dialog.close();
-        dialog.remove();
+        var closing = dialog;
+        dialog = null;
+        closing.close();
+        closing.remove();
       }
       root.replaceChildren();
       dispose = null;
@@ -591,11 +664,11 @@
       message(e.message, true);
       $(".monitor-health").classList.remove("skeleton");
       $(".monitor-health").textContent =
-        "Could not load monitors. Leave this page and try again.";
+        "Could not load monitors. Use Refresh to try again.";
     });
     timer = setInterval(function () {
       if (alive && !document.hidden && !dialog && !preview)
-        loadFeed().catch(function (e) {
+        refresh().catch(function (e) {
           message(e.message, true);
         });
     }, 30000);

@@ -16,6 +16,7 @@ const { PGlite } = require("@electric-sql/pglite");
       "utf8",
     ),
   );
+  await db.exec(fs.readFileSync("supabase/migrations/20260928230920_monitor_recovery_audit.sql", "utf8"));
   const a = "11111111-1111-4111-8111-111111111111",
     b = "22222222-2222-4222-8222-222222222222";
   const { preset } = await import(
@@ -156,6 +157,43 @@ const { PGlite } = require("@electric-sql/pglite");
     ).rows[0].allowed,
     false,
   );
+  await assert.rejects(db.query("select public.monitor_feed_snapshot($1,$2,$3)",[b,m.id,3]),/unavailable/);
+  await db.exec(`set role authenticated`);
+  await assert.rejects(db.query("select public.monitor_feed_snapshot($1,$2,$3)",[a,m.id,3]),/permission denied/);
+  await assert.rejects(db.query("select public.monitor_release_claims($1)",[token]),/permission denied/);
+  await db.exec("reset role");
+  await db.query("update public.monitor_recipes set lease_token=$1,lease_until=now()+interval '100 seconds',next_run_at=now()+interval '1 minute' where id=$2",[token,m.id]);
+  await db.query("select public.monitor_release_claims($1)",[token]);
+  const released=(await db.query("select lease_token, next_run_at<=now() as due from public.monitor_recipes where id=$1",[m.id])).rows[0];
+  assert.equal(released.lease_token,null);assert.equal(released.due,true);
+  await db.query("insert into public.monitor_outbox(subscription_id,payload,state,attempts,next_attempt_at) values($1,'{}','sending',5,now()-interval '1 second')",[sub]);
+  await db.query("select public.monitor_push_claim()");
+  assert.equal((await db.query("select state from public.monitor_outbox where attempts=5")).rows[0].state,'failed');
+  await db.query(`insert into public.monitor_matches(monitor_id,revision,listing_id,listing,result,baseline,observed_at)
+    select $1,3,g::text,'{}',jsonb_build_object('status',case when g>250 then 'reject' else 'match' end),g=1,now()+g*interval '1 second' from generate_series(1,300) g`,[m.id]);
+  await db.query("insert into public.monitor_comparisons(monitor_id,revision,listing_id,discord_at) values($1,3,'1',now()),($1,3,'2',now())",[m.id]);
+  const snap=(await db.query("select public.monitor_feed_snapshot($1,$2,3) as data",[a,m.id])).rows[0].data;
+  assert.equal(snap.matches.length,200);assert.equal(snap.truncated,true);
+  assert(snap.matches.every(x=>x.result.status==='match'),'Rejected candidates do not crowd out feed');
+  assert.equal(snap.comparisonMatches.length,2,'Exact comparison lookup includes evidence outside display');
+  assert(!snap.matches.some(x=>x.listing_id==='1'));
+  assert.equal(snap.comparisonMatches.find(x=>x.listing_id==='1').baseline,true);
+  // The first candidate timestamp is not its confirmation time.
+  await db.query("update public.monitor_recipes set baseline_at=now(),enabled=true,next_run_at=now() where id=$1",[m.id]);
+  await claim();
+  const pending={listing:{id:'900',title:'Camera',observedAt:'2026-09-27T10:00:00Z'},result:{status:'pending'}};
+  await commit([pending],3);
+  const queueBefore=(await db.query("select count(*)::int as n from public.monitor_outbox")).rows[0].n;
+  await db.query("update public.monitor_recipes set next_run_at=now() where id=$1",[m.id]);await claim();
+  const confirmed={listing:{...pending.listing,title:'Canon 600D',observedAt:'2026-09-27T10:01:00Z'},result:{status:'match'}};
+  await commit([confirmed],3);
+  const promoted=(await db.query("select result,observed_at,confirmed_at from public.monitor_matches where monitor_id=$1 and revision=3 and listing_id='900'",[m.id])).rows[0];
+  assert.equal(promoted.result.status,'match');
+  assert.equal(new Date(promoted.observed_at).toISOString(),'2026-09-27T10:00:00.000Z');
+  assert.equal(new Date(promoted.confirmed_at).toISOString(),'2026-09-27T10:01:00.000Z');
+  assert.equal((await db.query("select count(*)::int as n from public.monitor_outbox")).rows[0].n,queueBefore+1);
+  await db.query("update public.monitor_recipes set next_run_at=now() where id=$1",[m.id]);await claim();await commit([confirmed],3);
+  assert.equal((await db.query("select count(*)::int as n from public.monitor_outbox")).rows[0].n,queueBefore+1,'Repeated confirmation never queues twice');
   await db.close();
   console.log(
     "Monitor database: ownership, privileged grants, leases, baseline, deduplication, pause and stale revisions passed.",

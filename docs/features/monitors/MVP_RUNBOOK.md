@@ -122,3 +122,26 @@ already deployed; no duplicate migrations or production database changes are
 needed. Read-only verification confirmed the schedule active and source blocked
 with HTTP 403. Gestures remain under `experiments/gestures/` and outside the asset
 allowlist. The live-source limitation above still applies.
+
+## Continuation — 29 September
+
+See [the continuation audit](AUDIT_2026-09-29.md) for recovery changes and exact
+remaining gates. A fresh operator probe again returned HTTP 403 at
+2026-09-28T23:22:24.812Z. The UI shows the latest source check and stays disconnected.
+
+The builder now recovers after a failed load and handles closing during a save.
+Health updates while the page is visible. Canon presets can include custom phrases.
+Saved monitor cards offer manual Vinted searches; these preserve search/price
+settings, while local model rules still require checking. Listing cards show all
+supplied photos (up to eight) and confirmation time separately from pending first
+sighting. Comparison displays median/p95 and exports the labelled recent sample.
+
+The scheduler recognises durable full-page overlap, releases skipped claims and
+recovers expired final push attempts. Pending candidates can become confirmed once
+without duplicate alerts. The sampled comparator checks exact IDs beyond the feed
+page; historical baseline rows cannot become apparent Discord misses.
+
+`sourceCheck` is an explicit private-token operator action on `monitor-service`.
+It makes one bounded normal source request and never changes the activation gate.
+The old standalone `monitor-source-check` remains retired. Do not repeatedly invoke
+the diagnostic against a refusal or enable source status based on a flag alone.

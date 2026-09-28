@@ -288,6 +288,14 @@
 .monitor-feed-note {
   min-height: 20px;
 }
+.monitor-page { overflow-wrap: anywhere; }
+.monitor-layout > *, .monitor-price-fields > * { min-width: 0; }
+.monitor-search-links { display: grid; gap: 8px; margin-top: 14px; }
+.monitor-search-links a { color: var(--accent); font-size: 12px; line-height: 1.5; }
+.monitor-gallery summary { cursor: pointer; color: var(--accent); font-size: 12px; padding: 8px 0; }
+.monitor-gallery > div { display: flex; overflow-x: auto; gap: 8px; padding-bottom: 8px; }
+.monitor-gallery img { width: 140px; height: 150px; object-fit: contain; flex: none; border-radius: 8px; background: var(--surface2); }
+.monitor-health[data-state="ready"] .monitor-dot { background: var(--profit); }
 @media (max-width: 900px) {
   .monitor-layout {
     grid-template-columns: 1fr;
