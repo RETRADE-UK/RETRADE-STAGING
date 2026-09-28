@@ -154,6 +154,7 @@
 }
 
 @media(max-width:720px){
+ .rt #p-runs .page-header [title="Log past sourcing"] .btn-label-hide-xs{display:inline!important;}
   .rt .page{--workspace-radius:14px;--workspace-gap:10px;}
   .rt #p-stock .stock-kpis-v2.rt-overview,.rt #p-monthly .sales-kpis-v2.rt-overview{grid-template-columns:repeat(2,minmax(0,1fr))!important;margin-bottom:16px!important;}
   .rt :is(#p-stock,#p-monthly) .rt-overview .card.kpi{padding:14px;}
