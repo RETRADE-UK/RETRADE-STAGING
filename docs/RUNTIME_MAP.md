@@ -346,3 +346,11 @@ and activation gates, and the worker README for the current tested contract.
 ## Monitor preview runtime
 
 Monitors now mounts on demand from `src/features/monitors/cloud.js` and `page.js`, registered in the manifest lazy list. The core owns only navigation, load and disposal hooks. `assets/styles/monitors.css` is scoped to this page. `supabase/functions/monitor-service/` deploys the original `worker/monitors/src/` engine, with no public worker assets. Push uses the existing service worker. The source is blocked after a staging-host 403; example cards are never saved or notified. See `docs/features/monitors/MVP_RUNBOOK.md`.
+
+### Shared PDF banner alignment — 29 September
+
+Export banners use the approved 42 mm sign artwork with the complete shield
+centred beside the title/tagline. All six existing shared PDF exports and their
+continuation pages use this compositor. Optional artwork is build-allowlisted and
+cached on use only. Staging retains its existing export features, monitor hooks
+and isolated binding. Cache: 20260929-v15100-staging.
