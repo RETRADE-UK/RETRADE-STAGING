@@ -62,11 +62,12 @@
       img.onload=function(){try{
         // Centre the complete visible shield, including its gold swoosh, beside
         // the complete wordmark/tagline group. Source alpha bounds are
-        // shield y=48..1748 and text y=335..1440, so the text moves down 10.5 px.
+        // shield y=48..1748 and text y=335..1440. Add a small optical offset
+        // of 60 source pixels (0.41 mm at the approved 42 mm print width).
         // Keep both pieces at their original scale and preserve all text spacing.
         var canvas=document.createElement('canvas');canvas.width=1530;canvas.height=Math.round(canvas.width*img.naturalHeight/img.naturalWidth);
         var ctx=canvas.getContext('2d'),scale=canvas.width/img.naturalWidth,split=1650;
-        var textOffset=(48+1748)/2-(335+1440)/2;
+        var textOffset=(48+1748)/2-(335+1440)/2+60;
         ctx.drawImage(img,0,0,split,img.naturalHeight,0,0,split*scale,canvas.height);
         ctx.drawImage(img,split,0,img.naturalWidth-split,img.naturalHeight,split*scale,textOffset*scale,(img.naturalWidth-split)*scale,canvas.height);
         resolve(canvas.toDataURL('image/png'));

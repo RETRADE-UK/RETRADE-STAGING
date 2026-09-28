@@ -355,6 +355,12 @@ continuation pages use this compositor. Optional artwork is build-allowlisted an
 cached on use only. Staging retains its existing export features, monitor hooks
 and isolated binding. Cache: 20260929-v15100-staging.
 
+### PDF banner optical adjustment — v1.5.101
+
+The title and tagline move down together by 0.41 mm from geometric centring.
+The shield, artwork scale and banner dimensions remain unchanged. Shared by
+all existing PDF outputs and continuation pages. Cache: 20260929-v15101.
+
 
 ### Staging monitor continuation — 29 September
 

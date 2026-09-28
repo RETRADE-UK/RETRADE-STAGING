@@ -35,7 +35,7 @@ const {open,settled}=require('./startup-browser.cjs');
    function bounds(left,right,bottom){let top=canvas.height,last=-1;for(let y=0;y<bottom;y++)for(let x=left;x<right;x++)if(pixels[(y*canvas.width+x)*4+3]>127){top=Math.min(top,y);last=Math.max(last,y);}return {centre:(top+last)/2,height:last-top+1};}
    return {shield:bounds(0,split,canvas.height),text:bounds(split,canvas.width,canvas.height),expectedHeight:1106*scale};
   });
-  assert(Math.abs(alignment.shield.centre-alignment.text.centre)<=1,'Title/tagline group centred on the complete shield including its gold swoosh');
+  assert(Math.abs(alignment.text.centre-alignment.shield.centre-60*1530/6118)<=1,'Title/tagline group has the small approved downward optical offset');
   assert(Math.abs(alignment.text.height-alignment.expectedHeight)<=2,'Title and tagline spacing retained as one group');
   const exports=[['receipt',()=>generateRetradeSalesReceipt(__pdfMonth,'pdf-audit-sale')],['order',()=>generateRetradeOrderSummary('pdf-audit-order')],['credit',()=>generateRetradeCreditNote(__pdfMonth,'pdf-audit-sale')],['annual',()=>generateRetradeAnnualStatement(2026)],['settlement',()=>generateRetradeSettlementSlip('pdf-audit-account','pdf-audit-payment')],['partner',()=>_partnerStatementPdf()]];
   for(const [label,generate] of exports){
