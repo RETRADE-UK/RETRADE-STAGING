@@ -57,27 +57,31 @@
 
   function logoDataUrl(){
     if(logoPromise)return logoPromise;
-    logoPromise=new Promise(function(resolve){
-      try{
-        var symbol=document.getElementById('rt-mark');
-        if(!symbol){resolve(null);return;}
-        var inner=String(symbol.innerHTML||'').replace(/var\(--brand\)/g,'#F7B737').replace(/var\(--text-primary\)/g,'#FFFFFF');
-        var svg='<svg xmlns="http://www.w3.org/2000/svg" width="324" height="378" viewBox="0 0 811 946">'+inner+'</svg>';
-        var blob=new Blob([svg],{type:'image/svg+xml;charset=utf-8'}),url=URL.createObjectURL(blob),img=new Image();
-        img.onload=function(){try{var canvas=document.createElement('canvas');canvas.width=324;canvas.height=378;var ctx=canvas.getContext('2d');ctx.clearRect(0,0,324,378);ctx.drawImage(img,0,0,324,378);var out=canvas.toDataURL('image/png');URL.revokeObjectURL(url);resolve(out);}catch(_){try{URL.revokeObjectURL(url);}catch(__){}resolve(null);}};
-        img.onerror=function(){try{URL.revokeObjectURL(url);}catch(_){}resolve(null);};img.src=url;
-      }catch(_){resolve(null);}
-    });
+    logoPromise=new Promise(function(resolve,reject){
+      var img=new Image();
+      img.onload=function(){try{
+        // Centre the complete visible shield, including its gold swoosh, beside
+        // the complete wordmark/tagline group. Source alpha bounds are
+        // shield y=48..1748 and text y=335..1440, so the text moves down 10.5 px.
+        // Keep both pieces at their original scale and preserve all text spacing.
+        var canvas=document.createElement('canvas');canvas.width=1530;canvas.height=Math.round(canvas.width*img.naturalHeight/img.naturalWidth);
+        var ctx=canvas.getContext('2d'),scale=canvas.width/img.naturalWidth,split=1650;
+        var textOffset=(48+1748)/2-(335+1440)/2;
+        ctx.drawImage(img,0,0,split,img.naturalHeight,0,0,split*scale,canvas.height);
+        ctx.drawImage(img,split,0,img.naturalWidth-split,img.naturalHeight,split*scale,textOffset*scale,(img.naturalWidth-split)*scale,canvas.height);
+        resolve(canvas.toDataURL('image/png'));
+      }catch(err){reject(err);}};
+      img.onerror=function(){reject(new Error('Could not load the PDF logo. Please try again.'));};
+      img.src='./assets/brand/pdf-logo-dark-v1.png';
+    }).catch(function(err){logoPromise=null;throw err;});
     return logoPromise;
   }
 
   function brandBanner(doc,logo){
     colour(doc,doc.setFillColor,C.navy);doc.roundedRect(L,12,W,25,1.6,1.6,'F');
-    if(logo){try{doc.addImage(logo,'PNG',19,15.8,9.6,11.2,undefined,'FAST');}catch(_){} }
-    var x=logo?32:20;
-    doc.setFont('helvetica','bold');doc.setFontSize(16.5);colour(doc,doc.setTextColor,C.brandLight);doc.text('RE',x,24.8);
-    var reWidth=doc.getTextWidth('RE');colour(doc,doc.setTextColor,C.gold);doc.text('TRADE',x+reWidth+.6,24.8);
-    doc.setFont('helvetica','normal');doc.setFontSize(5.6);colour(doc,doc.setTextColor,C.brandLight);doc.text(TAGLINE,x,31.2);
+    // One approved lockup preserves the sign's font, spacing and gold rules.
+    var image=doc.getImageProperties(logo),width=42,height=width*image.height/image.width;
+    doc.addImage(logo,'PNG',19,24.5-height/2,width,height,undefined,'FAST');
     doc.setFont('helvetica','bold');doc.setFontSize(6.3);colour(doc,doc.setTextColor,C.brandLight);doc.text(BANNER_WORDS,190,25.2,{align:'right'});
   }
 
