@@ -1,8 +1,10 @@
 # Monitor engine foundation
 
-This directory owns the new server-side monitor code. It is outside the public
-asset manifest and has no running service, database writer or deployment entry
-point yet. The recovered prototype remains unchanged in `experiments/monitors/`.
+This directory owns the shared server-side monitor modules, deployed through
+`supabase/functions/monitor-service/`. It stays outside the public asset manifest;
+there is no separate Node daemon. Persistence, scheduled execution and the native
+UI are deployed to staging. The source remains blocked by HTTP 403, confirmed by
+the 29 September hosting probe. Recovered prototypes remain reference-only.
 
 Use Node 22 or newer. There are no external dependencies or duplicate package
 manifests. From the repository root:
@@ -23,6 +25,7 @@ npm run check
 | `src/engine/match.mjs` | Match / pending detail / reject; built-in and custom models; warnings |
 | `src/engine/score.mjs` | Seller assessment and conservative decisions using verified cost/evidence inputs |
 | `src/benchmark.mjs` | Independent RETRADE/Discord observations, real misses, duplicates and signed latency statistics |
+| `src/feed.mjs` | Bounded display plus exact comparator identity evidence; baseline exclusions and confirmation timing |
 
 ## Data contract
 
@@ -64,36 +67,33 @@ The Vinted source is experimental. It requires an explicitly injected request
 transport; importing it cannot make network requests. It fixes the destination
 to the UK catalog, rejects redirects, bounds page size/response bytes/time, and
 returns 403/429/other failures with retry metadata. It does not retry on its own.
-The future scheduler must persist `retryAt`, use leases and budgets, and respect
-provider limits across restarts. No cookies, sign-in, proxy rotation or CAPTCHA
+The deployed scheduler persists `retryAt` and uses leases and shared request
+budgets across restarts. No cookies, sign-in, proxy rotation or CAPTCHA
 handling are implemented.
 
 `scanCatalog()` deduplicates overlap by listing ID before later enrichment and
 retains first observation. It reports `coverageComplete: false` on request or page
 limits. Never establish a baseline or mark full coverage after an incomplete
-scan. Complete here means all configured queries ended on a short page; it is
+scan. Complete means each query ended on a short page or a full distinct page
+whose IDs were already durably recorded by an earlier cycle; it is
 **not proof of marketplace-wide completeness**. Listing churn and provider
 semantics still require live overlap/watermark validation.
 
-On 2026-09-24 a small unauthenticated UK Canon catalog probe from the execution
-environment returned HTTP 404. No catalog payload was obtained. That does not
-prove the endpoint is universally unavailable, but it does not validate it for
-deployment. No live source, hosted worker, phone alerts or Discord parity is
-claimed. Provider field mappings and photo/rating conventions remain fixture
-contracts until validated with a usable source.
+The latest deployed Edge probe at 2026-09-28T23:22:24.812Z returned HTTP 403.
+No catalogue payload was obtained. Provider mappings, photo/rating conventions,
+newest-first ordering, continuous coverage and physical phone receipt remain
+unverified until a usable source is connected.
 
-## Next integration
+## Remaining integration gates
 
-1. Establish usable source access in the intended host and validate payloads.
-2. Add an append-only staging schema and tested persistence for versioned recipes,
-   immutable ownership, leases/baselines, observations and an outbox.
-3. Build the authenticated native UI in `src/features/monitors/` with the current
-   app context and separate styling owner; do not revive the old inline handlers.
-4. Run the feed-only benchmark, then implement delivery and action parity.
+1. Establish usable source access from the worker host and validate real payloads.
+2. Validate enrichment and live ordering/overlap with the deployed persistence.
+3. Verify registered-account phone receipt and multi-day Discord comparison.
+4. Complete supported action parity and evidence-backed valuation separately.
 
-See [current audit status](../../docs/features/monitors/AUDIT.md) and
-[implementation plan](../../docs/features/monitors/IMPLEMENTATION_PLAN.md).
+See [current continuation audit](../../docs/features/monitors/AUDIT_2026-09-29.md)
+and [runbook](../../docs/features/monitors/MVP_RUNBOOK.md).
 
 ## Staging service integration (24 September)
 
-The engine is now reused by `supabase/functions/monitor-service/`. The native page, persistence and scheduled delivery are documented in `docs/features/monitors/MVP_RUNBOOK.md`. Engine benchmark recipes retain feed-only scoring; opt-in push of new matches is a separate account-owned service setting requested for the MVP. The live source is blocked (403) and scans are not running. Earlier foundation-only notes above remain historical context.
+The engine is now reused by `supabase/functions/monitor-service/`. The native page, persistence and scheduled delivery are documented in `docs/features/monitors/MVP_RUNBOOK.md`. Engine benchmark recipes retain feed-only scoring; opt-in push of new matches is a separate account-owned service setting requested for the MVP. The live source is blocked (403) and scans are not running.
