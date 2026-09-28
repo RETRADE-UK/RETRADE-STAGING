@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
+import { canonBenchmark } from '../../worker/monitors/src/contracts.mjs';
 
 // Execute the actual handler with all transport substituted. No staging account,
 // source traffic, subscription secrets or notification provider is contacted.
@@ -74,4 +75,25 @@ test('anonymous staging users cannot subscribe or send pushes', async () => {
   transport(path => path === '/auth/v1/user' ? { id: user, is_anonymous: true } : undefined);
   assert.equal((await post({ op: 'subscribe', subscription: {} })).status, 403);
   assert.equal((await post({ op: 'testPush' })).status, 403);
+});
+
+test('request-heavy recipes cannot starve never-scanned monitors in an unordered claim batch', async () => {
+  const waiting = '33333333-3333-4333-8333-333333333333';
+  const calls = transport(path => {
+    if (path.endsWith('/rpc/monitor_config')) return {...config,source_status:'ready'};
+    if (path.endsWith('/rpc/monitor_tick_lease')) return true;
+    if (path.endsWith('/rpc/monitor_claim')) return [
+      {id,revision:1,recipe:{...canonBenchmark(),searchTerms:['camera']},last_success_at:'2026-09-28T10:00:00Z'},
+      {id:waiting,revision:1,recipe:canonBenchmark(),last_success_at:null},
+    ];
+    if (path.startsWith('/rest/v1/monitor_matches?')) return [];
+    if (path.startsWith('/api/v2/catalog/items?')) return {items:Array.from({length:50},(_,i)=>({id:i+1,title:'Canon 600D',price:{amount:'80',currency_code:'GBP'}}))};
+    if (path.endsWith('/rpc/monitor_commit')) return true;
+    if (path.endsWith('/rpc/monitor_source_state')) return null;
+    if (path.endsWith('/rpc/monitor_push_claim')) return [];
+    if (path.endsWith('/rpc/monitor_release_claims') || path.endsWith('/rpc/monitor_tick_release')) return null;
+  });
+  assert.equal((await post({op:'tick'},false,{'x-monitor-token':config.token})).status,200);
+  assert.deepEqual(calls.filter(c=>c.path.endsWith('/rpc/monitor_commit')).map(c=>c.body.p_id),[waiting]);
+  assert.equal(calls.filter(c=>c.path.startsWith('/api/v2/catalog/items?')).length,6);
 });

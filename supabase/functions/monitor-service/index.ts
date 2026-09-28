@@ -163,6 +163,12 @@ async function tick(c: any) {
       (!c.retry_at || Date.parse(c.retry_at) <= Date.now())
     ) {
       const monitors = await rpc("monitor_claim", { p_token: token });
+      // UPDATE ... RETURNING does not preserve the due-query order. Within the
+      // claimed batch, serve never/least-recently scanned monitors first so a
+      // six-request recipe cannot monopolise every cycle's shared budget.
+      monitors.sort((a: any, b: any) =>
+        (Date.parse(a.last_success_at || "1970-01-01") - Date.parse(b.last_success_at || "1970-01-01")) ||
+        String(a.created_at).localeCompare(String(b.created_at)) || String(a.id).localeCompare(String(b.id)));
       const source = createVintedSource({
         request: fetch,
         timeoutMs: 7000,
