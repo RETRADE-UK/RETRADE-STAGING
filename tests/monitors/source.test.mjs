@@ -116,3 +116,16 @@ test('duplicate-filled full pages still trigger pagination', async () => {
   const result = await scanCatalog({ source, recipe: createRecipe({ ...canonBenchmark(), searchTerms: ['Canon'] }), perPage: 2 });
   assert.equal(calls, 2); assert.equal(result.listings.length, 1); assert.equal(result.coverageComplete, true);
 });
+
+test('durable full-page overlap completes a busy baseline on the following cycle', async () => {
+  const recipe = createRecipe({ ...canonBenchmark(), searchTerms:['Canon'] });
+  let calls=0;
+  const source=createVintedSource({request:async()=>{calls++;return json({items:[item(2),item(1)]});}});
+  const first=await scanCatalog({source,recipe,perPage:2,maxPages:1});
+  assert.equal(first.coverageComplete,false);
+  const second=await scanCatalog({source,recipe,perPage:2,maxPages:1,knownIds:new Set(first.listings.map(x=>x.id))});
+  assert.equal(second.coverageComplete,true);assert.equal(calls,2);
+  const duplicate=createVintedSource({request:async()=>json({items:[item(1),item(1)]})});
+  const bad=await scanCatalog({source:duplicate,recipe,perPage:2,maxPages:1,knownIds:new Set(['1'])});
+  assert.equal(bad.coverageComplete,false,'Duplicate-filled pages do not establish trustworthy overlap');
+});

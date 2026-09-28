@@ -1,5 +1,7 @@
 # Vinted monitors — takeover, 23 September 2026
 
+**29 September continuation:** see [current audit and remaining gates](AUDIT_2026-09-29.md). The repaired preview is being released to staging; the fresh hosting probe still returned HTTP 403. Earlier sections below are dated history.
+
 **MVP preview update (24 September):** native builder, persisted recipes, Canon preset, phone-push opt-in and manual Discord comparison are implemented. The actual hosting source probe returned **403**; live scans remain blocked. See [MVP runbook](MVP_RUNBOOK.md) for testing, deployment and remaining gates. Earlier audit entries below describe their dated snapshots.
 
 **Decision: retain the server-worker/native-RETRADE direction; rebuild the

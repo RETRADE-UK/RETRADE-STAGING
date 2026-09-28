@@ -354,3 +354,14 @@ centred beside the title/tagline. All six existing shared PDF exports and their
 continuation pages use this compositor. Optional artwork is build-allowlisted and
 cached on use only. Staging retains its existing export features, monitor hooks
 and isolated binding. Cache: 20260929-v15100-staging.
+
+
+### Staging monitor continuation — 29 September
+
+`src/features/monitors/page.js` owns builder, gallery, source status and sample
+comparison export. `worker/monitors/src/feed.mjs` assembles the comparator from an
+owner-checked database snapshot; it does not confuse the visible page with complete
+identity history. `monitor-service` owns status polling and explicit operator
+source checks, both authenticated. The new append-only monitor migration owns
+pending confirmation, skipped-lease recovery and expired push attempts. The source
+remains blocked by HTTP 403. See `docs/features/monitors/AUDIT_2026-09-29.md`.

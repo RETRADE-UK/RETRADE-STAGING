@@ -12,7 +12,8 @@ import {
   retryAt,
 } from "../../../worker/monitors/src/adapters/vinted-source.mjs";
 import { matchListing } from "../../../worker/monitors/src/engine/match.mjs";
-import { compareObservations } from "../../../worker/monitors/src/benchmark.mjs";
+import { buildFeed } from "../../../worker/monitors/src/feed.mjs";
+import { canon } from "../../../worker/monitors/src/contracts.mjs";
 const url = Deno.env.get("SUPABASE_URL")!;
 const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const cors = {
@@ -181,12 +182,15 @@ async function tick(c: any) {
       };
       for (const m of monitors) {
         try {
+          const seen = await db("monitor_matches?monitor_id=eq." + m.id +
+            "&revision=eq." + m.revision + "&select=listing_id&order=observed_at.desc&limit=500");
           const scan = await scanCatalog({
             source: budget,
             recipe: m.recipe,
             maxPages: 2,
             maxRequests: 6,
             perPage: 50,
+            knownIds: new Set(seen.map((x: any) => x.listing_id)),
             signal: undefined,
           });
           const items = scan.listings.map((listing: any) => ({
@@ -230,7 +234,11 @@ async function tick(c: any) {
     await pushBatch(c);
     return { ok: true };
   } finally {
-    await rpc("monitor_tick_release", { p_token: token });
+    try {
+      await rpc("monitor_release_claims", { p_token: token });
+    } finally {
+      await rpc("monitor_tick_release", { p_token: token });
+    }
   }
 }
 async function body(req: Request) {
@@ -260,10 +268,22 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return reply({ error: "POST required" }, 405);
   try {
     const input = await body(req);
-    if (input.op === "tick") {
+    if (input.op === "tick" || input.op === "sourceCheck") {
       const c = await config();
       if (req.headers.get("x-monitor-token") !== c.token)
         return reply({ error: "Unauthorized" }, 401);
+      if (input.op === "sourceCheck") {
+        // Explicit operator diagnostic only. Never clears the activation gate,
+        // starts jobs, retries a refusal or accepts an arbitrary destination.
+        try {
+          const source = createVintedSource({ request: fetch, timeoutMs: 7000 });
+          const page = await source.searchPage({ searchText: "Canon", perPage: 1 });
+          return reply({ reachable: true, count: page.rawCount, checkedAt: new Date().toISOString() });
+        } catch (error) {
+          return reply({ reachable: false, httpStatus: (error as any).status ?? null,
+            reason: (error as any).code || "contract_failure", checkedAt: new Date().toISOString() });
+        }
+      }
       return reply(await tick(c));
     }
     const token = req.headers.get("authorization") || "";
@@ -278,17 +298,16 @@ Deno.serve(async (req) => {
     const user = await auth.json();
     if (!user.id) return reply({ error: "Unauthorized" }, 401);
     const anonymous = user.is_anonymous === true;
-    if (input.op === "bootstrap") {
+    if (input.op === "bootstrap" || input.op === "status") {
       const c = await config();
-      const data = preset();
-      if (anonymous) data.enabled = false;
-      await rpc("monitor_save", {
-        p_user: user.id,
-        p_id: null,
-        p_revision: null,
-        p_data: data,
-        p_preset: "canon-rl-v1",
-      });
+      if (input.op === "bootstrap") {
+        const data = preset();
+        if (anonymous) data.enabled = false;
+        await rpc("monitor_save", {
+          p_user: user.id, p_id: null, p_revision: null,
+          p_data: data, p_preset: "canon-rl-v1",
+        });
+      }
       const monitors = await db(
         "monitor_recipes?user_id=eq." + user.id + "&order=created_at.asc",
       );
@@ -297,6 +316,7 @@ Deno.serve(async (req) => {
       );
       return reply({
         monitors,
+        canonModels: canon.models.map((model: any) => model.id),
         anonymous,
         pushKey: c.vapid.publicKey,
         devices: subscriptions.length,
@@ -304,6 +324,7 @@ Deno.serve(async (req) => {
           status: c.source_status,
           message: c.source_message,
           checkedAt: c.checked_at,
+          retryAt: c.retry_at,
         },
       });
     }
@@ -325,56 +346,12 @@ Deno.serve(async (req) => {
     }
     if (input.op === "feed") {
       const m = await own(user.id, input.id);
-      const matches = await db(
-        "monitor_matches?monitor_id=eq." +
-          m.id +
-          "&revision=eq." +
-          m.revision +
-          "&order=observed_at.desc&limit=201",
-      );
-      const discord = await db(
-        "monitor_comparisons?monitor_id=eq." +
-          m.id +
-          "&revision=eq." +
-          m.revision +
-          "&order=discord_at.desc&limit=501",
-      );
-      const events = matches
-        .filter((x: any) => !x.baseline && x.result.status === "match")
-        .slice(0, 200)
-        .map((x: any) => ({
-          listingId: x.listing_id,
-          source: "retrade",
-          observedAt: x.observed_at,
-        }));
-      // Baseline references cannot be timed against a new-listing stream.
-      const baselines = new Set(
-        matches.filter((x: any) => x.baseline).map((x: any) => x.listing_id),
-      );
-      const included = discord
-        .slice(0, 500)
-        .filter(
-          (x: any) =>
-            !baselines.has(x.listing_id) &&
-            (!m.baseline_at ||
-              Date.parse(x.discord_at) >= Date.parse(m.baseline_at)),
-        );
-      events.push(
-        ...included.map((x: any) => ({
-          listingId: x.listing_id,
-          source: "discord",
-          observedAt: x.discord_at,
-        })),
-      );
-      return reply({
-        matches: matches
-          .slice(0, 200)
-          .filter((x: any) => x.result.status !== "reject"),
-        comparison: compareObservations(events),
-        truncated: matches.length > 200 || discord.length > 500,
-        baselineExclusions: discord.length - included.length,
+      const snapshot = await rpc("monitor_feed_snapshot", {
+        p_user: user.id, p_monitor: m.id, p_revision: m.revision,
       });
+      return reply(buildFeed(snapshot));
     }
+
     if (input.op === "compare") {
       const m = await own(user.id, input.id);
       const x = comparatorInput(input);
@@ -438,7 +415,7 @@ Deno.serve(async (req) => {
       );
       if (recent.length)
         return reply({ error: "Wait one minute before another test" }, 429);
-      await db("monitor_outbox", {
+      const [testJob] = await db("monitor_outbox", {
         subscription_id: sub.id,
         payload: {
           userId: user.id,
@@ -448,10 +425,16 @@ Deno.serve(async (req) => {
         },
       });
       await pushBatch(await config());
+      const [delivery] = await db("monitor_outbox?id=eq." + testJob.id + "&select=state");
       return reply({
         ok: true,
-        message:
-          "Test queued. Delivery depends on phone permission and Focus settings.",
+        message: !delivery
+          ? "This subscription has expired. Enable notifications again."
+          : delivery.state === "sent"
+            ? "Push provider accepted the test. Check your phone to confirm receipt."
+            : delivery.state === "failed"
+              ? "The test could not be delivered. Enable notifications again and retry."
+              : "Test queued for delivery. Check your phone; permission and Focus settings can affect receipt.",
       });
     }
     return reply({ error: "Unknown operation" }, 400);

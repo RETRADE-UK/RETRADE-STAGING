@@ -1,5 +1,7 @@
 # Vinted monitor audit
 
+**29 September continuation:** see [current audit and remaining gates](AUDIT_2026-09-29.md). The repaired preview is being released to staging; the fresh hosting probe still returned HTTP 403. Earlier sections below are dated history.
+
 **MVP preview update (24 September):** native builder, persisted recipes, Canon preset, phone-push opt-in and manual Discord comparison are implemented. The actual hosting source probe returned **403**; live scans remain blocked. See [MVP runbook](MVP_RUNBOOK.md) for testing, deployment and remaining gates. Earlier audit entries below describe their dated snapshots.
 
 Date: 2026-09-23. Baseline: staging `4d5b71f`; legacy Git monitor head `6ea9f95`.

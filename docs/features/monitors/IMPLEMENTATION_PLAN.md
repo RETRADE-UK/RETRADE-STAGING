@@ -1,5 +1,7 @@
 # Monitor implementation plan
 
+**29 September continuation:** see [current audit and remaining gates](AUDIT_2026-09-29.md). The repaired preview is being released to staging; the fresh hosting probe still returned HTTP 403. Earlier sections below are dated history.
+
 This is the next workstream after recovery. Keep PRs small and independently
 testable. The current recovery PR intentionally enables no monitor runtime.
 
