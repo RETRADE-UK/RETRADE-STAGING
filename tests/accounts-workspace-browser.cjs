@@ -51,8 +51,8 @@ try{for(const mobile of [false,true]){
  if(!await page.locator('#tax-income-expenses').evaluate(e=>e.open))await page.locator('#tax-income-expenses>summary').click();
  assert(await page.locator('#tax-income-expenses .tax-exp-row small').first().isVisible());
  await page.locator('.tax-inline-action').click();
- assert((await page.locator('.tax-filing-lines').innerText()).includes('Short · box 9'));
- await page.locator('#tax-filing-form').selectOption('full');assert((await page.locator('.tax-filing-lines').innerText()).includes('Full · box 15'));
+ assert((await page.locator('.tax-filing-lines').innerText()).includes('Box 9'));
+ await page.locator('#tax-filing-form').selectOption('full');assert((await page.locator('.tax-filing-lines').innerText()).includes('Box 15'));
  await page.evaluate(()=>{goToTab('expenses');renderExpenses();});await page.locator('#cost-selection-controls .select-toggle').click();
  const geometry=await page.locator('#cost-selection-controls').evaluate(el=>{const all=el.querySelector('.sel-check').getBoundingClientRect(),done=el.querySelector('.sel-exit').getBoundingClientRect(),r=el.getBoundingClientRect();return {left:Math.abs(all.left-r.left),right:Math.abs(done.right-r.right)};});
  assert(geometry.left<2&&geometry.right<2,'Select all left and Done right');

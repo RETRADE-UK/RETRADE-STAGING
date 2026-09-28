@@ -168,7 +168,6 @@
       var nativeGoToTab=goToTab;
       goToTab=function(name,sourceEl){
         if(name==='stock'){
-          try{STOCK_FILTER='listed';}catch(_){}
           var stockOut=nativeGoToTab.apply(this,arguments);
           try{if(typeof _saveUIState==='function')_saveUIState();}catch(_){}
           requestAnimationFrame(polishStockUI);
