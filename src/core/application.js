@@ -5577,7 +5577,7 @@ function _routeSkeletonMarkup(name,yearly){
     body=overview('sales-kpis-v2',['Net Revenue','Net Profit','Net Margin','Refund rate'])+controls('sales')+'<div class="rt-pending-day">'+foot+'</div>'+rows();
   }else if(name==='stock'){
     header='<div class="page-header"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:0"><div style="min-width:0;flex:1"><div class="page-title">Stock</div><div class="page-subtitle">Listed, unlisted and returned stock — everything physically on hand.</div></div><div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'+button('Archive')+button('By month')+button('Add ▾',true)+'</div></div></div>';
-    const labels=STOCK_STATE_FILTER==='stock'?['Items to list','Capital tied up','Est. potential','Longest sitting']:STOCK_STATE_FILTER==='returned'?['Capital tied up','Returned items','Oldest return','Next action']:STOCK_STATE_FILTER==='all'?['Capital tied up','Stock on hand','Listed asking','Returned']:['Capital in listings','Estimated profit','Aged capital','Sell-through'];
+    const labels=STOCK_STATE_FILTER==='sourced'?['Items to list','Capital tied up','Est. potential','Longest sitting']:STOCK_STATE_FILTER==='returned'?['Capital tied up','Returned items','Oldest return','Next action']:STOCK_STATE_FILTER==='all'?['Capital tied up','Potential profit','Listed asking','Needs attention']:['Capital in listings','Estimated profit','Aged capital','Sell-through'];
     body=overview('stock-kpis-v2 stock-kpis',labels)+segments(['All','Listed','Unlisted','Returned'],'segmented stock-state-seg')+controls('stock')+rows();
   }else if(name==='accounts'){
     header=heading(button('+ Add partner',true),'Partner balances, stock and payment activity.').replace('class="page-header"','class="page-header rt-inline-header"');
@@ -5605,7 +5605,7 @@ function _routeSkeletonMarkup(name,yearly){
     body='<div class="rt-cash-dashboard"><div class="rt-cash-dashboard-grid"><article class="rt-cash-primary"><div><div class="rt-cash-eyebrow">Free cash</div><div class="rt-cash-primary-value num">'+value+'</div><div class="rt-cash-primary-sub">Available after current supplier and partner commitments.</div></div><div class="rt-cash-allocation"><div class="rt-cash-allocation-track skeleton"></div><div class="rt-cash-primary-meta"><div class="rt-cash-meta-block"><span class="rt-cash-meta-label">Cash held</span><strong class="rt-cash-meta-value">'+value+'</strong></div><div class="rt-cash-meta-block"><span class="rt-cash-meta-label">Committed</span><strong class="rt-cash-meta-value">'+value+'</strong></div></div></div></article><div class="rt-cash-side"><article class="rt-cash-flow-card"><div class="rt-cash-card-top"><div class="rt-cash-card-title">Net cash movement</div><span class="rt-cash-period">30 days</span></div><div class="rt-cash-flow-net num">'+value+'</div><div class="rt-cash-flow-split"><div class="in"><span>In</span><strong>'+value+'</strong></div><div class="out"><span>Out</span><strong>'+value+'</strong></div></div></article><article class="rt-cash-stock-card"><div class="rt-cash-card-title">Capital in stock</div><div class="rt-cash-stock-value num">'+value+'</div><div class="rt-cash-card-foot">Paid acquisition and parts still held in inventory.</div></article></div></div><details class="rt-cash-more"><summary><span><span class="rt-cash-more-title">More cash details</span><span class="rt-cash-more-sub">Commitments, owner activity and calculation context</span></span><span>⌄</span></summary></details></div><div class="sl">All cash movements</div>'+search('transactions')+segments(['All','In','Out','Filters'],'rtn-filters')+rows('ledger-list');
   }else if(name==='runs'){
     header=heading(button('Log past')+button('Start sourcing',true));
-    body='<div class="runs-kpis-v2 runs-kpis-stack">'+['Total profit','Avg per run','Best session'].map(function(t){return card(t);}).join('')+'</div>'+controls('sourcing runs')+rows('runs-list');
+    body='<div class="runs-kpis-v2 runs-kpis-stack">'+['Return on runs','Avg profit / run','Best session'].map(function(t){return card(t);}).join('')+'</div><section class="runs-history"><div class="runs-history-title"><h2>Sourcing history</h2>'+foot+'</div><div class="runs-history-controls">'+search('runs')+'<select disabled class="sort-select"><option>Newest first</option></select></div><details class="runs-history-help"><summary>About these figures</summary></details><div class="runs-list-head"><span>Run / location</span><span>Sold / items</span><span>Spent</span><span>Net profit</span><span>ROI</span><span></span></div><div class="runs-list">'+Array.from({length:3},function(){return '<div class="run-history-row"><span class="rh-body">'+foot+foot+'</span><span class="rh-sold">'+foot+'</span>'+['Spent','Net profit','ROI'].map(t=>'<span class="rh-fact"><span class="rh-mobile-label">'+t+'</span><strong>'+value+'</strong></span>').join('')+'<span class="rh-chevron">›</span></div>';}).join('')+'</div></section>';
   }else if(name==='expenses'){
     header=heading(button('Add ▾',true),'Log mileage, sourcing runs and business spend');
     body=segments(['All time','This year','This month'],'cost-period-row')+'<div class="cost-total-banner"><div class="cost-total-left"><div class="cost-total-label">Deductions</div><div class="cost-total-val">'+value+'</div><div class="cost-total-sub">'+foot+'</div></div>'+button('Tax return ready →')+'</div><div class="cost-list-controls">'+search('trips &amp; expenses')+'<div>'+button('Select')+'</div></div>'+rows();
@@ -5672,7 +5672,11 @@ function _prepareSalesEntry(){
   delete _scrollMap.monthly;
 }
 
-function goToTab(name,sourceEl){
+function goToTab(name,sourceEl,entryOptions){
+  if(name==='stock'){
+    STOCK_STATE_FILTER=entryOptions&&entryOptions.stockState||'listed';
+    STOCK_FILTER='all';STOCK_SOURCED_FILTER='all';delete _scrollMap.stock;
+  }
   if(name==='monthly'&&!_monthOpenFromContext){
     const repeatSales=sourceEl&&sourceEl.dataset.tab==='monthly'&&document.getElementById('p-monthly').classList.contains('on');
     if(repeatSales&&MONTHLY_VIEW==='detail'){MONTHLY_VIEW='grid';delete _scrollMap.monthly;}
@@ -8127,8 +8131,7 @@ function openActiveRunPageFromRuns(){
 function openActiveRunPage(){
   if(!_activeSourcingRun){
     toast('No active run \u2014 start one from the FAB','error');
-    STOCK_STATE_FILTER='sourced';
-    goToTab('stock',document.querySelector('[data-tab="stock"]'));
+    goToTab('stock',document.querySelector('[data-tab="stock"]'),{stockState:'sourced'});
     return;
   }
   _deactivatePages();
@@ -8150,8 +8153,7 @@ function renderActiveRunPage(){
   const run=_activeSourcingRun;
   if(!run){
     page.classList.remove('active');
-    STOCK_STATE_FILTER='sourced';
-    goToTab('stock',document.querySelector('[data-tab="stock"]'));
+    goToTab('stock',document.querySelector('[data-tab="stock"]'),{stockState:'sourced'});
     toast('No active run','error');
     return;
   }
@@ -9079,9 +9081,9 @@ function renderRunsPage(){
     }).join('');
     pastHTML='<section class="runs-history" aria-label="Sourcing history">'
       +'<div class="runs-history-title"><h2>Sourcing history</h2><span id="runs-result-count" role="status" aria-live="polite">'+ended.length+' runs</span></div>'
-      +'<div class="runs-history-controls"><div class="inlist-search"><span class="inlist-search-ic">'+_selSearchIco(15)+'</span><input class="inlist-search-input" id="runs-search" type="search" aria-label="Search sourcing runs" placeholder="Search runs or places…" value="'+esc(window._RUNS_SEARCH||'')+'" oninput="_filterRunsHistory(this.value)"></div>'
+      +'<div class="runs-history-controls"><div class="inlist-search"><span class="inlist-search-ic">'+_selSearchIco(15)+'</span><input class="inlist-search-input" id="runs-search" type="search" aria-label="Search sourcing runs" placeholder="Search runs…" value="'+esc(window._RUNS_SEARCH||'')+'" oninput="_filterRunsHistory(this.value)"></div>'
       +'<select aria-label="Sort sourcing runs" class="sort-select past-runs-sort" onchange="_setRunsSort(this.value)">'+sortSel+'</select></div>'
-      +'<p class="runs-history-help">Spend includes items, parts and run costs. Profit is from sales to date, after run costs.</p>'
+      +'<details class="runs-history-help"><summary>About these figures</summary><p>Spend includes items, parts and run costs. Profit is from sales to date, after run costs.</p></details>'
       +'<div class="runs-list-head" aria-hidden="true"><span>Run / location</span><span>Sold / items</span><span>Spent</span><span>Net profit</span><span>ROI</span><span></span></div>'
       +'<div class="runs-list">'+rows+'</div><div id="runs-empty-search" class="inlist-empty" hidden>No runs match your search.</div></section>';
   }
@@ -9117,7 +9119,7 @@ function renderRunsPage(){
       +mc('Return on runs',overallROI!==null?overallROI.toFixed(0)+'%':'\u2014',
         fmtK(totalProfit)+' profit · '+fmtK(totalCapital)+' spent',
         overallROI!==null&&overallROI>0?'var(--green)':overallROI!==null&&overallROI<0?'var(--red)':'var(--text)')
-      +mc('Avg per session','\u00a3'+avgProfit.toFixed(0),
+      +mc('Avg profit / run','\u00a3'+avgProfit.toFixed(0),
         ended.length+' completed run'+(ended.length!==1?'s':''),
         avgProfit>0?'var(--green)':avgProfit<0?'var(--red)':'var(--text)')
       +mc('Best session',bestRun?'\u00a3'+_runProfit(bestRun.id).toFixed(0):'\u2014',
@@ -9145,7 +9147,7 @@ function renderRunsPage(){
       '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">'+
         '<button class="btn btn-secondary" style="white-space:nowrap;" onclick="openLogPastRunModal()" title="Log past sourcing">'+
         '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="display:inline-block;vertical-align:-2px"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>'+
-        '<span class="btn-label-hide-xs"> Log past sourcing</span>'+
+        '<span class="btn-label-hide-xs"> Log past</span>'+
       '</button>'+
         (!_activeSourcingRun?
           '<button class="btn btn-primary" style="gap:6px;white-space:nowrap;" onclick="openStartRunModal()">'+
@@ -12167,8 +12169,7 @@ function _goToSourcedStock(){
   if(_activeSourcingRun){
     openActiveRunPage();
   } else {
-    STOCK_STATE_FILTER='sourced';
-    goToTab('stock',document.querySelector('[data-tab="stock"]'));
+    goToTab('stock',document.querySelector('[data-tab="stock"]'),{stockState:'sourced'});
   }
 }
 
@@ -17797,6 +17798,7 @@ function _renderStockCore(){
   const returnedCost=+allReturned.reduce(function(s,i){return s+_capCost(i);},0).toFixed(2);
   const listedAsking=+(allListed.reduce(function(s,i){return s+(Number(i.salePrice)||0);},0)+_listedLots.reduce(function(s,l){return s+(Number(l.salePrice)||0);},0)).toFixed(2);
   const listedPotentialProfit=+(allListed.reduce(function(s,i){return s+(calcEstProfit(i)||0);},0)+_listedLots.reduce(function(s,l){return s+(_jobLotEstimatedNetProfit(l)||0);},0)).toFixed(2);
+  const allPotentialProfit=+(listedPotentialProfit+estPotential).toFixed(2);
   const listedMarkup=listedCost>0?Math.round((listedAsking/listedCost-1)*100):0;
   const listedROI=listedCost>0?Math.round(listedPotentialProfit/listedCost*100):null;
   const sourcedROI=sourcedCost>0?Math.round(estPotential/sourcedCost*100):null;
@@ -17839,18 +17841,18 @@ function _renderStockCore(){
     ];
   } else {
     const totalCapital=listedCost+sourcedCost+returnedCost;
-    const _lotPhysical=_activeLotsNow.reduce(function(s,l){return s+_jobLotPhysicalCount(l.id);},0);
-    const _physicalStock=allOnHand.length+_lotPhysical;
+    const agedLotCost=_listedLots.filter(l=>l.dateListed&&daysBetween(l.dateListed,today)>=90).reduce((sum,l)=>sum+_jobLotCost(l.id,false),0);
+    const attentionCapital=sourcedCost+returnedCost+agedCost+agedLotCost;
     kpis=[
-      {cls:'b',label:'Stock on hand',    val:String(_physicalStock), sub:cAllListed+' listed unit'+(cAllListed===1?'':'s')+' · '+cAllStock+' unlisted · '+cAllReturned+' returned'},
-      {cls:'', label:'Capital tied up',  val:fmtK(totalCapital), sub:'Cost basis across all physical stock'},
-      {cls:'g',label:'Listed asking',    val:fmtK(listedAsking), sub:cAllListed+' active listing'+(cAllListed===1?'':'s')},
-      {cls:'r',label:'Returned',         val:String(cAllReturned), sub:cAllReturned?'Need a decision':'Nothing waiting'}
+      {cls:'b',label:'Capital tied up',  val:fmtK(totalCapital), sub:'Purchase and parts costs across all stock'},
+      {cls:'g',label:'Potential profit', val:fmtK(allPotentialProfit), sub:'Listed + estimated unlisted · after partner shares'},
+      {cls:'', label:'Listed asking',    val:fmtK(listedAsking), sub:'Asking value currently on sale'},
+      {cls:'p',label:'Needs attention',  val:fmtK(attentionCapital), sub:'Capital in unlisted, returned or 90d+ listings'}
     ];
   }
-  const primaryKpi=isListedOnly?1:0;
+  const primaryKpi=isListedOnly||isAllView?1:0;
   const kpiCards=kpis.map((k,n)=>'<div class="card kpi'+(n===primaryKpi?' rt-overview-primary':'')+(k.click?' clickable':'')+'"'+(k.click?' role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}" onclick="'+k.click+'"':'')+'>'+
-    '<div class="kpi-label">'+String(k.label).replace(/<br>/g,' ')+'</div><div class="kpi-value num'+(k.cls==='g'&&((isListedOnly&&listedPotentialProfit<0)||(isStockOnly&&estPotential<0))?' negative':'')+'">'+k.val+'</div><div class="kpi-foot">'+k.sub+'</div>'+
+    '<div class="kpi-label">'+String(k.label).replace(/<br>/g,' ')+'</div><div class="kpi-value num'+(k.cls==='g'&&((isListedOnly&&listedPotentialProfit<0)||(isStockOnly&&estPotential<0)||(isAllView&&allPotentialProfit<0))?' negative':'')+'">'+k.val+'</div><div class="kpi-foot">'+k.sub+'</div>'+
   '</div>');
   const supportingKpis=kpiCards.filter((_,n)=>n!==primaryKpi);
   const kpiHTML=supportingKpis[0]+'<div class="rt-overview-side">'+kpiCards[primaryKpi]+supportingKpis.slice(1).join('')+'</div>';
@@ -23252,7 +23254,7 @@ function renderTax(){
   const filingForm=window._taxFilingForm==='full'?'full':'short';
   const filingGroups=new Map();
   expenseLines.forEach(function(r){const box=filingForm==='full'?r[0]:shortBoxes[r[0]];if(!filingGroups.has(box))filingGroups.set(box,{amount:0,labels:[]});const g=filingGroups.get(box);g.amount+=r[2];g.labels.push(r[1]);});
-  const filingRow=function(box,name,amount,note){return '<div class="tax-filing-row"><span><b>'+(filingForm==='full'?'Full':'Short')+' · box '+box+'</b> · '+name+'</span><strong>'+money(amount)+'</strong><small>'+note+'</small></div>';};
+  const filingRow=function(box,name,amount,note){return '<div class="tax-filing-row"><span><b>Box '+box+'</b> · '+name+'</span><strong>'+money(amount)+'</strong><small>'+note+'</small></div>';};
   const filingRows=filingRow(filingForm==='full'?15:9,'Turnover',pnl.revenue,'Sales receipts, including buyer-paid postage')
     +filingRow(filingForm==='full'?16:10,'Other business income',pnl.otherBusinessIncome||0,'Recorded supplier refunds and other business income')
     +Array.from(filingGroups.entries()).sort((a,b)=>a[0]-b[0]).map(function(entry){const [box,g]=entry;return filingRow(box,'Allowable costs',+g.amount.toFixed(2),g.labels.join(' + '));}).join('')

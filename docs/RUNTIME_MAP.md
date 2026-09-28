@@ -334,6 +334,20 @@ Sales browser coverage checks empty/populated selection and exit at four widths.
 This release also refreshes staging's shared app while preserving its isolated
 binding, monitor runtime/worker and parked gesture experiments.
 
+### v1.5.94 — Stock entry, useful inventory totals and mobile Sourcing
+
+Core Stock entry resets population and age filters to Listed/All before rendering;
+explicit sourcing callbacks opt into Unlisted, and Dashboard drill-downs retain
+their requested population. Performance decoration no longer sets route filters.
+All-stock KPIs aggregate existing item/job-lot calculations: capital, retained
+estimated profit (listed plus estimated unlisted), listed asking value and capital
+in unlisted/returned/90-day listings. Sold and removed stock remain excluded.
+
+Mobile Sourcing uses a full-width ROI card above two supporting cards, a compact
+search/sort row and denser history rows; calculation help is disclosed on demand.
+Pending markup follows those same classes. Tax filing rows show Box N, with the
+chosen Short/Full form retained in the selector; mappings and totals are unchanged.
+
 ## Staging monitor ownership
 
 Monitor takeover: `experiments/monitors/` contains recovered, audited reference

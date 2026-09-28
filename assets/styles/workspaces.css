@@ -154,6 +154,7 @@
 }
 
 @media(max-width:720px){
+ .rt #p-runs .page-header [title="Log past sourcing"] .btn-label-hide-xs{display:inline!important;}
   .rt .page{--workspace-radius:14px;--workspace-gap:10px;}
   .rt #p-stock .stock-kpis-v2.rt-overview,.rt #p-monthly .sales-kpis-v2.rt-overview{grid-template-columns:repeat(2,minmax(0,1fr))!important;margin-bottom:16px!important;}
   .rt :is(#p-stock,#p-monthly) .rt-overview .card.kpi{padding:14px;}
@@ -207,6 +208,8 @@
 .rt #p-runs .runs-history-controls .inlist-search{height:44px;box-sizing:border-box;}
 .rt #p-accounts .rt-acct-compact-controls :is(.rt-acct-op-search,.rt-acct-combined-btn){height:44px;min-height:44px;box-sizing:border-box;}
 .rt #p-runs .runs-history-help{margin:10px 16px 14px;font-size:11px;color:var(--text-secondary);line-height:1.5;}
+.rt #p-runs .runs-history-help summary{cursor:pointer;min-height:32px;align-content:center;}
+.rt #p-runs .runs-history-help p{margin:4px 0 10px;}
 .rt #p-runs :is(.run-history-row,.runs-list-head){display:grid;grid-template-columns:minmax(0,2.2fr) .8fr 1fr 1fr .7fr 12px;align-items:center;gap:14px;padding:16px;text-align:right;}
 .rt #p-runs .runs-list-head{background:var(--surface2);border-block:1px solid var(--border);font-size:11px;color:var(--text-secondary);}
 .rt #p-runs .runs-list-head>span:first-child{text-align:left;}
@@ -224,20 +227,24 @@
 .rt #p-runs .rh-mobile-label,.rt #p-runs .rh-sold-label{display:none;}
 .rt #p-runs .rh-chevron{font-size:20px;color:var(--text-secondary);}
 @media(max-width:720px){
- .rt #p-runs .runs-kpis-v2.runs-kpis-stack{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
- .rt #p-runs .runs-kpis-v2.runs-kpis-stack>.kpi:first-child{grid-column:auto;}
- .rt #p-runs .runs-kpis-stack .kpi{padding:12px 10px;}
- .rt #p-runs .runs-kpis-stack .kpi-value{font-size:22px!important;margin-block:8px;}
- .rt #p-runs .runs-kpis-stack .kpi-foot{font-size:10px;line-height:1.45;}
+ .rt #p-runs .runs-kpis-v2.runs-kpis-stack{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+ .rt #p-runs .runs-kpis-v2.runs-kpis-stack>.kpi:first-child{grid-column:1/-1;display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;}
+ .rt #p-runs .runs-kpis-stack>.kpi:first-child .kpi-value{grid-column:2;grid-row:1/3;margin:0;}
+ .rt #p-runs .runs-kpis-stack>.kpi:first-child .kpi-foot{grid-column:1;margin:0;}
+ .rt #p-runs .runs-kpis-stack .kpi{padding:14px;min-width:0;}
+ .rt #p-runs .runs-kpis-stack .kpi-label{font-size:11px!important;line-height:1.35;}
+ .rt #p-runs .runs-kpis-stack .kpi-value{font-size:25px!important;margin-block:6px;}
+ .rt #p-runs .runs-kpis-stack .kpi-foot{font-size:11px;line-height:1.4;}
  .rt #p-runs .runs-kpis-stack .kpi-viewlink{display:none;}
- .rt #p-runs .runs-history-controls{grid-template-columns:minmax(0,1fr);gap:8px;padding:0 12px;}
+ .rt #p-runs .runs-history-controls{grid-template-columns:minmax(0,1fr) 130px;gap:8px;padding:0 12px;}
+ .rt #p-runs .runs-history-controls .inlist-search-input{min-width:0;width:100%;}
  .rt #p-runs .runs-history-controls .sort-select{width:100%;font-size:13px!important;}
  .rt #p-runs .runs-history-title{padding:14px 12px 10px;}
- .rt #p-runs .runs-history-help{margin:10px 12px 12px;}
+ .rt #p-runs .runs-history-help{margin:4px 12px 8px;}
  .rt #p-runs .runs-list-head{display:none;}
- .rt #p-runs .run-history-row{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 8px;text-align:left;padding:14px 12px;border-top:1px solid var(--border);border-bottom:0;position:relative;}
- .rt #p-runs .rh-body{grid-column:1/-1;padding-right:18px;}
- .rt #p-runs .rh-sold{grid-column:1/-1;font-size:11px;color:var(--text-secondary);margin-top:-6px;}
+ .rt #p-runs .run-history-row{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 8px;text-align:left;padding:14px 12px;border-top:1px solid var(--border);border-bottom:0;position:relative;}
+ .rt #p-runs .rh-body{grid-column:1/3;}
+ .rt #p-runs .rh-sold{grid-column:3;grid-row:1;font-size:11px;color:var(--text-secondary);text-align:right;padding-right:14px;align-self:start;margin-top:3px;}
  .rt #p-runs .rh-mobile-label{display:block;color:var(--text-secondary);font-weight:400;font-size:10px;margin-bottom:4px;}
  .rt #p-runs .rh-sold .rh-mobile-label{display:none;}
  .rt #p-runs .rh-sold-label{display:inline;}
