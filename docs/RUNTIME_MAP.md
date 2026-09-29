@@ -466,3 +466,8 @@ metadata; Close, Escape, overlay and swipe dismissal return one level. Explicit
 item transitions suppress that dismissal callback. No HTML snapshots or data
 writes are used. Sourced-item purchase links follow Back instead of preceding it.
 Cache: 20260929-v15104-purchase-back-staging.
+
+Sourced-item Back and purchase link now share a non-wrapping flex row owned by
+`workspaces.css`. Back retains its full hit target; the purchase name truncates
+visually while its full label remains accessible and in purchase details.
+Cache: 20260929-v15105-purchase-row-staging.

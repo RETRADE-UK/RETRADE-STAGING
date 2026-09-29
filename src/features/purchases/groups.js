@@ -63,6 +63,13 @@
     var old=page.querySelector('.purchase-item-link');if(old)old.remove();
     if(!r.item.purchaseGroupId&&!eligible(r.item))return;
     var b=document.createElement('button');b.className='btn btn-secondary purchase-item-link';b.textContent=r.item.purchaseGroupId?'Purchase · '+(r.item.purchaseGroupName||'Shared purchase'):'Link to a purchase';b.onclick=function(){if(r.item.purchaseGroupId)openPurchaseGroup(r.item.purchaseGroupId);else openPurchaseLink([id]);};
-    var anchor=page.querySelector('.ip-title');if(anchor)anchor.after(b);else {var back=page.querySelector('button[onclick="exitItemPage()"]');if(back){back.after(b);b.style.display='block';b.style.marginBottom='14px';}else (page.firstElementChild||page).append(b);}
+    var anchor=page.querySelector('.ip-title');if(anchor)anchor.after(b);else {
+      var back=page.querySelector('button[onclick="exitItemPage()"]');
+      if(back){
+        var nav=back.closest('.purchase-item-nav');
+        if(!nav){nav=document.createElement('div');nav.className='purchase-item-nav';back.before(nav);nav.append(back);}
+        b.title=b.textContent;nav.append(b);
+      }else (page.firstElementChild||page).append(b);
+    }
   };
 })();
