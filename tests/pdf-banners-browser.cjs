@@ -35,7 +35,10 @@ const {open,settled}=require('./startup-browser.cjs');
    function bounds(left,right,bottom){let top=canvas.height,last=-1;for(let y=0;y<bottom;y++)for(let x=left;x<right;x++)if(pixels[(y*canvas.width+x)*4+3]>127){top=Math.min(top,y);last=Math.max(last,y);}return {centre:(top+last)/2,height:last-top+1};}
    return {shield:bounds(0,split,canvas.height),text:bounds(split,canvas.width,canvas.height),expectedHeight:1106*scale};
   });
-  assert(Math.abs(alignment.text.centre-alignment.shield.centre-60*1530/6118)<=1,'Title/tagline group has the small approved downward optical offset');
+  const sourceScale=1530/6118,adjustmentPixels=0.2*1530/42;
+  assert(Math.abs(alignment.shield.centre-(898*sourceScale-adjustmentPixels))<=1,'Shield moves up exactly 0.2 mm');
+  assert(Math.abs(alignment.text.centre-(958*sourceScale+adjustmentPixels))<=1,'Title/tagline moves down exactly 0.2 mm');
+  assert(Math.abs(alignment.shield.height-1701*sourceScale)<=2,'Complete shield remains unclipped at its original size');
   assert(Math.abs(alignment.text.height-alignment.expectedHeight)<=2,'Title and tagline spacing retained as one group');
   const exports=[['tax',()=>generateRetradeTaxSummary(_taxExportData)],['receipt',()=>generateRetradeSalesReceipt(__pdfMonth,'pdf-audit-sale')],['order',()=>generateRetradeOrderSummary('pdf-audit-order')],['credit',()=>generateRetradeCreditNote(__pdfMonth,'pdf-audit-sale')],['annual',()=>generateRetradeAnnualStatement(2026)],['settlement',()=>generateRetradeSettlementSlip('pdf-audit-account','pdf-audit-payment')],['partner',()=>_partnerStatementPdf()]];
   for(const [label,generate] of exports){
