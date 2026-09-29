@@ -1,5 +1,10 @@
 # Runtime ownership
 
+PDF banner fine adjustment (v1.5.103): the shared compositor lifts the complete
+shield by 0.2 mm and lowers the title/tagline by 0.2 mm from v1.5.101 positions.
+The 42 mm artwork width and banner size are unchanged. Pixel-bound tests verify
+both movements separately and protect the shield against clipping.
+
 `config/assets.js` is the source of truth for build ID, execution order, on-demand modules, static assets and legacy URL mappings. `app.js` and `sw.js` consume it; `scripts/assets.cjs` reads it for checks/builds. Do not maintain a second asset list.
 
 | Responsibility | Owner |
