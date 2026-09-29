@@ -8,6 +8,7 @@
   function button(label,id,primary){return '<button type="button" class="btn '+(primary?'btn-primary':'btn-secondary')+'" id="'+id+'">'+e(label)+'</button>';}
 
   window.openCashflowTransaction=function(eventId){
+    function returnToTransaction(){openCashflowTransaction(eventId);}
     var movement=_cashEventsAll().find(function(x){return String(x.id)===String(eventId);});
     if(!movement){toast('This movement has changed. Cashflow has been refreshed.');renderCash();return;}
     if(movement.source==='settlement'){
@@ -27,7 +28,7 @@
         if(!item)return '<div class="rt-transaction-item is-unavailable">'+e('Item unavailable · '+id)+'</div>';
         return '<button type="button" class="btn btn-secondary rt-transaction-item" data-cash-purchase-item="'+index+'"><span class="rt-transaction-item-name">'+e(item.item||'Untitled item')+'<small>'+e([item.gid,item.state].filter(Boolean).join(' · '))+'</small></span><span class="rt-transaction-item-cost">'+e(fmt(item.costPrice||0))+'<small>View item →</small></span></button>';
       }).join('')+'</section>';
-      actionLabel='View purchase';action=function(){openPurchaseGroup(movement.purchaseGroupId);};
+      actionLabel='View purchase';action=function(){openPurchaseGroup(movement.purchaseGroupId,returnToTransaction);};
       explanation='One purchase, with its cost allocated across separate stock items.';
     }else if(movement.editableId){
       actionLabel='Edit entry';action=function(){editCashMove(movement.editableId);};
@@ -37,7 +38,7 @@
       if(record){
         details+=row('Item',record.item.item||'Untitled item');
         if(movement.saleNo)details+=row('Sale cycle',movement.saleNo);
-        actionLabel='View / edit item';action=function(){closePanel();openItemPage(record.month,record.item.id,'p-cash');};
+        actionLabel='View / edit item';action=function(){closePanel(true);openItemPage(record.month,record.item.id,'p-cash',returnToTransaction);};
         explanation='This movement follows the item record. Open the item to review its costs, sale or return and make changes there.';
       }
     }else if(movement.type==='expense'){
@@ -64,7 +65,7 @@
     document.querySelectorAll('#panel-content [data-cash-purchase-item]').forEach(function(button){button.onclick=function(){
       var record=_findItemRecordById(purchaseIds[Number(button.dataset.cashPurchaseItem)]);
       if(!record){toast('This item is no longer available.');return;}
-      closePanel();openItemPage(record.month,record.item.id,'p-cash');
+      closePanel(true);openItemPage(record.month,record.item.id,'p-cash',returnToTransaction);
     };});
     document.getElementById('cash-transaction-close').onclick=closePanel;
     if(action)document.getElementById('cash-transaction-edit').onclick=action;

@@ -5817,6 +5817,7 @@ function renderMonitors(){
 }
 
 let _itemPageOrigin='p-summary';
+let _itemPageReturn=null; // Optional source-panel renderer, never a saved HTML snapshot.
 let _currentRunId=null; // set when opening an item from within a run detail page
 let _runTimerInterval=null; // live tick for active run elapsed display
 function _openItemFromRun(m,id,runId){
@@ -5829,7 +5830,8 @@ let _monthOrigin='calendar-top'; // 'grid' = opened from Calendar month; 'calend
 let _monthOpenFromContext=false; // guards explicit goToMonth() routing from being reset by goToTab('monthly')
 let _savedPanelState=null; // saved panel title+content+scroll for back-from-item-page
 
-function openItemPage(m,id,origin){
+function openItemPage(m,id,origin,onReturn){
+  _itemPageReturn=typeof onReturn==='function'?onReturn:null;
   // Dismiss lingering overlays — search dropdown at z-9990 blocks ALL taps if left open
   if(typeof closeSearchDropdown==='function')closeSearchDropdown();
   if(typeof closeMoreSheet==='function')closeMoreSheet();
@@ -5853,6 +5855,7 @@ function openItemPage(m,id,origin){
 // Called when "Full details →" is tapped inside a panel popup.
 // Saves the current panel state so exitItemPage() can restore it on ← Back.
 function openItemPageFromPanel(m,id){
+  _itemPageReturn=null;
   const panel=document.getElementById('slide-panel');
   const pageOn=document.querySelector('.page.on');
   _savedPanelState={
@@ -5872,6 +5875,7 @@ function openItemPageFromPanel(m,id){
 }
 
 function exitItemPage(){
+  const returnToPanel=_itemPageReturn;_itemPageReturn=null;
   if(typeof window._resetNavScrollState==='function')window._resetNavScrollState();
   _deactivatePages();
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
@@ -5968,6 +5972,7 @@ function exitItemPage(){
   else if(origin==='p-scrapped'&&typeof renderScrapped==='function'){renderScrapped();_restoreTabScroll('scrapped');}
   else if(origin==='p-tax'&&typeof renderTax==='function'){renderTax();_restoreTabScroll('tax');}
   else if(origin==='p-data'&&typeof renderData==='function'){renderData();_restoreTabScroll('data');}
+  if(returnToPanel)returnToPanel();
 }
 
 // ── Simple Delivery rate bands (UK, current as of late 2025) ─────────────────
@@ -7589,9 +7594,11 @@ function openPanel(title,content,pushHistory,_meta){
     (first||panel).focus();
   },0);
 }
-function closePanel(){
+function closePanel(skipReturn){
   const panel=document.getElementById('slide-panel');
   if(!panel||!panel.classList.contains('on'))return;
+  const onClose=panel._panelMeta&&panel._panelMeta.onClose;
+  panel._panelMeta=null;
   const overlay=document.getElementById('panel-overlay');
   overlay.classList.remove('on');
   panel.classList.remove('dragging','on');
@@ -7608,6 +7615,7 @@ function closePanel(){
   if(restore&&typeof restore.focus==='function'&&document.contains(restore)){
     setTimeout(function(){try{restore.focus({preventScroll:true});}catch(e){}},0);
   }
+  if(skipReturn!==true&&typeof onClose==='function')onClose();
 }
 
 document.addEventListener('keydown',function(e){
