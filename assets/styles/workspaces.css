@@ -403,4 +403,8 @@
 .purchase-line .fg{min-width:0;margin:0}.purchase-line input{width:100%;box-sizing:border-box}.purchase-line>button{grid-column:1/-1;justify-self:start;}
 .purchase-actions,.purchase-member{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.purchase-member>button:first-child{flex:1;min-width:0;white-space:normal;text-align:left;overflow-wrap:anywhere}
 .purchase-item-link{margin:8px 0 16px;max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.purchase-item-nav{display:flex;align-items:center;gap:8px;width:100%;margin-bottom:14px}
+.purchase-item-nav>button{margin:0!important;min-height:44px}
+.purchase-item-nav>button:first-child{flex:0 0 auto}
+.purchase-item-nav>.purchase-item-link{display:block;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
 @media(max-width:340px){.purchase-line{grid-template-columns:minmax(0,1fr)} }
