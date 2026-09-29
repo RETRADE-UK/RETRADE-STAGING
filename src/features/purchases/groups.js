@@ -10,12 +10,17 @@
   function button(text,id){return '<button type="button" class="btn btn-secondary" id="'+id+'">'+text+'</button>';}
   function refresh(){saveDB();renderStock();if(document.querySelector('#p-item.on')&&window._purchaseItemContext)renderItemPage(window._purchaseItemContext.month,window._purchaseItemContext.id);}
   window.purchaseGroupMembers=members;
-  window.openPurchaseGroup=function(id){
-    var rows=members(id);if(!rows.length){closePanel();toast('Purchase no longer available');return;}
+  window.openPurchaseGroup=function(id,onReturn){
+    if(!onReturn&&document.querySelector('#p-item.on')&&window._purchaseItemContext){
+      var itemContext=window._purchaseItemContext,itemOrigin=_itemPageOrigin,itemReturn=_itemPageReturn;
+      onReturn=function(){openItemPage(itemContext.month,itemContext.id,itemOrigin,itemReturn);};
+    }
+    var rows=members(id);if(!rows.length){closePanel(true);if(onReturn)onReturn();toast('Purchase no longer available');return;}
     var total=rows.reduce(function(s,r){return s+Math.round(Number(r.item.costPrice||0)*100);},0);
     openPanel('Purchase group','<p class="page-subtitle">'+esc(rows[0].item.purchaseGroupName||'Shared purchase')+'</p><h2>'+fmt(total/100)+'</h2><p>Allocated across '+rows.length+' separate items. Each item keeps its own listing, sale and profit.</p><div id="purchase-members"></div><p class="fg-hint">The total follows the allocated item costs. Cashflow combines purchases on the same date; changing an item’s source date shows it separately.</p>'+button('Close','purchase-close'));
+    document.getElementById('slide-panel')._panelMeta={onClose:onReturn};
     var list=document.getElementById('purchase-members');
-    rows.forEach(function(r){var div=document.createElement('div');div.className='purchase-member';var view=document.createElement('button');view.className='btn btn-secondary';view.textContent=r.item.item+' · '+fmt(r.item.costPrice||0)+' · '+r.item.state;view.onclick=function(){closePanel();openItemPage(r.month,r.item.id);};div.append(view);var unlink=document.createElement('button');unlink.className='btn btn-secondary';unlink.textContent='Unlink';unlink.setAttribute('aria-label','Unlink '+r.item.item);unlink.onclick=async function(){if(!await showConfirm('Unlink item?','Its cost and listing stay unchanged. It will appear as a separate purchase in cashflow.',{okLabel:'Unlink'}))return;r.item.purchaseGroupId=null;r.item.purchaseGroupName=null;refresh();openPurchaseGroup(id);};div.append(unlink);list.append(div);});
+    rows.forEach(function(r){var div=document.createElement('div');div.className='purchase-member';var view=document.createElement('button');view.className='btn btn-secondary';view.textContent=r.item.item+' · '+fmt(r.item.costPrice||0)+' · '+r.item.state;view.onclick=function(){var origin=onReturn?'p-cash':(document.querySelector('.page.on')||{}).id;if(origin==='p-item')origin=_itemPageOrigin;closePanel(true);openItemPage(r.month,r.item.id,origin,function(){openPurchaseGroup(id,onReturn);});};div.append(view);var unlink=document.createElement('button');unlink.className='btn btn-secondary';unlink.textContent='Unlink';unlink.setAttribute('aria-label','Unlink '+r.item.item);unlink.onclick=async function(){if(!await showConfirm('Unlink item?','Its cost and listing stay unchanged. It will appear as a separate purchase in cashflow.',{okLabel:'Unlink'}))return;r.item.purchaseGroupId=null;r.item.purchaseGroupName=null;refresh();openPurchaseGroup(id,onReturn);};div.append(unlink);list.append(div);});
     document.getElementById('purchase-close').onclick=closePanel;
   };
   window.openPurchaseLink=function(ids){
@@ -58,6 +63,6 @@
     var old=page.querySelector('.purchase-item-link');if(old)old.remove();
     if(!r.item.purchaseGroupId&&!eligible(r.item))return;
     var b=document.createElement('button');b.className='btn btn-secondary purchase-item-link';b.textContent=r.item.purchaseGroupId?'Purchase · '+(r.item.purchaseGroupName||'Shared purchase'):'Link to a purchase';b.onclick=function(){if(r.item.purchaseGroupId)openPurchaseGroup(r.item.purchaseGroupId);else openPurchaseLink([id]);};
-    var anchor=page.querySelector('.ip-title');if(anchor)anchor.after(b);else (page.firstElementChild||page).prepend(b);
+    var anchor=page.querySelector('.ip-title');if(anchor)anchor.after(b);else {var back=page.querySelector('button[onclick="exitItemPage()"]');if(back){back.after(b);b.style.display='block';b.style.marginBottom='14px';}else (page.firstElementChild||page).append(b);}
   };
 })();

@@ -58,6 +58,8 @@ const {open,settled}=require('./startup-browser.cjs');
   await page.evaluate(()=>closePanel());
   await visibleRow('sale:own:1').click();await page.locator('#cash-transaction-edit').click();
   assert((await page.locator('#p-item .ip-title').innerText()).includes('Own stock example'));await page.evaluate(()=>exitItemPage());
+  assert.equal(await page.locator('#panel-title').innerText(),'Transaction details','Item Back restores the source transaction');
+  await page.locator('#cash-transaction-close').click();
 
   // Gross allocations can exceed cash when a non-cash credit is applied.
   await page.evaluate(()=>{const t=_accounts[0].settlements[0];t.accountAdjustmentAmount=16;t.grossPartnerAmount=156;t.partnerAmount=140;renderCash();});

@@ -33,13 +33,40 @@ const {open,settled}=require('./startup-browser.cjs');
    assert.equal(await page.evaluate(()=>_itemPageOrigin),'p-cash');
    assert.match(await page.locator('#p-item').innerText(),n===0?/Camera starter kit/:/55–250mm lens/);
    assert(await page.evaluate(n=>window._purchaseItemContext.id===DB['SEP-26'][n].id,n));
-   await page.evaluate(()=>exitItemPage());assert.equal(await page.locator('.page.on').getAttribute('id'),'p-cash');
-   await page.evaluate(id=>openCashflowTransaction(id),result.id);
+   const back=page.locator('#p-item button[onclick="exitItemPage()"]');
+   assert(await back.evaluate(el=>el===el.parentElement.firstElementChild),'Back is the first control, before purchase');
+   await back.click();assert.equal(await page.locator('.page.on').getAttribute('id'),'p-cash');
+   assert.equal(await page.locator('#panel-title').innerText(),'Transaction details');
+   assert.equal(await page.locator('[data-cash-purchase-item]').count(),2);
   }
   assert.equal(await page.evaluate(()=>JSON.stringify(DB)),beforeInspect,'Inspecting payment/items must not change records');
   if(mobile){await page.setViewportSize({width:320,height:844});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.setViewportSize({width:390,height:844});}
   await page.locator('#cash-transaction-edit').click();assert.equal(await page.locator('.purchase-member').count(),2);
+  await page.locator('#purchase-close').click();
+  assert.equal(await page.locator('#panel-title').innerText(),'Transaction details');
+  await page.locator('#cash-transaction-edit').click();
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#panel-title').innerText(),'Transaction details');
+  await page.locator('#cash-transaction-edit').click();
+  await page.getByRole('button',{name:'Close panel',exact:true}).click();
+  assert.equal(await page.locator('#panel-title').innerText(),'Transaction details');
+  await page.locator('#cash-transaction-edit').click();
+  await page.locator('.purchase-member>button').first().click();
+  await page.locator('#p-item button[onclick="exitItemPage()"]').click();
+  assert.equal(await page.locator('#panel-title').innerText(),'Purchase group');
+  await page.locator('#purchase-close').click();
+  assert.equal(await page.locator('#panel-title').innerText(),'Transaction details');
+  assert.equal(await page.locator('[data-cash-purchase-item]').count(),2);
+  await page.locator('#cash-transaction-edit').click();
   await page.locator('.purchase-member>button').first().click();assert(await page.locator('.purchase-item-link').isVisible());await page.locator('.purchase-item-link').click();
+  await page.locator('#purchase-close').click();
+  assert.equal(await page.locator('#p-item.on').count(),1,'Closing purchase opened on an item retains the item');
+  await page.locator('#p-item button[onclick="exitItemPage()"]').click();
+  assert.equal(await page.locator('#panel-title').innerText(),'Purchase group');
+  await page.locator('#purchase-close').click();
+  assert.equal(await page.locator('#panel-title').innerText(),'Transaction details');
+  await page.locator('#cash-transaction-close').click();
+  assert.equal(await page.locator('#slide-panel.on').count(),0,'Final Close leaves no stale parent');
   // Listing, sale and return history retain identity and do not duplicate acquisition.
   const lifecycle=await page.evaluate(()=>{const i=DB['SEP-26'][0];i.state='sold';i.dateListed='2026-09-28';i.dateSold='2026-09-28';i.salePrice=150;i.salePlatform='fb';const before=calcGrossProfit(i);const group=i.purchaseGroupId;i.purchaseGroupId=null;const after=calcGrossProfit(i);i.purchaseGroupId=group;return {before,after,purchases:_cashEventsAll().filter(e=>e.type==='stock_purchase').map(e=>e.amount)};});assert.equal(lifecycle.before,lifecycle.after);assert.deepEqual(lifecycle.purchases,[97.25]);
   // An altered date must never move somebody else's historical cash payment.

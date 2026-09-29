@@ -456,3 +456,13 @@ not mixed into this payment. Missing records are non-clickable; clicks re-resolv
 the current record. No ledger, totals, persistence or schema changes.
 Desktop/mobile purchase tests cover both direct links, unchanged records, narrow
 layout and date-specific membership. Cache: 20260929-v15103-purchase-items-staging.
+
+### Purchase return context
+
+Item navigation accepts a one-shot source renderer, cleared on each new item
+entry and consumed on Back. Cashflow re-resolves the transaction so costs and
+members are current. Purchase details pass their parent renderer through panel
+metadata; Close, Escape, overlay and swipe dismissal return one level. Explicit
+item transitions suppress that dismissal callback. No HTML snapshots or data
+writes are used. Sourced-item purchase links follow Back instead of preceding it.
+Cache: 20260929-v15104-purchase-back-staging.
