@@ -97,7 +97,7 @@ const {open,settled}=require('./startup-browser.cjs');
   await page.locator('[data-tax-view=filing]').click();
   assert(await page.locator('#tax-filing-guide').isVisible());
   assert(!(await page.locator('#tax-estimate').isVisible()));
-  assert((await page.locator('.tax-filing-lines').innerText()).includes('Short · box 11'));
+  assert((await page.locator('.tax-filing-lines').innerText()).includes('Box 11'));
   await page.locator('[data-tax-view=monthly]').click();
   assert(await page.locator('#tax-monthly-summary').isVisible());
   assert(!(await page.locator('#tax-filing-guide').isVisible()));

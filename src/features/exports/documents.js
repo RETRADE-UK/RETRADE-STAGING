@@ -51,7 +51,7 @@
       if(old){old.addEventListener('load',function(){window.jspdf&&window.jspdf.jsPDF?resolve():reject(new Error('PDF library did not initialise'));},{once:true});old.addEventListener('error',reject,{once:true});return;}
       var s=document.createElement('script');s.id='rt-doc-jspdf';s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';s.async=true;s.crossOrigin='anonymous';s.referrerPolicy='no-referrer';
       s.onload=function(){window.jspdf&&window.jspdf.jsPDF?resolve():reject(new Error('PDF library did not initialise'));};s.onerror=reject;document.head.appendChild(s);
-    }).catch(function(err){pdfPromise=null;throw err;});
+    }).catch(function(err){var failed=document.getElementById('rt-doc-jspdf');if(failed)failed.remove();pdfPromise=null;throw err;});
     return pdfPromise;
   }
 
@@ -163,6 +163,29 @@
     }catch(err){toastSafe(err.message||'Could not generate credit note','error');}
   }
 
+  async function taxSummary(data){
+    try{
+      var rows=_taxSummaryRows(data,false),p=await startPdf(),doc=p.doc,y=shell(doc,p.logo,'TAX SUMMARY','Self Assessment · '+data.year,'');
+      rows.slice(1).forEach(function(row){
+        if(!row.length){y+=2;return;}
+        doc.setFont('helvetica','normal');doc.setFontSize(8.3);
+        var lines=doc.splitTextToSize(String(row[0]),row.length>1?112:W-4);
+        var height=Math.max(6.5,lines.length*4+3)+(row.length===4?5:0);
+        if(y+height>277)y=newPage(doc,p.logo,'TAX SUMMARY · continued');
+        if(row.length===1){
+          if(/^(INCOME|ALLOWABLE EXPENSES|TAXABLE PROFIT|ESTIMATED TAX)/.test(row[0]))y=section(doc,row[0],y);
+          else y=note(doc,row[0],y);
+        }else if(row[0]!=='Cost category'){
+          var bold=/^(Total|Taxable profit)/i.test(row[0]);
+          doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(8.3);colour(doc,doc.setTextColor,C.text);
+          doc.text(lines,L+2,y);doc.text(String(row[1]),R-2,y,{align:'right'});
+          y+=Math.max(6.5,lines.length*4+2);
+          if(row.length===4){doc.setFontSize(7);colour(doc,doc.setTextColor,C.muted);doc.text('SA103S box '+row[2]+' · SA103F box '+row[3],L+2,y-1);y+=5;}
+        }
+      });
+      addFooter(doc,'Tax summary · '+data.year);doc.save('RETRADE_Tax_'+String(data.year).replace('/','-')+'.pdf');toastSafe('Tax summary PDF downloaded');
+    }catch(err){toastSafe(err.message||'Could not generate tax summary PDF','error');}
+  }
   async function annualStatement(fyStart){
     try{
       fyStart=Number(fyStart);if(!fyStart||fyStart<2000)throw new Error('Choose a valid financial year.');var label=typeof _getFYLabel==='function'?_getFYLabel(fyStart):(fyStart+'/'+String(fyStart+1).slice(-2)),from=fyStart+'-04-06',to=(fyStart+1)+'-04-05',pnl=typeof _buildPnLSummary==='function'?_buildPnLSummary(from,to,'FY '+label):null;
@@ -226,6 +249,7 @@
   window.generateRetradeOrderSummary=orderSummary;
   window.generateRetradeCreditNote=creditNote;
   window.generateRetradeAnnualStatement=annualStatement;
+  window.generateRetradeTaxSummary=taxSummary;
   window.generateRetradeSettlementSlip=settlementSlip;
   window.RETRADE_DOCUMENTS={colors:C,tagline:TAGLINE,bannerWords:BANNER_WORDS,ensurePdf:ensurePdf,logoDataUrl:logoDataUrl,brandBanner:brandBanner,statusStamp:statusStamp,addFooter:addFooter,safeFileName:safe,gbp:gbp,fitSingle:fitSingle,clampLines:clampLines};
 

@@ -18,7 +18,11 @@
       if(matches.length===1){_openSettlementDetail(matches[0].account.id,matches[0].tx.id);return;}
     }
     var action=null,actionLabel='',details='',explanation='';
-    if(movement.editableId){
+    if(movement.source==='purchase'&&movement.purchaseGroupId){
+      details+=row('Items in this payment',(movement.itemIds||[]).length);
+      actionLabel='View purchase';action=function(){openPurchaseGroup(movement.purchaseGroupId);};
+      explanation='One purchase, with its cost allocated across separate stock items.';
+    }else if(movement.editableId){
       actionLabel='Edit entry';action=function(){editCashMove(movement.editableId);};
       explanation='This is a manually recorded cash movement.';
     }else if(movement.itemId){

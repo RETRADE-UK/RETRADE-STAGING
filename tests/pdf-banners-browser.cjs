@@ -37,7 +37,7 @@ const {open,settled}=require('./startup-browser.cjs');
   });
   assert(Math.abs(alignment.text.centre-alignment.shield.centre-60*1530/6118)<=1,'Title/tagline group has the small approved downward optical offset');
   assert(Math.abs(alignment.text.height-alignment.expectedHeight)<=2,'Title and tagline spacing retained as one group');
-  const exports=[['receipt',()=>generateRetradeSalesReceipt(__pdfMonth,'pdf-audit-sale')],['order',()=>generateRetradeOrderSummary('pdf-audit-order')],['credit',()=>generateRetradeCreditNote(__pdfMonth,'pdf-audit-sale')],['annual',()=>generateRetradeAnnualStatement(2026)],['settlement',()=>generateRetradeSettlementSlip('pdf-audit-account','pdf-audit-payment')],['partner',()=>_partnerStatementPdf()]];
+  const exports=[['tax',()=>generateRetradeTaxSummary(_taxExportData)],['receipt',()=>generateRetradeSalesReceipt(__pdfMonth,'pdf-audit-sale')],['order',()=>generateRetradeOrderSummary('pdf-audit-order')],['credit',()=>generateRetradeCreditNote(__pdfMonth,'pdf-audit-sale')],['annual',()=>generateRetradeAnnualStatement(2026)],['settlement',()=>generateRetradeSettlementSlip('pdf-audit-account','pdf-audit-payment')],['partner',()=>_partnerStatementPdf()]];
   for(const [label,generate] of exports){
    const pending=page.waitForEvent('download');await page.evaluate(generate);const download=await pending;
    assert(download.suggestedFilename().endsWith('.pdf'));
@@ -58,7 +58,7 @@ const {open,settled}=require('./startup-browser.cjs');
    }
   }
   assert(audit.filter(p=>p.pages>1).length>=3,'Audit includes continuation pages');
-  assert.deepEqual(errors,[]);console.log('PASS six PDF formats, approved sign artwork and identical banners on every page:',audit.map(p=>({name:p.name,pages:p.pages})));
+  assert.deepEqual(errors,[]);console.log('PASS seven PDF formats, approved sign artwork and identical banners on every page:',audit.map(p=>({name:p.name,pages:p.pages})));
   await context.close();
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

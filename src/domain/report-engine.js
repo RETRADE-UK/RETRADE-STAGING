@@ -6,7 +6,7 @@ Owns generated statements and exports only:
 - Annual FY management P&L / HMRC working exports
 - Stock snapshots
 - Custom range reports
-- Tax summary CSV
+- Tax summary CSV and Excel; shared rows for PDF
 - Excel workbook styling and number formats
 
 Accounting calculations live in src/domain/accounting-engine.js.
@@ -222,7 +222,7 @@ function _styleReportSheet(ws,rows,opts){
       if(typeof cell.v==='number'){
         const _hdr=String((rows[opts.headerRows&&opts.headerRows[0]]||[])[c]||'');
         const _isPctLabel=/(margin|roi|refund rate|rate %|margin %|roi %)/i.test(label)||/%/.test(_hdr)||pctCols.has(c);
-        const _isCountLabel=/(^|\b)(items sold|unsold items(?: sourced)?(?: in period)?|returns|sales count|item count|stock count|count)(\b|$)/i.test(label)||/(items sold|returns|count|days held)/i.test(_hdr);
+        const _isCountLabel=/(^|\b)(items sold|unsold items(?: sourced)?(?: in period)?|returns|number of sales|sales count|item count|stock count|count)(\b|$)/i.test(label)||/(items sold|returns|count|days held)/i.test(_hdr);
         // Percent values in RETRADE reports are stored as percentage points
         // (e.g. 19.1 means 19.1%), not Excel fractions (0.191). Use a literal
         // percent sign so Excel never turns 19.1 into 1,910%.
@@ -280,7 +280,7 @@ function _writeExcel(rows,sheetName,filename,opts){
       break;
     }
   }
-  _styleReportSheet(ws,allRows,{headerRows:[headerRowIdx],freezeRow:4,autoFilterRow:headerRowIdx});
+  _styleReportSheet(ws,allRows,{headerRows:[headerRowIdx],freezeRow:4,autoFilterRow:headerRowIdx,moneyCols:opts.moneyCols||[]});
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,sheetName);
   XLSX.writeFile(wb,filename);
@@ -626,10 +626,8 @@ function downloadMonthlyStatement(m){
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   URL.revokeObjectURL(a.href);toast('Downloaded '+m+' statement');
 }
-function downloadTaxSummary(){
-  const d=window._taxExportData;
-  if(!d){toast('Open the Tax page first');return;}
-  const money=n=>(n<0?'-':'')+'£'+Math.abs(+n||0).toFixed(2);
+function _taxSummaryRows(d,numeric){
+  const money=n=>numeric?+(+n||0).toFixed(2):(n<0?'-':'')+'£'+Math.abs(+n||0).toFixed(2);
   const rows=[];
   rows.push(['RETRADE — Self Assessment summary']);
   rows.push(['Tax year',d.year]);
@@ -660,10 +658,24 @@ function downloadTaxSummary(){
   rows.push(['Total estimated tax',money(d.totalTax)]);
   rows.push([]);
   rows.push(['For reference only — verify with a qualified accountant before filing.']);
+  return rows;
+}
+function downloadTaxSummary(format,source){
+  const d=source||window._taxExportData;
+  if(!d){toast('Open the Tax page first');return;}
+  format=format||'csv';
+  const filename='RETRADE_Tax_'+d.year.replace('/','-');
+  if(format==='pdf'){
+    if(typeof window.generateRetradeTaxSummary!=='function'){toast('PDF export is still loading. Please try again.','error');return;}
+    return window.generateRetradeTaxSummary(d);
+  }
+  if(format==='xlsx')return _csvRowsToExcel(_taxSummaryRows(d,true),'Tax summary',filename+'.xlsx',{title:'Tax summary — '+d.year,moneyCols:[1]});
+  if(format!=='csv'){toast('Choose PDF, CSV or Excel','error');return;}
+  const rows=_taxSummaryRows(d,false);
   const csv=_rowsToCsv(rows,'\r\n');
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download='RETRADE_Tax_'+d.year.replace('/','-')+'.csv';
+  a.download=filename+'.csv';
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
   toast('Tax summary downloaded');
