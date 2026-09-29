@@ -166,3 +166,12 @@
 .rt #p-tax .tax-filing-form{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;flex-wrap:wrap}
 .rt #p-tax .tax-filing-row small{grid-column:1/-1;text-align:left}
 .rt #p-tax .tax-filing-row b{font-weight:700;color:var(--accent)}
+
+.tax-export-dialog{box-sizing:border-box;margin:auto;width:min(440px,calc(100% - 32px));max-height:calc(100dvh - 40px);padding:24px;border:1px solid var(--border);border-radius:18px;background:var(--surface);color:var(--text);box-shadow:0 24px 70px #0005;}
+.tax-export-dialog::backdrop{background:rgba(4,9,18,.62);}
+.tax-export-dialog h2{font-size:20px;line-height:1.3;margin:0 0 8px;}
+.tax-export-dialog p{font-size:13px;line-height:1.5;color:var(--text-secondary);margin:0 0 18px;}
+.tax-export-options{display:grid;gap:10px;}
+.tax-export-options .btn{display:flex;justify-content:space-between;gap:12px;width:100%;min-height:54px;padding:12px 14px;text-align:left;}
+.tax-export-options span{font-size:12px;font-weight:400;color:var(--text-secondary);text-align:right;}
+.tax-export-dialog form{display:flex;justify-content:flex-end;margin-top:18px;}

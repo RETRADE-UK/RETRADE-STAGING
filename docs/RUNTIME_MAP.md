@@ -347,6 +347,49 @@ and activation gates, and the worker README for the current tested contract.
 
 Monitors now mounts on demand from `src/features/monitors/cloud.js` and `page.js`, registered in the manifest lazy list. The core owns only navigation, load and disposal hooks. `assets/styles/monitors.css` is scoped to this page. `supabase/functions/monitor-service/` deploys the original `worker/monitors/src/` engine, with no public worker assets. Push uses the existing service worker. The source is blocked after a staging-host 403; example cards are never saved or notified. See `docs/features/monitors/MVP_RUNBOOK.md`.
 
+## Purchase groups (staging)
+
+`src/features/purchases/groups.js` owns creation, linking and group details.
+Stock Add exposes a multi-item purchase; Stock selection links existing own-stock
+items with the same source date. The item page links back to its purchase.
+The nullable `items.purchase_group_id` / `purchase_group_name` columns use the
+existing item revision guard, outbox, JSON backup and RLS. Missing purchase columns
+must fail rather than silently drop links. Apply the purchase-groups migration
+before deploying this build. No production data migration is included.
+
+Each item retains its allocated cost and independent lifecycle. New-purchase
+allocation validates integer pennies and must sum exactly to the entered total.
+There is no duplicated payment record. The accounting engine combines existing
+stock acquisition outflows by purchase identity AND date; cash amounts and tax
+calculations are unchanged. Group total follows current item allocations. Unlinking
+changes presentation only. Partner purchases remain in their settlement workflow.
+Tests cover rounding, mismatches, serialization, cash aggregation, independent sale
+profit and linking; multi-device delivery still uses the existing per-item writer,
+so a group can temporarily appear incomplete while its member writes are pending.
+
+Staging migration applied and nullable columns/RLS verified on 28 September 2026.
+Existing Split into units now retains one purchase identity; Duplicate deliberately
+starts a separate purchase. Security advisors reported existing auth/monitor
+findings; this migration changes no policies, grants or functions.
+
+Initial validation: purchase creation/linking/unlinking/split tests passed on mobile and
+desktop, including legacy source-date preservation and cloud row round-trips.
+`npm run check` and `npm run build` passed. The full browser command reached an
+existing Sales date-label assertion on the locally available Chromium 138:
+`Tue, 22 Sept` versus a literal `Tue 22 Sep`. The same failure was reproduced on
+unchanged staging `416c33c`; do not treat it as a purchase regression or alter
+sales behaviour for this feature. Tax, item costs and partner/cashflow checks pass.
+
+Initial publishing was held for explicit approval. The user authorized staging
+deployment on 29 September 2026, including all fixes currently on live. The
+nullable staging schema additions are already applied; production schema is unchanged.
+The remainder of the browser suite was then run separately and passed, including
+navigation, scrolling, workspace layouts, loading, backups/imports, sync and monitor
+database/browser isolation. The only local suite failure is the baseline Sales
+locale assertion described above. Purchase-specific tests were rerun after the
+legacy split-date fix and passed on both viewports. See the combined-release
+validation below for the subsequent complete passing run.
+
 ### Shared PDF banner alignment — 29 September
 
 Export banners use the approved 42 mm sign artwork with the complete shield
@@ -371,3 +414,29 @@ identity history. `monitor-service` owns status polling and explicit operator
 source checks, both authenticated. The new append-only monitor migration owns
 pending confirmation, skipped-lease recovery and expired push attempts. The source
 remains blocked by HTTP 403. See `docs/features/monitors/AUDIT_2026-09-29.md`.
+
+### Combined staging release — purchases and live parity
+
+Baseline: staging `8f429b6` plus shared live changes through `6074206` (v1.5.101).
+Includes Stock default filters/inventory KPIs, mobile Sourcing layout, Tax box
+labels and PDF/CSV/Excel Tax export, plus the seven-format PDF banner audit.
+Purchase grouping and all monitor hooks, worker code, styles, staging binding and
+parked gesture experiments are preserved. Cache: 20260929-v15102-purchases-staging.
+
+`src/platform/local-recovery.js` loads before core and archives only this user's
+timestamped quarantine snapshots to IndexedDB after quota errors. Original bytes
+are removed only after a strict transaction commits and an exact-value recheck.
+Pending outbox records, authentication and preferences are not cleared. The
+user-scoped in-memory safety net retains failed writes and retries latest intent;
+it never reports volatile-only changes as saved. Reports & Data can download the
+archive for manual review; it is not automatically replayed over cloud records.
+Blocked storage retains a clear warning to keep the app open and export a backup.
+No new schema changes for this repair. Local-saving tests exercise desktop/mobile
+quota recovery, denied storage, account isolation, concurrent edits and reload.
+
+Release validation: the full `npm test`, `npm run check` and `npm run build` pass
+on the combined tree, including Sales, Tax downloads, sync/recovery, purchases
+and monitor database/browser checks. A separate mobile UI check downloaded the
+recovery archive and verified its exact preserved bytes. Staging purchase columns
+and item RLS were rechecked read-only. Shared tooling also includes live's path
+separator and line-ending normalization fixes. Protected PR: RETRADE-STAGING #16.

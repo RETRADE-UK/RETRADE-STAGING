@@ -2594,6 +2594,8 @@ function _rowToItem(row, parts, returns){
     salePrice:       Number(row.sale_price) || 0,
     postage:         Number(row.postage) || 0,
     costPrice:       Number(row.cost_price) || 0,
+    purchaseGroupId: row.purchase_group_id || null,
+    purchaseGroupName: row.purchase_group_name || null,
     shippingCost:    Number(row.shipping_cost) || 0,
     packagingCost:   Number(row.packaging_cost) || 0,
     promoPercent:    Number(row.promo_percent) || 0,
@@ -2712,6 +2714,8 @@ function _itemToRow(i, month){
     sale_price:       i.salePrice || 0,
     postage:          i.postage || 0,
     cost_price:       i.costPrice || 0,
+    purchase_group_id: i.purchaseGroupId || null,
+    purchase_group_name: i.purchaseGroupName || null,
     shipping_cost:    i.shippingCost || 0,
     packaging_cost:   i.packagingCost || 0,
     promo_percent:    i.promoPercent || 0,
@@ -3540,17 +3544,37 @@ function _waitForSync(){
 // the money/tax engine (calcGrossProfit / _saleBreakdown).
 // ============================================================
 const OUTBOX_KEY_BASE = 'retrade_outbox_v1';
+const _outboxVolatile=new Map();
+let _localSafetyNoticeAt=0;
 function _outboxKey(){ return OUTBOX_KEY_BASE + '_' + (_currentUserId || 'anon'); }
 function _outboxRead(){
+  if(_outboxVolatile.has(_outboxKey()))return JSON.parse(_outboxVolatile.get(_outboxKey()));
   try{ const raw = localStorage.getItem(_outboxKey()); return raw ? JSON.parse(raw) : {}; }
   catch(e){ return {}; }
 }
 function _outboxSave(obj){
+  const key=_outboxKey(),uid=_currentUserId;
   try{
-    if(!obj || Object.keys(obj).length === 0){ localStorage.removeItem(_outboxKey()); }
-    else { localStorage.setItem(_outboxKey(), JSON.stringify(obj)); }
+    if(!obj || Object.keys(obj).length === 0){ localStorage.removeItem(key); }
+    else { localStorage.setItem(key, JSON.stringify(obj)); }
+    _outboxVolatile.delete(key);
     return true;
-  }catch(e){ console.warn('[RETRADE] outbox write failed (quota?):', e && e.message); return false; }
+  }catch(e){
+    // A failed replacement/prune must not hide earlier pending entries. This is
+    // an in-memory safety net, NOT a durable save, and never reports success.
+    try{_outboxVolatile.set(key,JSON.stringify(Object.assign({},_outboxRead(),obj||{})));}catch(_e){}
+    console.warn('[RETRADE] outbox write failed:',e&&e.name,e&&e.message);
+    if(uid&&window.RETRADE_LOCAL_RECOVERY&&/quota/i.test(String(e&&e.name)+' '+String(e&&e.message))){
+      window.RETRADE_LOCAL_RECOVERY.relieve(uid).then(function(moved){
+        if(!moved||_currentUserId!==uid||!_outboxVolatile.has(key))return;
+        if(_outboxSave(_outboxRead())){
+          if(/^Local safety save failed/.test(_lastSyncError||''))_lastSyncError=null;
+          if(typeof _reconcileSyncStatus==='function')_reconcileSyncStatus();
+        }
+      }).catch(function(){});
+    }
+    return false;
+  }
 }
 function _outboxPendingCount(){ try{ return Object.keys(_outboxRead()).length; }catch(e){ return 0; } }
 
@@ -3580,7 +3604,10 @@ function _stageDurableOutboxNow(){
     if(staged && !_outboxSave(ob)){
       _lastSyncError='Local safety save failed — keep RETRADE open and export a backup';
       console.error('[RETRADE] CRITICAL: durable outbox could not be written');
-      try{toast('Could not make a local safety save — keep RETRADE open','err');}catch(e){}
+      if(Date.now()-_localSafetyNoticeAt>60000){
+        _localSafetyNoticeAt=Date.now();
+        try{toast('Local storage is unavailable — keep RETRADE open and download a backup','err');}catch(e){}
+      }
     }
     return staged;
   }catch(e){
@@ -5577,7 +5604,7 @@ function _routeSkeletonMarkup(name,yearly){
     body=overview('sales-kpis-v2',['Net Revenue','Net Profit','Net Margin','Refund rate'])+controls('sales')+'<div class="rt-pending-day">'+foot+'</div>'+rows();
   }else if(name==='stock'){
     header='<div class="page-header"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:0"><div style="min-width:0;flex:1"><div class="page-title">Stock</div><div class="page-subtitle">Listed, unlisted and returned stock — everything physically on hand.</div></div><div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'+button('Archive')+button('By month')+button('Add ▾',true)+'</div></div></div>';
-    const labels=STOCK_STATE_FILTER==='stock'?['Items to list','Capital tied up','Est. potential','Longest sitting']:STOCK_STATE_FILTER==='returned'?['Capital tied up','Returned items','Oldest return','Next action']:STOCK_STATE_FILTER==='all'?['Capital tied up','Stock on hand','Listed asking','Returned']:['Capital in listings','Estimated profit','Aged capital','Sell-through'];
+    const labels=STOCK_STATE_FILTER==='sourced'?['Items to list','Capital tied up','Est. potential','Longest sitting']:STOCK_STATE_FILTER==='returned'?['Capital tied up','Returned items','Oldest return','Next action']:STOCK_STATE_FILTER==='all'?['Capital tied up','Potential profit','Listed asking','Needs attention']:['Capital in listings','Estimated profit','Aged capital','Sell-through'];
     body=overview('stock-kpis-v2 stock-kpis',labels)+segments(['All','Listed','Unlisted','Returned'],'segmented stock-state-seg')+controls('stock')+rows();
   }else if(name==='accounts'){
     header=heading(button('+ Add partner',true),'Partner balances, stock and payment activity.').replace('class="page-header"','class="page-header rt-inline-header"');
@@ -5605,7 +5632,7 @@ function _routeSkeletonMarkup(name,yearly){
     body='<div class="rt-cash-dashboard"><div class="rt-cash-dashboard-grid"><article class="rt-cash-primary"><div><div class="rt-cash-eyebrow">Free cash</div><div class="rt-cash-primary-value num">'+value+'</div><div class="rt-cash-primary-sub">Available after current supplier and partner commitments.</div></div><div class="rt-cash-allocation"><div class="rt-cash-allocation-track skeleton"></div><div class="rt-cash-primary-meta"><div class="rt-cash-meta-block"><span class="rt-cash-meta-label">Cash held</span><strong class="rt-cash-meta-value">'+value+'</strong></div><div class="rt-cash-meta-block"><span class="rt-cash-meta-label">Committed</span><strong class="rt-cash-meta-value">'+value+'</strong></div></div></div></article><div class="rt-cash-side"><article class="rt-cash-flow-card"><div class="rt-cash-card-top"><div class="rt-cash-card-title">Net cash movement</div><span class="rt-cash-period">30 days</span></div><div class="rt-cash-flow-net num">'+value+'</div><div class="rt-cash-flow-split"><div class="in"><span>In</span><strong>'+value+'</strong></div><div class="out"><span>Out</span><strong>'+value+'</strong></div></div></article><article class="rt-cash-stock-card"><div class="rt-cash-card-title">Capital in stock</div><div class="rt-cash-stock-value num">'+value+'</div><div class="rt-cash-card-foot">Paid acquisition and parts still held in inventory.</div></article></div></div><details class="rt-cash-more"><summary><span><span class="rt-cash-more-title">More cash details</span><span class="rt-cash-more-sub">Commitments, owner activity and calculation context</span></span><span>⌄</span></summary></details></div><div class="sl">All cash movements</div>'+search('transactions')+segments(['All','In','Out','Filters'],'rtn-filters')+rows('ledger-list');
   }else if(name==='runs'){
     header=heading(button('Log past')+button('Start sourcing',true));
-    body='<div class="runs-kpis-v2 runs-kpis-stack">'+['Total profit','Avg per run','Best session'].map(function(t){return card(t);}).join('')+'</div>'+controls('sourcing runs')+rows('runs-list');
+    body='<div class="runs-kpis-v2 runs-kpis-stack">'+['Return on runs','Avg profit / run','Best session'].map(function(t){return card(t);}).join('')+'</div><section class="runs-history"><div class="runs-history-title"><h2>Sourcing history</h2>'+foot+'</div><div class="runs-history-controls">'+search('runs')+'<select disabled class="sort-select"><option>Newest first</option></select></div><details class="runs-history-help"><summary>About these figures</summary></details><div class="runs-list-head"><span>Run / location</span><span>Sold / items</span><span>Spent</span><span>Net profit</span><span>ROI</span><span></span></div><div class="runs-list">'+Array.from({length:3},function(){return '<div class="run-history-row"><span class="rh-body">'+foot+foot+'</span><span class="rh-sold">'+foot+'</span>'+['Spent','Net profit','ROI'].map(t=>'<span class="rh-fact"><span class="rh-mobile-label">'+t+'</span><strong>'+value+'</strong></span>').join('')+'<span class="rh-chevron">›</span></div>';}).join('')+'</div></section>';
   }else if(name==='expenses'){
     header=heading(button('Add ▾',true),'Log mileage, sourcing runs and business spend');
     body=segments(['All time','This year','This month'],'cost-period-row')+'<div class="cost-total-banner"><div class="cost-total-left"><div class="cost-total-label">Deductions</div><div class="cost-total-val">'+value+'</div><div class="cost-total-sub">'+foot+'</div></div>'+button('Tax return ready →')+'</div><div class="cost-list-controls">'+search('trips &amp; expenses')+'<div>'+button('Select')+'</div></div>'+rows();
@@ -5672,7 +5699,11 @@ function _prepareSalesEntry(){
   delete _scrollMap.monthly;
 }
 
-function goToTab(name,sourceEl){
+function goToTab(name,sourceEl,entryOptions){
+  if(name==='stock'){
+    STOCK_STATE_FILTER=entryOptions&&entryOptions.stockState||'listed';
+    STOCK_FILTER='all';STOCK_SOURCED_FILTER='all';delete _scrollMap.stock;
+  }
   if(name==='monthly'&&!_monthOpenFromContext){
     const repeatSales=sourceEl&&sourceEl.dataset.tab==='monthly'&&document.getElementById('p-monthly').classList.contains('on');
     if(repeatSales&&MONTHLY_VIEW==='detail'){MONTHLY_VIEW='grid';delete _scrollMap.monthly;}
@@ -6319,7 +6350,9 @@ function renderItemPage(m,id){
   // reopens the old one"). Surface the error in the page so the issue is
   // visible and the stale content is cleared.
   try{
-    return _renderItemPageInner(m,id);
+    const result=_renderItemPageInner(m,id);
+    if(typeof renderPurchaseItemLink==='function')renderPurchaseItemLink(m,id);
+    return result;
   }catch(err){
     const page=document.getElementById('p-item');
     if(page){
@@ -8127,8 +8160,7 @@ function openActiveRunPageFromRuns(){
 function openActiveRunPage(){
   if(!_activeSourcingRun){
     toast('No active run \u2014 start one from the FAB','error');
-    STOCK_STATE_FILTER='sourced';
-    goToTab('stock',document.querySelector('[data-tab="stock"]'));
+    goToTab('stock',document.querySelector('[data-tab="stock"]'),{stockState:'sourced'});
     return;
   }
   _deactivatePages();
@@ -8150,8 +8182,7 @@ function renderActiveRunPage(){
   const run=_activeSourcingRun;
   if(!run){
     page.classList.remove('active');
-    STOCK_STATE_FILTER='sourced';
-    goToTab('stock',document.querySelector('[data-tab="stock"]'));
+    goToTab('stock',document.querySelector('[data-tab="stock"]'),{stockState:'sourced'});
     toast('No active run','error');
     return;
   }
@@ -9079,9 +9110,9 @@ function renderRunsPage(){
     }).join('');
     pastHTML='<section class="runs-history" aria-label="Sourcing history">'
       +'<div class="runs-history-title"><h2>Sourcing history</h2><span id="runs-result-count" role="status" aria-live="polite">'+ended.length+' runs</span></div>'
-      +'<div class="runs-history-controls"><div class="inlist-search"><span class="inlist-search-ic">'+_selSearchIco(15)+'</span><input class="inlist-search-input" id="runs-search" type="search" aria-label="Search sourcing runs" placeholder="Search runs or places…" value="'+esc(window._RUNS_SEARCH||'')+'" oninput="_filterRunsHistory(this.value)"></div>'
+      +'<div class="runs-history-controls"><div class="inlist-search"><span class="inlist-search-ic">'+_selSearchIco(15)+'</span><input class="inlist-search-input" id="runs-search" type="search" aria-label="Search sourcing runs" placeholder="Search runs…" value="'+esc(window._RUNS_SEARCH||'')+'" oninput="_filterRunsHistory(this.value)"></div>'
       +'<select aria-label="Sort sourcing runs" class="sort-select past-runs-sort" onchange="_setRunsSort(this.value)">'+sortSel+'</select></div>'
-      +'<p class="runs-history-help">Spend includes items, parts and run costs. Profit is from sales to date, after run costs.</p>'
+      +'<details class="runs-history-help"><summary>About these figures</summary><p>Spend includes items, parts and run costs. Profit is from sales to date, after run costs.</p></details>'
       +'<div class="runs-list-head" aria-hidden="true"><span>Run / location</span><span>Sold / items</span><span>Spent</span><span>Net profit</span><span>ROI</span><span></span></div>'
       +'<div class="runs-list">'+rows+'</div><div id="runs-empty-search" class="inlist-empty" hidden>No runs match your search.</div></section>';
   }
@@ -9117,7 +9148,7 @@ function renderRunsPage(){
       +mc('Return on runs',overallROI!==null?overallROI.toFixed(0)+'%':'\u2014',
         fmtK(totalProfit)+' profit · '+fmtK(totalCapital)+' spent',
         overallROI!==null&&overallROI>0?'var(--green)':overallROI!==null&&overallROI<0?'var(--red)':'var(--text)')
-      +mc('Avg per session','\u00a3'+avgProfit.toFixed(0),
+      +mc('Avg profit / run','\u00a3'+avgProfit.toFixed(0),
         ended.length+' completed run'+(ended.length!==1?'s':''),
         avgProfit>0?'var(--green)':avgProfit<0?'var(--red)':'var(--text)')
       +mc('Best session',bestRun?'\u00a3'+_runProfit(bestRun.id).toFixed(0):'\u2014',
@@ -9145,7 +9176,7 @@ function renderRunsPage(){
       '<div style="display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">'+
         '<button class="btn btn-secondary" style="white-space:nowrap;" onclick="openLogPastRunModal()" title="Log past sourcing">'+
         '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="display:inline-block;vertical-align:-2px"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>'+
-        '<span class="btn-label-hide-xs"> Log past sourcing</span>'+
+        '<span class="btn-label-hide-xs"> Log past</span>'+
       '</button>'+
         (!_activeSourcingRun?
           '<button class="btn btn-primary" style="gap:6px;white-space:nowrap;" onclick="openStartRunModal()">'+
@@ -9284,6 +9315,7 @@ document.addEventListener('animationend',function(event){
 window.addEventListener('online',_reconcileSyncStatus);
 window.addEventListener('offline',_reconcileSyncStatus);
 function _syncStatusCopy(state){
+  if(_outboxVolatile.has(_outboxKey()))return ['Local save needs attention','Some changes are only in this open session. Keep RETRADE open, reconnect to sync, and download a full backup from Reports & Data. Do not clear website data.'];
   const pending=typeof _outboxPendingCount==='function'?_outboxPendingCount():0;
   const copy={
     synced:['Synced','Your changes are saved to the cloud.'],
@@ -9327,6 +9359,7 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&_syncDetail
 window.addEventListener('resize',function(){closeSyncDetails(false);});
 window.addEventListener('scroll',function(){closeSyncDetails(false);},{passive:true});
 function _refreshSideNavSync(state){
+  if(_outboxVolatile.has(_outboxKey()))state='error';
   clearTimeout(_syncStatusTimer);
   const pending=typeof _outboxPendingCount==='function'?_outboxPendingCount():0;
   if(state==='synced'&&(_syncing||pending||_lastSyncError))state=_lastSyncError?'error':_syncing?'saving':'pending';
@@ -11939,6 +11972,7 @@ function openStockQuickAdd(accountId){
   _sqaSessionCount=0;
   const today=new Date().toISOString().split('T')[0];
   const html=`
+    ${!_quickAddAccountId?'<button type="button" class="btn btn-secondary" style="margin-bottom:16px" onclick="openNewPurchase()">One purchase · multiple items</button>':''}
     ${_quickAddAccountBanner(_quickAddAccountId)}
     ${_quickAddPartnerPickerHTML()}
     <div class="fg">
@@ -12167,8 +12201,7 @@ function _goToSourcedStock(){
   if(_activeSourcingRun){
     openActiveRunPage();
   } else {
-    STOCK_STATE_FILTER='sourced';
-    goToTab('stock',document.querySelector('[data-tab="stock"]'));
+    goToTab('stock',document.querySelector('[data-tab="stock"]'),{stockState:'sourced'});
   }
 }
 
@@ -17797,12 +17830,14 @@ function _renderStockCore(){
   const returnedCost=+allReturned.reduce(function(s,i){return s+_capCost(i);},0).toFixed(2);
   const listedAsking=+(allListed.reduce(function(s,i){return s+(Number(i.salePrice)||0);},0)+_listedLots.reduce(function(s,l){return s+(Number(l.salePrice)||0);},0)).toFixed(2);
   const listedPotentialProfit=+(allListed.reduce(function(s,i){return s+(calcEstProfit(i)||0);},0)+_listedLots.reduce(function(s,l){return s+(_jobLotEstimatedNetProfit(l)||0);},0)).toFixed(2);
+  const allPotentialProfit=+(listedPotentialProfit+estPotential).toFixed(2);
   const listedMarkup=listedCost>0?Math.round((listedAsking/listedCost-1)*100):0;
   const listedROI=listedCost>0?Math.round(listedPotentialProfit/listedCost*100):null;
   const sourcedROI=sourcedCost>0?Math.round(estPotential/sourcedCost*100):null;
   const _agedListed=allListed.filter(function(i){const d=i.dateListed;return d&&daysBetween(d,today)>=90;});
-  const agedCost=+_agedListed.reduce(function(s,i){return s+_capCost(i);},0).toFixed(2);
-  const agedCount=_agedListed.length;
+  const _agedListedLots=_listedLots.filter(l=>l.dateListed&&daysBetween(l.dateListed,today)>=90);
+  const agedCost=+(_agedListed.reduce(function(s,i){return s+_capCost(i);},0)+_agedListedLots.reduce((sum,l)=>sum+_jobLotCost(l.id),0)).toFixed(2);
+  const agedCount=_agedListed.length+_agedListedLots.length;
   let _stStats={}; try{ _stStats=calcYearlyStats('all')||{}; }catch(e){}
   const stSellThrough=(_stStats.sellThrough!=null)?Math.round(_stStats.sellThrough):null;
   const stAvgDays=(_stStats.avgDays!=null)?_stStats.avgDays:null;
@@ -17834,23 +17869,22 @@ function _renderStockCore(){
     kpis=[
       {cls:'b',label:'Capital in<br>listings', val:fmtK(listedCost), sub:fmtK(listedAsking)+' asking'+(listedMarkup>0?' · '+listedMarkup+'% markup':'')},
       {cls:'g',label:'Estimated<br>profit',    val:fmtK(listedPotentialProfit), sub:listedROI!=null?listedROI+'% ROI if sold':'If every item sells'},
-      {cls:'p',label:'Aged<br>capital',        val:agedCount>0?fmtK(agedCost):'£0', sub:agedCount>0?agedCount+' of '+allListed.length+' stale (90d+)':(allListed.length?'None stale — all moving':'—'), click:cStale>0?"openDashboardStock('stale')":''},
+      {cls:'p',label:'Aged<br>capital',        val:agedCount>0?fmtK(agedCost):'£0', sub:agedCount>0?agedCount+' of '+cAllListed+' stale (90d+)':(cAllListed?'None stale — all moving':'—'), click:cStale>0?"openDashboardStock('stale')":''},
       {cls:'', label:'Sell-<br>through',       val:stSellThrough!=null?stSellThrough+'%':'—', sub:stAvgDays!=null?stAvgDays+'d avg to sell':'Listed that sold'}
     ];
   } else {
     const totalCapital=listedCost+sourcedCost+returnedCost;
-    const _lotPhysical=_activeLotsNow.reduce(function(s,l){return s+_jobLotPhysicalCount(l.id);},0);
-    const _physicalStock=allOnHand.length+_lotPhysical;
+    const attentionCapital=sourcedCost+returnedCost+agedCost;
     kpis=[
-      {cls:'b',label:'Stock on hand',    val:String(_physicalStock), sub:cAllListed+' listed unit'+(cAllListed===1?'':'s')+' · '+cAllStock+' unlisted · '+cAllReturned+' returned'},
-      {cls:'', label:'Capital tied up',  val:fmtK(totalCapital), sub:'Cost basis across all physical stock'},
-      {cls:'g',label:'Listed asking',    val:fmtK(listedAsking), sub:cAllListed+' active listing'+(cAllListed===1?'':'s')},
-      {cls:'r',label:'Returned',         val:String(cAllReturned), sub:cAllReturned?'Need a decision':'Nothing waiting'}
+      {cls:'b',label:'Capital tied up',  val:fmtK(totalCapital), sub:'Purchase and parts costs across all stock'},
+      {cls:'g',label:'Potential profit', val:fmtK(allPotentialProfit), sub:'Listed + estimated unlisted · after partner shares'},
+      {cls:'', label:'Listed asking',    val:fmtK(listedAsking), sub:'Asking value currently on sale'},
+      {cls:'p',label:'Needs attention',  val:fmtK(attentionCapital), sub:'Capital in unlisted, returned or 90d+ listings'}
     ];
   }
-  const primaryKpi=isListedOnly?1:0;
+  const primaryKpi=isListedOnly||isAllView?1:0;
   const kpiCards=kpis.map((k,n)=>'<div class="card kpi'+(n===primaryKpi?' rt-overview-primary':'')+(k.click?' clickable':'')+'"'+(k.click?' role="button" tabindex="0" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();this.click();}" onclick="'+k.click+'"':'')+'>'+
-    '<div class="kpi-label">'+String(k.label).replace(/<br>/g,' ')+'</div><div class="kpi-value num'+(k.cls==='g'&&((isListedOnly&&listedPotentialProfit<0)||(isStockOnly&&estPotential<0))?' negative':'')+'">'+k.val+'</div><div class="kpi-foot">'+k.sub+'</div>'+
+    '<div class="kpi-label">'+String(k.label).replace(/<br>/g,' ')+'</div><div class="kpi-value num'+(k.cls==='g'&&((isListedOnly&&listedPotentialProfit<0)||(isStockOnly&&estPotential<0)||(isAllView&&allPotentialProfit<0))?' negative':'')+'">'+k.val+'</div><div class="kpi-foot">'+k.sub+'</div>'+
   '</div>');
   const supportingKpis=kpiCards.filter((_,n)=>n!==primaryKpi);
   const kpiHTML=supportingKpis[0]+'<div class="rt-overview-side">'+kpiCards[primaryKpi]+supportingKpis.slice(1).join('')+'</div>';
@@ -17877,6 +17911,7 @@ function _renderStockCore(){
             <div class="ddmenu" style="right:0;min-width:160px;">
               <button onclick="toggleDD('dd-stock-add');openQuickAdd()">${icon('list',14)} List Item</button>
               <button onclick="toggleDD('dd-stock-add');openStockQuickAdd()">${icon('cat_other',14)} Add to Stock</button>
+              <button onclick="toggleDD('dd-stock-add');openNewPurchase()">One purchase · multiple items</button>
               <button onclick="toggleDD('dd-stock-add');openNewJobLot()" style="color:var(--purple)">${icon('joblot',14)} New Job Lot</button>
             </div>
           </div>
@@ -18017,6 +18052,7 @@ function _renderStockCore(){
             ${_stockCanBulkSell?`<button class="bulk-ctrl is-sold" onclick="stockBulkAction('sold',window.__stockItems||[])">${icon('sold',14)} Mark Sold</button>
             ${_stockSelectedRows.length>1?`<button class="bulk-ctrl" style="background:var(--accent);color:#000;font-weight:700;" onclick="openBundleSaleModal()">${icon('sold',14)} Bundle sale</button>`:''}
             <select class="bulk-ctrl bulk-plat-sel" data-source="stock"><option value="">Platform</option>${Object.values(PLATFORMS).filter(p=>p.live).map(p=>`<option value="${p.id}">${p.short}</option>`).join('')}</select>`:''}
+            <button class="bulk-ctrl" onclick="openPurchaseLink()">Link purchase</button>
             ${_stockCanJobLot?`<button class="bulk-ctrl" style="color:var(--purple)" onclick="openCreateJobLotFromSelection()">${icon('joblot',14)} Job Lot</button>`:''}
             <button class="bulk-ctrl" style="color:var(--warn)" onclick="openStockBulkDispose()">${icon('dispose',14)} Dispose</button>
             <button class="bulk-ctrl is-danger" onclick="stockBulkAction('delete',window.__stockItems||[])">${icon('trash',14)} Delete</button>
@@ -20038,6 +20074,15 @@ async function deleteExpense(idx){
 }
 
 // DATA PAGE
+async function exportLocalRecovery(){
+  const uid=_currentUserId;
+  if(!uid||!window.RETRADE_LOCAL_RECOVERY){toast('Local recovery archive unavailable','err');return;}
+  try{
+    const data=await window.RETRADE_LOCAL_RECOVERY.export(uid);
+    if(uid!==_currentUserId)return;
+    _downloadText('RETRADE-Local-Recovery-'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify(data,null,2),'application/json');
+  }catch(e){toast('Could not read the local recovery archive. Download a full backup instead.','err');}
+}
 function renderData(){
   // Build FY list for annual export selector
   const fySet=new Set([_currentFYStart()]);
@@ -20097,6 +20142,7 @@ function _dataWorkspaceMarkup(monthOpts,fyOpts,pending){
     <details class="data-card data-maintenance"><summary>Data checks &amp; recovery<span>Check records or troubleshoot a sync issue</span></summary><div class="data-maintenance-body">
       <section><h2>Check your records</h2><p>Review missing dates, unusual values, return history and reporting issues. Checks do not change your records.</p>${button('Run data check',"runIntegrityCheck();document.getElementById('data-return-check').innerHTML=_renderDataIntegritySection()",true)}<div id="integrity-check-out"></div><div id="data-return-check"></div></section>
       <section><h2>Retry cloud sync</h2><p>Retry pending records if your sync status stays unresolved.</p>${button('Retry sync','retradeForceResync()')}</section>
+      <section><h2>Local recovery archive</h2><p>Download preserved conflict snapshots from this device for manual review. These are not automatically restored over your current records.</p>${button('Download recovery archive','exportLocalRecovery()')}</section>
       <details ontoggle="if(this.open&&!this.dataset.loaded){this.querySelector('.data-diagnostics').innerHTML=_diagRenderSection();this.dataset.loaded='true'}"><summary>Device diagnostics</summary><div class="data-diagnostics"></div></details>
       <details class="data-danger"><summary>Clear business data</summary><p>Permanently deletes business records and item photos. Your login and app preferences are kept.</p>${button('Clear business data','clearAllData()')}</details>
     </div></details>
@@ -22184,6 +22230,11 @@ function confirmSplit(m,id){
   const eParts=hasEst?_splitPennies(Math.round((Number(i.estSalePrice)||0)*100),n):null;
   const rootId=i.parentId||i.id;
   const baseName=i.baseName||_splitStripSuffix(i.item);
+  // Splitting an owned purchase preserves one acquisition across its units.
+  if(!i.accountId){
+    if(!i.purchaseGroupId){i.purchaseGroupId=_newId('purchase');i.purchaseGroupName=i.item||'Split purchase';}
+    i.dateSourced=i.dateSourced||i.dateListed||null;
+  }
   // unit 1 = the original, re-priced to its share
   i.costPrice=cParts[0]/100;
   if(hasEst)i.estSalePrice=eParts[0]/100;
@@ -22232,6 +22283,7 @@ function duplicateItem(m,id,context){
   if(!item)return;
   const copy=JSON.parse(JSON.stringify(item));
   copy.id=_newId('dup');
+  copy.purchaseGroupId=null;copy.purchaseGroupName=null;
   copy.gid='R-'+String(getNextGID()).padStart(4,'0');
   copy.dateListed=new Date().toISOString().split('T')[0];
   // v2.09.2 — Force a clean "active listing" state. Previously only dateSold /
@@ -23159,6 +23211,25 @@ function setTaxRegion(v){
   _syncUserSettingsToCloud();saveDB();renderTax();
 }
 
+function openTaxSummaryDownload(){
+  if(!window._taxExportData){toast('Open the Tax page first');return;}
+  if(document.getElementById('tax-export-dialog'))return;
+  const snapshot=JSON.parse(JSON.stringify(window._taxExportData));
+  const dialog=document.createElement('dialog');
+  dialog.id='tax-export-dialog';dialog.className='tax-export-dialog';
+  dialog.setAttribute('aria-labelledby','tax-export-title');
+  dialog.setAttribute('aria-describedby','tax-export-description');
+  dialog.innerHTML='<h2 id="tax-export-title">Download tax summary</h2><p id="tax-export-description">Choose a format for '+esc(snapshot.year)+'.</p><div class="tax-export-options">'
+    +[['pdf','PDF','Formatted document'],['csv','CSV','Simple data file'],['xlsx','Excel','Spreadsheet (.xlsx)']].map(([format,label,description])=>'<button type="button" class="btn btn-secondary" data-format="'+format+'"><strong>'+label+'</strong><span>'+description+'</span></button>').join('')
+    +'</div><form method="dialog"><button class="btn btn-secondary">Cancel</button></form>';
+  dialog.addEventListener('click',function(event){
+    const choice=event.target.closest('[data-format]');
+    if(choice){dialog.close();downloadTaxSummary(choice.dataset.format,snapshot);}
+    else if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();}
+  });
+  dialog.addEventListener('close',()=>dialog.remove(),{once:true});
+  document.body.appendChild(dialog);dialog.showModal();
+}
 function renderTax(){
   const page=document.getElementById('p-tax');
   const previousSettings=page.querySelector('#tax-estimate-settings');
@@ -23252,7 +23323,7 @@ function renderTax(){
   const filingForm=window._taxFilingForm==='full'?'full':'short';
   const filingGroups=new Map();
   expenseLines.forEach(function(r){const box=filingForm==='full'?r[0]:shortBoxes[r[0]];if(!filingGroups.has(box))filingGroups.set(box,{amount:0,labels:[]});const g=filingGroups.get(box);g.amount+=r[2];g.labels.push(r[1]);});
-  const filingRow=function(box,name,amount,note){return '<div class="tax-filing-row"><span><b>'+(filingForm==='full'?'Full':'Short')+' · box '+box+'</b> · '+name+'</span><strong>'+money(amount)+'</strong><small>'+note+'</small></div>';};
+  const filingRow=function(box,name,amount,note){return '<div class="tax-filing-row"><span><b>Box '+box+'</b> · '+name+'</span><strong>'+money(amount)+'</strong><small>'+note+'</small></div>';};
   const filingRows=filingRow(filingForm==='full'?15:9,'Turnover',pnl.revenue,'Sales receipts, including buyer-paid postage')
     +filingRow(filingForm==='full'?16:10,'Other business income',pnl.otherBusinessIncome||0,'Recorded supplier refunds and other business income')
     +Array.from(filingGroups.entries()).sort((a,b)=>a[0]-b[0]).map(function(entry){const [box,g]=entry;return filingRow(box,'Allowable costs',+g.amount.toFixed(2),g.labels.join(' + '));}).join('')
@@ -23301,7 +23372,7 @@ function renderTax(){
   html+=details('tax-filing','Filing references',references+'<p class="tax-note">Latest published SA103 layout; confirm the form for '+label+' before filing.</p>');
   html+=details('tax-assumptions','How this estimate works','<p class="tax-note">Recorded sale dates stand in for receipt dates; expense dates stand in for payment dates. Keep these aligned with your records. Supplier refunds use the recorded removal / refund date. This is a working estimate; verify it before filing.</p>'
     +'<p class="tax-note">This workspace uses actual expenses, not the trading allowance. Sales and Tax can differ because of dates, unsold stock, unpaid partner costs and motor deductions.</p>');
-  html+='</aside></div><button type="button" class="btn btn-primary tax-export-bottom" onclick="downloadTaxSummary()">Download tax summary</button></div>';
+  html+='</aside></div><button type="button" class="btn btn-primary tax-export-bottom" aria-haspopup="dialog" onclick="openTaxSummaryDownload()">Download tax summary</button></div>';
   window._taxExportData={year:label,method:usingTA?'Trading allowance (£1,000)':'Actual expenses',income:income,turnover:pnl.revenue,
     otherBusinessIncome:pnl.otherBusinessIncome||0,saleCount:pnl.events.filter(function(e){return !e.isReturnAdjustment;}).length,
     expenseLines:usingTA?[['Trading allowance',allowance]]:expenseLines.map(function(r){return [r[1],r[2]];}),sa103Rows:_buildSA103Rows(pnl),
@@ -25621,7 +25692,7 @@ window.addEventListener('load', function(){
 
       var col=_missingColumn(err);
       if(col && Object.prototype.hasOwnProperty.call(payload,col)){
-        if(col==='revision'||col==='client_base_revision'||col==='updated_at'){
+        if(col==='revision'||col==='client_base_revision'||col==='updated_at'||col==='purchase_group_id'||col==='purchase_group_name'){
           return {error:_schemaError(err),data:null,stripped:stripped};
         }
         if(!_allowSchemaFallback()){

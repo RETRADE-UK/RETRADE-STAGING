@@ -8,6 +8,46 @@ const {open,settled}=require('./startup-browser.cjs');
  try{
   for(const mobile of [true,false]){
    const {page,context,errors}=await open(browser,{signedIn:true,mobile});await settled(page);
+   await page.evaluate(()=>{STOCK_STATE_FILTER='all';STOCK_FILTER='stale';_saveUIState();goToTab('stock');});
+   await page.waitForFunction(()=>!document.querySelector('.page.on').hasAttribute('aria-busy'));
+   assert.deepEqual(await page.evaluate(()=>[STOCK_STATE_FILTER,STOCK_FILTER]),['listed','all'],'Stock entry clears remembered population and age filters');
+   await page.locator('[data-stock-state="all"]').click();
+   await page.waitForFunction(()=>document.querySelector('[data-stock-state="all"].is-active'));
+   await page.waitForFunction(()=>document.querySelector('#p-stock .stock-kpis').textContent.includes('Potential profit'));
+   assert.deepEqual(await page.locator('#p-stock .kpi-label').allTextContents(),['Capital tied up','Potential profit','Listed asking','Needs attention']);
+   await page.locator(mobile?'#bottom-nav [data-tab="stock"]':'.side-nav-item[data-tab="stock"]').click();
+   await page.waitForFunction(()=>STOCK_STATE_FILTER==='listed'&&document.querySelector('[data-stock-state="listed"].is-active'));
+   await page.evaluate(()=>{_activeSourcingRun=null;_goToSourcedStock();});
+   await page.waitForFunction(()=>STOCK_STATE_FILTER==='sourced'&&document.querySelector('[data-stock-state="sourced"].is-active'));
+   await page.evaluate(()=>openDashboardStock('returned'));
+   assert.equal(await page.evaluate(()=>STOCK_STATE_FILTER),'returned','Intentional Dashboard drill-down is preserved');
+   const totals=await page.evaluate(()=>{
+    const item=(id,state,price,cost,extra={})=>({id,item:id,state,salePrice:price,costPrice:cost,salePlatform:'fb',dateSourced:'2026-09-01',dateListed:new Date().toISOString().slice(0,10),parts:[],returnHistory:[],refreshHistory:[],...extra});
+    _accounts=[];DB={'SEP-26':[item('listed','listed',100,20),item('loss','listed',10,200,{dateListed:'2020-01-01'}),item('unlisted','sourced',0,30,{estSalePrice:80}),item('return','returned',900,15,{isReturned:true}),item('sold','sold',1000,400,{dateSold:'2026-09-01'}),item('removed','listed',1000,500,{scrappedAt:'2026-09-01'})],trips:[],expenses:[]};
+    const before=JSON.stringify(DB),profit=80-190+_estPotentialNet(DB['SEP-26'][2]);
+    goToTab('stock');setStockStateFilter('all');renderStock();
+    return {before,expected:[fmtK(265),fmtK(profit),fmtK(110),fmtK(245)]};
+   });
+   assert.deepEqual(await page.locator('#p-stock .kpi-value').allTextContents(),totals.expected,'All-stock totals exclude sold/removed/returned estimates and retain expected losses');
+   assert.equal(await page.evaluate(()=>JSON.stringify(DB)),totals.before,'KPI inspection does not change records');
+   const lotSnapshot=await page.evaluate(()=>{
+    DB['SEP-26'].push({id:'lot-child',item:'Lot member',state:'listed',costPrice:80,salePrice:100,parts:[],returnHistory:[],refreshHistory:[]});
+    _jobLotSchemaAvailable=true;
+    _jobLots=[{id:'aged-lot',name:'Old camera lot',status:'listed',salePrice:100,platform:'fb',dateListed:'2020-01-01',dateCreated:'2020-01-01'}];
+    _jobLotItems=[{jobLotId:'aged-lot',itemId:'lot-child',costBasisAtAdd:50}];
+    goToTab('stock');renderStock();
+    return JSON.stringify([DB,_jobLots,_jobLotItems]);
+   });
+   const aged=page.locator('#p-stock .kpi').filter({has:page.locator('.kpi-label', {hasText:'Aged capital'})});
+   assert.equal(Number((await aged.locator('.kpi-value').innerText()).replace(/[£,]/g,'')),250,'Aged lots use membership cost once, alongside individual stock');
+   assert((await aged.locator('.kpi-foot').innerText()).includes('2 of 3 stale'),'Age counts include job lots as listing units');
+   await aged.click();
+   assert.equal(await page.evaluate(()=>STOCK_FILTER),'stale','Aged capital still drills into stale listings');
+   await page.locator('[data-stock-state="all"]').click();
+   await page.waitForFunction(()=>document.querySelector('#p-stock .stock-kpis').textContent.includes('Needs attention'));
+   assert.equal(Number((await page.locator('#p-stock .kpi').filter({has:page.locator('.kpi-label',{hasText:'Needs attention'})}).locator('.kpi-value').innerText()).replace(/[£,]/g,'')),295,'All attention capital counts the aged lot once');
+   assert.equal(await page.evaluate(()=>JSON.stringify([DB,_jobLots,_jobLotItems])),lotSnapshot,'Job lot KPI inspection never mutates business records');
+   await page.evaluate(()=>{_jobLots=[];_jobLotItems=[];goToTab('stock');});
    // Realistic five-chip Stock controls must fit beside the desktop sidebar.
    for(const width of [390,768,1024,1258,1440,1920]){
     await page.setViewportSize({width,height:900});
@@ -75,6 +115,17 @@ const {open,settled}=require('./startup-browser.cjs');
    await page.getByLabel('Search sourcing runs').fill('no match');
    assert(await page.locator('#runs-empty-search').isVisible());
    await page.getByLabel('Search sourcing runs').fill('');
+   for(const width of mobile?[320,390,768]:[1440]){
+    await page.setViewportSize({width,height:900});
+    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Sourcing fits '+width);
+    if(width<=720){
+     const layout=await page.locator('#p-runs').evaluate(p=>{const cards=[...p.querySelectorAll('.runs-kpis-stack>.kpi')].map(e=>e.getBoundingClientRect()),search=p.querySelector('.runs-history-controls .inlist-search').getBoundingClientRect(),sort=p.querySelector('.past-runs-sort').getBoundingClientRect();return {cards:cards.map(r=>({x:r.x,y:r.y,w:r.width,b:r.bottom})),searchY:search.y,sortY:sort.y};});
+     assert(layout.cards[0].w>layout.cards[1].w*1.8&&layout.cards[1].y>=layout.cards[0].b,'Sourcing lead KPI spans both supporting cards');
+     assert(Math.abs(layout.cards[1].y-layout.cards[2].y)<1,'Supporting KPIs align');
+     assert(Math.abs(layout.searchY-layout.sortY)<8,'Search and sort share a row');
+    }
+    if(process.env.RETRADE_CAPTURE)await page.screenshot({path:process.env.RETRADE_CAPTURE+'/sourcing-'+width+'.png',fullPage:true});
+   }
    assert.equal(await page.evaluate(()=>JSON.stringify(DB)),dataBefore,'Inspecting/sorting/searching never writes business data');
    await page.locator('[data-runid="old"]').press('Enter');
    assert(await page.locator('#p-item').evaluate(e=>e.classList.contains('on')),'Keyboard opens source run');
@@ -98,6 +149,7 @@ const {open,settled}=require('./startup-browser.cjs');
      if(tab==='monthly'){
       assert(await page.getByLabel('Choose sales month').evaluate(e=>e.scrollWidth<=e.clientWidth+1),'Full month title fits '+width);
       await page.getByLabel('Search sales').fill('Camera');
+      await page.waitForFunction(()=>document.querySelectorAll('#month-list .item-row').length===1);
       assert.equal(await page.locator('#month-list .item-row').count(),1);
       await page.getByLabel('Search sales').fill('');
       await page.locator('#p-monthly .select-toggle').click();

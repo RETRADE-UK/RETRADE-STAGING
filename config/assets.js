@@ -1,9 +1,10 @@
 /* Runtime asset contract. Ordered classic scripts: do not alphabetise.
  * Shared by the browser loader, service worker and validation tools. */
 globalThis.RT_ASSETS = Object.freeze({
-  "build": "20260929-v1593-monitors-staging",
+  "build": "20260929-v15102-purchases-staging",
   "environment": "staging",
   "entry": [
+    "src/platform/local-recovery.js",
     "src/domain/accounting-engine.js",
     "src/domain/report-engine.js"
   ],
@@ -21,6 +22,7 @@ globalThis.RT_ASSETS = Object.freeze({
   ],
   "deferred": [
     "src/platform/staging-auth.js",
+    "src/features/purchases/groups.js",
     "src/features/bundles/orders.js",
     "src/features/bundles/panel.js",
     "src/features/bundles/row-polish.js",

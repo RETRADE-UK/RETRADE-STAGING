@@ -10,6 +10,7 @@ assert.equal(other.build,assets.build+'-staging','Release generations must match
 const normalised={...other,build:assets.build,environment:assets.environment,bindings:[],deferred:other.deferred.filter(f=>f!=='src/platform/staging-auth.js'),lazy:other.lazy.filter(f=>!['src/features/monitors/cloud.js','src/features/monitors/page.js'].includes(f)),styles:other.styles.filter(f=>f!=='assets/styles/monitors.css'),legacy:{...other.legacy}};
 delete normalised.legacy['staging-supabase.js'];delete normalised.legacy['staging-dev-auth.js'];assert.deepEqual(normalised,assets,'Unexpected manifest drift');
 function normalise(file,text){
+ text=text.replace(/\r\n/g,'\n');
  text=text.replaceAll(other.build,assets.build);
  if(file==='index.html')text=text.split('\n').filter(line=>!/assets\/styles\/monitors\.css|data-tab="monitors"|data-sheet-tab="monitors"|id="p-monitors"/.test(line)).join('\n');
  if(file==='src/core/application.js'){
