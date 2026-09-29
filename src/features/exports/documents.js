@@ -67,8 +67,11 @@
         // Keep both pieces at their original scale and preserve all text spacing.
         var canvas=document.createElement('canvas');canvas.width=1530;canvas.height=Math.round(canvas.width*img.naturalHeight/img.naturalWidth);
         var ctx=canvas.getContext('2d'),scale=canvas.width/img.naturalWidth,split=1650;
-        var textOffset=(48+1748)/2-(335+1440)/2+60;
-        ctx.drawImage(img,0,0,split,img.naturalHeight,0,0,split*scale,canvas.height);
+        // Fine adjustment from the approved layout: shield up 0.2 mm,
+        // complete title/tagline down 0.2 mm, at the unchanged 42 mm width.
+        var adjustment=0.2*img.naturalWidth/42;
+        var textOffset=(48+1748)/2-(335+1440)/2+60+adjustment;
+        ctx.drawImage(img,0,0,split,img.naturalHeight,0,-adjustment*scale,split*scale,canvas.height);
         ctx.drawImage(img,split,0,img.naturalWidth-split,img.naturalHeight,split*scale,textOffset*scale,(img.naturalWidth-split)*scale,canvas.height);
         resolve(canvas.toDataURL('image/png'));
       }catch(err){reject(err);}};
