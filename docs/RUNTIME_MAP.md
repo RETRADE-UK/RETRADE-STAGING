@@ -445,3 +445,14 @@ and monitor database/browser checks. A separate mobile UI check downloaded the
 recovery archive and verified its exact preserved bytes. Staging purchase columns
 and item RLS were rechecked read-only. Shared tooling also includes live's path
 separator and line-ending normalization fixes. Protected PR: RETRADE-STAGING #16.
+
+### Purchase transaction item drill-down
+
+`cashflow/transaction-details.js` renders each grouped acquisition movement's
+own `itemIds`, with item title, stock reference/state and allocated cost. Each
+row opens the current item record directly with Cashflow as its return route.
+The wider purchase remains available separately; items paid on another date are
+not mixed into this payment. Missing records are non-clickable; clicks re-resolve
+the current record. No ledger, totals, persistence or schema changes.
+Desktop/mobile purchase tests cover both direct links, unchanged records, narrow
+layout and date-specific membership. Cache: 20260929-v15103-purchase-items-staging.
