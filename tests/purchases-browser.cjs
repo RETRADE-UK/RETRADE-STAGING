@@ -21,12 +21,32 @@ const {open,settled}=require('./startup-browser.cjs');
    const roundtrip=rows.map(i=>_rowToItem(_itemToRow(i,'SEP-26'),[],[]));
    return {cost:rows.reduce((s,i)=>s+i.costPrice,0),count:ev.length,amount:ev[0].amount,id:ev[0].id,group:rows[0].purchaseGroupId,roundtrip:roundtrip.map(i=>i.purchaseGroupId),states:rows.map(i=>i.state)};
   });assert.equal(result.cost,97.25);assert.equal(result.count,1);assert.equal(result.amount,97.25);assert.deepEqual(result.roundtrip,[result.group,result.group]);assert.deepEqual(result.states,['sourced','sourced']);
-  await page.locator('#purchase-close').click();await page.evaluate(id=>openCashflowTransaction(id),result.id);await page.locator('#cash-transaction-edit').click();assert.equal(await page.locator('.purchase-member').count(),2);
+  await page.locator('#purchase-close').click();
+  const beforeInspect=await page.evaluate(()=>JSON.stringify(DB));
+  await page.evaluate(id=>{goToTab('cash');openCashflowTransaction(id);},result.id);
+  assert.equal(await page.locator('[data-cash-purchase-item]').count(),2);
+  assert.match(await page.locator('[data-cash-purchase-item="0"]').innerText(),/Camera starter kit[\s\S]*£60\.00/);
+  assert.match(await page.locator('[data-cash-purchase-item="1"]').innerText(),/55–250mm lens[\s\S]*£37\.25/);
+  for(let n=0;n<2;n++){
+   await page.locator('[data-cash-purchase-item="'+n+'"]').click();
+   assert(await page.locator('#p-item').evaluate(el=>el.classList.contains('on')));
+   assert.equal(await page.evaluate(()=>_itemPageOrigin),'p-cash');
+   assert.match(await page.locator('#p-item').innerText(),n===0?/Camera starter kit/:/55–250mm lens/);
+   assert(await page.evaluate(n=>window._purchaseItemContext.id===DB['SEP-26'][n].id,n));
+   await page.evaluate(()=>exitItemPage());assert.equal(await page.locator('.page.on').getAttribute('id'),'p-cash');
+   await page.evaluate(id=>openCashflowTransaction(id),result.id);
+  }
+  assert.equal(await page.evaluate(()=>JSON.stringify(DB)),beforeInspect,'Inspecting payment/items must not change records');
+  if(mobile){await page.setViewportSize({width:320,height:844});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));await page.setViewportSize({width:390,height:844});}
+  await page.locator('#cash-transaction-edit').click();assert.equal(await page.locator('.purchase-member').count(),2);
   await page.locator('.purchase-member>button').first().click();assert(await page.locator('.purchase-item-link').isVisible());await page.locator('.purchase-item-link').click();
   // Listing, sale and return history retain identity and do not duplicate acquisition.
   const lifecycle=await page.evaluate(()=>{const i=DB['SEP-26'][0];i.state='sold';i.dateListed='2026-09-28';i.dateSold='2026-09-28';i.salePrice=150;i.salePlatform='fb';const before=calcGrossProfit(i);const group=i.purchaseGroupId;i.purchaseGroupId=null;const after=calcGrossProfit(i);i.purchaseGroupId=group;return {before,after,purchases:_cashEventsAll().filter(e=>e.type==='stock_purchase').map(e=>e.amount)};});assert.equal(lifecycle.before,lifecycle.after);assert.deepEqual(lifecycle.purchases,[97.25]);
   // An altered date must never move somebody else's historical cash payment.
   assert.deepEqual(await page.evaluate(()=>{DB['SEP-26'][0].dateSourced='2026-09-27';return _cashEventsAll().filter(e=>e.type==='stock_purchase').map(e=>e.amount).sort((a,b)=>a-b);}),[37.25,60]);
+  await page.evaluate(()=>openCashflowTransaction(_cashEventsAll().find(e=>e.type==='stock_purchase'&&e.amount===60).id));
+  assert.equal(await page.locator('[data-cash-purchase-item]').count(),1,'Only the dated payment members are shown');
+  assert.match(await page.locator('[data-cash-purchase-item]').innerText(),/Camera starter kit/);
   await page.evaluate(()=>{closePanel();const a=DB['SEP-26'][0];a.state='listed';a.dateSold=null;a.dateSourced='2026-09-28';DB['SEP-26'].push({...a,id:'new-lens',item:'Another item',purchaseGroupId:null,purchaseGroupName:null,costPrice:5});openPurchaseLink(['new-lens']);});
   await page.locator('#purchase-existing').selectOption(result.group);await page.locator('#purchase-link-save').click();assert.equal(await page.locator('.purchase-member').count(),3);
   assert.equal(await page.evaluate(()=>_cashEventsAll().find(e=>e.type==='stock_purchase').amount),102.25);
