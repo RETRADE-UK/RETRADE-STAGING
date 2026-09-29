@@ -6,7 +6,7 @@ const ignored=require('node:child_process').spawnSync('git',['check-ignore','--s
 assert.equal(ignored.stdout.trim(),'','Deployable files must not be hidden by gitignore');
 for(const file of shipped){assert(!file.includes('..')&&!path.isAbsolute(file));assert(fs.existsSync(path.join(root,file)),`Missing asset: ${file}`);assert(!/archive|experiments/.test(file),`Inactive code shipped: ${file}`);}
 function walk(dir){return fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(path.join(dir,e.name)):[path.join(dir,e.name)]);}
-for(const file of walk(path.join(root,'src')).filter(f=>f.endsWith('.js')))assert(allowed.has(path.relative(root,file)),`Unowned source: ${file}`);
+for(const file of walk(path.join(root,'src')).filter(f=>f.endsWith('.js')))assert(allowed.has(path.relative(root,file).split(path.sep).join('/')),`Unowned source: ${file}`);
 for(const file of [...scripts,'sw.js',...walk(path.join(root,'scripts')).filter(f=>f.endsWith('.cjs')),...walk(path.join(root,'tests')).filter(f=>f.endsWith('.cjs'))])execFileSync(process.execPath,['--check',path.resolve(root,file)]);
 for(const file of scripts.concat('index.html')){
  const source=fs.readFileSync(path.join(root,file),'utf8');

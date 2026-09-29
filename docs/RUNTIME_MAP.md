@@ -372,9 +372,9 @@ Existing Split into units now retains one purchase identity; Duplicate deliberat
 starts a separate purchase. Security advisors reported existing auth/monitor
 findings; this migration changes no policies, grants or functions.
 
-Validation: purchase creation/linking/unlinking/split tests pass on mobile and
+Initial validation: purchase creation/linking/unlinking/split tests passed on mobile and
 desktop, including legacy source-date preservation and cloud row round-trips.
-`npm run check` and `npm run build` pass. The full browser command reaches an
+`npm run check` and `npm run build` passed. The full browser command reached an
 existing Sales date-label assertion on the locally available Chromium 138:
 `Tue, 22 Sept` versus a literal `Tue 22 Sep`. The same failure was reproduced on
 unchanged staging `416c33c`; do not treat it as a purchase regression or alter
@@ -387,7 +387,8 @@ The remainder of the browser suite was then run separately and passed, including
 navigation, scrolling, workspace layouts, loading, backups/imports, sync and monitor
 database/browser isolation. The only local suite failure is the baseline Sales
 locale assertion described above. Purchase-specific tests were rerun after the
-legacy split-date fix and passed on both viewports.
+legacy split-date fix and passed on both viewports. See the combined-release
+validation below for the subsequent complete passing run.
 
 ### Shared PDF banner alignment — 29 September
 
@@ -432,3 +433,10 @@ archive for manual review; it is not automatically replayed over cloud records.
 Blocked storage retains a clear warning to keep the app open and export a backup.
 No new schema changes for this repair. Local-saving tests exercise desktop/mobile
 quota recovery, denied storage, account isolation, concurrent edits and reload.
+
+Release validation: the full `npm test`, `npm run check` and `npm run build` pass
+on the combined tree, including Sales, Tax downloads, sync/recovery, purchases
+and monitor database/browser checks. A separate mobile UI check downloaded the
+recovery archive and verified its exact preserved bytes. Staging purchase columns
+and item RLS were rechecked read-only. Shared tooling also includes live's path
+separator and line-ending normalization fixes. Protected PR: RETRADE-STAGING #16.
