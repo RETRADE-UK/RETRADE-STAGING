@@ -96,7 +96,7 @@ async function pushBatch(c: any) {
       // Build encrypted Web Push using a pinned library, send through bounded fetch.
       const req = webpush.generateRequestDetails(
         sub.subscription,
-        JSON.stringify(job.payload),
+        JSON.stringify({ ...job.payload, listingId: job.listing_id || null }),
         {
           vapidDetails: { subject: "https://test.retrade-uk.com", ...c.vapid },
           TTL: 300,
@@ -349,6 +349,31 @@ Deno.serve(async (req) => {
           p_data: data,
         }),
       });
+    }
+    if (input.op === "device") {
+      if (typeof input.endpoint !== "string" || input.endpoint.length > 2048)
+        throw new TypeError("Invalid device");
+      const rows = await db("monitor_push_subscriptions?user_id=eq." + user.id +
+        "&endpoint=eq." + eq(input.endpoint) + "&select=id&limit=1");
+      return reply({ registered: rows.length === 1 });
+    }
+    if (input.op === "history") {
+      const m = await own(user.id, input.id);
+      if (!['all','new','saved'].includes(input.filter) || typeof input.query !== 'string' || input.query.length > 100)
+        throw new TypeError("Invalid history filter");
+      const c = input.cursor;
+      if (c != null && (typeof c !== 'object' || typeof c.at !== 'string' || c.at.length > 40 || !Number.isFinite(Date.parse(c.at)) || typeof c.id !== 'string' || !/^[1-9]\d{0,19}$/.test(c.id)))
+        throw new TypeError("Invalid history cursor");
+      return reply(await rpc("monitor_history", {p_user:user.id,p_monitor:m.id,p_filter:input.filter,p_query:input.query,p_cursor:c || null}));
+    }
+    if (input.op === "itemState") {
+      const m = await own(user.id, input.id);
+      if (typeof input.listingId !== 'string' || !/^[1-9]\d{0,19}$/.test(input.listingId) ||
+          (input.saved !== undefined && typeof input.saved !== 'boolean') ||
+          (input.read !== undefined && typeof input.read !== 'boolean') ||
+          (input.saved === undefined && input.read === undefined)) throw new TypeError("Invalid listing action");
+      await rpc("monitor_set_item_state", {p_user:user.id,p_monitor:m.id,p_listing:input.listingId,p_saved:input.saved ?? null,p_read:input.read ?? null});
+      return reply({ok:true});
     }
     if (input.op === "feed") {
       const m = await own(user.id, input.id);

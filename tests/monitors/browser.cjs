@@ -28,7 +28,7 @@ const { open, settled } = require("../startup-browser.cjs");
           },
         ],
         calls = 0, failBootstrap = true, delayedSave = null, releaseSave = null,
-        statusState = "blocked", feedRows = [];
+        statusState = "blocked", feedRows = [], failState = false, deviceRegistered = false;
       await page.route("**/functions/v1/monitor-service", async (route) => {
         calls++;
         const d = route.request().postDataJSON();
@@ -51,6 +51,15 @@ const { open, settled } = require("../startup-browser.cjs");
           failBootstrap = false; status = 503; response = { error: "Temporary startup failure" };
         }
         if (d.op === "status") response.source.status = statusState;
+        if (d.op === 'device') response={registered:deviceRegistered};
+        if (d.op === 'subscribe') {deviceRegistered=true;response={ok:true};}
+        if (d.op === 'unsubscribe') {deviceRegistered=false;response={ok:true};}
+        if (d.op === 'testPush') response={message:'Push provider accepted the test. Check your phone to confirm receipt.'};
+        if (d.op === 'history') response = {rows:feedRows.filter(r=>d.filter !== 'saved' || r.saved),nextCursor:null};
+        if (d.op === 'itemState') {
+          if(failState) {status=400;response={error:'Item save failed'};}
+          else {const row=feedRows.find(r=>r.listing.id===d.listingId); if(d.saved!==undefined)row.saved=d.saved; if(d.read!==undefined)row.read_at=d.read?'2026-10-05T10:00:00Z':null;response={ok:true};}
+        }
         if (d.op === "feed")
           response = {
             matches: feedRows,
@@ -92,6 +101,10 @@ const { open, settled } = require("../startup-browser.cjs");
       await page.evaluate(() => {
         _currentUserId = "ui-test";
         window.__fixtureSession.access_token = "synthetic-test";
+        const sub={endpoint:'https://fcm.googleapis.com/fcm/send/fixture',toJSON(){return {endpoint:this.endpoint,keys:{p256dh:'fixture',auth:'fixture'}};},async unsubscribe(){return true;}};
+        Object.defineProperty(navigator,'serviceWorker',{configurable:true,value:{getRegistration:async()=>({active:true,pushManager:{getSubscription:async()=>sub}})}});
+        Object.defineProperty(window,'PushManager',{configurable:true,value:function(){}});
+        Object.defineProperty(window,'Notification',{configurable:true,value:{permission:'granted',requestPermission:async()=>{window.__pushPermissionAsked=true;return 'granted';}}});
         const interval = window.setInterval;
         window.setInterval = function(fn, ms, ...args) {
           if(ms === 30000) window.__monitorPoll = fn;
@@ -104,6 +117,16 @@ const { open, settled } = require("../startup-browser.cjs");
       await page
         .getByText("Live source not connected", { exact: true })
         .waitFor();
+      assert.equal(await page.locator('[data-panel="manage"]').isVisible(),false);
+      assert.equal(await page.locator('[data-panel="alerts"]').isVisible(),false);
+      await page.getByLabel('Monitor workspace').getByRole('button',{name:'Alerts',exact:true}).click();
+      assert.equal(await page.locator('[data-action="test"]').isEnabled(),false,'Another endpoint/account does not imply this device is ready');
+      await page.locator('[data-action="push"]').click();
+      await page.getByText('This device is connected. Send a test to confirm receipt.',{exact:true}).waitFor();
+      assert(await page.evaluate(()=>window.__pushPermissionAsked));
+      await page.locator('[data-action="test"]').click();
+      await page.getByText('Push provider accepted the test. Check your phone to confirm receipt.',{exact:true}).waitFor();
+      await page.getByLabel('Monitor workspace').getByRole('button',{name:'Monitors',exact:true}).click();
       await page
         .getByRole("button", { name: "+ New monitor", exact: true })
         .click();
@@ -133,7 +156,7 @@ const { open, settled } = require("../startup-browser.cjs");
       await page.getByRole("button", { name: "+ New monitor", exact: true }).click();
       await dialog.getByLabel("Name", { exact: true }).fill("Keep this draft");
       releaseSave();
-      await page.getByText("Slow save", { exact: true }).waitFor();
+      await page.locator('.monitor-list').getByText("Slow save", { exact: true }).waitFor();
       assert.equal(await dialog.getByLabel("Name", { exact: true }).inputValue(),"Keep this draft");
       await dialog.getByRole("button", { name: "Close builder" }).click();
       // The existing Canon codes keep their aliases; added phrases are custom.
@@ -152,13 +175,27 @@ const { open, settled } = require("../startup-browser.cjs");
       feedRows = [{ listing: { id:'12345', title:'<script>hostile title</script>', itemPricePence:8500,
         imageUrls:['https://images.vinted.net/one.jpg','https://images.vinted.net/two.jpg','javascript:alert(1)'] },
         result:{status:'match',warnings:[]}, observed_at:'2026-09-27T10:00:00Z' }];
+      await page.getByRole('button',{name:'Finds',exact:true}).click();
       await page.getByRole('button',{name:'Refresh',exact:true}).click();
       await page.getByText('<script>hostile title</script>',{exact:true}).waitFor();
       assert.equal(await page.locator('.monitor-feed script').count(),0);
+      await page.locator('.monitor-item-details > summary').click();
       await page.locator('.monitor-gallery summary').click();
       assert.equal(await page.locator('.monitor-gallery img').count(),2);
       await page.getByRole('button',{name:'Refresh',exact:true}).click();
       assert(await page.locator('.monitor-gallery').evaluate(e=>e.open));
+      failState=true;
+      const failedItemWrite=page.waitForResponse(r=>r.url().includes('monitor-service') && r.request().postDataJSON().op==='itemState');
+      await page.locator('[data-action="save-item"]').click();
+      assert.equal((await failedItemWrite).status(),400);
+      await page.getByText('Item save failed',{exact:true}).waitFor();
+      assert.equal(await page.locator('[data-action="save-item"]').textContent(),'Save');
+      failState=false;
+      await page.locator('[data-action="save-item"]').click();
+      await page.locator('[data-action="save-item"][aria-pressed="true"]').waitFor();
+      await page.locator('[data-action="read-item"]').click();
+      await page.getByRole('button',{name:'Mark unread',exact:true}).waitFor();
+      await page.locator('.monitor-tools > summary').click();
       const downloadEvent=page.waitForEvent('download');
       await page.getByRole('button',{name:'Export sample CSV'}).click();
       const download=await downloadEvent;
