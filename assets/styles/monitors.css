@@ -370,10 +370,13 @@
 .monitor-feed-toolbar { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(240px, 1fr); gap: 16px; }
 .monitor-search-form { display: flex; gap: 8px; align-items: end; }
 .monitor-search-form label { flex: 1; min-width: 0; }
+.monitor-search-toggle { display: none; }
 .monitor-picker { width: 100%; min-height: 44px; background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px; font: inherit; font-size: 16px; }
 .monitor-filters { display: flex; gap: 6px; grid-column: 1/-1; }
 .monitor-health { margin-bottom: 16px; padding: 12px 16px; }
-.monitor-health summary { min-height: 32px; line-height: 32px; color: var(--muted); font-size: 12px; cursor: pointer; }
+.monitor-health > div { display: flex; flex: 1; flex-wrap: wrap; gap: 4px 10px; justify-content: space-between; align-items: center; }
+.monitor-health details[open] { flex-basis: 100%; }
+.monitor-health summary { min-height: 28px; line-height: 28px; color: var(--muted); font-size: 12px; cursor: pointer; }
 .monitor-day { padding-top: 20px; color: var(--muted); font-size: 12px !important; font-weight: 600; }
 .monitor-listing { grid-template-columns: 150px minmax(0, 1fr); }
 .monitor-listing > img, .monitor-listing > .monitor-photo-empty { width: 150px; height: 155px; }
@@ -393,10 +396,17 @@
 .monitor-alert-row .btn { flex: none; }
 .monitor-load-more { margin-top: 16px; }
 @media(max-width:600px) {
+ .monitor-header { margin-bottom: 14px; align-items: center; }
+ .monitor-header p { display: none; }
  .monitor-page .monitor-header > .btn { max-width: none; font-size: 12px; padding: 10px; }
  .monitor-navigation { gap: 4px; }
  .monitor-navigation .btn { padding: 9px 10px; font-size: 12px; }
  .monitor-feed-toolbar { grid-template-columns: minmax(0,1fr); gap: 12px; }
+ .monitor-search-form { display: none; grid-row: 3; }
+ .monitor-search-form.is-open { display: flex; }
+ .monitor-search-toggle { display: inline-flex; align-items: center; }
+ .monitor-filters { flex-wrap: wrap; }
+ .monitor-filters .btn { padding: 10px 12px; font-size: 12px; }
  .monitor-list { grid-template-columns: minmax(0,1fr); }
  .monitor-listing { grid-template-columns: 84px minmax(0,1fr); gap: 12px; }
  .monitor-listing > img, .monitor-listing > .monitor-photo-empty { width: 84px; height: 108px; }

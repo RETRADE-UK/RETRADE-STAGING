@@ -62,6 +62,10 @@
     var toolbar = document.createElement("div"); toolbar.className = "monitor-feed-toolbar";
     toolbar.innerHTML = '<label>Monitor<select class="monitor-picker" aria-label="Choose monitor"></select></label><form class="monitor-search-form"><label>Search history<input name="query" type="search" maxlength="100" placeholder="Model, title or listing ID"></label><button class="btn" type="submit">Search</button></form><div class="monitor-filters" role="group" aria-label="Filter found items"><button class="btn is-active" data-action="filter" data-filter="all" aria-pressed="true">History</button><button class="btn" data-action="filter" data-filter="new" aria-pressed="false">Unread</button><button class="btn" data-action="filter" data-filter="saved" aria-pressed="false">Saved</button></div>';
     finds.prepend(toolbar);
+    var searchToggle = document.createElement("button"); searchToggle.className = "btn monitor-search-toggle";
+    searchToggle.dataset.action = "search-toggle"; searchToggle.textContent = "Search";
+    searchToggle.setAttribute("aria-expanded","false"); searchToggle.setAttribute("aria-controls","monitor-history-search");
+    $(".monitor-search-form").id = "monitor-history-search"; $(".monitor-filters").appendChild(searchToggle);
     var tools = document.createElement("details"); tools.className = "monitor-tools";
     tools.innerHTML = "<summary>Examples &amp; Discord comparison</summary><p>Testing tools only. These do not connect a listing source.</p>";
     tools.appendChild(finds.querySelector(".monitor-section-title")); tools.querySelector("h2").remove();
@@ -123,7 +127,7 @@
               ? "Catalogue temporarily unavailable"
               : "Live source not connected",
         ) +
-        '</strong><details><summary>Connection details</summary><p>' +
+        '</strong><details><summary>Details</summary><p>' +
         esc(data.source.message) +
         "</p><small>Checked " +
         esc(time(data.source.checkedAt)) +
@@ -245,7 +249,7 @@
       historyRows = more ? historyRows.concat(result.rows) : result.rows;
       historyExpanded = !!more;
       historyCursor = result.nextCursor;
-      $(".monitor-feed-note").textContent = historyRows.length + (historyCursor ? "+" : "") + " finds · saved to your account · all rule versions";
+      $(".monitor-feed-note").textContent = historyRows.length + (historyCursor ? "+" : "") + (historyRows.length === 1 && !historyCursor ? " find" : " finds") + " · all rule versions" + (historyQuery ? ' · Search: “' + historyQuery + '”' : ' · saved to your account');
       $('[data-action="more"]').hidden = !historyCursor;
       var signature = JSON.stringify([id,historyFilter,historyRows]);
       if (signature === lastFeed) return;
@@ -653,6 +657,11 @@
         if (action === "duplicate") editor(m, true);
         if (action === "select") { select(m.id); controls(); showSection("finds"); await loadHistory(false); }
         if (action === "section") showSection(b.dataset.section);
+        if (action === "search-toggle") {
+          var isOpen = $(".monitor-search-form").classList.toggle("is-open");
+          b.setAttribute("aria-expanded",String(isOpen));
+          if (isOpen) $(".monitor-search-form input").focus();
+        }
         if (action === "filter") {
           historyFilter = b.dataset.filter; preview = false; clearFeed();
           $('[data-action="preview"]').textContent = "Preview example cards";

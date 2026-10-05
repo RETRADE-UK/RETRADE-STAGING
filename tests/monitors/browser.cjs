@@ -176,6 +176,12 @@ const { open, settled } = require("../startup-browser.cjs");
         imageUrls:['https://images.vinted.net/one.jpg','https://images.vinted.net/two.jpg','javascript:alert(1)'] },
         result:{status:'match',warnings:[]}, observed_at:'2026-09-27T10:00:00Z' }];
       await page.getByRole('button',{name:'Finds',exact:true}).click();
+      if(mobile) {
+        assert.equal(await page.locator('.monitor-search-form').isVisible(),false);
+        await page.locator('[data-action="search-toggle"]').click();
+        assert.equal(await page.locator('.monitor-search-form').isVisible(),true);
+        await page.locator('[data-action="search-toggle"]').click();
+      }
       await page.getByRole('button',{name:'Refresh',exact:true}).click();
       await page.getByText('<script>hostile title</script>',{exact:true}).waitFor();
       assert.equal(await page.locator('.monitor-feed script').count(),0);
