@@ -471,3 +471,13 @@ Sourced-item Back and purchase link now share a non-wrapping flex row owned by
 `workspaces.css`. Back retains its full hit target; the purchase name truncates
 visually while its full label remains accessible and in purchase details.
 Cache: 20260929-v15105-purchase-row-staging.
+
+### Monitor inbox — 5 October
+
+`src/features/monitors/page.js` owns Finds / Monitors / Alerts navigation, history
+filters, saved/read actions and device verification. `monitor-service` owns their
+authenticated endpoints; `monitor_history_inbox` adds service-role-only invoker
+RPCs and owner-readable disposition storage. `sw.js` validates listing IDs before
+opening Vinted on an alert click. No provider URLs or credentials enter the client.
+The existing comparator remains separate from all-history browsing. Source remains
+blocked. See `docs/features/monitors/INBOX_UX_2026-10-05.md`.

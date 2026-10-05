@@ -77,6 +77,22 @@ test('anonymous staging users cannot subscribe or send pushes', async () => {
   assert.equal((await post({ op: 'testPush' })).status, 403);
 });
 
+test('history/state/device operations use verified owner and reject malformed requests', async () => {
+  const calls=transport((path,body)=>{
+    if(path==='/auth/v1/user')return {id:user};
+    if(path.startsWith('/rest/v1/monitor_recipes?'))return [{id,revision:3}];
+    if(path.endsWith('/rpc/monitor_history')){assert.equal(body.p_user,user);return {rows:[],nextCursor:null};}
+    if(path.endsWith('/rpc/monitor_set_item_state')){assert.equal(body.p_user,user);return null;}
+    if(path.startsWith('/rest/v1/monitor_push_subscriptions?')){assert(path.includes('user_id=eq.'+user));assert(path.includes('select=id'));return [{id:'device'}];}
+  });
+  assert.equal((await post({op:'history',id,filter:'all',query:'',user_id:'foreign'})).status,200);
+  assert.equal((await post({op:'history',id,filter:'all',query:'',cursor:{at:'bad',id:'1'}})).status,400);
+  assert.equal((await post({op:'itemState',id,listingId:'1',saved:'true'})).status,400);
+  assert.equal((await post({op:'itemState',id,listingId:'1',saved:true})).status,200);
+  assert.deepEqual(await (await post({op:'device',endpoint:'https://push.example/fixture'})).json(),{registered:true});
+  assert.equal(calls.filter(c=>c.path.endsWith('/rpc/monitor_set_item_state')).length,1);
+});
+
 test('request-heavy recipes cannot starve never-scanned monitors in an unordered claim batch', async () => {
   const waiting = '33333333-3333-4333-8333-333333333333';
   const calls = transport(path => {

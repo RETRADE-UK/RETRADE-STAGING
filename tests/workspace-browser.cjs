@@ -62,7 +62,13 @@ const {open,settled}=require('./startup-browser.cjs');
     assert(!await page.locator('#p-stock .filter-pill-dd-menu').isVisible(),'Escape closes age filter');
     const stockBox=await page.locator('#p-stock').boundingBox();
     for(const tab of ['stock','monthly']){
-     if(tab==='monthly'){await page.evaluate(()=>goToTab('monthly'));await page.waitForFunction(()=>!document.querySelector('.page.on').hasAttribute('aria-busy'));}
+     if(tab==='monthly'){
+      await page.evaluate(()=>goToTab('monthly'));
+      await page.waitForFunction(()=>!document.querySelector('.page.on').hasAttribute('aria-busy'));
+      // This geometry fixture stores its sale in September; current-month entry
+      // becomes empty after September and intentionally has no selection toolbar.
+      await page.evaluate(()=>goToMonth('SEP-26'));
+     }
      await page.waitForTimeout(400); // Allow the page entrance transform to settle before measuring.
      const geometry=await page.locator('.page.on .rt-list-controls').evaluate(el=>{
       const rect=s=>el.querySelector(s).getBoundingClientRect();

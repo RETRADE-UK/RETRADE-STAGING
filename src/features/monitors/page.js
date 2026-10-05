@@ -30,10 +30,12 @@
       selected = null,
       feedToken = 0,
       refreshToken = 0,
+      actionSerial = 0,
       lastControls = null,
       comparison = null,
       lastFeed = null,
       preview = false,
+      historyRows = [], historyCursor = null, historyExpanded = false, historyFilter = "all", historyQuery = "", historyToken = 0,
       timer = null,
       dialog = null;
     root.innerHTML =
@@ -41,6 +43,41 @@
     var $ = function (s) {
       return root.querySelector(s);
     };
+    // Finds lead in DOM and visual order at every width.
+    var nav = document.createElement("div");
+    nav.className = "monitor-navigation"; nav.setAttribute("role", "navigation"); nav.setAttribute("aria-label", "Monitor workspace");
+    nav.innerHTML = '<button class="btn is-active" data-action="section" data-section="finds" aria-current="page">Finds</button><button class="btn" data-action="section" data-section="manage">Monitors</button><button class="btn" data-action="section" data-section="alerts">Alerts</button>';
+    nav.appendChild($('[data-action="refresh"]')); $(".monitor-layout").before(nav);
+    var manage = $(".monitor-layout aside"), finds = $(".monitor-results"), alerts = $(".monitor-phone");
+    manage.dataset.panel = "manage"; finds.dataset.panel = "finds"; alerts.dataset.panel = "alerts";
+    $(".monitor-layout").appendChild(alerts); $(".monitor-layout").prepend(finds);
+    manage.hidden = true; alerts.hidden = true;
+    alerts.querySelector("h2").textContent = "Alerts on this device";
+    alerts.querySelector("h2").nextElementSibling.textContent = "Receive new confirmed matches even when RETRADE is closed. Tap an item alert to open that listing on Vinted.";
+    $(".monitor-eyebrow").textContent = "VINTED UK · STAGING";
+    var device = document.createElement("p"); device.className = "monitor-device-status"; device.setAttribute("role","status"); alerts.querySelector(".monitor-actions").before(device);
+    $('[data-action="test"]').disabled = true;
+    $('[data-action="unpush"]').disabled = true;
+    var choices = document.createElement("div"); choices.className = "monitor-alert-list"; alerts.appendChild(choices);
+    var toolbar = document.createElement("div"); toolbar.className = "monitor-feed-toolbar";
+    toolbar.innerHTML = '<label>Monitor<select class="monitor-picker" aria-label="Choose monitor"></select></label><form class="monitor-search-form"><label>Search history<input name="query" type="search" maxlength="100" placeholder="Model, title or listing ID"></label><button class="btn" type="submit">Search</button></form><div class="monitor-filters" role="group" aria-label="Filter found items"><button class="btn is-active" data-action="filter" data-filter="all" aria-pressed="true">History</button><button class="btn" data-action="filter" data-filter="new" aria-pressed="false">Unread</button><button class="btn" data-action="filter" data-filter="saved" aria-pressed="false">Saved</button></div>';
+    finds.prepend(toolbar);
+    var searchToggle = document.createElement("button"); searchToggle.className = "btn monitor-search-toggle";
+    searchToggle.dataset.action = "search-toggle"; searchToggle.textContent = "Search";
+    searchToggle.setAttribute("aria-expanded","false"); searchToggle.setAttribute("aria-controls","monitor-history-search");
+    $(".monitor-search-form").id = "monitor-history-search"; $(".monitor-filters").appendChild(searchToggle);
+    var tools = document.createElement("details"); tools.className = "monitor-tools";
+    tools.innerHTML = "<summary>Examples &amp; Discord comparison</summary><p>Testing tools only. These do not connect a listing source.</p>";
+    tools.appendChild(finds.querySelector(".monitor-section-title")); tools.querySelector("h2").remove();
+    tools.appendChild($(".monitor-comparison")); finds.appendChild(tools);
+    var more = document.createElement("button"); more.className = "btn monitor-load-more"; more.dataset.action = "more"; more.textContent = "Load older finds"; more.hidden = true; tools.before(more);
+    function showSection(name) {
+      root.querySelectorAll("[data-panel]").forEach(function(el) {el.hidden = el.dataset.panel !== name;});
+      root.querySelectorAll('[data-action="section"]').forEach(function(el) {
+        el.classList.toggle("is-active", el.dataset.section === name);
+        if(el.dataset.section === name) el.setAttribute("aria-current","page"); else el.removeAttribute("aria-current");
+      });
+    }
     function message(s, error) {
       if (alive) {
         $(".monitor-message").textContent = s;
@@ -56,7 +93,8 @@
       );
     }
     function clearFeed() {
-      ++feedToken;
+      ++feedToken; ++historyToken;
+      historyRows = []; historyCursor = null; historyExpanded = false;
       lastFeed = null;
       comparison = null;
       $(".monitor-feed").innerHTML = '<p role="status">Loading this monitor…</p>';
@@ -89,18 +127,24 @@
               ? "Catalogue temporarily unavailable"
               : "Live source not connected",
         ) +
-        "</strong><p>" +
+        '</strong><details><summary>Details</summary><p>' +
         esc(data.source.message) +
         "</p><small>Checked " +
         esc(time(data.source.checkedAt)) +
         (data.source.retryAt && data.source.status !== "blocked" ? " · Next attempt " + esc(time(data.source.retryAt)) : "") +
-        "</small></div>";
+        "</small></details></div>";
       health.dataset.state = data.source.status;
       $(".monitor-device-state").textContent = data.anonymous
         ? "Developer bypass: builder testing only. Sign in with a registered staging account for background scans and phone alerts."
         : data.devices +
           " subscribed device" + (data.devices === 1 ? "" : "s") +
           " across this account. Enable alerts on each monitor you want.";
+      $(".monitor-picker").innerHTML = data.monitors.map(function(m) {
+        return '<option value="' + esc(m.id) + '"' + (m.id === selected ? " selected" : "") + '>' + esc(m.name) + (m.archived ? " · Archived" : "") + '</option>';
+      }).join("");
+      $(".monitor-alert-list").innerHTML = '<h2>Alerts by monitor</h2><p>Only enabled monitors with alerts on can notify you. The first scan stays silent.</p>' + data.monitors.filter(function(m) {return !m.archived;}).map(function(m) {
+        return '<div class="monitor-alert-row"><div><strong>' + esc(m.name) + '</strong><small>' + (!m.enabled ? "Paused · no alerts" : data.source.status === "blocked" ? "Waiting for source" : "Enabled") + '</small></div><button class="btn" data-action="alerts-toggle" data-id="' + esc(m.id) + '" aria-pressed="' + !!m.notifications + '" ' + (data.anonymous ? "disabled" : "") + '>' + (m.notifications ? "Alerts on" : "Alerts off") + '</button></div>';
+      }).join("");
       $(".monitor-list").innerHTML = data.monitors
         .map(function (m) {
           return (
@@ -175,7 +219,48 @@
       if (!selected || !current())
         select(data.monitors[0] && data.monitors[0].id);
       controls();
-      await loadFeed();
+      if (!historyExpanded) await loadHistory(false);
+      await deviceStatus();
+      if ($(".monitor-tools").open) await loadFeed();
+    }
+    async function deviceStatus() {
+      var sub = null, ready = false;
+      var note = data.anonymous ? "Sign in with a registered staging account to enable push." : "Notifications are not enabled on this device.";
+      try {
+        if ("serviceWorker" in navigator && "PushManager" in window && "Notification" in window) {
+          var reg = await navigator.serviceWorker.getRegistration();
+          sub = reg && reg.pushManager ? await reg.pushManager.getSubscription() : null;
+          if (sub && !data.anonymous) ready = (await api.request("device", {endpoint:sub.endpoint})).registered && Notification.permission === "granted";
+          note = ready ? "This device is connected. Send a test to confirm receipt." : Notification.permission === "denied" ? "Permission blocked. Allow notifications in device or browser settings." : sub ? "Reconnect this device to this account." : note;
+        } else note = "Web push is unavailable here. On iPhone, open the Home Screen app.";
+      } catch(e) {note = "Could not verify this device. " + e.message;}
+      if (!alive) return;
+      $(".monitor-device-status").textContent = note;
+      $('[data-action="test"]').disabled = !ready;
+      $('[data-action="unpush"]').disabled = !sub;
+      $('[data-action="push"]').textContent = ready ? "Reconnect device" : "Enable notifications";
+      $('[data-action="push"]').disabled = !!data.anonymous;
+    }
+    async function loadHistory(more) {
+      if (!selected || preview) return;
+      var token = ++historyToken, id = selected;
+      var result = await api.request("history", {id:id, filter:historyFilter, query:historyQuery, cursor:more ? historyCursor : null});
+      if (!alive || token !== historyToken || id !== selected || preview) return;
+      historyRows = more ? historyRows.concat(result.rows) : result.rows;
+      historyExpanded = !!more;
+      historyCursor = result.nextCursor;
+      $(".monitor-feed-note").textContent = historyRows.length + (historyCursor ? "+" : "") + (historyRows.length === 1 && !historyCursor ? " find" : " finds") + " · all rule versions" + (historyQuery ? ' · Search: “' + historyQuery + '”' : ' · saved to your account');
+      $('[data-action="more"]').hidden = !historyCursor;
+      var signature = JSON.stringify([id,historyFilter,historyRows]);
+      if (signature === lastFeed) return;
+      var expanded = Array.from($(".monitor-feed").querySelectorAll("details[open]")).map(function(el) {return el.closest("[data-listing]").dataset.listing + ":" + el.className;});
+      var focus = document.activeElement, focusId = focus && focus.dataset.listing, focusAction = focus && focus.dataset.action;
+      cards(historyRows,false); lastFeed = signature;
+      $(".monitor-feed").querySelectorAll("details").forEach(function(el) {el.open = expanded.includes(el.closest("[data-listing]").dataset.listing + ":" + el.className);});
+      if (focusId) {
+        var next = Array.from($(".monitor-feed").querySelectorAll("[data-action]")).find(function(el) {return el.dataset.listing === focusId && el.dataset.action === focusAction;});
+        if(next) next.focus({preventScroll:true});
+      }
     }
     function safePhoto(s) {
       try {
@@ -194,21 +279,26 @@
     function cards(rows, isPreview) {
       if (!rows.length) {
         $(".monitor-feed").innerHTML =
-          '<div class="monitor-empty"><div class="monitor-radar" aria-hidden="true">◎</div><h3>No live listings yet</h3><p>' +
-          (data.source.status === "blocked"
-            ? "Your monitor is saved. Vinted source access must be connected before new matches can arrive."
-            : "The first successful scan establishes a silent baseline. New matches after that can notify you.") +
+          '<div class="monitor-empty"><div class="monitor-radar" aria-hidden="true">◎</div><h3>No finds to show</h3><p>' +
+          (historyQuery ? "No matches for this search. Try a different model, title or listing ID." :
+            historyFilter === "saved" ? "Save listings to keep a shortlist here. This saves in RETRADE, not in your Vinted favourites." :
+            historyFilter === "new" ? "You have no unread confirmed matches." :
+            data.source.status === "blocked" ? "Your searches are saved, but the live listing source is not connected. No items have been invented or imported from Discord." :
+            "Newly discovered items stay here, even when you change or pause a monitor.") +
           "</p></div>";
         return;
       }
+      var previousDay = "";
       $(".monitor-feed").innerHTML = rows
         .map(function (row) {
           var l = row.listing,
             photos = (l.imageUrls || []).map(safePhoto).filter(Boolean).slice(0, 8),
             photo = photos[0],
             id = /^[1-9]\d{0,19}$/.test(l.id) ? l.id : null;
+          var day = isPreview ? "Example layout" : new Date(row.observed_at).toLocaleDateString("en-GB", {day:"numeric",month:"long",year:"numeric"});
+          var heading = day !== previousDay ? '<h2 class="monitor-day">' + esc(day) + '</h2>' : ""; previousDay = day;
           return (
-            '<article class="monitor-card monitor-listing" data-listing="' + esc(l.id) + '">' +
+            heading + '<article class="monitor-card monitor-listing" data-listing="' + esc(l.id) + '">' +
             (photo
               ? '<img loading="lazy" referrerpolicy="no-referrer" alt="" src="' +
                 esc(photo) +
@@ -223,14 +313,12 @@
                 ? "Initial baseline · no alert"
                 : row.result.status === "pending"
                   ? "Needs listing details"
-                  : "New match") +
+                  : row.read_at ? "Viewed" : "Unread match") +
             "</span><strong>" +
             money(l.itemPricePence) +
             "</strong></div><h3>" +
             esc(l.title || "Untitled listing") +
-            "</h3><p>" +
-            esc(l.description || "Description not supplied by the catalogue.") +
-            '</p><p class="monitor-meta">' +
+            '</h3><p class="monitor-meta">' +
             esc(l.brand || "Brand unknown") +
             " · " +
             esc(l.condition || "Condition unknown") +
@@ -248,25 +336,28 @@
                 ? l.seller.reviews + " reviews"
                 : "Review count unknown",
             ) +
-            '</p><p class="monitor-meta">Buyer fee and delivery: not verified</p>' +
+            '</p><details class="monitor-item-details"><summary>Description &amp; photos</summary><p>' +
+            esc(l.description || "Description not supplied by the catalogue.") +
+            '</p><p class="monitor-meta">Buyer fee and delivery: not verified. Check availability and the final total on Vinted.</p>' +
             (photos.length > 1 ? '<details class="monitor-gallery"><summary>' + photos.length + ' listing photos</summary><div>' + photos.map(function (src) {
               return '<img loading="lazy" referrerpolicy="no-referrer" alt="Listing photo" src="' + esc(src) + '">';
             }).join('') + '</div></details>' : '') +
             (!isPreview && l.sourceUpdatedAt ? '<p class="monitor-meta">Updated on Vinted ' + esc(time(l.sourceUpdatedAt)) + '</p>' : '') +
+            "</details>" +
             ((row.result.warnings || []).length
               ? '<p class="monitor-warning">Check: ' +
                 esc(row.result.warnings.join(", ").replaceAll("_", " ")) +
                 "</p>"
               : "") +
-            '<div class="monitor-section-title"><small>' +
+            '<div class="monitor-item-actions"><small>' +
             (isPreview
               ? "Preview only"
               : (row.result.status === "match" ? "Confirmed " + esc(time(row.confirmed_at || row.observed_at)) : "First seen " + esc(time(row.observed_at)))) +
             "</small>" +
             (id && !isPreview
-              ? '<a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.vinted.co.uk/items/' +
+              ? '<a class="btn btn-primary" data-action="view-item" data-listing="' + id + '" target="_blank" rel="noopener noreferrer" href="https://www.vinted.co.uk/items/' +
                 id +
-                '">View on Vinted ↗</a>'
+                '">View on Vinted ↗</a><button class="btn" data-action="save-item" data-listing="' + id + '" aria-pressed="' + !!row.saved + '">' + (row.saved ? 'Saved' : 'Save') + '</button><button class="btn" data-action="read-item" data-listing="' + id + '">' + (row.read_at ? 'Mark unread' : 'Mark read') + '</button>'
               : "") +
             "</div></div></article>"
           );
@@ -338,42 +429,20 @@
         id = selected;
       var result = await api.request("feed", { id: id });
       if (!alive || token !== feedToken || id !== selected || preview) return;
-      $(".monitor-feed-note").textContent =
-        current().name +
-        " · latest 200 matches/candidates; pending details are not confirmed matches.";
-      var signature = JSON.stringify([id, result]);
-      if (signature !== lastFeed) {
-        var focused = $(".monitor-feed").contains(document.activeElement)
-          ? document.activeElement.href
-          : null;
-        var galleries = Array.from($(".monitor-feed").querySelectorAll('.monitor-gallery[open]')).map(function (el) { return el.closest('[data-listing]').dataset.listing; });
-        cards(result.matches, false);
-        Array.from($(".monitor-feed").querySelectorAll('.monitor-gallery')).forEach(function (el) {
-          el.open = galleries.includes(el.closest('[data-listing]').dataset.listing);
-        });
-        stats(result);
-        lastFeed = signature;
-        if (focused) {
-          var link = Array.from($(".monitor-feed").querySelectorAll("a")).find(
-            function (a) {
-              return a.href === focused;
-            },
-          );
-          if (link) link.focus({ preventScroll: true });
-        }
-      }
+      stats(result);
     }
     function examples() {
       preview = !preview;
       lastFeed = null;
-      ++feedToken;
+      ++feedToken; ++historyToken;
       $(".monitor-feed-note").textContent = preview
         ? "EXAMPLES ONLY · fictional listings, never saved or notified."
         : "";
       $('.monitor-results [data-action="preview"]').textContent = preview
         ? "Back to live feed"
         : "Preview example cards";
-      if (!preview) return loadFeed();
+      if (!preview) return loadHistory(false);
+      $('[data-action="more"]').hidden = true;
       cards(
         [
           {
@@ -577,6 +646,7 @@
       if (!b) return;
       if (!data && b.dataset.action !== "refresh") return;
       var action = b.dataset.action,
+        actionNumber = ++actionSerial,
         m = data && data.monitors.find(function (x) {
           return x.id === b.dataset.id;
         });
@@ -585,20 +655,40 @@
         if (action === "new") editor(null, false);
         if (action === "edit") editor(m, false);
         if (action === "duplicate") editor(m, true);
-        if (action === "select") {
-          select(m.id);
-          controls();
-          await loadFeed();
+        if (action === "select") { select(m.id); controls(); showSection("finds"); await loadHistory(false); }
+        if (action === "section") showSection(b.dataset.section);
+        if (action === "search-toggle") {
+          var isOpen = $(".monitor-search-form").classList.toggle("is-open");
+          b.setAttribute("aria-expanded",String(isOpen));
+          if (isOpen) $(".monitor-search-form input").focus();
+        }
+        if (action === "filter") {
+          historyFilter = b.dataset.filter; preview = false; clearFeed();
+          $('[data-action="preview"]').textContent = "Preview example cards";
+          root.querySelectorAll('[data-action="filter"]').forEach(function(el) {el.classList.toggle("is-active",el === b); el.setAttribute("aria-pressed",String(el === b));});
+          await loadHistory(false);
+        }
+        if (action === "more") await loadHistory(true);
+        if (["save-item","read-item","view-item"].includes(action)) {
+          var item = historyRows.find(function(row) {return row.listing.id === b.dataset.listing;});
+          if (item) {
+            await api.request("itemState", {id:selected,listingId:item.listing.id,
+              saved:action === "save-item" ? !item.saved : undefined,
+              read:action === "save-item" ? undefined : action === "view-item" ? true : !item.read_at});
+            await loadHistory(false);
+            if (actionNumber === actionSerial) message(action === "save-item" ? (item.saved ? "Removed from your RETRADE saved list." : "Saved in RETRADE. Vinted favourites are unchanged.") : "Read status updated.");
+          }
         }
         if (action === "preview") await examples();
         if (action === "export") exportComparison();
-        if (action === "refresh") { await refresh(); message("Monitors refreshed."); }
+        if (action === "refresh") { historyCursor = null; historyExpanded = false; await refresh(); if(actionNumber === actionSerial) message("Monitors refreshed."); }
         if (["push", "test", "unpush"].includes(action)) await push(action);
-        if (action === "toggle" || action === "archive") {
+        if (action === "toggle" || action === "archive" || action === "alerts-toggle") {
           await api.request(
             "save",
             Object.assign({}, m, {
-              enabled: action === "toggle" ? !m.enabled : false,
+              enabled: action === "toggle" ? !m.enabled : action === "archive" ? false : m.enabled,
+              notifications: action === "alerts-toggle" ? !m.notifications : m.notifications,
               archived: action === "archive" ? !m.archived : m.archived,
             }),
           );
@@ -609,8 +699,19 @@
         message(e.message, true);
       } finally {
         b.disabled = false;
+        if (["push","test","unpush"].includes(action)) await deviceStatus();
       }
     };
+    $(".monitor-picker").onchange = async function(event) {
+      select(event.target.value); controls();
+      try {await loadHistory(false);} catch(e) {message(e.message,true);}
+    };
+    $(".monitor-search-form").onsubmit = async function(event) {
+      event.preventDefault(); historyQuery = this.elements.query.value.trim(); preview = false; clearFeed();
+      $('[data-action="preview"]').textContent = "Preview example cards";
+      try {await loadHistory(false);} catch(e) {message(e.message,true);}
+    };
+    $(".monitor-tools").ontoggle = function() {if (this.open && data) loadFeed().catch(function(e) {message(e.message,true);});};
     $(".monitor-compare-form").onsubmit = async function (event) {
       event.preventDefault();
       var form = event.currentTarget,
@@ -645,7 +746,7 @@
     dispose = function () {
       alive = false;
       ++feedToken;
-      ++refreshToken;
+      ++refreshToken; ++historyToken;
       api.close();
       clearInterval(timer);
       authSub.data.subscription.unsubscribe();

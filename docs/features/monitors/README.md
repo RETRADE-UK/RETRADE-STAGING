@@ -1,5 +1,7 @@
 # Vinted monitors — takeover, 23 September 2026
 
+**5 October inbox redesign:** see [research, implementation and remaining gates](INBOX_UX_2026-10-05.md). Feed-first navigation, cross-revision history, saved/read state and device-specific push setup. Source connection remains blocked; this is not yet a live detector.
+
 **29 September continuation:** see [current audit and remaining gates](AUDIT_2026-09-29.md). The repaired preview is being released to staging; the fresh hosting probe still returned HTTP 403. Earlier sections below are dated history.
 
 **MVP preview update (24 September):** native builder, persisted recipes, Canon preset, phone-push opt-in and manual Discord comparison are implemented. The actual hosting source probe returned **403**; live scans remain blocked. See [MVP runbook](MVP_RUNBOOK.md) for testing, deployment and remaining gates. Earlier audit entries below describe their dated snapshots.

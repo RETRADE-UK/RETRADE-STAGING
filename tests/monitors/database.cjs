@@ -17,6 +17,7 @@ const { PGlite } = require("@electric-sql/pglite");
     ),
   );
   await db.exec(fs.readFileSync("supabase/migrations/20260928230920_monitor_recovery_audit.sql", "utf8"));
+  await db.exec(fs.readFileSync("supabase/migrations/20261005205508_monitor_history_inbox.sql", "utf8"));
   const a = "11111111-1111-4111-8111-111111111111",
     b = "22222222-2222-4222-8222-222222222222";
   const { preset } = await import(
@@ -194,6 +195,36 @@ const { PGlite } = require("@electric-sql/pglite");
   assert.equal((await db.query("select count(*)::int as n from public.monitor_outbox")).rows[0].n,queueBefore+1);
   await db.query("update public.monitor_recipes set next_run_at=now() where id=$1",[m.id]);await claim();await commit([confirmed],3);
   assert.equal((await db.query("select count(*)::int as n from public.monitor_outbox")).rows[0].n,queueBefore+1,'Repeated confirmation never queues twice');
+  const history = async (user=a,filter='all',query='',cursor=null) => (await db.query('select public.monitor_history($1,$2,$3,$4,$5) as data',[user,m.id,filter,query,cursor])).rows[0].data;
+  await assert.rejects(history(b),/Monitor not found/);
+  await assert.rejects(db.query('select public.monitor_set_item_state($1,$2,$3,true,null)',[b,m.id,'900']),/Monitor not found/);
+  await assert.rejects(db.query('select public.monitor_set_item_state($1,$2,$3,true,null)',[a,m.id,'99999']),/listing not found/);
+  const firstHistory = await history();
+  assert.equal(firstHistory.rows.length,50); assert(firstHistory.nextCursor);
+  const all = []; let cursor = null;
+  do {const page = await history(a,'all','',cursor); all.push(...page.rows); cursor=page.nextCursor;} while(cursor);
+  assert(all.length>200,'History reaches beyond the old feed limit');
+  assert.equal(new Set(all.map(r=>r.listing_id)).size,all.length,'No identity appears twice');
+  assert(!all.some(r=>r.result.status==='reject'));
+  await db.query('select public.monitor_set_item_state($1,$2,$3,true,true)',[a,m.id,'900']);
+  assert.equal((await history(a,'saved')).rows[0].listing_id,'900');
+  assert(!(await history(a,'new','900')).rows.length,'Read item leaves unread filter');
+  await db.query('select public.monitor_set_item_state($1,$2,$3,null,false)',[a,m.id,'900']);
+  assert((await history(a,'new','900')).rows[0].saved,'Read toggle preserves saved flag');
+  await db.query(`insert into public.monitor_matches(monitor_id,revision,listing_id,listing,result,baseline,observed_at)
+    values($1,4,'900','{"id":"900","title":"Updated camera"}','{"status":"match"}',true,'2026-10-05T10:00:00Z')`,[m.id]);
+  const same = (await history(a,'saved')).rows[0];
+  assert.equal(same.listing.title,'Updated camera'); assert.equal(same.baseline,false);
+  assert.equal(new Date(same.observed_at).toISOString(),'2026-09-27T10:00:00.000Z','Stable first-seen cursor across rule versions');
+  assert.equal((await history(a,'all','Updated')).rows.length,1);
+  assert.equal((await history(a,'all','%')).rows.length,0,'Search is literal, not wildcard SQL');
+  await db.exec(`set role authenticated;select set_config('request.jwt.claim.sub','${b}',false);`);
+  assert.equal((await db.query('select * from public.monitor_item_state')).rows.length,0);
+  await assert.rejects(history(),/permission denied/);
+  await assert.rejects(db.query('select public.monitor_set_item_state($1,$2,$3,false,null)',[a,m.id,'900']),/permission denied/);
+  await db.exec('reset role; set role service_role');
+  assert.equal((await history(a,'saved')).rows.length,1,'Invoker RPC works as worker');
+  await db.exec('reset role');
   await db.close();
   console.log(
     "Monitor database: ownership, privileged grants, leases, baseline, deduplication, pause and stale revisions passed.",
