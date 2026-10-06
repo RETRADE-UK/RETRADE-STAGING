@@ -104,7 +104,7 @@ test('camera accessories are rejected, while camera bodies and bundles remain el
     }
     assert.equal(score(item, buying).notify, false);
   }
-  for (const title of ['Canon 600D body', 'Canon 600D with 18-55mm lens, battery, charger and bag', 'Canon 600D with no charger']) {
+  for (const title of ['Canon 600D body', 'Canon 600D with 18-55mm lens, battery, charger and bag', 'Canon 600D with no charger', 'Canon 600D body with remote control and body cap', 'Canon 600D + user guide']) {
     assert.equal(matchListing(listing({title}), buying).status, 'match', title);
   }
   assert(matchListing(listing({title:'Canon 600D with no charger'}), benchmark).warnings.includes('no charger'));

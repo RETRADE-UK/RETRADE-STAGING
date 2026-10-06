@@ -13,13 +13,17 @@ export function matchListing(listing, input) {
   const warnings = recipe.warningTerms.filter(term => hasTerm(text, term));
   // Camera model names on a compatibility list do not make an accessory a camera.
   const title = normalize(listing.title);
+  const descriptor = /\b(?:(?:expanded|field|user|instruction|pocket) guide|remote (?:switch|control)|rs[- ]?60e3|body cap|lens cap)\b/.exec(title);
+  const prefix = descriptor ? title.slice(0, descriptor.index) : '';
+  const modelInPrefix = recipe.models.some(model => recipe.kind === 'canon'
+    ? canon.models.find(m => m.id === model).aliases.some(alias => hasTerm(prefix, alias)) : hasTerm(prefix, model))
+    || recipe.customModels.some(model => hasTerm(prefix, model));
+  const bundledDescriptor = modelInPrefix && /(?:\b(?:with|includes?|including)\b|[+&])/.test(prefix);
   const accessoryOnly = recipe.kind === 'canon' && (
-    /^(?:canon\s+)?(?:(?:replacement|genuine|original|new)\s+)*(?:battery|batteries|charger|lens|strap|case|bag|screen protector|manual|box)\b/.test(title)
+    /^(?:canon\s+)?(?:(?:replacement|genuine|original|new)\s+)*(?:battery|batteries|charger|lens|strap|case|bag|screen protector|manual|box|guide|remote switch|remote control|rs[- ]?60e3)\b/.test(title)
     || /\b(?:compatible with|for canon|fits canon)\b/.test(title)
-    || /\b(?:expanded|field|user|instruction|pocket) guide\b/.test(title)
-    || /\b(?:remote (?:switch|control)|rs[- ]?60e3)\b/.test(title)
+    || (descriptor !== null && !bundledDescriptor)
     || /\b(?:lens|charger|battery|manual|box|strap|bag) only\b/.test(title)
-    || /\b(?:body cap|lens cap)\b/.test(title)
   );
   if (accessoryOnly) warnings.push('possible_accessory_only');
   const result = (status, reason, matchedModels = []) => ({ status, reason, matchedModels, warnings });
