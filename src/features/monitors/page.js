@@ -36,7 +36,7 @@
       lastFeed = null,
       preview = false,
       historyRows = [], historyCursor = null, historyExpanded = false, historyFilter = "all", historyQuery = "", historyToken = 0,
-      sessionBusy = false, sessionSerial = 0, sessionRetryAt = null,
+      sampleObservedAt = null, sessionBusy = false, sessionSerial = 0, sessionRetryAt = null,
       timer = null,
       dialog = null;
     root.innerHTML =
@@ -120,7 +120,7 @@
       clearFeed();
     }
     function controls() {
-      var signature = JSON.stringify([data, selected]);
+      var signature = JSON.stringify([data, selected, sampleObservedAt]);
       if (signature === lastControls) return;
       lastControls = signature;
       var focus = document.activeElement;
@@ -135,12 +135,12 @@
             ? "Catalogue reachable"
             : data.source.status === "degraded"
               ? "Catalogue temporarily unavailable"
-              : "Live source not connected",
+              : sampleObservedAt ? "Connection test succeeded · background monitoring inactive" : "Live source not connected",
         ) +
         '</strong><details><summary>Details</summary><p>' +
-        esc(data.source.message) +
+        esc(sampleObservedAt && data.source.status === "blocked" ? "Vinted returned a saved sample on " + time(sampleObservedAt) + ". This confirms that request worked; it does not establish a continuing connection. Background searches and listing alerts are not running." : data.source.message) +
         "</p><small>Checked " +
-        esc(time(data.source.checkedAt)) +
+        esc(time(sampleObservedAt && data.source.status === "blocked" ? sampleObservedAt : data.source.checkedAt)) +
         (data.source.retryAt && data.source.status !== "blocked" ? " · Next attempt " + esc(time(data.source.retryAt)) : "") +
         "</small></details></div>";
       health.dataset.state = data.source.status;
@@ -280,14 +280,18 @@
       historyRows = more ? historyRows.concat(result.rows) : result.rows;
       historyExpanded = !!more;
       historyCursor = result.nextCursor;
-      $(".monitor-feed-note").textContent = historyRows.length + (historyCursor ? "+" : "") + (historyRows.length === 1 && !historyCursor ? " find" : " finds") + " · all rule versions" + (historyQuery ? ' · Search: “' + historyQuery + '”' : ' · saved to your account');
+      historyRows.forEach(function(row) { if(row.listing.captureMode === "session_check" && (!sampleObservedAt || Date.parse(row.observed_at) > Date.parse(sampleObservedAt))) sampleObservedAt = row.observed_at; });
+      controls();
+      $(".monitor-feed-note").textContent = historyRows.length + (historyCursor ? "+" : "") + (historyRows.length === 1 && !historyCursor ? " candidate" : " candidates") + " · " + historyRows.filter(function(r){return r.result.status === "match";}).length + " confirmed matches" + " · all rule versions" + (historyQuery ? ' · Search: “' + historyQuery + '”' : ' · saved to your account');
       $('[data-action="more"]').hidden = !historyCursor;
       var signature = JSON.stringify([id,historyFilter,historyRows]);
       if (signature === lastFeed) return;
-      var expanded = Array.from($(".monitor-feed").querySelectorAll("details[open]")).map(function(el) {return el.closest("[data-listing]").dataset.listing + ":" + el.className;});
+      var expanded = Array.from($(".monitor-feed").querySelectorAll(".monitor-listing details[open]")).map(function(el) {return el.closest("[data-listing]").dataset.listing + ":" + el.className;});
       var focus = document.activeElement, focusId = focus && focus.dataset.listing, focusAction = focus && focus.dataset.action;
+      var reviewOpen = !!$(".monitor-review[open]");
       cards(historyRows,false); lastFeed = signature;
-      $(".monitor-feed").querySelectorAll("details").forEach(function(el) {el.open = expanded.includes(el.closest("[data-listing]").dataset.listing + ":" + el.className);});
+      if ($(".monitor-review")) $(".monitor-review").open = reviewOpen;
+      $(".monitor-feed").querySelectorAll(".monitor-listing details").forEach(function(el) {el.open = expanded.includes(el.closest("[data-listing]").dataset.listing + ":" + el.className);});
       if (focusId) {
         var next = Array.from($(".monitor-feed").querySelectorAll("[data-action]")).find(function(el) {return el.dataset.listing === focusId && el.dataset.action === focusAction;});
         if(next) next.focus({preventScroll:true});
@@ -319,16 +323,18 @@
           "</p></div>";
         return;
       }
-      var previousDay = "";
-      $(".monitor-feed").innerHTML = rows
+      var previousDay = {match:"",pending:""};
+      var pendingRows = [];
+      var rendered = rows
         .map(function (row) {
           var l = row.listing,
             photos = (l.imageUrls || []).map(safePhoto).filter(Boolean).slice(0, 8),
             photo = photos[0],
             id = /^[1-9]\d{0,19}$/.test(l.id) ? l.id : null;
           var day = isPreview ? "Example layout" : new Date(row.observed_at).toLocaleDateString("en-GB", {day:"numeric",month:"long",year:"numeric"});
-          var heading = day !== previousDay ? '<h2 class="monitor-day">' + esc(day) + '</h2>' : ""; previousDay = day;
-          return (
+          var group = !isPreview && row.result.status === "pending" ? "pending" : "match";
+          var heading = day !== previousDay[group] ? '<h2 class="monitor-day">' + esc(day) + '</h2>' : ""; previousDay[group] = day;
+          var markup = (
             heading + '<article class="monitor-card monitor-listing" data-listing="' + esc(l.id) + '">' +
             (photo
               ? '<img loading="lazy" referrerpolicy="no-referrer" alt="" src="' +
@@ -394,8 +400,11 @@
               : "") +
             "</div></div></article>"
           );
+          if (!isPreview && row.result.status === "pending") { pendingRows.push(markup); return ""; }
+          return markup;
         })
         .join("");
+      $(".monitor-feed").innerHTML = rendered + (pendingRows.length ? '<details class="monitor-review"><summary>Needs review (' + pendingRows.length + ')</summary><p>These candidates have not passed all monitor rules. They may be unrelated; no listing alerts are sent for them.</p>' + pendingRows.join("") + '</details>' : "");
     }
     function stats(result) {
       var c = result.comparison;
