@@ -92,6 +92,7 @@ test('status is read-only and retains server ownership scope', async () => {
   const calls = transport(path => {
     if (path === '/auth/v1/user') return { id: user };
     if (path.endsWith('/rpc/monitor_config')) return config;
+    if (path.endsWith('/rpc/monitor_connection_status')) return {state:'disconnected',stored:false};
     if (path.startsWith('/rest/v1/monitor_recipes?') || path.startsWith('/rest/v1/monitor_push_subscriptions?')) {
       assert(path.includes('user_id=eq.' + user)); return [];
     }
@@ -163,4 +164,42 @@ test('request-heavy recipes cannot starve never-scanned monitors in an unordered
   assert.equal((await post({op:'tick'},false,{'x-monitor-token':config.token})).status,200);
   assert.deepEqual(calls.filter(c=>c.path.endsWith('/rpc/monitor_commit')).map(c=>c.body.p_id),[waiting]);
   assert.equal(calls.filter(c=>c.path.startsWith('/web/gateway/svc-catalogue/items?')).length,6);
+});
+
+test('persistent connection rejects anonymous users and never accepts a supplied owner', async()=>{
+ let anonymous=true;
+ const calls=transport((path,body)=>{
+  if(path==='/auth/v1/user')return {id:user,is_anonymous:anonymous};
+  if(path.endsWith('/rpc/monitor_connection_disconnect')) {assert.equal(body.p_user,user);return null;}
+  if(path.endsWith('/rpc/monitor_connection_status'))return {state:'disconnected',stored:false};
+ });
+ assert.equal((await post({op:'connectionTest',credentials:{}})).status,403);
+ assert.equal((await post({op:'savedSessionCheck',id})).status,403);
+ assert.equal((await post({op:'connectionDisconnect'})).status,403);
+ anonymous=false;
+ assert.equal((await post({op:'connectionDisconnect',user_id:'foreign'})).status,200);
+ assert(!calls.some(c=>c.path.includes('oauth')));
+});
+test('actual handler encrypts rotation before returning status and fences disconnect',async()=>{
+ const credentials={refreshToken:'synthetic-original-refresh',userAgent:'Synthetic Browser 1.0',country:'GB'};
+ const key=Buffer.alloc(32,42).toString('base64');
+ let completed=true;
+ const calls=transport((path,body)=>{
+  if(path==='/auth/v1/user')return {id:user};
+  if(path.endsWith('/rpc/monitor_connection_key'))return key;
+  if(path.endsWith('/rpc/monitor_connection_begin')){
+   assert.equal(body.p_user,user);assert(!JSON.stringify(body).includes(credentials.refreshToken));
+   return {accepted:true,attempt:id,generation:id,ciphertext:body.p_ciphertext};
+  }
+  if(path==='/oauth/token')return {access_token:'synthetic-new-access-token',refresh_token:'synthetic-new-refresh-token',expires_in:3600};
+  if(path.endsWith('/rpc/monitor_connection_finish')){
+   assert.equal(body.p_user,user);assert.equal(body.p_state,'verified');
+   assert(!JSON.stringify(body).includes('synthetic-new'));return completed;
+  }
+  if(path.endsWith('/rpc/monitor_connection_status'))return {state:'verified',stored:true};
+ });
+ const r=await post({op:'connectionTest',credentials,user_id:'foreign'});assert.equal(r.status,200);
+ const output=await r.text();assert(!output.includes(key));assert(!output.includes('synthetic-'));assert(!output.includes('ciphertext'));
+ completed=false;assert.equal((await post({op:'connectionTest',credentials})).status,409);
+ assert(!calls.some(c=>/monitor_source_state|monitor_claim$|monitor_commit|outbox/.test(c.path)));
 });

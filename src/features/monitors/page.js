@@ -56,6 +56,56 @@
     var connection = document.createElement("section");
     connection.className = "monitor-card monitor-connection"; connection.dataset.panel = "connection"; connection.hidden = true;
     connection.innerHTML = '<h2>Check Vinted access</h2><p>Test one of your searches directly with Vinted. Any returned finds open the original listing and stay in your history.</p><p class="monitor-connection-availability" role="status">Checking availability…</p><form class="monitor-session-form" hidden autocomplete="off"><label>Monitor<select name="monitor" aria-label="Monitor to check"></select></label><label>Saved search<select name="searchText" aria-label="Saved search to check"></select></label><label>Access token (used once)<input name="accessToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" required minlength="20" maxlength="8192" aria-describedby="monitor-token-note"></label><p id="monitor-token-note" class="monitor-meta">Sent securely to RETRADE for one search, then discarded. It is never saved in your account or browser storage. Keep it private; do not paste it into chat.</p><details class="monitor-token-help"><summary>Where to find your token</summary><p>Sign in to Vinted in a desktop browser. Open developer tools → Application (Storage in Firefox) → Cookies → https://www.vinted.co.uk. Copy only the Value of <code>access_token_web</code>.</p><p>Do not copy <code>refresh_token_web</code> or the whole cookie header. A session token can grant account access; this check only reads search results. A token may not resolve a server refusal.</p></details><button class="btn btn-primary" type="submit">Check one search</button><p class="monitor-meta">One check per five minutes. Sample results do not enable background scans or send alerts.</p></form><p class="monitor-session-result" role="status" aria-live="polite"></p><button class="btn" data-action="session-finds" hidden>View sample finds</button>';
+    var persistent = document.createElement("section");
+    persistent.className = "monitor-persistent";
+    persistent.hidden = true;
+    persistent.innerHTML = '<h2>Save your Vinted connection</h2><p>Connect once, then test renewal without pasting your token again. This staging test is read-only. Background searches remain paused until we verify the connection.</p><p class="monitor-persistent-state" role="status"></p><form class="monitor-persistent-form" autocomplete="off"><label>Refresh token<input name="refreshToken" type="password" required minlength="20" maxlength="8192" autocomplete="off" autocapitalize="off" spellcheck="false"></label><label>Vinted browser User-Agent<input name="userAgent" required minlength="10" maxlength="512" autocomplete="off" spellcheck="false"></label><label>Country<select name="country"><option value="GB">United Kingdom (GB)</option></select></label><details><summary>Where to find these details</summary><p>In the desktop browser signed in to Vinted, open developer tools → Application → Cookies → https://www.vinted.co.uk. Copy only the Value of <code>refresh_token_web</code>.</p><p>For User-Agent, open a request to www.vinted.co.uk in Network → Headers → Request Headers and copy User-Agent. Do not copy other headers or tokens.</p></details><p class="monitor-meta">Saving authorises RETRADE to store these credentials encrypted and test session renewal. A successful test saves any replacement token. Renewal may affect another tool sharing the same Vinted session. Logging out of RETRADE keeps this connection; Disconnect deletes it. Never paste credentials into chat.</p><button class="btn btn-primary" type="submit">Save &amp; test renewal</button></form><div class="monitor-actions"><button class="btn" type="button" data-connection="test">Test saved connection</button><button class="btn" type="button" data-connection="sample">Check saved search</button><button class="btn" type="button" data-connection="disconnect">Disconnect &amp; delete credentials</button></div><p class="monitor-persistent-result" role="status" aria-live="polite"></p>';
+    connection.prepend(persistent);
+    var connectionBusy = false;
+    function clearConnectionInputs() {
+      persistent.querySelector('input[name="refreshToken"]').value = "";
+      persistent.querySelector('input[name="userAgent"]').value = "";
+    }
+    async function runConnection(op, credentials) {
+      if (connectionBusy || !data || data.anonymous || !data.capabilities.persistentConnection) return;
+      connectionBusy = true; connectionControls();
+      persistent.querySelector('.monitor-persistent-result').textContent = op === 'connectionDisconnect' ? 'Deleting saved credentials…' : 'Testing renewal…';
+      var payload = credentials ? {credentials:credentials} : {};
+      try {
+        var result = await api.request(op, payload);
+        if (!alive) return;
+        data.connection = result.connection;
+        persistent.querySelector('.monitor-persistent-result').textContent = result.message;
+      } catch(e) {
+        if (alive) persistent.querySelector('.monitor-persistent-result').textContent = e.message;
+      } finally {
+        payload.credentials = null; credentials = null; connectionBusy = false;
+        if (alive) connectionControls();
+      }
+    }
+    persistent.querySelector('form').onsubmit = function(event) {
+      event.preventDefault();
+      var f = event.currentTarget;
+      var credentials = {refreshToken:f.elements.refreshToken.value, userAgent:f.elements.userAgent.value, country:f.elements.country.value};
+      clearConnectionInputs();
+      void runConnection('connectionTest', credentials);
+    };
+    persistent.querySelector('[data-connection="sample"]').onclick = async function() {
+      if (sessionBusy || !current()) return;
+      var serial = ++sessionSerial; sessionBusy = true; connectionControls();
+      persistent.querySelector('.monitor-persistent-result').textContent = 'Checking the selected search…';
+      try {
+        var result = await api.request('savedSessionCheck', {id:selected,searchText:$('.monitor-session-form').elements.searchText.value});
+        if (!alive || serial !== sessionSerial) return;
+        sessionRetryAt = result.retryAt;
+        persistent.querySelector('.monitor-persistent-result').textContent = result.message + ' ' + result.saved + ' new sample finds saved.';
+        $('[data-action="session-finds"]').hidden = result.status !== 'sample_received';
+        if (result.status === 'sample_received') await loadHistory(false);
+      } catch(e) {if(alive && serial === sessionSerial) {sessionRetryAt=e.retryAt || null;persistent.querySelector('.monitor-persistent-result').textContent = e.message;}}
+      finally {sessionBusy = false;if(alive) connectionControls();}
+    };
+    persistent.querySelector('[data-connection="test"]').onclick = function() {void runConnection('connectionTest');};
+    persistent.querySelector('[data-connection="disconnect"]').onclick = function() {clearConnectionInputs();void runConnection('connectionDisconnect');};
     $(".monitor-layout").appendChild(connection);
     alerts.querySelector("h2").textContent = "Alerts on this device";
     alerts.querySelector("h2").nextElementSibling.textContent = "Receive new confirmed matches even when RETRADE is closed. Tap an item alert to open that listing on Vinted.";
@@ -77,7 +127,7 @@
     tools.appendChild($(".monitor-comparison")); finds.appendChild(tools);
     var more = document.createElement("button"); more.className = "btn monitor-load-more"; more.dataset.action = "more"; more.textContent = "Load older finds"; more.hidden = true; tools.before(more);
     function showSection(name) {
-      if (name !== "connection") $(".monitor-session-form").elements.accessToken.value = "";
+      if (name !== "connection") { $(".monitor-session-form").elements.accessToken.value = ""; clearConnectionInputs(); }
       root.querySelectorAll("[data-panel]").forEach(function(el) {el.hidden = el.dataset.panel !== name;});
       root.querySelectorAll('[data-action="section"]').forEach(function(el) {
         el.classList.toggle("is-active", el.dataset.section === name);
@@ -223,6 +273,18 @@
       }
     }
     function connectionControls() {
+      var supported = !!(data.capabilities && data.capabilities.persistentConnection) && !data.anonymous;
+      persistent.hidden = !supported;
+      if (!supported) clearConnectionInputs();
+      var c = data.connection || {state:'disconnected',stored:false};
+      var labels = {disconnected:'No saved connection',testing:'Renewal test in progress',verified:'Renewal verified · background monitoring paused',reconnect:'Fresh credentials needed',blocked:'Vinted refused renewal · connection needs review',rate_limited:'Vinted requested a pause',unavailable:'Connection unavailable'};
+      persistent.querySelector('.monitor-persistent-state').textContent = (labels[c.state] || 'Connection status unavailable') + (c.checkedAt ? ' · Checked ' + time(c.checkedAt) : '') + (c.retryAt && Date.parse(c.retryAt)>Date.now() ? ' · Next renewal test ' + time(c.retryAt) : '');
+      persistent.querySelector('[data-connection="sample"]').disabled = connectionBusy || sessionBusy || c.state !== 'verified' || !current() || !!(sessionRetryAt && Date.parse(sessionRetryAt)>Date.now());
+      var cooling = !!(c.retryAt && Date.parse(c.retryAt)>Date.now());
+      persistent.querySelector('button[type="submit"]').disabled = connectionBusy || cooling;
+      persistent.querySelector('[data-connection="test"]').disabled = connectionBusy || cooling || !c.stored || ['verified','rate_limited'].indexOf(c.state)<0;
+      persistent.querySelector('[data-connection="disconnect"]').disabled = connectionBusy || !c.stored;
+
       var form = $(".monitor-session-form"), available = !!(data.capabilities && data.capabilities.sessionCheck);
       form.hidden = !available || data.anonymous;
       $(".monitor-connection-availability").textContent = !available
@@ -830,6 +892,7 @@
     });
     dispose = function () {
       alive = false;
+      clearConnectionInputs();
       ++feedToken;
       ++refreshToken; ++historyToken;
       api.close();
