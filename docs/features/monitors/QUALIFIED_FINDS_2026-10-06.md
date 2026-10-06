@@ -14,10 +14,14 @@ The trial remains paused. The two created buying monitors are disabled, and the
 old trial stop/review schedules are cancelled/paused. Do not restart until the
 complete original tier definitions are recovered and their required filters can
 be enforced. The recovered packages contain the Canon template and £51–£100
-comparison; context recovery has not established the additional tiers requested.
+comparison. Subsequent context recovery located the 27 August four-tier proposal:
+Cheap Sniper £0–£60, Canon £61–£100, Premium £100–£160, and Bundles £0–£150.
+That message supplied illustrative model examples rather than complete model,
+ceiling and bundle rule tables; no finalized buying specification was recovered.
 
 Condition, complete-description, seller and economic filters still lack a verified
-detail source. This repair does not claim those criteria are checked. Existing
+detail source. All 29 inspected stored match snapshots had no condition,
+description, seller review count or seller rating. This repair does not claim those criteria are checked. Existing
 service validation must continue to reject unsupported rules.
 
 Validation: add regressions for compatibility accessories, valid camera bundles,
