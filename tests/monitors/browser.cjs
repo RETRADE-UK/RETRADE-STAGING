@@ -29,6 +29,7 @@ const { open, settled } = require("../startup-browser.cjs");
         ],
         calls = 0, failBootstrap = true, delayedSave = null, releaseSave = null,
         statusState = "blocked", feedRows = [], failState = false, deviceRegistered = false,
+        connectionState = {state:'disconnected',stored:false}, connectionTests = 0,
         sessionCapability = false, sessionMode = 'blocked', sessionCalls = 0;
       await page.route("**/functions/v1/monitor-service", async (route) => {
         calls++;
@@ -38,7 +39,8 @@ const { open, settled } = require("../startup-browser.cjs");
         if (d.op === "bootstrap" || d.op === "status")
           response = {
             monitors,
-            capabilities: {sessionCheck:sessionCapability},
+            capabilities: {sessionCheck:sessionCapability,persistentConnection:sessionCapability},
+            connection: connectionState,
             canonModels: preset().recipe.models,
             anonymous: false,
             devices: 0,
@@ -53,6 +55,12 @@ const { open, settled } = require("../startup-browser.cjs");
           failBootstrap = false; status = 503; response = { error: "Temporary startup failure" };
         }
         if (d.op === "status") response.source.status = statusState;
+        if (d.op === 'connectionTest') {
+          connectionTests++;
+          if(d.credentials) assert.equal(d.credentials.refreshToken,'synthetic-refresh-token-value');
+          connectionState={state:'verified',stored:true};response={connection:connectionState,message:'Renewal test succeeded.'};
+        }
+        if (d.op === 'connectionDisconnect') {connectionState={state:'disconnected',stored:false};response={connection:connectionState,message:'Credentials deleted.'};}
         if (d.op === 'sessionCheck') {
           sessionCalls++;
           assert.equal(d.accessToken,'synthetic-session-test-value');
@@ -142,6 +150,22 @@ const { open, settled } = require("../startup-browser.cjs");
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Connection fits width '+width);
       }
       await page.screenshot({path:'/tmp/monitors-connection-'+(mobile?'mobile':'desktop')+'.png',fullPage:true});
+      await page.getByLabel('Refresh token',{exact:true}).fill('synthetic-refresh-token-value');
+      await page.getByLabel('Vinted browser User-Agent',{exact:true}).fill('Synthetic Browser 1.0');
+      await page.getByRole('button',{name:'Save & test renewal',exact:true}).click();
+      await page.getByText('Renewal test succeeded.',{exact:true}).waitFor();
+      assert.equal(await page.getByLabel('Refresh token',{exact:true}).inputValue(),'');
+      assert.equal(await page.evaluate(()=>JSON.stringify([localStorage,sessionStorage]).includes('synthetic-refresh-token-value')),false);
+      await page.getByRole('button',{name:'Test saved connection',exact:true}).click();
+      await page.waitForFunction(()=>!document.querySelector('[data-connection="test"]').disabled);
+      assert.equal(connectionTests,2);
+      await page.getByRole('button',{name:'Disconnect & delete credentials',exact:true}).click();
+      await page.getByText('Credentials deleted.',{exact:true}).waitFor();
+      assert.equal(await page.getByRole('button',{name:'Test saved connection',exact:true}).isEnabled(),false);
+      await page.getByLabel('Refresh token',{exact:true}).fill('synthetic-refresh-token-value');
+      await page.getByRole('button',{name:'Finds',exact:true}).click();
+      assert.equal(await page.getByLabel('Refresh token',{exact:true}).inputValue(),'');
+      await page.getByRole('button',{name:'Connection',exact:true}).click();
       const checkSession=async()=>{
         await page.getByLabel('Access token (used once)').fill('synthetic-session-test-value');
         await page.getByRole('button',{name:'Check one search',exact:true}).click();

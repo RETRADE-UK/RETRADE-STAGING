@@ -16,6 +16,7 @@ import { matchListing } from "../../../worker/monitors/src/engine/match.mjs";
 import { buildFeed } from "../../../worker/monitors/src/feed.mjs";
 import { canon } from "../../../worker/monitors/src/contracts.mjs";
 import { checkSession, sessionMessages } from "../../../worker/monitors/src/session-check.mjs";
+import { connectionInput, seal, unseal, renewConnection, connectionMessages } from "../../../worker/monitors/src/connection.mjs";
 const url = Deno.env.get("SUPABASE_URL")!;
 const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const cors = {
@@ -306,8 +307,44 @@ Deno.serve(async (req) => {
     const user = await auth.json();
     if (!user.id) return reply({ error: "Unauthorized" }, 401);
     const anonymous = user.is_anonymous === true;
-    if (input.op === "sessionCheck") {
+    if (input.op === "connectionDisconnect" || input.op === "connectionTest") {
+      if (anonymous) return reply({ error: "Sign in with a registered staging account to connect Vinted." }, 403);
+      if (input.op === "connectionDisconnect") {
+        await rpc("monitor_connection_disconnect", { p_user: user.id });
+        return reply({ connection: await rpc("monitor_connection_status", { p_user: user.id }), message: "Saved Vinted credentials deleted. Background monitoring is paused." });
+      }
+      let credentials: any = input.credentials == null ? null : connectionInput(input.credentials);
+      input.credentials = null;
+      const key = await rpc("monitor_connection_key");
+      const claim = await rpc("monitor_connection_begin", { p_user: user.id,
+        p_ciphertext: credentials ? await seal(credentials, key, user.id) : null });
+      credentials = null;
+      if (!claim.accepted) return reply({ error: "Wait until " + claim.retryAt + " before testing renewal again.", retryAt: claim.retryAt }, 429);
+      let result: any;
+      try {
+        credentials = await unseal(claim.ciphertext, key, user.id);
+        result = await renewConnection({ credentials, request: fetch });
+      } catch { result = { state: "reconnect" }; }
+      finally { credentials = null; claim.ciphertext = null; }
+      const ciphertext = result.credentials ? await seal(result.credentials, key, user.id) : null;
+      result.credentials = null;
+      const saved = await rpc("monitor_connection_finish", { p_user: user.id, p_attempt: claim.attempt,
+        p_generation: claim.generation, p_state: result.state, p_ciphertext: ciphertext,
+        p_expires: result.expiresAt || null, p_retry: result.retryAt ? new Date(result.retryAt).toISOString() : null });
+      if (!saved) return reply({ error: "Connection changed or expired during the test. Refresh its status before continuing." }, 409);
+      return reply({ connection: await rpc("monitor_connection_status", { p_user: user.id }),
+        message: connectionMessages[result.state as keyof typeof connectionMessages] });
+    }
+    if (input.op === "sessionCheck" || input.op === "savedSessionCheck") {
       if (anonymous) return reply({ error: "Sign in with a registered staging account to check Vinted access." }, 403);
+      let savedCredentials: any = null;
+      if (input.op === "savedSessionCheck") {
+        const encrypted = await rpc("monitor_connection_read", { p_user: user.id });
+        if (!encrypted) return reply({ error: "Test session renewal first; the saved access token is unavailable or expired." }, 409);
+        try { savedCredentials = await unseal(encrypted, await rpc("monitor_connection_key"), user.id); }
+        catch { return reply({ error: "Saved connection could not be read. Reconnect Vinted." }, 409); }
+        input.accessToken = savedCredentials.accessToken;
+      }
       validateAccessToken(input.accessToken);
       const monitor = await own(user.id, input.id);
       if (monitor.archived) throw new TypeError("Restore this monitor before checking its search.");
@@ -315,7 +352,8 @@ Deno.serve(async (req) => {
       const claim = await rpc("monitor_session_claim", { p_user: user.id });
       if (!claim.accepted) return reply({ error: "Wait until " + claim.retryAt + " before checking again.", retryAt: claim.retryAt }, 429);
       const result = await checkSession({ request: fetch, accessToken: input.accessToken,
-        recipe: monitor.recipe, searchText: input.searchText });
+        recipe: monitor.recipe, searchText: input.searchText, userAgent: savedCredentials?.userAgent });
+      savedCredentials = null;
       // Drop the value before persistence. No token/response body enters storage or logs.
       input.accessToken = null;
       const saved = await rpc("monitor_session_finish", { p_user: user.id, p_check: claim.checkId,
@@ -344,7 +382,8 @@ Deno.serve(async (req) => {
       );
       return reply({
         monitors,
-        capabilities: { sessionCheck: true },
+        capabilities: { sessionCheck: true, persistentConnection: true },
+        connection: anonymous ? { state: "disconnected", stored: false } : await rpc("monitor_connection_status", { p_user: user.id }),
         canonModels: canon.models.map((model: any) => model.id),
         anonymous,
         pushKey: c.vapid.publicKey,

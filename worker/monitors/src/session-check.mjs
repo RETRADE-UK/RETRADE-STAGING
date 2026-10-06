@@ -3,12 +3,12 @@ import { createRecipe } from './contracts.mjs';
 import { createVintedSource, validateAccessToken } from './adapters/vinted-source.mjs';
 import { matchListing } from './engine/match.mjs';
 
-export async function checkSession({ request, accessToken, recipe: input, searchText, now = Date.now }) {
+export async function checkSession({ request, accessToken, recipe: input, searchText, userAgent, now = Date.now }) {
   validateAccessToken(accessToken);
   const recipe = createRecipe(input);
   if (!recipe.searchTerms.includes(searchText)) throw new TypeError('Choose a saved search from this monitor.');
   try {
-    const page = await createVintedSource({ request, accessToken, now, timeoutMs: 7000 })
+    const page = await createVintedSource({ request, accessToken, userAgent, now, timeoutMs: 7000 })
       .searchPage({ searchText, minPricePence: recipe.minPricePence, maxPricePence: recipe.maxPricePence, perPage: 20 });
     // New/unknown provider shapes must not count as a working connection.
     if (page.listings.some(l => !l.title || !l.url || l.currency !== 'GBP' || l.itemPricePence === null))
