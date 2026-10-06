@@ -88,14 +88,26 @@ test('model/condition/description gaps await detail rather than losing candidate
   assert.equal(matchListing(listing({ status_title: 'Good', description: 'faulty shutter' }), strict).status, 'reject');
 });
 
-test('possible accessories stay visible with warnings rather than creating false buys', () => {
-  const item = listing({ title: 'Battery charger for Canon 600D' });
-  assert.equal(matchListing(item, benchmark).status, 'match');
-  assert(matchListing(item, benchmark).warnings.includes('possible_accessory_only'));
-  assert.equal(matchListing(item, buying).status, 'match');
-  assert.equal(score(item, buying).decision, 'check');
-  const body = listing({ title: 'Canon 600D with no charger' });
-  assert(matchListing(body, benchmark).warnings.includes('no charger'));
+test('camera accessories are rejected, while camera bodies and bundles remain eligible', () => {
+  for (const title of [
+    'Battery charger for Canon 600D',
+    'Canon EOS 600D the expanded guide',
+    'Canon RS-60E3 Remote Switch - NEW - For 600D',
+    'Remote control compatible with Canon 600D',
+    'Canon 600D lens only',
+    'Canon 600D body cap'
+  ]) {
+    const item = listing({ title });
+    for (const recipe of [benchmark, buying]) {
+      assert.equal(matchListing(item, recipe).status, 'reject', title);
+      assert.equal(matchListing(item, recipe).reason, 'accessory_only', title);
+    }
+    assert.equal(score(item, buying).notify, false);
+  }
+  for (const title of ['Canon 600D body', 'Canon 600D with 18-55mm lens, battery, charger and bag', 'Canon 600D with no charger']) {
+    assert.equal(matchListing(listing({title}), buying).status, 'match', title);
+  }
+  assert(matchListing(listing({title:'Canon 600D with no charger'}), benchmark).warnings.includes('no charger'));
 });
 
 test('matching escapes regex terms and respects word/alias boundaries', () => {

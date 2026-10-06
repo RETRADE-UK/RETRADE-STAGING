@@ -26,3 +26,10 @@ test('Pending evidence is not a detection and paired visible rows are not duplic
   assert.equal(result.comparison.duplicateObservations, 0);
   assert.equal(result.comparison.discordOnly, 1);
 });
+
+test('unconfirmed and rejected candidates never appear as finds', () => {
+  const result = buildFeed({ matches: [
+    match('1'), {...match('2'), result:{status:'pending'}}, {...match('3'), result:{status:'reject'}}
+  ]});
+  assert.deepEqual(result.matches.map(row=>row.listing_id), ['1']);
+});

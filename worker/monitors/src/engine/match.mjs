@@ -11,10 +11,19 @@ export function matchListing(listing, input) {
   const recipe = createRecipe(input);
   const text = `${listing.title ?? ''}\n${listing.description ?? ''}`;
   const warnings = recipe.warningTerms.filter(term => hasTerm(text, term));
-  const accessoryOnly = /^(?:canon\s+)?(?:replacement\s+)?(?:battery|batteries|charger|lens|strap|case|bag|screen protector|manual|box)\b/i.test(listing.title ?? '')
-    || /\b(?:compatible with|for canon|fits canon)\b/i.test(listing.title ?? '');
+  // Camera model names on a compatibility list do not make an accessory a camera.
+  const title = normalize(listing.title);
+  const accessoryOnly = recipe.kind === 'canon' && (
+    /^(?:canon\s+)?(?:(?:replacement|genuine|original|new)\s+)*(?:battery|batteries|charger|lens|strap|case|bag|screen protector|manual|box)\b/.test(title)
+    || /\b(?:compatible with|for canon|fits canon)\b/.test(title)
+    || /\b(?:expanded|field|user|instruction|pocket) guide\b/.test(title)
+    || /\b(?:remote (?:switch|control)|rs[- ]?60e3)\b/.test(title)
+    || /\b(?:lens|charger|battery|manual|box|strap|bag) only\b/.test(title)
+    || /\b(?:body cap|lens cap)\b/.test(title)
+  );
   if (accessoryOnly) warnings.push('possible_accessory_only');
   const result = (status, reason, matchedModels = []) => ({ status, reason, matchedModels, warnings });
+  if (accessoryOnly) return result('reject', 'accessory_only');
   if (listing.platform !== 'vinted' || !listing.id) return result('reject', 'identity');
   if (listing.currency !== null && listing.currency !== 'GBP') return result('reject', 'currency');
   if (listing.itemPricePence != null && (!Number.isSafeInteger(listing.itemPricePence) || listing.itemPricePence < 0)) return result('reject', 'invalid_price');
@@ -30,7 +39,6 @@ export function matchListing(listing, input) {
   if (recipe.conditions.length && !recipe.conditions.includes(listing.condition)) return result('reject', 'condition', matchedModels);
   // Restrictive buying rules need a complete description before final acceptance.
   if (recipe.rejectTerms.length && !listing.detailComplete) return result('pending', 'description_required', matchedModels);
-  // Wording is only a heuristic. Keep ambiguous accessories visible for review;
-  // warnings prevent BUY/SNIPE instead of silently discarding a real camera kit.
+  // Pending candidates remain internal until their required evidence is present.
   return result('match', 'model', [...new Set(matchedModels)]);
 }

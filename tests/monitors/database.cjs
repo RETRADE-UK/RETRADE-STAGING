@@ -19,6 +19,7 @@ const { PGlite } = require("@electric-sql/pglite");
   await db.exec(fs.readFileSync("supabase/migrations/20260928230920_monitor_recovery_audit.sql", "utf8"));
   await db.exec(fs.readFileSync("supabase/migrations/20261005205508_monitor_history_inbox.sql", "utf8"));
   await db.exec(fs.readFileSync("supabase/migrations/20261006073348_monitor_session_check.sql", "utf8"));
+  await db.exec(fs.readFileSync("supabase/migrations/20261006221000_monitor_confirmed_finds.sql", "utf8"));
   const a = "11111111-1111-4111-8111-111111111111",
     b = "22222222-2222-4222-8222-222222222222";
   const { preset } = await import(
@@ -206,7 +207,15 @@ const { PGlite } = require("@electric-sql/pglite");
   do {const page = await history(a,'all','',cursor); all.push(...page.rows); cursor=page.nextCursor;} while(cursor);
   assert(all.length>200,'History reaches beyond the old feed limit');
   assert.equal(new Set(all.map(r=>r.listing_id)).size,all.length,'No identity appears twice');
-  assert(!all.some(r=>r.result.status==='reject'));
+  assert(all.every(r=>r.result.status==='match'));
+  await db.query(`insert into public.monitor_matches(monitor_id,revision,listing_id,listing,result,baseline,observed_at)
+    values($1,3,'99001','{"title":"Unconfirmed camera"}','{"status":"pending"}',false,now()),
+    ($1,3,'99002','{"title":"Older confirmed camera"}','{"status":"match"}',false,now()),
+    ($1,4,'99002','{"title":"Latest rejected accessory"}','{"status":"reject"}',false,now())`,[m.id]);
+  assert.equal((await history(a,'all','99001')).rows.length,0,'Pending is internal evidence, not a find');
+  assert.equal((await history(a,'all','99002')).rows.length,0,'Latest rejection cannot resurrect an older match');
+  await db.query("update public.monitor_matches set result='{\"status\":\"match\"}',confirmed_at=now() where monitor_id=$1 and listing_id='99001'",[m.id]);
+  assert.equal((await history(a,'new','99001')).rows.length,1,'Only confirmation promotes a candidate into Finds');
   await db.query('select public.monitor_set_item_state($1,$2,$3,true,true)',[a,m.id,'900']);
   assert.equal((await history(a,'saved')).rows[0].listing_id,'900');
   assert(!(await history(a,'new','900')).rows.length,'Read item leaves unread filter');
