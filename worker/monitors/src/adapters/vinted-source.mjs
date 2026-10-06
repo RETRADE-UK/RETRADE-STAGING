@@ -40,18 +40,30 @@ async function readJson(response, maxBytes) {
   catch { throw new SourceError('invalid_json'); }
 }
 
-export function createVintedSource({ request, now = Date.now, timeoutMs = 10000, maxBytes = 1000000 } = {}) {
+export const VINTED_CATALOG_PATH = '/web/gateway/svc-catalogue/items';
+
+export function validateAccessToken(value) {
+  // Accept one cookie value, never a Cookie header, refresh token bundle or URL.
+  if (typeof value !== 'string' || !/^[A-Za-z0-9._~-]{20,8192}$/.test(value))
+    throw new TypeError('Enter only the access_token_web value, without quotes or other cookies.');
+  return value;
+}
+
+/** @param {{ request: (url: URL, options: RequestInit) => Promise<Response>, now?: () => number, timeoutMs?: number, maxBytes?: number, accessToken?: string|null }} options */
+export function createVintedSource({ request, now = Date.now, timeoutMs = 10000, maxBytes = 1000000, accessToken = null } = {}) {
   if (typeof request !== 'function') throw new TypeError('Explicit request transport required');
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000) throw new TypeError('Invalid timeout');
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 5000000) throw new TypeError('Invalid response bound');
+  if (accessToken !== null) validateAccessToken(accessToken);
   return {
+    /** @param {{ searchText: string, minPricePence?: number, maxPricePence?: number|null, page?: number, perPage?: number, signal?: AbortSignal }} input */
     async searchPage({ searchText, minPricePence = 0, maxPricePence = null, page = 1, perPage = 50, signal } = {}) {
       if (typeof searchText !== 'string' || !searchText.trim() || searchText.length > 200) throw new TypeError('Search text required');
       pence(minPricePence, 'minPricePence', false); pence(maxPricePence, 'maxPricePence');
       if (maxPricePence !== null && maxPricePence < minPricePence) throw new TypeError('Invalid price range');
       if (!Number.isSafeInteger(page) || page < 1 || page > 100 || !Number.isSafeInteger(perPage) || perPage < 1 || perPage > 100) throw new TypeError('Invalid pagination');
       if (signal?.aborted) throw new SourceError('cancelled');
-      const url = new URL('https://www.vinted.co.uk/api/v2/catalog/items');
+      const url = new URL(VINTED_CATALOG_PATH, 'https://www.vinted.co.uk');
       const params = { search_text: searchText.trim(), price_from: (minPricePence / 100).toFixed(2),
         currency: 'GBP', order: 'newest_first', page, per_page: perPage };
       if (maxPricePence !== null) params.price_to = (maxPricePence / 100).toFixed(2);
@@ -67,7 +79,8 @@ export function createVintedSource({ request, now = Date.now, timeoutMs = 10000,
       try {
         return await Promise.race([aborted, (async () => {
           const response = await request(url, { method: 'GET', redirect: 'error', signal: controller.signal,
-            headers: { accept: 'application/json', 'user-agent': 'RETRADE-Monitor/1.0' } });
+            headers: { accept: 'application/json', 'user-agent': 'RETRADE-Monitor/1.2',
+              ...(accessToken === null ? {} : { cookie: 'access_token_web=' + accessToken }) } });
           const observedAt = new Date(now()).toISOString();
           if (!response.ok) {
             await response.body?.cancel().catch(() => {});

@@ -1,5 +1,11 @@
 # Vinted monitors — takeover, 23 September 2026
 
+**6 October v1.2:** [session check and deployment status](SESSION_CHECK_2026-10-06.md).
+Updated the retired catalogue path and prepared private one-request session
+verification with labelled samples in History. Replacement endpoint also returned
+403 unauthenticated. Backend rollout awaits restored Supabase access; the UI does
+not accept a token until the new backend capability is present.
+
 **5 October inbox redesign:** see [research, implementation and remaining gates](INBOX_UX_2026-10-05.md). Feed-first navigation, cross-revision history, saved/read state and device-specific push setup. Source connection remains blocked; this is not yet a live detector.
 
 **29 September continuation:** see [current audit and remaining gates](AUDIT_2026-09-29.md). The repaired preview is being released to staging; the fresh hosting probe still returned HTTP 403. Earlier sections below are dated history.

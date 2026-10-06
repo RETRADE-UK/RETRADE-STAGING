@@ -364,8 +364,15 @@
 /* Feed-first workspace: navigation and filters stay compact; setup is separate. */
 .monitor-page [hidden] { display: none !important; }
 .monitor-page .btn { min-height: 44px; padding: 10px 14px; font-size: 13px; }
-.monitor-navigation { display: flex; gap: 6px; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px; }
+.monitor-navigation { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 20px; }
 .monitor-navigation [data-action="refresh"] { margin-left: auto; }
+.monitor-connection { max-width: 720px; width: 100%; }
+.monitor-session-form { display: grid; gap: 14px; }
+.monitor-session-form[hidden] { display: none; }
+.monitor-session-form label { display: grid; gap: 6px; font-weight: 600; }
+.monitor-session-form input, .monitor-session-form select { min-width: 0; width: 100%; min-height: 44px; font-size: 16px; }
+.monitor-token-help { padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
+.monitor-session-result { overflow-wrap: anywhere; }
 .monitor-page .is-active, .monitor-page [aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--surface2); }
 .monitor-feed-toolbar { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(240px, 1fr); gap: 16px; }
 .monitor-search-form { display: flex; gap: 8px; align-items: end; }

@@ -36,6 +36,7 @@
       lastFeed = null,
       preview = false,
       historyRows = [], historyCursor = null, historyExpanded = false, historyFilter = "all", historyQuery = "", historyToken = 0,
+      sessionBusy = false, sessionSerial = 0, sessionRetryAt = null,
       timer = null,
       dialog = null;
     root.innerHTML =
@@ -46,12 +47,16 @@
     // Finds lead in DOM and visual order at every width.
     var nav = document.createElement("div");
     nav.className = "monitor-navigation"; nav.setAttribute("role", "navigation"); nav.setAttribute("aria-label", "Monitor workspace");
-    nav.innerHTML = '<button class="btn is-active" data-action="section" data-section="finds" aria-current="page">Finds</button><button class="btn" data-action="section" data-section="manage">Monitors</button><button class="btn" data-action="section" data-section="alerts">Alerts</button>';
+    nav.innerHTML = '<button class="btn is-active" data-action="section" data-section="finds" aria-current="page">Finds</button><button class="btn" data-action="section" data-section="manage">Monitors</button><button class="btn" data-action="section" data-section="alerts">Alerts</button><button class="btn" data-action="section" data-section="connection">Connection</button>';
     nav.appendChild($('[data-action="refresh"]')); $(".monitor-layout").before(nav);
     var manage = $(".monitor-layout aside"), finds = $(".monitor-results"), alerts = $(".monitor-phone");
     manage.dataset.panel = "manage"; finds.dataset.panel = "finds"; alerts.dataset.panel = "alerts";
     $(".monitor-layout").appendChild(alerts); $(".monitor-layout").prepend(finds);
     manage.hidden = true; alerts.hidden = true;
+    var connection = document.createElement("section");
+    connection.className = "monitor-card monitor-connection"; connection.dataset.panel = "connection"; connection.hidden = true;
+    connection.innerHTML = '<h2>Check Vinted access</h2><p>Test one of your searches directly with Vinted. Any returned finds open the original listing and stay in your history.</p><p class="monitor-connection-availability" role="status">Checking availability…</p><form class="monitor-session-form" hidden autocomplete="off"><label>Monitor<select name="monitor" aria-label="Monitor to check"></select></label><label>Saved search<select name="searchText" aria-label="Saved search to check"></select></label><label>Access token (used once)<input name="accessToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" required minlength="20" maxlength="8192" aria-describedby="monitor-token-note"></label><p id="monitor-token-note" class="monitor-meta">Sent securely to RETRADE for one search, then discarded. It is never saved in your account or browser storage. Keep it private; do not paste it into chat.</p><details class="monitor-token-help"><summary>Where to find your token</summary><p>Sign in to Vinted in a desktop browser. Open developer tools → Application (Storage in Firefox) → Cookies → https://www.vinted.co.uk. Copy only the Value of <code>access_token_web</code>.</p><p>Do not copy <code>refresh_token_web</code> or the whole cookie header. A session token can grant account access; this check only reads search results. A token may not resolve a server refusal.</p></details><button class="btn btn-primary" type="submit">Check one search</button><p class="monitor-meta">One check per five minutes. Sample results do not enable background scans or send alerts.</p></form><p class="monitor-session-result" role="status" aria-live="polite"></p><button class="btn" data-action="session-finds" hidden>View sample finds</button>';
+    $(".monitor-layout").appendChild(connection);
     alerts.querySelector("h2").textContent = "Alerts on this device";
     alerts.querySelector("h2").nextElementSibling.textContent = "Receive new confirmed matches even when RETRADE is closed. Tap an item alert to open that listing on Vinted.";
     $(".monitor-eyebrow").textContent = "VINTED UK · STAGING";
@@ -72,6 +77,7 @@
     tools.appendChild($(".monitor-comparison")); finds.appendChild(tools);
     var more = document.createElement("button"); more.className = "btn monitor-load-more"; more.dataset.action = "more"; more.textContent = "Load older finds"; more.hidden = true; tools.before(more);
     function showSection(name) {
+      if (name !== "connection") $(".monitor-session-form").elements.accessToken.value = "";
       root.querySelectorAll("[data-panel]").forEach(function(el) {el.hidden = el.dataset.panel !== name;});
       root.querySelectorAll('[data-action="section"]').forEach(function(el) {
         el.classList.toggle("is-active", el.dataset.section === name);
@@ -104,6 +110,10 @@
       $('[data-action="export"]').disabled = true;
     }
     function select(id) {
+      ++sessionSerial;
+      $(".monitor-session-form").elements.accessToken.value = "";
+      $(".monitor-session-result").textContent = "";
+      $('[data-action="session-finds"]').hidden = true;
       selected = id;
       preview = false;
       $('.monitor-results [data-action="preview"]').textContent = "Preview example cards";
@@ -134,6 +144,7 @@
         (data.source.retryAt && data.source.status !== "blocked" ? " · Next attempt " + esc(time(data.source.retryAt)) : "") +
         "</small></details></div>";
       health.dataset.state = data.source.status;
+      connectionControls();
       $(".monitor-device-state").textContent = data.anonymous
         ? "Developer bypass: builder testing only. Sign in with a registered staging account for background scans and phone alerts."
         : data.devices +
@@ -211,6 +222,25 @@
         if (replacement) replacement.focus({ preventScroll: true });
       }
     }
+    function connectionControls() {
+      var form = $(".monitor-session-form"), available = !!(data.capabilities && data.capabilities.sessionCheck);
+      form.hidden = !available || data.anonymous;
+      $(".monitor-connection-availability").textContent = !available
+        ? "Connection setup is not available yet. Your saved monitors and history remain available."
+        : data.anonymous ? "Sign in with a registered staging account to check your Vinted session."
+        : "A successful sample proves this request worked. Continuous monitoring still needs a separate verification.";
+      if (!available || data.anonymous) form.elements.accessToken.value = "";
+      form.elements.monitor.innerHTML = data.monitors.filter(function(m) {return !m.archived;}).map(function(m) {
+        return '<option value="' + esc(m.id) + '"' + (m.id === selected ? ' selected' : '') + '>' + esc(m.name) + '</option>';
+      }).join('');
+      var m = current(), oldSearch = form.elements.searchText.value;
+      form.elements.searchText.innerHTML = m && !m.archived ? m.recipe.searchTerms.map(function(term) {
+        return '<option value="' + esc(term) + '">' + esc(term) + '</option>';
+      }).join('') : '';
+      if (m && m.recipe.searchTerms.includes(oldSearch)) form.elements.searchText.value = oldSearch;
+      form.querySelector('button[type="submit"]').disabled = sessionBusy || !m || m.archived ||
+        !!(sessionRetryAt && Date.parse(sessionRetryAt) > Date.now());
+    }
     async function refresh() {
       var token = ++refreshToken;
       var result = await api.request(data ? "status" : "bootstrap");
@@ -219,6 +249,7 @@
       if (!selected || !current())
         select(data.monitors[0] && data.monitors[0].id);
       controls();
+      connectionControls();
       if (!historyExpanded) await loadHistory(false);
       await deviceStatus();
       if ($(".monitor-tools").open) await loadFeed();
@@ -309,6 +340,8 @@
             '<div><div class="monitor-section-title"><span class="monitor-state">' +
             (isPreview
               ? "Example · not a live listing"
+              : l.captureMode === "session_check"
+                ? (row.result.status === "pending" ? "Connection sample · needs details" : "Connection sample · no alert")
               : row.baseline
                 ? "Initial baseline · no alert"
                 : row.result.status === "pending"
@@ -657,6 +690,15 @@
         if (action === "duplicate") editor(m, true);
         if (action === "select") { select(m.id); controls(); showSection("finds"); await loadHistory(false); }
         if (action === "section") showSection(b.dataset.section);
+        if (action === "session-finds") {
+          historyFilter = "all"; historyQuery = ""; preview = false;
+          $('[data-action="preview"]').textContent = "Preview example cards";
+          $(".monitor-search-form").elements.query.value = "";
+          root.querySelectorAll('[data-action="filter"]').forEach(function(el) {
+            el.classList.toggle("is-active",el.dataset.filter === "all"); el.setAttribute("aria-pressed",String(el.dataset.filter === "all"));
+          });
+          clearFeed(); showSection("finds"); await loadHistory(false);
+        }
         if (action === "search-toggle") {
           var isOpen = $(".monitor-search-form").classList.toggle("is-open");
           b.setAttribute("aria-expanded",String(isOpen));
@@ -700,6 +742,40 @@
       } finally {
         b.disabled = false;
         if (["push","test","unpush"].includes(action)) await deviceStatus();
+      }
+    };
+    $(".monitor-session-form").elements.monitor.onchange = async function(event) {
+      select(event.target.value); controls();
+      try {await loadHistory(false);} catch(e) {message(e.message,true);}
+    };
+    $(".monitor-session-form").onsubmit = async function(event) {
+      event.preventDefault();
+      if (sessionBusy || !data || data.anonymous || !data.capabilities || !data.capabilities.sessionCheck) return;
+      var form = event.currentTarget, tokenInput = form.elements.accessToken;
+      if (!/^[A-Za-z0-9._~-]{20,8192}$/.test(tokenInput.value)) {
+        tokenInput.value = ""; $(".monitor-session-result").textContent = "Enter only the access_token_web value, without quotes or other cookies."; return;
+      }
+      var requestData = {id:selected, searchText:form.elements.searchText.value, accessToken:tokenInput.value};
+      tokenInput.value = "";
+      var serial = ++sessionSerial; sessionBusy = true; connectionControls();
+      $(".monitor-session-result").textContent = "Checking one search…";
+      $('[data-action="session-finds"]').hidden = true;
+      try {
+        var result = await api.request("sessionCheck",requestData);
+        if (!alive || serial !== sessionSerial) return;
+        sessionRetryAt = result.retryAt;
+        $(".monitor-session-result").textContent = result.message + " " + result.saved + " new sample finds saved.";
+        $('[data-action="session-finds"]').hidden = result.status !== "sample_received";
+        if (result.status === "sample_received") await loadHistory(false);
+      } catch(e) {
+        if (alive && serial === sessionSerial) {
+          sessionRetryAt = e.retryAt || null;
+          $(".monitor-session-result").textContent = e.message;
+        }
+      } finally {
+        requestData.accessToken = null;
+        sessionBusy = false;
+        if (alive) connectionControls();
       }
     };
     $(".monitor-picker").onchange = async function(event) {

@@ -18,6 +18,7 @@ const { PGlite } = require("@electric-sql/pglite");
   );
   await db.exec(fs.readFileSync("supabase/migrations/20260928230920_monitor_recovery_audit.sql", "utf8"));
   await db.exec(fs.readFileSync("supabase/migrations/20261005205508_monitor_history_inbox.sql", "utf8"));
+  await db.exec(fs.readFileSync("supabase/migrations/20261006073348_monitor_session_check.sql", "utf8"));
   const a = "11111111-1111-4111-8111-111111111111",
     b = "22222222-2222-4222-8222-222222222222";
   const { preset } = await import(
@@ -224,6 +225,45 @@ const { PGlite } = require("@electric-sql/pglite");
   await assert.rejects(db.query('select public.monitor_set_item_state($1,$2,$3,false,null)',[a,m.id,'900']),/permission denied/);
   await db.exec('reset role; set role service_role');
   assert.equal((await history(a,'saved')).rows.length,1,'Invoker RPC works as worker');
+  await db.exec('reset role');
+  const sessionClaim=async(user=a)=>(await db.query('select public.monitor_session_claim($1) as data',[user])).rows[0].data;
+  for (const role of ['anon','authenticated']) {
+    await db.exec('set role '+role);
+    await assert.rejects(sessionClaim(),/permission denied/);
+    await assert.rejects(db.query('select * from monitor_private.session_checks'),/permission denied/);
+    await db.exec('reset role');
+  }
+  await db.exec('set role service_role');
+  const attempt=await sessionClaim(); assert.equal(attempt.accepted,true);
+  assert.equal((await sessionClaim()).accepted,false,'Cooldown survives repeated calls');
+  const otherAttempt=await sessionClaim(b); assert.equal(otherAttempt.accepted,true,'Cooldown is account scoped');
+  const sample={listing:{id:'7654321',title:'Canon 600D',observedAt:new Date().toISOString(),captureMode:'session_check'},result:{status:'match'}};
+  const finish=async(user=a,check=attempt.checkId,revision=3,items=[sample],status='sample_received',retry=null)=>
+    (await db.query('select public.monitor_session_finish($1,$2,$3,$4,$5,200,$6,$7,$8) as data',
+      [user,check,m.id,revision,status,items.length,JSON.stringify(items),retry])).rows[0].data;
+  assert.equal(await finish(b,otherAttempt.checkId),null,'Foreign monitor cannot receive samples');
+  assert.equal(await finish(a,attempt.checkId,999),null,'Old recipe cannot receive stale samples');
+  await assert.rejects(finish(a,attempt.checkId,3,[sample],'blocked'),/sample invalid/);
+  const beforeSession=(await db.query('select baseline_at,last_success_at,enabled from public.monitor_recipes where id=$1',[m.id])).rows[0];
+  const beforeOutbox=(await db.query('select count(*)::int as n from public.monitor_outbox')).rows[0].n;
+  const stored=await finish(); assert.equal(stored.saved,1);
+  assert.equal(await finish(),null,'Attempt cannot be committed twice');
+  assert.deepEqual((await db.query('select baseline_at,last_success_at,enabled from public.monitor_recipes where id=$1',[m.id])).rows[0],beforeSession,'Sample cannot enable or complete scanning');
+  assert.equal((await db.query('select count(*)::int as n from public.monitor_outbox')).rows[0].n,beforeOutbox,'Samples never notify');
+  const sampleHistory=await history(a,'all','7654321'); assert.equal(sampleHistory.rows.length,1);
+  assert.equal(sampleHistory.rows[0].baseline,true); assert.equal(sampleHistory.rows[0].listing.captureMode,'session_check');
+  assert.equal((await history(a,'new','7654321')).rows.length,0,'Samples are not new automated detections');
+  await db.query('select public.monitor_set_item_state($1,$2,$3,true,null)',[a,m.id,'7654321']);
+  assert.equal((await history(a,'saved','7654321')).rows.length,1,'Real sample can be shortlisted');
+  await db.query("update monitor_private.session_checks set next_attempt_at=now()-interval '1 second' where user_id=$1",[a]);
+  const secondAttempt=await sessionClaim();
+  assert.equal((await finish(a,secondAttempt.checkId)).saved,0,'No duplicate identity on another check');
+  await db.query("update monitor_private.session_checks set next_attempt_at=now()-interval '1 second' where user_id=$1",[a]);
+  const thirdAttempt=await sessionClaim(), retry=new Date(Date.now()+3600000).toISOString();
+  await finish(a,thirdAttempt.checkId,3,[],'rate_limited',retry);
+  assert.equal(new Date((await sessionClaim()).retryAt).toISOString(),retry,'Provider Retry-After extends cooldown');
+  const privateColumns=(await db.query("select column_name from information_schema.columns where table_schema='monitor_private' and table_name='session_checks'")).rows;
+  assert(!privateColumns.some(x=>/cookie|token|secret|payload/.test(x.column_name)),'No secret-storage column');
   await db.exec('reset role');
   await db.close();
   console.log(
