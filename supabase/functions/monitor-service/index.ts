@@ -17,6 +17,7 @@ import { buildFeed } from "../../../worker/monitors/src/feed.mjs";
 import { canon } from "../../../worker/monitors/src/contracts.mjs";
 import { checkSession, sessionMessages } from "../../../worker/monitors/src/session-check.mjs";
 import { connectionInput, seal, unseal, renewConnection, connectionMessages } from "../../../worker/monitors/src/connection.mjs";
+import { automaticScan } from "../../../worker/monitors/src/automatic.mjs";
 const url = Deno.env.get("SUPABASE_URL")!;
 const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const cors = {
@@ -99,7 +100,7 @@ async function pushBatch(c: any) {
       // Build encrypted Web Push using a pinned library, send through bounded fetch.
       const req = webpush.generateRequestDetails(
         sub.subscription,
-        JSON.stringify({ ...job.payload, listingId: job.listing_id || null }),
+        JSON.stringify({ ...job.payload, listingId: job.listing_id || null, receipt: { id: job.id, token: job.receipt_token } }),
         {
           vapidDetails: { subject: "https://test.retrade-uk.com", ...c.vapid },
           TTL: 300,
@@ -142,7 +143,7 @@ async function pushBatch(c: any) {
         "monitor_outbox?id=eq." + job.id,
         {
           state: job.attempts >= 5 ? "failed" : "pending",
-          error: String((e as Error).message).slice(0, 120),
+          error: "Push delivery failed; automatic retry pending",
           next_attempt_at: new Date(
             Math.max(
               (e as any).retryAt || 0,
@@ -160,88 +161,11 @@ async function tick(c: any) {
   if (!(await rpc("monitor_tick_lease", { p_token: token })))
     return { busy: true };
   try {
-    // A refusal stops automatic Vinted requests. An empty feed is never healthy.
-    if (
-      c.source_status !== "blocked" &&
-      (!c.retry_at || Date.parse(c.retry_at) <= Date.now())
-    ) {
-      const monitors = await rpc("monitor_claim", { p_token: token });
-      // UPDATE ... RETURNING does not preserve the due-query order. Within the
-      // claimed batch, serve never/least-recently scanned monitors first so a
-      // six-request recipe cannot monopolise every cycle's shared budget.
-      monitors.sort((a: any, b: any) =>
-        (Date.parse(a.last_success_at || "1970-01-01") - Date.parse(b.last_success_at || "1970-01-01")) ||
-        String(a.created_at).localeCompare(String(b.created_at)) || String(a.id).localeCompare(String(b.id)));
-      const source = createVintedSource({
-        request: fetch,
-        timeoutMs: 7000,
-      } as any);
-      const cache = new Map();
-      let requests = 0;
-      const budget = {
-        async searchPage(q: any) {
-          const key = JSON.stringify(q);
-          if (cache.has(key)) return cache.get(key);
-          if (requests >= 6) throw new Error("cycle_budget");
-          requests++;
-          const result = await source.searchPage(q);
-          cache.set(key, result);
-          return result;
-        },
-      };
-      for (const m of monitors) {
-        try {
-          const seen = await db("monitor_matches?monitor_id=eq." + m.id +
-            "&revision=eq." + m.revision + "&select=listing_id&order=observed_at.desc&limit=500");
-          const scan = await scanCatalog({
-            source: budget,
-            recipe: m.recipe,
-            maxPages: 2,
-            maxRequests: 6,
-            perPage: 50,
-            knownIds: new Set(seen.map((x: any) => x.listing_id)),
-            signal: undefined,
-          });
-          const items = scan.listings.map((listing: any) => ({
-            listing,
-            result: matchListing(listing, m.recipe),
-          }));
-          await rpc("monitor_commit", {
-            p_id: m.id,
-            p_revision: m.revision,
-            p_token: token,
-            p_items: items,
-            p_complete: scan.coverageComplete,
-            p_requests: scan.requests,
-          });
-          await rpc("monitor_source_state", {
-            p_status: "ready",
-            p_message:
-              "Catalog reachable. Full listing details and seller enrichment are not yet verified.",
-            p_retry: null,
-          });
-        } catch (e) {
-          const err = e as any;
-          if (err.message === "cycle_budget") break;
-          const blocked = [401, 403, 404].includes(err.status);
-          await rpc("monitor_source_state", {
-            p_status: blocked ? "blocked" : "degraded",
-            p_message: blocked
-              ? "Vinted refused or could not serve the catalogue (HTTP " +
-                err.status +
-                "). Live source access needs attention."
-              : "The catalogue scan failed; no coverage claim was recorded.",
-            p_retry: new Date(
-              Math.max(Date.now() + 120000, err.retryAt || 0) +
-                Math.random() * 10000,
-            ).toISOString(),
-          });
-          break;
-        }
-      }
-    }
+    let scan: any;
+    try { scan = await automaticScan({ rpc, db, request: fetch, token }); }
+    catch { scan = { error: "scan_unavailable" }; }
     await pushBatch(c);
-    return { ok: true };
+    return { ok: true, ...scan };
   } finally {
     try {
       await rpc("monitor_release_claims", { p_token: token });
@@ -277,6 +201,12 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return reply({ error: "POST required" }, 405);
   try {
     const input = await body(req);
+    if (input.op === "pushReceipt") {
+      if (!/^[a-f0-9-]{36}$/.test(input.id || "") || !/^[a-f0-9-]{36}$/.test(input.token || "") || !['received','displayed','failed'].includes(input.status))
+        return reply({ error: "Invalid receipt" }, 400);
+      await rpc("monitor_push_receipt", {p_id:input.id,p_token:input.token,p_status:input.status});
+      return reply({ok:true});
+    }
     if (input.op === "tick" || input.op === "sourceCheck") {
       const c = await config();
       if (req.headers.get("x-monitor-token") !== c.token)
@@ -307,9 +237,19 @@ Deno.serve(async (req) => {
     const user = await auth.json();
     if (!user.id) return reply({ error: "Unauthorized" }, 401);
     const anonymous = user.is_anonymous === true;
+    if (input.op === "connectionAutomatic") {
+      if (anonymous || typeof input.enabled !== 'boolean') return reply({error:'Registered account and enabled setting required'},403);
+      await rpc("monitor_connection_automatic",{p_user:user.id,p_enabled:input.enabled});
+      return reply({connection:await rpc("monitor_connection_status",{p_user:user.id}),message:input.enabled?'Automatic searches enabled. The first scan is silent.':'Automatic searches paused.'});
+    }
     if (input.op === "connectionDisconnect" || input.op === "connectionTest") {
       if (anonymous) return reply({ error: "Sign in with a registered staging account to connect Vinted." }, 403);
-      if (input.op === "connectionDisconnect") {
+      if (input.op === "connectionAutomatic") {
+      if (anonymous || typeof input.enabled !== 'boolean') return reply({error:'Registered account and enabled setting required'},403);
+      await rpc("monitor_connection_automatic",{p_user:user.id,p_enabled:input.enabled});
+      return reply({connection:await rpc("monitor_connection_status",{p_user:user.id}),message:input.enabled?'Automatic searches enabled. The first scan is silent.':'Automatic searches paused.'});
+    }
+    if (input.op === "connectionDisconnect") {
         await rpc("monitor_connection_disconnect", { p_user: user.id });
         return reply({ connection: await rpc("monitor_connection_status", { p_user: user.id }), message: "Saved Vinted credentials deleted. Background monitoring is paused." });
       }
@@ -380,15 +320,26 @@ Deno.serve(async (req) => {
       const subscriptions = await db(
         "monitor_push_subscriptions?user_id=eq." + user.id + "&select=id",
       );
+      const connection = anonymous ? {state:'disconnected',stored:false,automatic:false} : await rpc("monitor_connection_status", {p_user:user.id});
+      const connectedSource = connection.stored || connection.scanCheckedAt ? {
+        status: connection.state !== 'verified' ? 'blocked' : !connection.automatic ? 'blocked' : connection.scanStatus === 'ready' ? 'ready' : connection.scanStatus === 'waiting' ? 'starting' : 'degraded',
+        message: connection.state !== 'verified' ? 'Vinted session needs attention in Connection.' : connection.scanMessage || 'Waiting for the first scheduled scan.',
+        checkedAt: connection.scanCheckedAt || connection.checkedAt, retryAt: connection.scanRetryAt,
+        automatic:connection.automatic, intervalSeconds:60
+      } : null;
+      if (connectedSource?.automatic && connectedSource.checkedAt && Date.parse(connectedSource.checkedAt)<Date.now()-180000 && connectedSource.status==='ready') {
+        connectedSource.status='degraded';connectedSource.message='Scheduled scans are stale. The last successful check was more than three minutes ago.';
+      }
       return reply({
         monitors,
-        capabilities: { sessionCheck: true, persistentConnection: true },
-        connection: anonymous ? { state: "disconnected", stored: false } : await rpc("monitor_connection_status", { p_user: user.id }),
+        capabilities: { sessionCheck: true, persistentConnection: true, automaticMonitoring: true },
+        connection,
+        pushDevices: anonymous ? [] : await rpc("monitor_push_status",{p_user:user.id}),
         canonModels: canon.models.map((model: any) => model.id),
         anonymous,
         pushKey: c.vapid.publicKey,
         devices: subscriptions.length,
-        source: {
+        source: connectedSource || {
           status: c.source_status,
           message: c.source_message,
           checkedAt: c.checked_at,
@@ -490,46 +441,23 @@ Deno.serve(async (req) => {
           { error: "Use a registered staging account for phone notifications" },
           403,
         );
-      const subs = await db(
-        "monitor_push_subscriptions?user_id=eq." +
-          user.id +
-          "&endpoint=eq." +
-          eq(String(input.endpoint)),
-      );
-      if (!subs.length)
-        throw new TypeError("Enable notifications on this device first");
-      const sub = subs[0];
-      const recent = await db(
-        "monitor_outbox?subscription_id=eq." +
-          sub.id +
-          "&monitor_id=is.null&next_attempt_at=gt." +
-          eq(new Date(Date.now() - 60000).toISOString()) +
-          "&limit=1",
-      );
-      if (recent.length)
-        return reply({ error: "Wait one minute before another test" }, 429);
-      const [testJob] = await db("monitor_outbox", {
-        subscription_id: sub.id,
-        payload: {
-          userId: user.id,
-          title: "RETRADE · Test notification",
-          body: "This phone is ready for monitor alerts. Live Vinted source access is still being validated.",
-          tag: "monitor-test",
-        },
-      });
+      const subs = await db("monitor_push_subscriptions?user_id=eq." + user.id +
+        (input.all === true ? "" : "&endpoint=eq." + eq(String(input.endpoint))));
+      if (!subs.length) throw new TypeError("Enable notifications on this device first");
+      const ids: string[] = [];
+      for (const sub of subs) {
+        const recent = await db("monitor_outbox?subscription_id=eq." + sub.id + "&monitor_id=is.null&next_attempt_at=gt." + eq(new Date(Date.now()-60000).toISOString()) + "&limit=1");
+        if (recent.length) continue;
+        const [job] = await db("monitor_outbox", {subscription_id:sub.id,payload:{userId:user.id,
+          title:"RETRADE · Test notification",body:"Your device received a RETRADE test. Tap to open staging.",tag:"monitor-test-"+crypto.randomUUID()}});
+        ids.push(job.id);
+      }
+      if (!ids.length) return reply({error:"Wait a few minutes before sending another test."},429);
       await pushBatch(await config());
-      const [delivery] = await db("monitor_outbox?id=eq." + testJob.id + "&select=state");
-      return reply({
-        ok: true,
-        message: !delivery
-          ? "This subscription has expired. Enable notifications again."
-          : delivery.state === "sent"
-            ? "Push provider accepted the test. Check your phone to confirm receipt."
-            : delivery.state === "failed"
-              ? "The test could not be delivered. Enable notifications again and retry."
-              : "Test queued for delivery. Check your phone; permission and Focus settings can affect receipt.",
-      });
+      return reply({ok:true,message:"Test requested for " + ids.length + " device(s). Delivery details below distinguish provider acceptance from device acknowledgement.",
+        pushDevices:await rpc("monitor_push_status",{p_user:user.id})});
     }
+
     return reply({ error: "Unknown operation" }, 400);
   } catch (e) {
     const message = (e as Error).message;

@@ -52,7 +52,7 @@ export async function renewConnection({credentials,request,now=Date.now,timeoutM
 export const connectionMessages = Object.freeze({
  disconnected:'No saved Vinted connection.',
  testing:'Testing session renewal…',
- verified:'Vinted session renewal succeeded. The replacement token is saved securely. Background monitoring is still paused pending a listing check.',
+ verified:'Vinted session renewal succeeded. The replacement token is saved securely. Use automatic searches to keep enabled monitors updated.',
  reconnect:'Renewal could not be confirmed. Enter fresh Vinted details before another attempt; an uncertain request is never retried automatically.',
  blocked:'Vinted refused renewal (403). No automatic retries will run. The connection method needs review.',
  rate_limited:'Vinted requested a pause. Wait until the next permitted test.',

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
+import { seal } from '../../worker/monitors/src/connection.mjs';
 import { canonBenchmark } from '../../worker/monitors/src/contracts.mjs';
 
 // Execute the actual handler with all transport substituted. No staging account,
@@ -93,6 +94,7 @@ test('status is read-only and retains server ownership scope', async () => {
     if (path === '/auth/v1/user') return { id: user };
     if (path.endsWith('/rpc/monitor_config')) return config;
     if (path.endsWith('/rpc/monitor_connection_status')) return {state:'disconnected',stored:false};
+    if (path.endsWith('/rpc/monitor_push_status')) return [];
     if (path.startsWith('/rest/v1/monitor_recipes?') || path.startsWith('/rest/v1/monitor_push_subscriptions?')) {
       assert(path.includes('user_id=eq.' + user)); return [];
     }
@@ -112,10 +114,11 @@ test('feed checks ownership then uses exact-identity snapshot, not a display-onl
   assert.equal(response.status, 200);
   assert.equal((await response.json()).baselineReady, false);
 });
-test('blocked source tick drains recovery only and releases both lease layers', async () => {
+test('no connected accounts tick drains recovery only and releases both lease layers', async () => {
   const calls = transport(path => {
     if (path.endsWith('/rpc/monitor_config')) return config;
     if (path.endsWith('/rpc/monitor_tick_lease')) return true;
+    if (path.endsWith('/rpc/monitor_auto_claim')) return [];
     if (path.endsWith('/rpc/monitor_push_claim')) return [];
     if (path.endsWith('/rpc/monitor_release_claims') || path.endsWith('/rpc/monitor_tick_release')) return null;
   });
@@ -146,23 +149,27 @@ test('history/state/device operations use verified owner and reject malformed re
 });
 
 test('request-heavy recipes cannot starve never-scanned monitors in an unordered claim batch', async () => {
+  const key=Buffer.alloc(32,42).toString('base64');
+  const ciphertext=await seal({refreshToken:'synthetic-refresh-token-value',accessToken:'synthetic-access-token-value',userAgent:'Synthetic Browser 1.0',country:'GB'},key,user);
   const waiting = '33333333-3333-4333-8333-333333333333';
   const calls = transport(path => {
     if (path.endsWith('/rpc/monitor_config')) return {...config,source_status:'ready'};
     if (path.endsWith('/rpc/monitor_tick_lease')) return true;
-    if (path.endsWith('/rpc/monitor_claim')) return [
-      {id,revision:1,recipe:{...canonBenchmark(),searchTerms:['camera']},last_success_at:'2026-09-28T10:00:00Z'},
-      {id:waiting,revision:1,recipe:canonBenchmark(),last_success_at:null},
+    if (path.endsWith('/rpc/monitor_auto_claim')) return [
+      {id,user_id:user,revision:1,recipe:{...canonBenchmark(),searchTerms:['camera']},last_success_at:'2026-09-28T10:00:00Z'},
+      {id:waiting,user_id:user,revision:1,recipe:canonBenchmark(),last_success_at:null},
     ];
+    if (path.endsWith('/rpc/monitor_connection_key')) return key;
+    if (path.endsWith('/rpc/monitor_connection_worker')) return {state:'verified',ciphertext,generation:id,expiresAt:new Date(Date.now()+3600000).toISOString()};
     if (path.startsWith('/rest/v1/monitor_matches?')) return [];
     if (path.startsWith('/web/gateway/svc-catalogue/items?')) return {items:Array.from({length:50},(_,i)=>({id:i+1,title:'Canon 600D',price:{amount:'80',currency_code:'GBP'}}))};
-    if (path.endsWith('/rpc/monitor_commit')) return true;
+    if (path.endsWith('/rpc/monitor_auto_commit')) return true;
     if (path.endsWith('/rpc/monitor_source_state')) return null;
     if (path.endsWith('/rpc/monitor_push_claim')) return [];
     if (path.endsWith('/rpc/monitor_release_claims') || path.endsWith('/rpc/monitor_tick_release')) return null;
   });
   assert.equal((await post({op:'tick'},false,{'x-monitor-token':config.token})).status,200);
-  assert.deepEqual(calls.filter(c=>c.path.endsWith('/rpc/monitor_commit')).map(c=>c.body.p_id),[waiting]);
+  assert.deepEqual(calls.filter(c=>c.path.endsWith('/rpc/monitor_auto_commit')).map(c=>c.body.p_id),[waiting]);
   assert.equal(calls.filter(c=>c.path.startsWith('/web/gateway/svc-catalogue/items?')).length,6);
 });
 

@@ -35,6 +35,10 @@ both movements separately and protect the shield against clipping.
 | Tax cash timing and calendar slices | `src/domain/accounting-engine.js`; report export in `report-engine.js` |
 | Static cache and old-path transition | `sw.js` |
 
+Authenticated automatic scans live in `worker/monitors/src/automatic.mjs`; `sw.js`
+reports push receipt/display-request status. The monitor page owns automatic
+start/pause and device diagnostics. See AUTOMATIC_2026-10-06.md in monitor docs.
+
 Saved connection controls stay in the monitor page. `connection.mjs` owns encrypted
 credential bundles and bounded renewal; service-only connection RPCs own storage,
 cooldown and disconnect fencing. See the dated persistent-connection handover.
@@ -55,7 +59,7 @@ server advertises `capabilities.sessionCheck`; an older backend never displays
 token entry. `worker/monitors/src/session-check.mjs` and the private attempt RPCs
 own one-request diagnostics and labelled History samples. They do not change
 automatic source health, scanner baselines, notifications or account data caches.
-The staging cache build is `20261006-monitor-connection-staging`; backend deployment
+The staging cache build is `20261006-monitor-automatic-staging`; backend deployment
 status and required verification are recorded in the monitor v1.2 handover.
 
 The worker installs a small shell and limits warming to three concurrent requests. Remaining active scripts warm after launch; Save-Data skips optional warming. Export engines, diagnostic datasets and device-specific launch images cache only on use. Whitelisted scope-relative paths exclude APIs and business data. One preceding cache generation supports already-open tabs; legacy URL aliases allow the folder migration. Unknown routes bypass the static cache.

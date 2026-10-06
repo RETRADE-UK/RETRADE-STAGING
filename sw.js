@@ -115,13 +115,26 @@ self.addEventListener('fetch',event=>{
 
 // Push has no app data cache. A validated listing ID opens only Vinted UK;
 // no arbitrary payload URL can control navigation. Test alerts reopen staging.
+async function pushReceipt(receipt,status){
+ if(SCOPE.origin!=='https://test.retrade-uk.com'||!receipt||!/^[a-f0-9-]{36}$/.test(receipt.id||'')||!/^[a-f0-9-]{36}$/.test(receipt.token||''))return;
+ try{await fetch('https://dvnrxmdejxfuazmpnudj.supabase.co/functions/v1/monitor-service',{
+  method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'pushReceipt',id:receipt.id,token:receipt.token,status}),signal:AbortSignal.timeout(5000)
+ });}catch(_){}
+}
 self.addEventListener('push',event=>{
- let payload={};try{payload=event.data?event.data.json():{};}catch(_e){}
+ let payload={};try{payload=event.data?event.data.json():{};}catch(_){}
  const title=typeof payload.title==='string'?payload.title.slice(0,100):'RETRADE monitor';
  const body=typeof payload.body==='string'?payload.body.slice(0,240):'A monitor update is available.';
  const tag=typeof payload.tag==='string'&&/^[a-zA-Z0-9-]{1,120}$/.test(payload.tag)?payload.tag:'retrade-monitor';
  const listingId=typeof payload.listingId==='string'&&/^[1-9]\d{0,19}$/.test(payload.listingId)?payload.listingId:null;
- event.waitUntil(self.registration.showNotification(title,{body,tag,renotify:false,icon:new URL('assets/icons/app-180.png',SCOPE).href,data:{listingId}}));
+ event.waitUntil((async()=>{
+  const received=pushReceipt(payload.receipt,'received');
+  try{
+   await self.registration.showNotification(title,{body,tag,renotify:false,icon:new URL('assets/icons/app-180.png',SCOPE).href,data:{listingId}});
+   await pushReceipt(payload.receipt,'displayed');
+  }catch(_){await pushReceipt(payload.receipt,'failed');}
+  await received;
+ })());
 });
 self.addEventListener('notificationclick',event=>{
  event.notification.close();
