@@ -723,7 +723,7 @@
         }
         if (action === "preview") await examples();
         if (action === "export") exportComparison();
-        if (action === "refresh") { historyCursor = null; historyExpanded = false; await refresh(); if(actionNumber === actionSerial) message("Monitors refreshed."); }
+        if (action === "refresh") { message(""); historyCursor = null; historyExpanded = false; await refresh(); if(actionNumber === actionSerial) message("Monitors refreshed."); }
         if (["push", "test", "unpush"].includes(action)) await push(action);
         if (action === "toggle" || action === "archive" || action === "alerts-toggle") {
           await api.request(

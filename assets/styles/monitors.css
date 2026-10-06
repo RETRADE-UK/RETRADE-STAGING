@@ -370,7 +370,7 @@
 .monitor-session-form { display: grid; gap: 14px; }
 .monitor-session-form[hidden] { display: none; }
 .monitor-session-form label { display: grid; gap: 6px; font-weight: 600; }
-.monitor-session-form input, .monitor-session-form select { min-width: 0; width: 100%; min-height: 44px; font-size: 16px; }
+.monitor-session-form input, .monitor-session-form select { min-width: 0; width: 100%; min-height: 44px; font: inherit; font-size: 16px; background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
 .monitor-token-help { padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
 .monitor-session-result { overflow-wrap: anywhere; }
 .monitor-page .is-active, .monitor-page [aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--surface2); }
