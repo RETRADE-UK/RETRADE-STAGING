@@ -39,8 +39,11 @@
             );
             var result = await response.json();
             if (!alive) throw new Error("View closed");
-            if (!response.ok)
-              throw new Error(result.error || "Monitor service is unavailable");
+            if (!response.ok) {
+              var failure = new Error(result.error || "Monitor service is unavailable");
+              if (typeof result.retryAt === "string" && Number.isFinite(Date.parse(result.retryAt))) failure.retryAt = result.retryAt;
+              throw failure;
+            }
             return result;
           } catch (error) {
             if (error.name === "AbortError")

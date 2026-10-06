@@ -28,7 +28,8 @@ const { open, settled } = require("../startup-browser.cjs");
           },
         ],
         calls = 0, failBootstrap = true, delayedSave = null, releaseSave = null,
-        statusState = "blocked", feedRows = [], failState = false, deviceRegistered = false;
+        statusState = "blocked", feedRows = [], failState = false, deviceRegistered = false,
+        sessionCapability = false, sessionMode = 'blocked', sessionCalls = 0;
       await page.route("**/functions/v1/monitor-service", async (route) => {
         calls++;
         const d = route.request().postDataJSON();
@@ -37,6 +38,7 @@ const { open, settled } = require("../startup-browser.cjs");
         if (d.op === "bootstrap" || d.op === "status")
           response = {
             monitors,
+            capabilities: {sessionCheck:sessionCapability},
             canonModels: preset().recipe.models,
             anonymous: false,
             devices: 0,
@@ -51,6 +53,16 @@ const { open, settled } = require("../startup-browser.cjs");
           failBootstrap = false; status = 503; response = { error: "Temporary startup failure" };
         }
         if (d.op === "status") response.source.status = statusState;
+        if (d.op === 'sessionCheck') {
+          sessionCalls++;
+          assert.equal(d.accessToken,'synthetic-session-test-value');
+          assert.equal(d.id,monitors[0].id); assert.equal(d.searchText,'Canon');
+          if(sessionMode === 'failure') {status=503;response={error:'Session check unavailable'};}
+          else if(sessionMode === 'success') {
+            feedRows=[{observed_at:'2026-10-06T10:00:00Z',baseline:true,result:{status:'match',warnings:[]},listing:{id:'67890',title:'Canon 600D session sample',itemPricePence:8000,captureMode:'session_check'}}];
+            response={status:'sample_received',message:'Vinted returned listing data.',saved:1,retryAt:null};
+          } else response={status:'blocked',message:'Vinted refused the server request (403).',saved:0,retryAt:null};
+        }
         if (d.op === 'device') response={registered:deviceRegistered};
         if (d.op === 'subscribe') {deviceRegistered=true;response={ok:true};}
         if (d.op === 'unsubscribe') {deviceRegistered=false;response={ok:true};}
@@ -119,6 +131,39 @@ const { open, settled } = require("../startup-browser.cjs");
         .waitFor();
       assert.equal(await page.locator('[data-panel="manage"]').isVisible(),false);
       assert.equal(await page.locator('[data-panel="alerts"]').isVisible(),false);
+      await page.getByRole('button',{name:'Connection',exact:true}).click();
+      assert.equal(await page.locator('.monitor-session-form').isVisible(),false,'Old backend never receives tokens');
+      await page.getByText('Connection setup is not available yet. Your saved monitors and history remain available.',{exact:true}).waitFor();
+      sessionCapability=true;
+      await page.getByRole('button',{name:'Refresh',exact:true}).click();
+      await page.getByLabel('Access token (used once)').waitFor();
+      for(const width of mobile ? [320,390] : [1024,1440]) {
+        await page.setViewportSize({width,height:900});
+        assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Connection fits width '+width);
+      }
+      await page.screenshot({path:'/tmp/monitors-connection-'+(mobile?'mobile':'desktop')+'.png',fullPage:true});
+      const checkSession=async()=>{
+        await page.getByLabel('Access token (used once)').fill('synthetic-session-test-value');
+        await page.getByRole('button',{name:'Check one search',exact:true}).click();
+        assert.equal(await page.getByLabel('Access token (used once)').inputValue(),'','Token cleared immediately');
+      };
+      await checkSession();
+      await page.getByText('Vinted refused the server request (403). 0 new sample finds saved.',{exact:true}).waitFor();
+      assert.equal(sessionCalls,1);
+      await page.getByText('Live source not connected',{exact:true}).waitFor();
+      sessionMode='failure'; await checkSession();
+      await page.getByText('Session check unavailable',{exact:true}).waitFor();
+      sessionMode='success'; await checkSession();
+      await page.getByRole('button',{name:'View sample finds',exact:true}).click();
+      await page.getByText('Connection sample · no alert',{exact:true}).waitFor();
+      assert.equal(await page.getByRole('link',{name:'View on Vinted ↗'}).getAttribute('href'),'https://www.vinted.co.uk/items/67890');
+      assert.equal(await page.evaluate(()=>JSON.stringify([localStorage,sessionStorage]).includes('synthetic-session-test-value')),false);
+      feedRows=[];
+      await page.getByRole('button',{name:'Refresh',exact:true}).click();
+      await page.getByRole('button',{name:'Connection',exact:true}).click();
+      await page.getByLabel('Access token (used once)').fill('synthetic-session-test-value');
+      await page.getByRole('button',{name:'Finds',exact:true}).click();
+      assert.equal(await page.locator('.monitor-session-form input').inputValue(),'','Leaving Connection clears token');
       await page.getByLabel('Monitor workspace').getByRole('button',{name:'Alerts',exact:true}).click();
       assert.equal(await page.locator('[data-action="test"]').isEnabled(),false,'Another endpoint/account does not imply this device is ready');
       await page.locator('[data-action="push"]').click();

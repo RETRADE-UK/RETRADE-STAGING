@@ -26,7 +26,7 @@ function transport(respond) {
     calls.push({ path, body });
     const result = respond(path, body);
     if (result === undefined) throw new Error('Unexpected request: ' + path);
-    return Response.json(result);
+    return result instanceof Response ? result : Response.json(result);
   };
   return calls;
 }
@@ -36,6 +36,57 @@ test('user and cron routes reject unauthenticated calls without source traffic',
   assert.equal((await post({ op: 'tick' }, false)).status, 401);
   assert.equal((await post({ op: 'sourceCheck' }, false)).status, 401);
   assert.equal(calls.length, 2);
+});
+
+test('session checks require registered ownership and a durable cooldown before provider traffic', async () => {
+  let mode='anonymous';
+  const calls=transport(path=>{
+    if(path==='/auth/v1/user')return {id:user,is_anonymous:mode==='anonymous'};
+    if(path.startsWith('/rest/v1/monitor_recipes?'))return mode==='foreign'?[]:[{id,revision:1,recipe:canonBenchmark()}];
+    if(path.endsWith('/rpc/monitor_session_claim'))return {accepted:false,retryAt:'2026-10-06T10:00:00Z'};
+  });
+  const body={op:'sessionCheck',id,searchText:'Canon',accessToken:'synthetic-private-session-value'};
+  assert.equal((await post(body,false)).status,401);
+  assert.equal((await post(body)).status,403);
+  mode='foreign'; assert.equal((await post(body)).status,400);
+  mode='registered'; assert.equal((await post({...body,accessToken:'cookie=bad'})).status,400);
+  assert.equal((await post(body)).status,429);
+  assert(!calls.some(c=>c.path.startsWith('/web/')));
+});
+
+test('session sample reaches owner history without storing credentials or opening the global gate', async () => {
+  const accessToken='synthetic-private-session-value';
+  const calls=transport((path,body)=>{
+    if(path==='/auth/v1/user')return {id:user};
+    if(path.startsWith('/rest/v1/monitor_recipes?'))return [{id,revision:1,recipe:canonBenchmark()}];
+    if(path.endsWith('/rpc/monitor_session_claim')) {assert.equal(body.p_user,user);return {accepted:true,checkId:id};}
+    if(path.startsWith('/web/gateway/svc-catalogue/items?'))return {items:[{id:123,title:'Canon 600D',price:{amount:'80',currency_code:'GBP'}}]};
+    if(path.endsWith('/rpc/monitor_session_finish')) {
+      assert.equal(body.p_user,user);assert.equal(body.p_monitor,id);assert.equal(body.p_items[0].listing.captureMode,'session_check');
+      assert(!JSON.stringify(body).includes(accessToken));return {saved:1,checkedAt:'2026-10-06T10:00:00Z',retryAt:'2026-10-06T10:05:00Z'};
+    }
+  });
+  const response=await post({op:'sessionCheck',id,user_id:'forged',searchText:'Canon',accessToken});
+  const result=await response.json();
+  assert.equal(response.status,200);assert.equal(result.saved,1);assert.equal(result.status,'sample_received');
+  assert.equal(response.headers.get('cache-control'),'no-store');assert(!JSON.stringify(result).includes(accessToken));
+  assert(!calls.some(c=>/source_state|monitor_claim$|monitor_commit|outbox/.test(c.path)));
+});
+
+test('a refused session stores only diagnostic status and cannot mark the source ready', async () => {
+  const calls=transport((path,body)=>{
+    if(path==='/auth/v1/user')return {id:user};
+    if(path.startsWith('/rest/v1/monitor_recipes?'))return [{id,revision:1,recipe:canonBenchmark()}];
+    if(path.endsWith('/rpc/monitor_session_claim'))return {accepted:true,checkId:id};
+    if(path.startsWith('/web/gateway/svc-catalogue/items?'))return new Response('private upstream detail',{status:403});
+    if(path.endsWith('/rpc/monitor_session_finish')) {
+      assert.equal(body.p_status,'blocked');assert.deepEqual(body.p_items,[]);return {saved:0};
+    }
+  });
+  const response=await post({op:'sessionCheck',id,searchText:'Canon',accessToken:'synthetic-private-session-value'});
+  assert.equal((await response.json()).status,'blocked');
+  assert.equal(calls.filter(c=>c.path.startsWith('/web/')).length,1);
+  assert(!calls.some(c=>c.path.endsWith('/rpc/monitor_source_state')));
 });
 test('status is read-only and retains server ownership scope', async () => {
   const calls = transport(path => {
@@ -103,7 +154,7 @@ test('request-heavy recipes cannot starve never-scanned monitors in an unordered
       {id:waiting,revision:1,recipe:canonBenchmark(),last_success_at:null},
     ];
     if (path.startsWith('/rest/v1/monitor_matches?')) return [];
-    if (path.startsWith('/api/v2/catalog/items?')) return {items:Array.from({length:50},(_,i)=>({id:i+1,title:'Canon 600D',price:{amount:'80',currency_code:'GBP'}}))};
+    if (path.startsWith('/web/gateway/svc-catalogue/items?')) return {items:Array.from({length:50},(_,i)=>({id:i+1,title:'Canon 600D',price:{amount:'80',currency_code:'GBP'}}))};
     if (path.endsWith('/rpc/monitor_commit')) return true;
     if (path.endsWith('/rpc/monitor_source_state')) return null;
     if (path.endsWith('/rpc/monitor_push_claim')) return [];
@@ -111,5 +162,5 @@ test('request-heavy recipes cannot starve never-scanned monitors in an unordered
   });
   assert.equal((await post({op:'tick'},false,{'x-monitor-token':config.token})).status,200);
   assert.deepEqual(calls.filter(c=>c.path.endsWith('/rpc/monitor_commit')).map(c=>c.body.p_id),[waiting]);
-  assert.equal(calls.filter(c=>c.path.startsWith('/api/v2/catalog/items?')).length,6);
+  assert.equal(calls.filter(c=>c.path.startsWith('/web/gateway/svc-catalogue/items?')).length,6);
 });

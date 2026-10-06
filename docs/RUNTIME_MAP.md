@@ -45,6 +45,15 @@ Diagnostics are explicitly on demand: `_loadDiagnosticFixtures('accounting')` lo
 
 ## Cache and deployment
 
+Monitor v1.2 keeps connection controls in `src/features/monitors/page.js` and
+transport in `cloud.js`, both under the existing on-demand manifest entry. The
+server advertises `capabilities.sessionCheck`; an older backend never displays
+token entry. `worker/monitors/src/session-check.mjs` and the private attempt RPCs
+own one-request diagnostics and labelled History samples. They do not change
+automatic source health, scanner baselines, notifications or account data caches.
+The staging cache build is `20261006-monitor-session-staging`; backend deployment
+status and required verification are recorded in the monitor v1.2 handover.
+
 The worker installs a small shell and limits warming to three concurrent requests. Remaining active scripts warm after launch; Save-Data skips optional warming. Export engines, diagnostic datasets and device-specific launch images cache only on use. Whitelisted scope-relative paths exclude APIs and business data. One preceding cache generation supports already-open tabs; legacy URL aliases allow the folder migration. Unknown routes bypass the static cache.
 
 `npm run build` exports only public runtime assets. Staging's Pages workflow uses this export. Production currently uses its existing branch-based Pages deployment; historical archives remain in the repository and may be directly addressable, though the app never loads them. Changing production hosting source requires a separate hosting configuration change.

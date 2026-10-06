@@ -26,6 +26,7 @@ npm run check
 | `src/engine/score.mjs` | Seller assessment and conservative decisions using verified cost/evidence inputs |
 | `src/benchmark.mjs` | Independent RETRADE/Discord observations, real misses, duplicates and signed latency statistics |
 | `src/feed.mjs` | Bounded display plus exact comparator identity evidence; baseline exclusions and confirmation timing |
+| `src/session-check.mjs` | One-request session diagnostic; safe error mapping, recipe matching and explicit sample provenance; no credential persistence or activation |
 
 ## Data contract
 
@@ -68,8 +69,14 @@ transport; importing it cannot make network requests. It fixes the destination
 to the UK catalog, rejects redirects, bounds page size/response bytes/time, and
 returns 403/429/other failures with retry metadata. It does not retry on its own.
 The deployed scheduler persists `retryAt` and uses leases and shared request
-budgets across restarts. No cookies, sign-in, proxy rotation or CAPTCHA
-handling are implemented.
+budgets across restarts. Scheduled scans have no credentials. The v1.2 manual
+session diagnostic can supply one access-token cookie for one request; it never
+persists it. No sign-in, token refresh, proxy rotation or CAPTCHA handling exists.
+
+The catalogue path is now `/web/gateway/svc-catalogue/items`, based on the cited
+maintainer report. An unauthenticated 6 October workspace request still returned
+403. The response schema remains unverified; unknown shapes fail explicitly.
+See [v1.2 rollout status](../../docs/features/monitors/SESSION_CHECK_2026-10-06.md).
 
 `scanCatalog()` deduplicates overlap by listing ID before later enrichment and
 retains first observation. It reports `coverageComplete: false` on request or page

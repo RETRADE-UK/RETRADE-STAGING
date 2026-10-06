@@ -10,10 +10,12 @@ import {
   createVintedSource,
   scanCatalog,
   retryAt,
+  validateAccessToken,
 } from "../../../worker/monitors/src/adapters/vinted-source.mjs";
 import { matchListing } from "../../../worker/monitors/src/engine/match.mjs";
 import { buildFeed } from "../../../worker/monitors/src/feed.mjs";
 import { canon } from "../../../worker/monitors/src/contracts.mjs";
+import { checkSession, sessionMessages } from "../../../worker/monitors/src/session-check.mjs";
 const url = Deno.env.get("SUPABASE_URL")!;
 const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const cors = {
@@ -24,7 +26,7 @@ const cors = {
   Vary: "Origin",
 };
 const reply = (data: unknown, status = 200) =>
-  Response.json(data, { status, headers: cors });
+  Response.json(data, { status, headers: { ...cors, "Cache-Control": "no-store" } });
 async function db(
   path: string,
   body?: unknown,
@@ -304,6 +306,26 @@ Deno.serve(async (req) => {
     const user = await auth.json();
     if (!user.id) return reply({ error: "Unauthorized" }, 401);
     const anonymous = user.is_anonymous === true;
+    if (input.op === "sessionCheck") {
+      if (anonymous) return reply({ error: "Sign in with a registered staging account to check Vinted access." }, 403);
+      validateAccessToken(input.accessToken);
+      const monitor = await own(user.id, input.id);
+      if (monitor.archived) throw new TypeError("Restore this monitor before checking its search.");
+      if (!monitor.recipe.searchTerms.includes(input.searchText)) throw new TypeError("Choose a saved search from this monitor.");
+      const claim = await rpc("monitor_session_claim", { p_user: user.id });
+      if (!claim.accepted) return reply({ error: "Wait until " + claim.retryAt + " before checking again.", retryAt: claim.retryAt }, 429);
+      const result = await checkSession({ request: fetch, accessToken: input.accessToken,
+        recipe: monitor.recipe, searchText: input.searchText });
+      // Drop the value before persistence. No token/response body enters storage or logs.
+      input.accessToken = null;
+      const saved = await rpc("monitor_session_finish", { p_user: user.id, p_check: claim.checkId,
+        p_monitor: monitor.id, p_revision: monitor.revision, p_status: result.status,
+        p_http: result.httpStatus, p_received: result.received, p_items: result.items,
+        p_retry: result.retryAt ? new Date(result.retryAt).toISOString() : null });
+      if (!saved) throw new TypeError("Monitor changed during the check. Refresh before trying again.");
+      return reply({ status: result.status, message: sessionMessages[result.status as keyof typeof sessionMessages],
+        received: result.received, saved: saved.saved, retryAt: saved.retryAt, checkedAt: saved.checkedAt });
+    }
     if (input.op === "bootstrap" || input.op === "status") {
       const c = await config();
       if (input.op === "bootstrap") {
@@ -322,6 +344,7 @@ Deno.serve(async (req) => {
       );
       return reply({
         monitors,
+        capabilities: { sessionCheck: true },
         canonModels: canon.models.map((model: any) => model.id),
         anonymous,
         pushKey: c.vapid.publicKey,
