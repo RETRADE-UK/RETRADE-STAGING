@@ -84,3 +84,14 @@ gating, input clearing, errors, sample links and mobile/desktop layout.
 
 Release gates: `npm run check`, `npm run build`, `npm test`, and PR CI. Real Vinted
 authenticated listings and iPhone notification receipt remain unverified.
+
+## Verified evening deployment and first sample
+
+Supabase access was restored. The session migration was applied as remote version
+20261006174427 and monitor-service v7 deployed. A registered owner check at
+19:48 UTC returned HTTP 200 and 20 candidates. History persisted those candidates;
+some are confirmed model matches and others are pending description/model review.
+The UI now collapses pending candidates separately and acknowledges saved sample
+evidence without claiming background monitoring is active. No credentials were
+stored; automatic token renewal remains unverified. Signup redirect issue #23
+and company transfer are deferred at the owner's request.

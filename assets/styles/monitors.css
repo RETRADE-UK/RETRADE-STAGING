@@ -424,3 +424,8 @@
  .monitor-item-details[open] { margin-left: -96px; padding-top: 12px; }
  .monitor-item-details[open] > summary { margin-left: 96px; }
 }
+
+.monitor-review { padding: 16px; border: 1px solid var(--border); border-radius: 16px; }
+.monitor-review > summary { cursor: pointer; min-height: 44px; font-weight: 700; color: var(--text); }
+.monitor-review > p { color: var(--muted); }
+.monitor-review .monitor-listing { margin-top: 12px; }
