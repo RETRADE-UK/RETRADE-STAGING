@@ -39,7 +39,7 @@ const { open, settled } = require("../startup-browser.cjs");
         if (d.op === "bootstrap" || d.op === "status")
           response = {
             monitors,
-            capabilities: {sessionCheck:sessionCapability,persistentConnection:sessionCapability},
+            capabilities: {sessionCheck:sessionCapability,persistentConnection:sessionCapability,automaticMonitoring:sessionCapability},
             connection: connectionState,
             canonModels: preset().recipe.models,
             anonymous: false,
@@ -60,6 +60,7 @@ const { open, settled } = require("../startup-browser.cjs");
           if(d.credentials) assert.equal(d.credentials.refreshToken,'synthetic-refresh-token-value');
           connectionState={state:'verified',stored:true};response={connection:connectionState,message:'Renewal test succeeded.'};
         }
+        if (d.op === 'connectionAutomatic') {connectionState.automatic=d.enabled;response={connection:connectionState,message:'Automatic setting saved.'};}
         if (d.op === 'connectionDisconnect') {connectionState={state:'disconnected',stored:false};response={connection:connectionState,message:'Credentials deleted.'};}
         if (d.op === 'sessionCheck') {
           sessionCalls++;
@@ -122,7 +123,7 @@ const { open, settled } = require("../startup-browser.cjs");
         _currentUserId = "ui-test";
         window.__fixtureSession.access_token = "synthetic-test";
         const sub={endpoint:'https://fcm.googleapis.com/fcm/send/fixture',toJSON(){return {endpoint:this.endpoint,keys:{p256dh:'fixture',auth:'fixture'}};},async unsubscribe(){return true;}};
-        Object.defineProperty(navigator,'serviceWorker',{configurable:true,value:{getRegistration:async()=>({active:true,pushManager:{getSubscription:async()=>sub}})}});
+        Object.defineProperty(navigator,'serviceWorker',{configurable:true,value:{getRegistration:async()=>({active:true,showNotification:async()=>{window.__localNotification=true;},pushManager:{getSubscription:async()=>sub}})}});
         Object.defineProperty(window,'PushManager',{configurable:true,value:function(){}});
         Object.defineProperty(window,'Notification',{configurable:true,value:{permission:'granted',requestPermission:async()=>{window.__pushPermissionAsked=true;return 'granted';}}});
         const interval = window.setInterval;
@@ -156,6 +157,10 @@ const { open, settled } = require("../startup-browser.cjs");
       await page.getByText('Renewal test succeeded.',{exact:true}).waitFor();
       assert.equal(await page.getByLabel('Refresh token',{exact:true}).inputValue(),'');
       assert.equal(await page.evaluate(()=>JSON.stringify([localStorage,sessionStorage]).includes('synthetic-refresh-token-value')),false);
+      await page.getByRole('button',{name:'Start automatic searches',exact:true}).click();
+      await page.getByRole('button',{name:'Pause automatic searches',exact:true}).waitFor();
+      await page.getByRole('button',{name:'Pause automatic searches',exact:true}).click();
+      await page.getByRole('button',{name:'Start automatic searches',exact:true}).waitFor();
       await page.getByRole('button',{name:'Test saved connection',exact:true}).click();
       await page.waitForFunction(()=>!document.querySelector('[data-connection="test"]').disabled);
       assert.equal(connectionTests,2);
@@ -199,6 +204,9 @@ const { open, settled } = require("../startup-browser.cjs");
       await page.locator('[data-action="push"]').click();
       await page.getByText('This device is connected. Send a test to confirm receipt.',{exact:true}).waitFor();
       assert(await page.evaluate(()=>window.__pushPermissionAsked));
+      await page.getByRole('button',{name:'Test this screen',exact:true}).click();
+      assert(await page.evaluate(()=>window.__localNotification));
+      await page.getByRole('button',{name:'Test all devices',exact:true}).click();
       await page.locator('[data-action="test"]').click();
       await page.getByText('Push provider accepted the test. Check your phone to confirm receipt.',{exact:true}).waitFor();
       await page.getByLabel('Monitor workspace').getByRole('button',{name:'Monitors',exact:true}).click();

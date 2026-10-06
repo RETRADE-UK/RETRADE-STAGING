@@ -59,7 +59,7 @@
     var persistent = document.createElement("section");
     persistent.className = "monitor-persistent";
     persistent.hidden = true;
-    persistent.innerHTML = '<h2>Save your Vinted connection</h2><p>Connect once, then test renewal without pasting your token again. This staging test is read-only. Background searches remain paused until we verify the connection.</p><p class="monitor-persistent-state" role="status"></p><form class="monitor-persistent-form" autocomplete="off"><label>Refresh token<input name="refreshToken" type="password" required minlength="20" maxlength="8192" autocomplete="off" autocapitalize="off" spellcheck="false"></label><label>Vinted browser User-Agent<input name="userAgent" required minlength="10" maxlength="512" autocomplete="off" spellcheck="false"></label><label>Country<select name="country"><option value="GB">United Kingdom (GB)</option></select></label><details><summary>Where to find these details</summary><p>In the desktop browser signed in to Vinted, open developer tools → Application → Cookies → https://www.vinted.co.uk. Copy only the Value of <code>refresh_token_web</code>.</p><p>For User-Agent, open a request to www.vinted.co.uk in Network → Headers → Request Headers and copy User-Agent. Do not copy other headers or tokens.</p></details><p class="monitor-meta">Saving authorises RETRADE to store these credentials encrypted and test session renewal. A successful test saves any replacement token. Renewal may affect another tool sharing the same Vinted session. Logging out of RETRADE keeps this connection; Disconnect deletes it. Never paste credentials into chat.</p><button class="btn btn-primary" type="submit">Save &amp; test renewal</button></form><div class="monitor-actions"><button class="btn" type="button" data-connection="test">Test saved connection</button><button class="btn" type="button" data-connection="sample">Check saved search</button><button class="btn" type="button" data-connection="disconnect">Disconnect &amp; delete credentials</button></div><p class="monitor-persistent-result" role="status" aria-live="polite"></p>';
+    persistent.innerHTML = '<h2>Save your Vinted connection</h2><p>Connect once, then test renewal without pasting your token again. Enable automatic searches after connecting. Enabled monitors check every minute, including when RETRADE is closed.</p><p class="monitor-persistent-state" role="status"></p><form class="monitor-persistent-form" autocomplete="off"><label>Refresh token<input name="refreshToken" type="password" required minlength="20" maxlength="8192" autocomplete="off" autocapitalize="off" spellcheck="false"></label><label>Vinted browser User-Agent<input name="userAgent" required minlength="10" maxlength="512" autocomplete="off" spellcheck="false"></label><label>Country<select name="country"><option value="GB">United Kingdom (GB)</option></select></label><details><summary>Where to find these details</summary><p>In the desktop browser signed in to Vinted, open developer tools → Application → Cookies → https://www.vinted.co.uk. Copy only the Value of <code>refresh_token_web</code>.</p><p>For User-Agent, open a request to www.vinted.co.uk in Network → Headers → Request Headers and copy User-Agent. Do not copy other headers or tokens.</p></details><p class="monitor-meta">Saving authorises RETRADE to store these credentials encrypted and test session renewal. A successful test saves any replacement token. Renewal may affect another tool sharing the same Vinted session. Logging out of RETRADE keeps this connection; Disconnect deletes it. Never paste credentials into chat.</p><button class="btn btn-primary" type="submit">Save &amp; test renewal</button></form><div class="monitor-actions"><button class="btn" type="button" data-connection="test">Test saved connection</button><button class="btn" type="button" data-connection="sample">Check saved search</button><button class="btn btn-primary" type="button" data-connection="automatic">Start automatic searches</button><button class="btn" type="button" data-connection="disconnect">Disconnect &amp; delete credentials</button></div><p class="monitor-persistent-result" role="status" aria-live="polite"></p>';
     connection.prepend(persistent);
     var connectionBusy = false;
     function clearConnectionInputs() {
@@ -104,6 +104,16 @@
       } catch(e) {if(alive && serial === sessionSerial) {sessionRetryAt=e.retryAt || null;persistent.querySelector('.monitor-persistent-result').textContent = e.message;}}
       finally {sessionBusy = false;if(alive) connectionControls();}
     };
+    persistent.querySelector('[data-connection="automatic"]').onclick = async function() {
+      if(connectionBusy) return;
+      connectionBusy=true;connectionControls();
+      try {
+        var result=await api.request('connectionAutomatic',{enabled:!data.connection.automatic});
+        if(!alive)return;
+        data.connection=result.connection;message(result.message);await refresh();
+      }catch(e){message(e.message,true);}
+      finally{connectionBusy=false;if(alive)connectionControls();}
+    };
     persistent.querySelector('[data-connection="test"]').onclick = function() {void runConnection('connectionTest');};
     persistent.querySelector('[data-connection="disconnect"]').onclick = function() {clearConnectionInputs();void runConnection('connectionDisconnect');};
     $(".monitor-layout").appendChild(connection);
@@ -113,6 +123,10 @@
     var device = document.createElement("p"); device.className = "monitor-device-status"; device.setAttribute("role","status"); alerts.querySelector(".monitor-actions").before(device);
     $('[data-action="test"]').disabled = true;
     $('[data-action="unpush"]').disabled = true;
+    var testAll=document.createElement("button");testAll.className="btn";testAll.dataset.action="test-all";testAll.textContent="Test all devices";alerts.querySelector('.monitor-actions').appendChild(testAll);
+    var localTest=document.createElement("button");localTest.className="btn";localTest.dataset.action="test-local";localTest.textContent="Test this screen";alerts.querySelector('.monitor-actions').appendChild(localTest);
+    var delivery=document.createElement("div");delivery.className="monitor-delivery";alerts.appendChild(delivery);
+    var help=document.createElement("p");help.className="monitor-meta";help.textContent="If a device acknowledges the notification but no banner appears, check Notification Centre, Focus / Do Not Disturb, and notification permissions for RETRADE or your browser.";alerts.appendChild(help);
     var choices = document.createElement("div"); choices.className = "monitor-alert-list"; alerts.appendChild(choices);
     var toolbar = document.createElement("div"); toolbar.className = "monitor-feed-toolbar";
     toolbar.innerHTML = '<label>Monitor<select class="monitor-picker" aria-label="Choose monitor"></select></label><form class="monitor-search-form"><label>Search history<input name="query" type="search" maxlength="100" placeholder="Model, title or listing ID"></label><button class="btn" type="submit">Search</button></form><div class="monitor-filters" role="group" aria-label="Filter found items"><button class="btn is-active" data-action="filter" data-filter="all" aria-pressed="true">History</button><button class="btn" data-action="filter" data-filter="new" aria-pressed="false">Unread</button><button class="btn" data-action="filter" data-filter="saved" aria-pressed="false">Saved</button></div>';
@@ -181,20 +195,26 @@
       health.innerHTML =
         '<span class="monitor-dot"></span><div><strong>' +
         esc(
-          data.source.status === "ready"
+          data.source.intervalSeconds
+            ? (data.source.status === "ready" ? "Automatic monitoring · every minute" : data.source.status === "starting" ? "Starting automatic searches…" : data.source.automatic ? "Automatic monitoring needs attention" : "Automatic searches paused")
+            : data.source.status === "ready"
             ? "Catalogue reachable"
             : data.source.status === "degraded"
               ? "Catalogue temporarily unavailable"
               : sampleObservedAt ? "Connection test succeeded · background monitoring inactive" : "Live source not connected",
         ) +
         '</strong><details><summary>Details</summary><p>' +
-        esc(sampleObservedAt && data.source.status === "blocked" ? "Vinted returned a saved sample on " + time(sampleObservedAt) + ". This confirms that request worked; it does not establish a continuing connection. Background searches and listing alerts are not running." : data.source.message) +
+        esc(sampleObservedAt && data.source.status === "blocked" && !data.source.intervalSeconds ? "Vinted returned a saved sample on " + time(sampleObservedAt) + ". This confirms that request worked; it does not establish a continuing connection. Background searches and listing alerts are not running." : data.source.message) +
         "</p><small>Checked " +
-        esc(time(sampleObservedAt && data.source.status === "blocked" ? sampleObservedAt : data.source.checkedAt)) +
+        esc(time(sampleObservedAt && data.source.status === "blocked" && !data.source.intervalSeconds ? sampleObservedAt : data.source.checkedAt)) +
         (data.source.retryAt && data.source.status !== "blocked" ? " · Next attempt " + esc(time(data.source.retryAt)) : "") +
         "</small></details></div>";
       health.dataset.state = data.source.status;
       connectionControls();
+      $('.monitor-delivery').innerHTML = (data.pushDevices || []).map(function(d) {
+        var text = d.displayedAt ? 'Device requested notification display · ' + time(d.displayedAt) : d.failedAt ? 'Device could not display the notification' : d.receivedAt ? 'Device received the push; display not confirmed' : d.state === 'sent' ? 'Push provider accepted · awaiting device acknowledgement' : d.state === 'failed' ? 'Delivery failed · reconnect this device' : d.state ? 'Delivery queued' : 'Registered · no test recorded';
+        return '<p><strong>'+esc(d.provider)+'</strong><br>'+esc(text)+'</p>';
+      }).join('');
       $(".monitor-device-state").textContent = data.anonymous
         ? "Developer bypass: builder testing only. Sign in with a registered staging account for background scans and phone alerts."
         : data.devices +
@@ -275,9 +295,13 @@
     function connectionControls() {
       var supported = !!(data.capabilities && data.capabilities.persistentConnection) && !data.anonymous;
       persistent.hidden = !supported;
+      var autoButton=persistent.querySelector('[data-connection="automatic"]');
+      autoButton.hidden=!(data.capabilities && data.capabilities.automaticMonitoring);
+      autoButton.textContent=data.connection && data.connection.automatic ? 'Pause automatic searches' : 'Start automatic searches';
+      autoButton.disabled=connectionBusy || !data.connection || (!data.connection.automatic && data.connection.state!=='verified');
       if (!supported) clearConnectionInputs();
       var c = data.connection || {state:'disconnected',stored:false};
-      var labels = {disconnected:'No saved connection',testing:'Renewal test in progress',verified:'Renewal verified · background monitoring paused',reconnect:'Fresh credentials needed',blocked:'Vinted refused renewal · connection needs review',rate_limited:'Vinted requested a pause',unavailable:'Connection unavailable'};
+      var labels = {disconnected:'No saved connection',testing:'Renewal test in progress',verified:'Vinted session verified',reconnect:'Fresh credentials needed',blocked:'Vinted refused renewal · connection needs review',rate_limited:'Vinted requested a pause',unavailable:'Connection unavailable'};
       persistent.querySelector('.monitor-persistent-state').textContent = (labels[c.state] || 'Connection status unavailable') + (c.checkedAt ? ' · Checked ' + time(c.checkedAt) : '') + (c.retryAt && Date.parse(c.retryAt)>Date.now() ? ' · Next renewal test ' + time(c.retryAt) : '');
       persistent.querySelector('[data-connection="sample"]').disabled = connectionBusy || sessionBusy || c.state !== 'verified' || !current() || !!(sessionRetryAt && Date.parse(sessionRetryAt)>Date.now());
       var cooling = !!(c.retryAt && Date.parse(c.retryAt)>Date.now());
@@ -722,10 +746,16 @@
         message("Notifications disabled on this device.");
         return refresh();
       }
-      if (action === "test") {
-        if (!sub) throw new Error("Enable notifications first.");
-        var result = await api.request("testPush", { endpoint: sub.endpoint });
+      if (action === "test-local") {
+        if(permission!=='granted')throw new Error('Enable notifications on this device first.');
+        await reg.showNotification('RETRADE · Screen test',{body:'Your device accepted a local notification.',tag:'monitor-local-'+Date.now(),icon:'assets/icons/app-180.png'});
+        message('Your device accepted the display request. Check Notification Centre if no banner appeared.');return;
+      }
+      if (action === "test" || action === "test-all") {
+        if (!sub && action !== "test-all") throw new Error("Enable notifications first.");
+        var result = await api.request("testPush", { endpoint: sub && sub.endpoint, all: action === "test-all" });
         message(result.message);
+        await refresh();
         return;
       }
 
@@ -795,7 +825,7 @@
         if (action === "preview") await examples();
         if (action === "export") exportComparison();
         if (action === "refresh") { message(""); historyCursor = null; historyExpanded = false; await refresh(); if(actionNumber === actionSerial) message("Monitors refreshed."); }
-        if (["push", "test", "unpush"].includes(action)) await push(action);
+        if (["push", "test", "test-all", "test-local", "unpush"].includes(action)) await push(action);
         if (action === "toggle" || action === "archive" || action === "alerts-toggle") {
           await api.request(
             "save",

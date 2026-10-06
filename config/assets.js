@@ -1,7 +1,7 @@
 /* Runtime asset contract. Ordered classic scripts: do not alphabetise.
  * Shared by the browser loader, service worker and validation tools. */
 globalThis.RT_ASSETS = Object.freeze({
-  "build": "20261006-monitor-connection-staging",
+  "build": "20261006-monitor-automatic-staging",
   "environment": "staging",
   "entry": [
     "src/platform/local-recovery.js",

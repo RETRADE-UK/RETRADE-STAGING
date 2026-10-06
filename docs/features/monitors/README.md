@@ -1,5 +1,7 @@
 # Vinted monitors — takeover, 23 September 2026
 
+**6 October automatic scans:** [minute cadence, authenticated worker and push diagnostics](AUTOMATIC_2026-10-06.md).
+
 **6 October saved connection:** [private renewal test and credential storage](PERSISTENT_CONNECTION_2026-10-06.md). Background activation still awaits a live renewal test.
 
 **6 October v1.2:** [session check and deployment status](SESSION_CHECK_2026-10-06.md).
