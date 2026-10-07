@@ -17,7 +17,7 @@ probe, not proof of access from Supabase or continuous availability.
   `source_mode`; legacy account ciphertext cannot be interpreted as a public jar.
 - `public-connection.mjs` owns durable bootstrap, expiry and persistence. Leases,
   generations, disconnect fencing, per-owner isolation and cooldown survive restarts.
-  A successful replacement removes the obsolete saved account credential bundle.
+  Switching to public mode removes the obsolete saved account credential bundle.
 - `vinted-normalize.mjs` recognises exact known condition labels at the end of
   `item_box.second_line`, only when `item_id` matches the listing. Unknown or
   conflicting explicit fields remain unknown. Prices and buying criteria do not change.
@@ -39,7 +39,17 @@ probe, not proof of access from Supabase or continuous availability.
 Synthetic tests cover cookie isolation/expiry/deletion, no account fallback,
 refusal/timeout bounds, current condition fields, database permissions and fencing,
 shared scans, baseline silence, deduplicated device fanout, and mobile/desktop setup.
-Build, CI, deployment and actual-host observations are recorded when complete.
+`npm run check`, `npm run build`, the complete `npm test` suite and dedicated
+mobile/desktop monitor tests passed locally. Supabase function v17 then verified
+50 listings at 21:39 UTC. A 12-hour trial began at 21:40 UTC; its first scheduled
+cycle used six shared requests and committed all four tiers with zero errors.
+
+The live trial exposed overlap history being replaced by shorter subsequent
+scans. `monitor_catalogue_overlap` now retains up to 500 recent distinct IDs per
+recipe revision. Promoted cards remain candidates but do not determine overlap
+of the newest-first organic results. All-ad and duplicate-only pages still fail
+coverage. Worker diagnostics return counts and failure reasons, never session
+cookies or raw listing/seller content. Follow-up cycle evidence is in PR #33.
 No production binding, production data or buying operation is in scope.
 
 ## User steps
@@ -54,6 +64,6 @@ No production binding, production data or buying operation is in scope.
 7. If access is refused, the app pauses and explains the result. Do not paste a
    token or treat a scheduled trial as evidence of a working source.
 
-Remaining acceptance: actual Supabase access, repeated scheduled scans, session
+Remaining acceptance: completed overlap baseline, session
 expiry recovery under real traffic, an eligible new-item delivery and a bounded
 12-hour observation. Three public reads do not establish completeness or latency.

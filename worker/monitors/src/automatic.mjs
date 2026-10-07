@@ -6,7 +6,7 @@ import { matchListing } from './engine/match.mjs';
 export async function automaticScan({rpc,db,request,token,now=Date.now}) {
  const monitors=await rpc('monitor_auto_claim',{p_token:token});
  monitors.sort((a,b)=>(Date.parse(a.last_success_at||'1970-01-01')-Date.parse(b.last_success_at||'1970-01-01'))||String(a.id).localeCompare(String(b.id)));
- const accounts=new Map(),cache=new Map();let requests=0,committed=0;
+ const accounts=new Map(),cache=new Map(),diagnostics=[];let requests=0,committed=0;
  for(const m of monitors){
   let account=accounts.get(m.user_id);
   if(account===undefined){
@@ -44,8 +44,12 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
     maxPricePence:peers.some(x=>x.recipe.maxPricePence===null)?null:Math.max(...peers.map(x=>x.recipe.maxPricePence))};
    const seen=m.catalog_revision===m.revision?(m.catalog_seen_ids||[]):[];
    const scan=await scanCatalog({source:budget,recipe:sourceRecipe,maxPages:2,maxRequests:6,perPage:50,knownIds:new Set(seen)});
+   const evaluated=scan.listings.map(listing=>({listing,result:matchListing(listing,m.recipe)}));
+   const reasons={};for(const {result} of evaluated)reasons[result.reason]=(reasons[result.reason]||0)+1;
+   diagnostics.push({monitorId:m.id,candidates:scan.listings.length,knownConditions:scan.listings.filter(x=>x.condition).length,
+    incomplete:scan.incomplete,reasons});
    const ok=await rpc('monitor_catalog_commit',{p_user:m.user_id,p_generation:account.generation,p_id:m.id,p_revision:m.revision,p_token:token,
-    p_items:scan.listings.map(listing=>({listing,result:matchListing(listing,m.recipe)})).filter(x=>x.result.status==='match'),
+    p_items:evaluated.filter(x=>x.result.status==='match'),
     p_seen:scan.listings.map(x=>x.id),p_complete:scan.coverageComplete,p_requests:scan.requests});
    if(ok)committed++;
   }catch(e){
@@ -59,5 +63,5 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
    accounts.set(m.user_id,null);
   }
  }
- return {requests,committed};
+ return {requests,committed,diagnostics};
 }

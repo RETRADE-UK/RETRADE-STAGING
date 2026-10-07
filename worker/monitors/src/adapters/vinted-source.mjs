@@ -1,5 +1,5 @@
 /** Experimental read-only source. Transport must be injected explicitly.
- * No cookies, sign-in, bypass, automatic retries or deployment entry point. */
+ * No sign-in, challenge handling, automatic retries or deployment entry point. */
 import { createRecipe, pence } from '../contracts.mjs';
 import { ProviderContractError, parseSearchPage, mergeListing } from './vinted-normalize.mjs';
 import { PUBLIC_AGENT, publicCookieHeader, acceptPublicCookies, validatePublicSession } from './vinted-public-session.mjs';
@@ -103,7 +103,11 @@ export function createVintedSource({ request, now = Date.now, timeoutMs = 10000,
           const payload = await readJson(response, maxBytes);
           const listings = parseSearchPage(payload, { observedAt });
           if (payload.items.length > perPage) throw new ProviderContractError('Provider exceeded requested page size');
-          return { listings, rawCount: payload.items.length, observedAt };
+          return { listings, rawCount: payload.items.length, observedAt,
+            // Promoted cards can move independently of newest-first order. They
+            // remain candidates, but cannot establish/break organic overlap.
+            ...(publicSession ? {overlapIds:payload.items.filter(x=>x.promoted!==true && x.content_source!=='search_promoted_items')
+              .map(x=>String(x.id??x.item_id))} : {}) };
         })()]);
       } catch (error) {
         if (error instanceof SourceError || error instanceof ProviderContractError) throw error;
@@ -141,7 +145,10 @@ export async function scanCatalog({ source, recipe: input, maxPages = 2, perPage
       if (result.rawCount < perPage) break;
       // A whole distinct page already recorded by a previous cycle establishes
       // overlap with durable history. Full duplicate/malformed pages never do.
-      if (result.listings.length === result.rawCount && result.listings.every(x => knownIds.has(x.id))) break;
+      const overlap=result.overlapIds ?? result.listings.map(x=>x.id);
+      if(!Array.isArray(overlap) || overlap.some(id=>!result.listings.some(x=>x.id===id))) throw new ProviderContractError('Invalid overlap identities');
+      const distinct=new Set(overlap).size===overlap.length && (result.overlapIds!==undefined || result.listings.length===result.rawCount);
+      if (distinct && overlap.length>=Math.min(10,perPage) && overlap.every(id=>knownIds.has(id))) break;
       if (page === maxPages) incomplete.push({ searchText, reason: 'page_limit' });
     }
   }
