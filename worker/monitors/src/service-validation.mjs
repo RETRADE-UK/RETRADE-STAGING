@@ -13,7 +13,6 @@ export function monitorInput(body) {
   // MVP supports catalog evidence only. Do not offer filters that require unavailable enrichment.
   if (
     recipe.rejectTerms.length ||
-    recipe.conditions.length ||
     recipe.zeroReviews === "hide"
   )
     throw new TypeError(
@@ -25,6 +24,7 @@ export function monitorInput(body) {
     typeof body.archived !== "boolean"
   )
     throw new TypeError("Invalid monitor switches");
+  if (recipe.setupRequired && (body.enabled || body.notifications)) throw new TypeError('This recovered draft needs its original model and price rules before it can run.');
   return {
     name: body.name.trim(),
     recipe,

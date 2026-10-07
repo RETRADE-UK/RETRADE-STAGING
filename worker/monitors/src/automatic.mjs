@@ -8,7 +8,6 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
  monitors.sort((a,b)=>(Date.parse(a.last_success_at||'1970-01-01')-Date.parse(b.last_success_at||'1970-01-01'))||String(a.id).localeCompare(String(b.id)));
  const accounts=new Map(),cache=new Map();let requests=0,committed=0;
  for(const m of monitors){
-  if(requests>=6)break;
   let account=accounts.get(m.user_id);
   if(account===undefined){
    const snapshot=await rpc('monitor_connection_worker',{p_user:m.user_id});
@@ -47,10 +46,16 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
    cache.set(key,page);return page;
   }};
   try{
-   const seen=await db('monitor_matches?monitor_id=eq.'+m.id+'&revision=eq.'+m.revision+'&select=listing_id&order=observed_at.desc&limit=500');
-   const scan=await scanCatalog({source:budget,recipe:m.recipe,maxPages:2,maxRequests:6,perPage:50,knownIds:new Set(seen.map(x=>x.listing_id))});
-   const ok=await rpc('monitor_auto_commit',{p_user:m.user_id,p_generation:account.generation,p_id:m.id,p_revision:m.revision,p_token:token,
-    p_items:scan.listings.map(listing=>({listing,result:matchListing(listing,m.recipe)})),p_complete:scan.coverageComplete,p_requests:scan.requests});
+   // Identical terms for one owner share a wider source window, then each recipe
+   // applies its own exact price/model rules. Never share authenticated data across owners.
+   const peers=monitors.filter(x=>x.user_id===m.user_id && JSON.stringify(x.recipe.searchTerms)===JSON.stringify(m.recipe.searchTerms));
+   const sourceRecipe={...m.recipe,minPricePence:Math.min(...peers.map(x=>x.recipe.minPricePence)),
+    maxPricePence:peers.some(x=>x.recipe.maxPricePence===null)?null:Math.max(...peers.map(x=>x.recipe.maxPricePence))};
+   const seen=m.catalog_revision===m.revision?(m.catalog_seen_ids||[]):[];
+   const scan=await scanCatalog({source:budget,recipe:sourceRecipe,maxPages:2,maxRequests:6,perPage:50,knownIds:new Set(seen)});
+   const ok=await rpc('monitor_catalog_commit',{p_user:m.user_id,p_generation:account.generation,p_id:m.id,p_revision:m.revision,p_token:token,
+    p_items:scan.listings.map(listing=>({listing,result:matchListing(listing,m.recipe)})).filter(x=>x.result.status==='match'),
+    p_seen:scan.listings.map(x=>x.id),p_complete:scan.coverageComplete,p_requests:scan.requests});
    if(ok)committed++;
   }catch(e){
    if(e.message==='cycle_budget')break;

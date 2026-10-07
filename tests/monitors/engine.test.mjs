@@ -88,12 +88,12 @@ test('model/condition/description gaps await detail rather than losing candidate
   assert.equal(matchListing(listing({ status_title: 'Good', description: 'faulty shutter' }), strict).status, 'reject');
 });
 
-test('possible accessories stay visible with warnings rather than creating false buys', () => {
+test('accessories are rejected while genuine camera bundles remain eligible', () => {
   const item = listing({ title: 'Battery charger for Canon 600D' });
-  assert.equal(matchListing(item, benchmark).status, 'match');
+  assert.equal(matchListing(item, benchmark).status, 'reject');
   assert(matchListing(item, benchmark).warnings.includes('possible_accessory_only'));
-  assert.equal(matchListing(item, buying).status, 'match');
-  assert.equal(score(item, buying).decision, 'check');
+  assert.equal(matchListing(item, buying).status, 'reject');
+  assert.equal(matchListing(listing({title:'Canon 600D with remote switch and lens'}),buying).status,'match');
   const body = listing({ title: 'Canon 600D with no charger' });
   assert(matchListing(body, benchmark).warnings.includes('no charger'));
 });

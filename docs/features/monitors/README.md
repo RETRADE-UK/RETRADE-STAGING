@@ -1,5 +1,7 @@
 # Vinted monitors — takeover, 23 September 2026
 
+**7 October tier recovery:** [match-only history and recovered monitor definitions](TIERS_2026-10-07.md). The newer v1.3 handover supplies four named price bands; all remain labelled drafts pending complete original model/bundle rules.
+
 **6 October automatic scans:** [minute cadence, authenticated worker and push diagnostics](AUTOMATIC_2026-10-06.md).
 
 **6 October saved connection:** [private renewal test and credential storage](PERSISTENT_CONNECTION_2026-10-06.md). Background activation still awaits a live renewal test.

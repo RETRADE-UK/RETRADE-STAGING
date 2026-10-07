@@ -16,7 +16,7 @@ async function fixture({expired=false,fail=null,second=false}={}){
   if(name==='monitor_connection_key')return key;
   if(name==='monitor_connection_begin')return {accepted:true,attempt:'attempt',generation:'generation',ciphertext:encrypted};
   if(name==='monitor_connection_finish')return true;
-  if(name==='monitor_auto_commit'){commits.push(args);return true;}
+  if(name==='monitor_catalog_commit'){commits.push(args);return true;}
   if(name==='monitor_scan_failure'){failures.push(args);return null;}
   throw new Error(name);
  };
@@ -41,7 +41,7 @@ test('expired connection rotates and persists before catalog use',async()=>{
  assert.deepEqual(f.cookies,['access_token_web=rotated-access-token-value']);
  const finish=f.calls.find(c=>c.name==='monitor_connection_finish');
  assert.equal((await unseal(finish.args.p_ciphertext,key,'owner-a')).refreshToken,'rotated-refresh-token-value');
- assert(f.calls.findIndex(c=>c.name==='monitor_connection_finish')<f.calls.findIndex(c=>c.name==='monitor_auto_commit'));
+ assert(f.calls.findIndex(c=>c.name==='monitor_connection_finish')<f.calls.findIndex(c=>c.name==='monitor_catalog_commit'));
 });
 test('403 stops and 429 persists retry time without retrying the source',async()=>{
  for(const status of [403,429]){const f=await fixture({fail:status});assert.equal(f.cookies.length,1);assert.equal(f.commits.length,0);

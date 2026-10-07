@@ -20,7 +20,7 @@ test('session check sends one token to the fixed current endpoint, filters and l
     return Response.json({items:[item(101),item(102,'Canon 600D','150'),item(103,'Canon camera')]});
   }});
   assert.equal(calls,1); assert.equal(result.status,'sample_received'); assert.equal(result.received,3);
-  assert.deepEqual(result.items.map(x=>[x.listing.id,x.result.status]),[['101','match'],['103','pending']]);
+  assert.deepEqual(result.items.map(x=>[x.listing.id,x.result.status]),[['101','match']]);
   assert(result.items.every(x=>x.listing.captureMode==='session_check'));
   assert.equal(result.items[0].listing.url,'https://www.vinted.co.uk/items/101');
   assert(!JSON.stringify(result).includes(accessToken));

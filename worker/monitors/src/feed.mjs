@@ -3,7 +3,7 @@ import { compareObservations } from './benchmark.mjs';
 /** A bounded display is not a bounded identity lookup. The snapshot includes
  * exact evidence for every sampled Discord ID, even outside the visible feed. */
 export function buildFeed(snapshot) {
-  const matches = snapshot.matches ?? [];
+  const matches = (snapshot.matches ?? []).filter(row => row.result?.status === 'match');
   const discord = snapshot.discord ?? [];
   const evidence = new Map((snapshot.comparisonMatches ?? matches).map(x => [x.listing_id, x]));
   const events = [];
