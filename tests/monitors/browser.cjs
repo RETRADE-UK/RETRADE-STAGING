@@ -58,7 +58,7 @@ const { open, settled } = require("../startup-browser.cjs");
         if (d.op === 'connectionTest') {
           connectionTests++;
           if(d.credentials) assert.equal(d.credentials.refreshToken,'synthetic-refresh-token-value');
-          connectionState={state:'verified',stored:true};response={connection:connectionState,message:'Renewal test succeeded.'};
+          connectionState={state:'verified',stored:true,canStart:connectionTests>1,searchStatus:connectionTests>1?'ready':'access_rejected'};response={connection:connectionState,message:connectionTests>1?'Connection ready.':'Renewal test succeeded.'};
         }
         if (d.op === 'connectionAutomatic') {connectionState.automatic=d.enabled;response={connection:connectionState,message:'Automatic setting saved.'};}
         if (d.op === 'connectionDisconnect') {connectionState={state:'disconnected',stored:false};response={connection:connectionState,message:'Credentials deleted.'};}
@@ -153,17 +153,22 @@ const { open, settled } = require("../startup-browser.cjs");
       await page.screenshot({path:'/tmp/monitors-connection-'+(mobile?'mobile':'desktop')+'.png',fullPage:true});
       await page.getByLabel('Refresh token',{exact:true}).fill('synthetic-refresh-token-value');
       await page.getByLabel('Vinted browser User-Agent',{exact:true}).fill('Synthetic Browser 1.0');
-      await page.getByRole('button',{name:'Save & test renewal',exact:true}).click();
+      await page.getByRole('button',{name:'Save & check connection',exact:true}).click();
       await page.getByText('Renewal test succeeded.',{exact:true}).waitFor();
       assert.equal(await page.getByLabel('Refresh token',{exact:true}).inputValue(),'');
       assert.equal(await page.evaluate(()=>JSON.stringify([localStorage,sessionStorage]).includes('synthetic-refresh-token-value')),false);
+      assert.equal(await page.getByRole('button',{name:'Start 12-hour trial',exact:true}).isEnabled(),false,'Renewal alone cannot start a trial');
+      assert.equal(await page.getByLabel('Refresh token',{exact:true}).isVisible(),false,'Saved sessions do not repeatedly ask for tokens');
+      await page.getByText(/Search access rejected \(401\)/).waitFor();
+      await page.getByRole('button',{name:'Test saved connection',exact:true}).click();
+      await page.getByText('Connection ready.',{exact:true}).waitFor();
       await page.getByRole('button',{name:'Start 12-hour trial',exact:true}).click();
       await page.getByRole('button',{name:'Pause automatic searches',exact:true}).waitFor();
       await page.getByRole('button',{name:'Pause automatic searches',exact:true}).click();
       await page.getByRole('button',{name:'Start 12-hour trial',exact:true}).waitFor();
       await page.getByRole('button',{name:'Test saved connection',exact:true}).click();
       await page.waitForFunction(()=>!document.querySelector('[data-connection="test"]').disabled);
-      assert.equal(connectionTests,2);
+      assert.equal(connectionTests,3);
       await page.getByRole('button',{name:'Disconnect & delete credentials',exact:true}).click();
       await page.getByText('Credentials deleted.',{exact:true}).waitFor();
       assert.equal(await page.getByRole('button',{name:'Test saved connection',exact:true}).isEnabled(),false);

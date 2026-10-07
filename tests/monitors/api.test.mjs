@@ -187,28 +187,55 @@ test('persistent connection rejects anonymous users and never accepts a supplied
  assert.equal((await post({op:'connectionDisconnect',user_id:'foreign'})).status,200);
  assert(!calls.some(c=>c.path.includes('oauth')));
 });
-test('actual handler encrypts rotation before returning status and fences disconnect',async()=>{
+test('actual handler rotates once, proves search access and never uses an uncommitted replacement',async()=>{
  const credentials={refreshToken:'synthetic-original-refresh',userAgent:'Synthetic Browser 1.0',country:'GB'};
  const key=Buffer.alloc(32,42).toString('base64');
- let completed=true;
+ let completed=true,searches=0,healthy=false;
  const calls=transport((path,body)=>{
   if(path==='/auth/v1/user')return {id:user};
+  if(path.startsWith('/rest/v1/monitor_recipes?'))return [{id,revision:1,recipe:canonBenchmark()}];
+  if(path.endsWith('/rpc/monitor_session_claim'))return {accepted:true,checkId:id};
+  if(path.endsWith('/rpc/monitor_connection_snapshot'))return null;
   if(path.endsWith('/rpc/monitor_connection_key'))return key;
   if(path.endsWith('/rpc/monitor_connection_begin')){
    assert.equal(body.p_user,user);assert(!JSON.stringify(body).includes(credentials.refreshToken));
    return {accepted:true,attempt:id,generation:id,ciphertext:body.p_ciphertext};
   }
   if(path==='/oauth/token')return {access_token:'synthetic-new-access-token',refresh_token:'synthetic-new-refresh-token',expires_in:3600};
-  if(path.endsWith('/rpc/monitor_connection_finish')){
-   assert.equal(body.p_user,user);assert.equal(body.p_state,'verified');
-   assert(!JSON.stringify(body).includes('synthetic-new'));return completed;
-  }
-  if(path.endsWith('/rpc/monitor_connection_status'))return {state:'verified',stored:true};
+  if(path.endsWith('/rpc/monitor_connection_finish')){assert.equal(body.p_user,user);assert.equal(body.p_state,'verified');assert(!JSON.stringify(body).includes('synthetic-new'));return completed;}
+  if(path.startsWith('/web/gateway/')){searches++;return {items:[{id:123,title:'Canon 600D',price:{amount:'80',currency_code:'GBP'}}]};}
+  if(path.endsWith('/rpc/monitor_saved_session_finish')){healthy=body.p_status==='sample_received';assert.equal(body.p_generation,id);assert.deepEqual(body.p_items,[]);return {saved:0};}
+  if(path.endsWith('/rpc/monitor_session_finish')){assert.equal(body.p_status,'unavailable');return {saved:0};}
+  if(path.endsWith('/rpc/monitor_connection_status'))return {state:completed?'verified':'unavailable',stored:true,canStart:completed&&healthy};
  });
  const r=await post({op:'connectionTest',credentials,user_id:'foreign'});assert.equal(r.status,200);
- const output=await r.text();assert(!output.includes(key));assert(!output.includes('synthetic-'));assert(!output.includes('ciphertext'));
- completed=false;assert.equal((await post({op:'connectionTest',credentials})).status,409);
+ const output=await r.text();assert(!output.includes(key));assert(!output.includes('synthetic-'));assert(!output.includes('ciphertext'));assert.equal(JSON.parse(output).connection.canStart,true);
+ completed=false;const failed=await (await post({op:'connectionTest',credentials})).json();assert.equal(failed.connection.canStart,false);assert.equal(searches,1);
  assert(!calls.some(c=>/monitor_source_state|monitor_claim$|monitor_commit|outbox/.test(c.path)));
+});
+test('manual saved searches renew expired sessions, reuse valid sessions and distinguish fresh-token search rejection',async()=>{
+ const key=Buffer.alloc(32,42).toString('base64');
+ const credentials={refreshToken:'synthetic-refresh-token-value',accessToken:'synthetic-access-token-value',userAgent:'Synthetic Browser 1.0',country:'GB'};
+ let snapshot={state:'verified',generation:id,expiresAt:new Date(Date.now()-1).toISOString(),ciphertext:await seal(credentials,key,user)};
+ let status='unchecked',renewals=0,rejected=false;
+ const calls=transport((path,body)=>{
+  if(path==='/auth/v1/user')return {id:user};
+  if(path.startsWith('/rest/v1/monitor_recipes?'))return [{id,revision:1,recipe:canonBenchmark()}];
+  if(path.endsWith('/rpc/monitor_session_claim'))return {accepted:true,checkId:id};
+  if(path.endsWith('/rpc/monitor_connection_snapshot'))return snapshot;
+  if(path.endsWith('/rpc/monitor_connection_key'))return key;
+  if(path.endsWith('/rpc/monitor_connection_begin'))return {accepted:true,attempt:id,generation:id,ciphertext:snapshot.ciphertext};
+  if(path==='/oauth/token'){renewals++;return {access_token:'synthetic-rotated-access',refresh_token:'synthetic-rotated-refresh',expires_in:7200};}
+  if(path.endsWith('/rpc/monitor_connection_finish')){snapshot={...snapshot,ciphertext:body.p_ciphertext,expiresAt:body.p_expires};return true;}
+  if(path.startsWith('/web/gateway/'))return rejected?new Response('private error',{status:401}):{items:[{id:123,title:'Canon 600D',price:{amount:'80',currency_code:'GBP'}}]};
+  if(path.endsWith('/rpc/monitor_saved_session_finish')){status=body.p_status;assert.equal(body.p_user,user);assert.equal(body.p_generation,id);return {saved:body.p_items.length};}
+  if(path.endsWith('/rpc/monitor_connection_status'))return {state:'verified',stored:true,canStart:status==='sample_received'};
+ });
+ const body={op:'savedSessionCheck',id,searchText:'Canon'};
+ let result=await (await post(body)).json();assert.equal(result.saved,1);assert.equal(renewals,1);assert(result.connection.canStart);
+ rejected=true;result=await (await post(body)).json();assert.equal(result.status,'access_rejected');assert.equal(renewals,1);assert.equal(result.connection.canStart,false);
+ assert(!result.message.includes('use a fresh'));assert(!JSON.stringify(result).includes('private error'));
+ assert.equal(calls.filter(c=>c.path.startsWith('/web/gateway/')).length,2,'No automatic retry after 401');
 });
 
 test('trial start is registered-owner scoped and pausing does not start another window',async()=>{

@@ -15,7 +15,7 @@ import { matchListing } from "../../../worker/monitors/src/engine/match.mjs";
 import { buildFeed } from "../../../worker/monitors/src/feed.mjs";
 import { canon } from "../../../worker/monitors/src/contracts.mjs";
 import { checkSession, sessionMessages } from "../../../worker/monitors/src/session-check.mjs";
-import { connectionInput, seal, unseal, renewConnection, connectionMessages } from "../../../worker/monitors/src/connection.mjs";
+import { connectionInput, managedConnection, connectionMessages } from "../../../worker/monitors/src/connection.mjs";
 import { automaticScan } from "../../../worker/monitors/src/automatic.mjs";
 import { canonTierPresets } from "../../../worker/monitors/src/presets.mjs";
 const url = Deno.env.get("SUPABASE_URL")!;
@@ -243,62 +243,46 @@ Deno.serve(async (req) => {
       else await rpc("monitor_connection_automatic",{p_user:user.id,p_enabled:false});
       return reply({connection:await rpc("monitor_connection_status",{p_user:user.id}),message:input.enabled?'12-hour trial scheduled. Waiting for the first successful scan; the initial baseline is silent.':'Automatic searches paused.'});
     }
-    if (input.op === "connectionDisconnect" || input.op === "connectionTest") {
-      if (anonymous) return reply({ error: "Sign in with a registered staging account to connect Vinted." }, 403);
     if (input.op === "connectionDisconnect") {
-        await rpc("monitor_connection_disconnect", { p_user: user.id });
-        return reply({ connection: await rpc("monitor_connection_status", { p_user: user.id }), message: "Saved Vinted credentials deleted. Background monitoring is paused." });
-      }
-      let credentials: any = input.credentials == null ? null : connectionInput(input.credentials);
-      input.credentials = null;
-      const key = await rpc("monitor_connection_key");
-      const claim = await rpc("monitor_connection_begin", { p_user: user.id,
-        p_ciphertext: credentials ? await seal(credentials, key, user.id) : null });
-      credentials = null;
-      if (!claim.accepted) return reply({ error: "Wait until " + claim.retryAt + " before testing renewal again.", retryAt: claim.retryAt }, 429);
-      let result: any;
-      try {
-        credentials = await unseal(claim.ciphertext, key, user.id);
-        result = await renewConnection({ credentials, request: fetch });
-      } catch { result = { state: "reconnect" }; }
-      finally { credentials = null; claim.ciphertext = null; }
-      const ciphertext = result.credentials ? await seal(result.credentials, key, user.id) : null;
-      result.credentials = null;
-      const saved = await rpc("monitor_connection_finish", { p_user: user.id, p_attempt: claim.attempt,
-        p_generation: claim.generation, p_state: result.state, p_ciphertext: ciphertext,
-        p_expires: result.expiresAt || null, p_retry: result.retryAt ? new Date(result.retryAt).toISOString() : null });
-      if (!saved) return reply({ error: "Connection changed or expired during the test. Refresh its status before continuing." }, 409);
-      return reply({ connection: await rpc("monitor_connection_status", { p_user: user.id }),
-        message: connectionMessages[result.state as keyof typeof connectionMessages] });
+      if (anonymous) return reply({ error: "Sign in with a registered staging account to connect Vinted." }, 403);
+      await rpc("monitor_connection_disconnect", { p_user: user.id });
+      return reply({ connection: await rpc("monitor_connection_status", { p_user: user.id }), message: "Saved Vinted credentials deleted. Background monitoring is paused." });
     }
-    if (input.op === "sessionCheck" || input.op === "savedSessionCheck") {
+    if (["connectionTest", "savedSessionCheck", "sessionCheck"].includes(input.op)) {
       if (anonymous) return reply({ error: "Sign in with a registered staging account to check Vinted access." }, 403);
-      let savedCredentials: any = null;
-      if (input.op === "savedSessionCheck") {
-        const encrypted = await rpc("monitor_connection_read", { p_user: user.id });
-        if (!encrypted) return reply({ error: "Test session renewal first; the saved access token is unavailable or expired." }, 409);
-        try { savedCredentials = await unseal(encrypted, await rpc("monitor_connection_key"), user.id); }
-        catch { return reply({ error: "Saved connection could not be read. Reconnect Vinted." }, 409); }
-        input.accessToken = savedCredentials.accessToken;
-      }
-      validateAccessToken(input.accessToken);
-      const monitor = await own(user.id, input.id);
-      if (monitor.archived) throw new TypeError("Restore this monitor before checking its search.");
-      if (!monitor.recipe.searchTerms.includes(input.searchText)) throw new TypeError("Choose a saved search from this monitor.");
+      const savedMode = input.op !== "sessionCheck";
+      const submitted = input.op === "connectionTest" && input.credentials != null ? connectionInput(input.credentials) : null;
+      input.credentials = null;
+      // Legacy clients did not send the selected monitor with a renewal test.
+      const monitor = input.id ? await own(user.id, input.id) : (await db("monitor_recipes?user_id=eq."+user.id+"&archived=eq.false&limit=1"))[0];
+      if (!monitor || monitor.archived) throw new TypeError("Select an active monitor before checking its connection.");
+      const searchText = input.op === "connectionTest" ? monitor.recipe.searchTerms[0] : input.searchText;
+      if (!monitor.recipe.searchTerms.includes(searchText)) throw new TypeError("Choose a saved search from this monitor.");
+      if (!savedMode) validateAccessToken(input.accessToken);
       const claim = await rpc("monitor_session_claim", { p_user: user.id });
       if (!claim.accepted) return reply({ error: "Wait until " + claim.retryAt + " before checking again.", retryAt: claim.retryAt }, 429);
-      const result = await checkSession({ request: fetch, accessToken: input.accessToken,
-        recipe: monitor.recipe, searchText: input.searchText, userAgent: savedCredentials?.userAgent });
-      savedCredentials = null;
-      // Drop the value before persistence. No token/response body enters storage or logs.
+      const managed = savedMode ? await managedConnection({rpc,request:fetch,userId:user.id,credentials:submitted}) : null;
+      if (managed && !managed.credentials) {
+        await rpc("monitor_session_finish", {p_user:user.id,p_check:claim.checkId,p_monitor:monitor.id,p_revision:monitor.revision,
+          p_status:"unavailable",p_http:null,p_received:0,p_items:[],p_retry:managed.retryAt || null});
+        return reply({connection:await rpc("monitor_connection_status",{p_user:user.id}),
+          status:"unavailable",saved:0,message:connectionMessages[managed.state as keyof typeof connectionMessages] || connectionMessages.unavailable,retryAt:managed.retryAt || null});
+      }
+      const result = await checkSession({request:fetch,accessToken:managed?.credentials?.accessToken || input.accessToken,
+        recipe:monitor.recipe,searchText,userAgent:managed?.credentials?.userAgent});
       input.accessToken = null;
-      const saved = await rpc("monitor_session_finish", { p_user: user.id, p_check: claim.checkId,
-        p_monitor: monitor.id, p_revision: monitor.revision, p_status: result.status,
-        p_http: result.httpStatus, p_received: result.received, p_items: result.items,
-        p_retry: result.retryAt ? new Date(result.retryAt).toISOString() : null });
-      if (!saved) throw new TypeError("Monitor changed during the check. Refresh before trying again.");
-      return reply({ status: result.status, message: sessionMessages[result.status as keyof typeof sessionMessages],
-        received: result.received, saved: saved.saved, retryAt: saved.retryAt, checkedAt: saved.checkedAt });
+      if (managed) managed.credentials = null;
+      const saved = await rpc(savedMode ? "monitor_saved_session_finish" : "monitor_session_finish", { p_user:user.id,p_check:claim.checkId,
+        ...(managed ? {p_generation:managed.generation} : {}),
+        p_monitor:monitor.id,p_revision:monitor.revision,p_status:result.status,p_http:result.httpStatus,
+        p_received:result.received,p_items:input.op === "connectionTest" ? [] : result.items,
+        p_retry:result.retryAt ? new Date(result.retryAt).toISOString() : null });
+      if (!saved) return reply({error:"The monitor or saved connection changed during the check. Refresh its status."},409);
+      return reply({ status:result.status,message:input.op === "connectionTest" && result.status === "sample_received"
+          ? "Saved connection and search access verified. Tokens renew automatically while monitoring runs."
+          : sessionMessages[result.status as keyof typeof sessionMessages],
+        received:result.received,saved:saved.saved,retryAt:saved.retryAt,checkedAt:saved.checkedAt,
+        ...(savedMode ? {connection:await rpc("monitor_connection_status",{p_user:user.id})} : {}) });
     }
     if (input.op === "bootstrap" || input.op === "status") {
       const c = await config();
@@ -316,8 +300,8 @@ Deno.serve(async (req) => {
       );
       const connection = anonymous ? {state:'disconnected',stored:false,automatic:false} : await rpc("monitor_connection_status", {p_user:user.id});
       const connectedSource = connection.stored || connection.scanCheckedAt ? {
-        status: connection.state !== 'verified' ? 'blocked' : !connection.automatic ? 'blocked' : connection.scanStatus === 'ready' ? 'ready' : connection.scanStatus === 'waiting' ? 'starting' : 'degraded',
-        message: connection.state !== 'verified' ? 'Vinted session needs attention in Connection.' : connection.scanMessage || 'Waiting for the first scheduled scan.',
+        status: connection.state !== 'verified' ? 'blocked' : !connection.automatic ? (connection.canStart ? 'paused' : 'blocked') : connection.scanStatus === 'ready' ? 'ready' : connection.scanStatus === 'waiting' ? 'starting' : 'degraded',
+        message: connection.state !== 'verified' ? 'Vinted session needs attention in Connection.' : !connection.automatic && connection.canStart ? 'Saved search access verified. Start the 12-hour trial when ready.' : connection.searchStatus==='access_rejected' ? sessionMessages.access_rejected : connection.scanMessage || 'Waiting for the first scheduled scan.',
         checkedAt: connection.scanCheckedAt || connection.checkedAt, retryAt: connection.scanRetryAt,
         automatic:connection.automatic, intervalSeconds:60, trialEndsAt:connection.trialEndsAt
       } : null;

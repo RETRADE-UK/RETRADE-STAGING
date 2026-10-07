@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { connectionInput, seal, unseal, renewConnection } from '../../worker/monitors/src/connection.mjs';
+import { connectionInput, seal, unseal, renewConnection, managedConnection } from '../../worker/monitors/src/connection.mjs';
 const input = {refreshToken:'synthetic-refresh-token-value',userAgent:'Synthetic Test Browser 1.0',country:'GB'};
 const key = Buffer.alloc(32,42).toString('base64');
 const response = body => Response.json(body);
@@ -26,12 +26,43 @@ test('bounded UK renewal saves both rotated credentials and expiry',async()=>{
  assert.equal(result.expiresAt,new Date(3700000).toISOString());
 });
 test('refusals and uncertain responses are sanitized and never retried',async()=>{
- for(const [code,state] of [[401,'reconnect'],[403,'blocked'],[429,'rate_limited'],[500,'reconnect']]){
+ for(const [code,state] of [[401,'blocked'],[403,'blocked'],[429,'rate_limited'],[500,'unavailable']]){
   let calls=0;const r=await renewConnection({credentials:input,request:async()=>{calls++;return new Response(input.refreshToken,{status:code,headers:{'retry-after':'600'}});}});
   assert.equal(calls,1);assert.equal(r.state,state);assert.equal(JSON.stringify(r).includes(input.refreshToken),false);
  }
  for(const request of [async()=>{throw new Error(input.refreshToken);},async()=>new Response('<html>no</html>'),async()=>response({access_token:input.refreshToken}),async()=>response({access_token:input.refreshToken,refresh_token:input.refreshToken,expires_in:-1}),async()=>new Response('x'.repeat(40001),{headers:{'content-type':'application/json'}})]){
-  assert.deepEqual(await renewConnection({credentials:input,request}),{state:'reconnect'});
+  assert.deepEqual(await renewConnection({credentials:input,request}),{state:'unavailable'});
  }
- assert.deepEqual(await renewConnection({credentials:input,timeoutMs:5,request:()=>new Promise(()=>{})}),{state:'reconnect'});
+ assert.deepEqual(await renewConnection({credentials:input,timeoutMs:5,request:()=>new Promise(()=>{})}),{state:'unavailable'});
+});
+
+test('only explicit invalid_grant requests reconnection; optional rotation preserves the current grant',async()=>{
+ for(const [error,state] of [['invalid_grant','reconnect'],['invalid_client','blocked'],['unknown','blocked']]){
+  const result=await renewConnection({credentials:input,request:async()=>Response.json({error,error_description:input.refreshToken},{status:400})});
+  assert.equal(result.state,state);assert(!JSON.stringify(result).includes(input.refreshToken));
+ }
+ const result=await renewConnection({credentials:input,request:async()=>response({access_token:'synthetic-access-token-value',expires_in:3600})});
+ assert.equal(result.state,'verified');assert.equal(result.credentials.refreshToken,input.refreshToken);
+});
+test('12-hour simulation renews across stateless worker restarts using each durably rotated grant',async()=>{
+ let clock=Date.parse('2026-10-07T00:00:00Z'),version=0,renewals=0;
+ let current={state:'verified',generation:'v0',expiresAt:new Date(clock-1).toISOString(),ciphertext:await seal(input,key,'owner-a')};
+ const rpc=async(name,args)=>{
+  if(name==='monitor_connection_snapshot')return {...current};
+  if(name==='monitor_connection_key')return key;
+  if(name==='monitor_connection_begin')return {accepted:true,attempt:'attempt',generation:'v'+(++version),ciphertext:current.ciphertext};
+  if(name==='monitor_connection_finish'){current={state:args.p_state,generation:args.p_generation,expiresAt:args.p_expires,ciphertext:args.p_ciphertext};return true;}
+  throw Error(name);
+ };
+ const request=async(_,opts)=>{
+  assert.equal(JSON.parse(opts.body).refresh_token,renewals ? 'synthetic-refresh-rotated-'+renewals : input.refreshToken);
+  renewals++;return response({access_token:'synthetic-access-rotated-'+renewals,refresh_token:'synthetic-refresh-rotated-'+renewals,expires_in:7200});
+ };
+ for(let hour=0;hour<12;hour++){
+  const session=await managedConnection({rpc,request,userId:'owner-a',now:()=>clock});
+  assert.equal(session.state,'verified');assert.equal(session.credentials.accessToken,'synthetic-access-rotated-'+renewals);
+  assert.equal((await unseal(current.ciphertext,key,'owner-a')).refreshToken,session.credentials.refreshToken);
+  clock+=3600000;
+ }
+ assert.equal(renewals,6);
 });

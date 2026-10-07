@@ -20,7 +20,7 @@ export async function checkSession({ request, accessToken, recipe: input, search
       })).filter(item => item.result.status === 'match') };
   } catch (error) {
     // Neither raw responses nor exception messages may echo a credential.
-    const status = error.status === 401 ? 'expired' : error.status === 403 ? 'blocked' :
+    const status = error.status === 401 ? 'access_rejected' : error.status === 403 ? 'blocked' :
       error.status === 429 ? 'rate_limited' : error.status === 404 ? 'endpoint_unavailable' :
       error.code === 'timeout' ? 'timeout' : error.name === 'ProviderContractError' ||
       ['unexpected_content_type', 'invalid_json', 'response_too_large'].includes(error.code) ? 'schema_changed' : 'unavailable';
@@ -32,7 +32,7 @@ export async function checkSession({ request, accessToken, recipe: input, search
 export const sessionMessages = Object.freeze({
   sample_received: 'Vinted returned listing data. Matching sample results are saved in History. Background monitoring is still off until continuous access is verified.',
   empty: 'Vinted returned an empty results page. This does not prove the session works; no listings were saved.',
-  expired: 'Vinted rejected this session (401). Sign in on Vinted and use a fresh access token.',
+  access_rejected: 'Vinted rejected search access (401). This does not prove that the token expired. The connection method needs review; repeatedly replacing tokens is not a fix.',
   blocked: 'Vinted refused the server request (403). A token alone has not solved access. No automatic retries will run.',
   rate_limited: 'Vinted requested a pause (429). Wait until the next permitted check; no automatic retries will run.',
   endpoint_unavailable: 'The catalogue endpoint is unavailable (404). The integration needs another review.',

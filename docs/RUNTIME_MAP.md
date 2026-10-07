@@ -508,3 +508,5 @@ Monitor trial build `20261007-monitor-trial-staging`: presets.mjs owns the four
 research-based tiers; match.mjs owns model/kit ceilings and exclusive bundle rules.
 Private connection trial timestamps fence claims and late commits. See
 `docs/features/monitors/TRIAL_2026-10-07.md` for limits and deployment verification.
+
+Monitor connection build `20261007-monitor-connection-staging`: `connection.mjs` owns the shared manual/worker session manager. The private search-health columns and generation-fenced saved-session RPC own readiness independently of token renewal. See `docs/features/monitors/CONNECTION_HEALTH_2026-10-07.md`.
