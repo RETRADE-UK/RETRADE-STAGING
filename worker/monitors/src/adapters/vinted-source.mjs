@@ -1,7 +1,8 @@
 /** Experimental read-only source. Transport must be injected explicitly.
- * No cookies, sign-in, bypass, automatic retries or deployment entry point. */
+ * No sign-in, challenge handling, automatic retries or deployment entry point. */
 import { createRecipe, pence } from '../contracts.mjs';
 import { ProviderContractError, parseSearchPage, mergeListing } from './vinted-normalize.mjs';
+import { PUBLIC_AGENT, publicCookieHeader, acceptPublicCookies, validatePublicSession } from './vinted-public-session.mjs';
 
 export class SourceError extends Error {
   constructor(code, { status = null, retryAt = null } = {}) {
@@ -50,11 +51,16 @@ export function validateAccessToken(value) {
 }
 
 /** @param {{ request: (url: URL, options: RequestInit) => Promise<Response>, now?: () => number, timeoutMs?: number, maxBytes?: number, accessToken?: string|null }} options */
-export function createVintedSource({ request, now = Date.now, timeoutMs = 10000, maxBytes = 1000000, accessToken = null, userAgent = 'RETRADE-Monitor/1.2' } = {}) {
+export function createVintedSource({ request, now = Date.now, timeoutMs = 10000, maxBytes = 1000000, accessToken = null, userAgent = 'RETRADE-Monitor/1.2', publicSession = null } = {}) {
   if (typeof request !== 'function') throw new TypeError('Explicit request transport required');
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000) throw new TypeError('Invalid timeout');
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 5000000) throw new TypeError('Invalid response bound');
   if (accessToken !== null) validateAccessToken(accessToken);
+  if (publicSession !== null) {
+    validatePublicSession(publicSession);
+    if (accessToken !== null) throw new TypeError('Public searches cannot use account credentials');
+    userAgent = PUBLIC_AGENT;
+  }
   if (typeof userAgent !== 'string' || !/^[\x20-\x7e]{10,512}$/.test(userAgent)) throw new TypeError('Invalid user agent');
   return {
     /** @param {{ searchText: string, minPricePence?: number, maxPricePence?: number|null, page?: number, perPage?: number, signal?: AbortSignal }} input */
@@ -64,7 +70,7 @@ export function createVintedSource({ request, now = Date.now, timeoutMs = 10000,
       if (maxPricePence !== null && maxPricePence < minPricePence) throw new TypeError('Invalid price range');
       if (!Number.isSafeInteger(page) || page < 1 || page > 100 || !Number.isSafeInteger(perPage) || perPage < 1 || perPage > 100) throw new TypeError('Invalid pagination');
       if (signal?.aborted) throw new SourceError('cancelled');
-      const url = new URL(VINTED_CATALOG_PATH, 'https://www.vinted.co.uk');
+      const url = publicSession ? new URL('https://api.vinted.co.uk/svc-catalogue/items') : new URL(VINTED_CATALOG_PATH, 'https://www.vinted.co.uk');
       const params = { search_text: searchText.trim(), price_from: (minPricePence / 100).toFixed(2),
         currency: 'GBP', order: 'newest_first', page, per_page: perPage };
       if (maxPricePence !== null) params.price_to = (maxPricePence / 100).toFixed(2);
@@ -81,6 +87,10 @@ export function createVintedSource({ request, now = Date.now, timeoutMs = 10000,
         return await Promise.race([aborted, (async () => {
           const response = await request(url, { method: 'GET', redirect: 'error', signal: controller.signal,
             headers: { accept: 'application/json', 'user-agent': userAgent,
+              ...(publicSession ? { cookie: publicCookieHeader(publicSession,url,now()),
+                'accept-language':'en-GB,en;q=0.9', origin:'https://www.vinted.co.uk',referer:'https://www.vinted.co.uk/',
+                locale:'en-GB',platform:'web','x-next-app':'marketplace-web',
+                ...(publicSession.anonId ? {'x-anon-id':publicSession.anonId} : {}) } : {}),
               ...(accessToken === null ? {} : { cookie: 'access_token_web=' + accessToken }) } });
           const observedAt = new Date(now()).toISOString();
           if (!response.ok) {
@@ -89,10 +99,15 @@ export function createVintedSource({ request, now = Date.now, timeoutMs = 10000,
             throw new SourceError(response.status === 429 ? 'rate_limited' : response.status === 403 ? 'blocked' : 'http_error',
               { status: response.status, retryAt: retryAt(response.headers.get('retry-after'), now(), delay) });
           }
+          if (publicSession) acceptPublicCookies(publicSession,response.headers,url,now());
           const payload = await readJson(response, maxBytes);
           const listings = parseSearchPage(payload, { observedAt });
           if (payload.items.length > perPage) throw new ProviderContractError('Provider exceeded requested page size');
-          return { listings, rawCount: payload.items.length, observedAt };
+          return { listings, rawCount: payload.items.length, observedAt,
+            // Promoted cards can move independently of newest-first order. They
+            // remain candidates, but cannot establish/break organic overlap.
+            ...(publicSession ? {overlapIds:payload.items.filter(x=>x.promoted!==true && x.content_source!=='search_promoted_items')
+              .map(x=>String(x.id??x.item_id))} : {}) };
         })()]);
       } catch (error) {
         if (error instanceof SourceError || error instanceof ProviderContractError) throw error;
@@ -130,7 +145,10 @@ export async function scanCatalog({ source, recipe: input, maxPages = 2, perPage
       if (result.rawCount < perPage) break;
       // A whole distinct page already recorded by a previous cycle establishes
       // overlap with durable history. Full duplicate/malformed pages never do.
-      if (result.listings.length === result.rawCount && result.listings.every(x => knownIds.has(x.id))) break;
+      const overlap=result.overlapIds ?? result.listings.map(x=>x.id);
+      if(!Array.isArray(overlap) || overlap.some(id=>!result.listings.some(x=>x.id===id))) throw new ProviderContractError('Invalid overlap identities');
+      const distinct=new Set(overlap).size===overlap.length && (result.overlapIds!==undefined || result.listings.length===result.rawCount);
+      if (distinct && overlap.length>=Math.min(10,perPage) && overlap.every(id=>knownIds.has(id))) break;
       if (page === maxPages) incomplete.push({ searchText, reason: 'page_limit' });
     }
   }

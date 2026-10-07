@@ -3,21 +3,23 @@ import { createRecipe } from './contracts.mjs';
 import { createVintedSource, validateAccessToken } from './adapters/vinted-source.mjs';
 import { matchListing } from './engine/match.mjs';
 
-export async function checkSession({ request, accessToken, recipe: input, searchText, userAgent, now = Date.now }) {
-  validateAccessToken(accessToken);
+export async function checkSession({ request, accessToken, publicSession=null, recipe: input, searchText, userAgent, sourceRecipe=null, now = Date.now }) {
+  if(!publicSession) validateAccessToken(accessToken);
   const recipe = createRecipe(input);
   if (!recipe.searchTerms.includes(searchText)) throw new TypeError('Choose a saved search from this monitor.');
   try {
-    const page = await createVintedSource({ request, accessToken, userAgent, now, timeoutMs: 7000 })
-      .searchPage({ searchText, minPricePence: recipe.minPricePence, maxPricePence: recipe.maxPricePence, perPage: 20 });
+    const scope=sourceRecipe || recipe;
+    const page = await createVintedSource({ request, ...(publicSession?{publicSession}:{accessToken,userAgent}), now, timeoutMs: 10000 })
+      .searchPage({ searchText, minPricePence: scope.minPricePence, maxPricePence: scope.maxPricePence, perPage: publicSession?50:20 });
     // New/unknown provider shapes must not count as a working connection.
-    if (page.listings.some(l => !l.title || !l.url || l.currency !== 'GBP' || l.itemPricePence === null))
+    if (page.listings.some(l => !l.title || !l.url || l.currency !== 'GBP' || l.itemPricePence === null)
+      || (publicSession && recipe.conditions.length && page.listings.length && page.listings.every(l=>l.condition===null)))
       return { status: 'schema_changed', httpStatus: 200, items: [], received: 0, retryAt: null };
     return { status: page.rawCount ? 'sample_received' : 'empty', httpStatus: 200,
       received: page.rawCount, retryAt: null,
       items: page.listings.map(listing => ({
         listing: { ...listing, captureMode: 'session_check' }, result: matchListing(listing, recipe),
-      })).filter(item => item.result.status === 'match') };
+      })).filter(item => item.result.status === 'match').slice(0,20) };
   } catch (error) {
     // Neither raw responses nor exception messages may echo a credential.
     const status = error.status === 401 ? 'access_rejected' : error.status === 403 ? 'blocked' :

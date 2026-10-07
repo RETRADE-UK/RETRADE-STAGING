@@ -1,5 +1,7 @@
 # Runtime ownership
 
+**7 October catalogue update:** [Public sessions, current listing fields and setup](features/monitors/PUBLIC_CATALOGUE_2026-10-07.md).
+
 Monitor setup remains owned by `src/features/monitors/page.js` and its existing
 feature stylesheet. A disposed local countdown presents server cooldowns without
 source requests; connection updates fence stale page status responses. See

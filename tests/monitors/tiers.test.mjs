@@ -1,3 +1,4 @@
+import { publicSession } from './public-fixtures.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRecipe} from '../../worker/monitors/src/contracts.mjs';
@@ -52,13 +53,14 @@ test('four complete tiers cover 20 models with gapless exclusive bands and conse
 });
 test('two price tiers reuse source requests but save only passing finds and retain ID-only overlap',async()=>{
  const key=Buffer.alloc(32,17).toString('base64'),owner='fixture-owner';
- const encrypted=await seal({accessToken:'synthetic-only-access-token',refreshToken:'synthetic-refresh',userAgent:'Synthetic Browser 1.0',country:'GB'},key,owner);
+ const encrypted=await seal(publicSession(),key,owner);
  const monitors=[{minPricePence:0,maxPricePence:7500},{minPricePence:7501,maxPricePence:12500}].map((band,i)=>({id:'m'+i,user_id:owner,revision:1,recipe:createRecipe({...band,models:['600D','700D'],searchTerms:['Canon','EOS Rebel'],conditions:['good','very_good'],titleRejectTerms:['faulty']})}));
  const commits=[];let requests=0;
  const result=await automaticScan({token:'fixture',db:async()=>[],rpc:async(name,args)=>{
   if(name==='monitor_auto_claim')return monitors;
-  if(name==='monitor_connection_worker')return {state:'verified',generation:'fixture',ciphertext:encrypted,expiresAt:new Date(Date.now()+3600000).toISOString()};
+  if(name==='monitor_connection_worker')return {mode:'public',state:'verified',generation:'fixture',ciphertext:encrypted,expiresAt:new Date(Date.now()+3600000).toISOString()};
   if(name==='monitor_connection_key')return key;
+  if(name==='monitor_public_persist')return true;
   if(name==='monitor_catalog_commit'){commits.push(args);return true;}
   throw new Error(name);
  },request:async(url)=>{

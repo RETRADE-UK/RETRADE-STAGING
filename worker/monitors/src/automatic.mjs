@@ -1,4 +1,4 @@
-import { managedConnection, connectionMessages } from './connection.mjs';
+import { managedPublicConnection, persistPublicSession, publicMessages } from './public-connection.mjs';
 import { createVintedSource, scanCatalog } from './adapters/vinted-source.mjs';
 import { matchListing } from './engine/match.mjs';
 
@@ -6,7 +6,7 @@ import { matchListing } from './engine/match.mjs';
 export async function automaticScan({rpc,db,request,token,now=Date.now}) {
  const monitors=await rpc('monitor_auto_claim',{p_token:token});
  monitors.sort((a,b)=>(Date.parse(a.last_success_at||'1970-01-01')-Date.parse(b.last_success_at||'1970-01-01'))||String(a.id).localeCompare(String(b.id)));
- const accounts=new Map(),cache=new Map();let requests=0,committed=0;
+ const accounts=new Map(),cache=new Map(),diagnostics=[];let requests=0,committed=0;
  for(const m of monitors){
   let account=accounts.get(m.user_id);
   if(account===undefined){
@@ -14,14 +14,14 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
    account=null;
    if(snapshot){
     try{
-     const result=await managedConnection({rpc,request,userId:m.user_id,snapshot,now});
-     if(result.credentials) account={...snapshot,generation:result.generation,source:createVintedSource({request,accessToken:result.credentials.accessToken,userAgent:result.credentials.userAgent,timeoutMs:7000,now})};
-     else await rpc('monitor_scan_failure',{p_user:m.user_id,p_generation:result.generation || snapshot.generation,
-      p_status:result.state==='rate_limited'?'rate_limited':'blocked',p_message:connectionMessages[result.state] || connectionMessages.unavailable,
+     const result=await managedPublicConnection({rpc,request,userId:m.user_id,snapshot,now});
+     if(result.session) account={...snapshot,session:result.session,generation:result.generation,source:createVintedSource({request,publicSession:result.session,timeoutMs:10000,now})};
+     else await rpc('monitor_public_failure',{p_user:m.user_id,p_generation:result.generation || snapshot.generation,p_http:result.httpStatus||null,p_requests:0,
+      p_status:result.state==='rate_limited'?'rate_limited':'blocked',p_message:publicMessages[result.state] || publicMessages.unavailable,
       p_retry:result.retryAt || null,p_stop:result.state!=='rate_limited'});
     }catch{
-     await rpc('monitor_scan_failure',{p_user:m.user_id,p_generation:snapshot.generation,p_status:'blocked',
-      p_message:'The saved connection could not be safely loaded. Connection storage needs review.',p_retry:null,p_stop:true});
+     await rpc('monitor_public_failure',{p_user:m.user_id,p_generation:snapshot.generation,p_http:null,p_requests:0,p_status:'blocked',
+      p_message:'The catalogue session could not be safely loaded. Connection storage needs review.',p_retry:null,p_stop:true});
     }
    }
    accounts.set(m.user_id,account);
@@ -32,7 +32,8 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
    if(cache.has(key))return cache.get(key);
    if(requests>=6)throw new Error('cycle_budget');
    requests++;const page=await account.source.searchPage(q);
-   if(page.listings.some(l=>!l.title||!l.url||l.currency!=='GBP'||l.itemPricePence===null))throw new Error('source_schema');
+   if(page.listings.some(l=>!l.title||!l.url||l.currency!=='GBP'||l.itemPricePence===null) || (m.recipe.conditions.length && page.listings.length && page.listings.every(l=>l.condition===null)))throw new Error('source_schema');
+   if(!await persistPublicSession({rpc,userId:m.user_id,generation:account.generation,session:account.session}))throw new Error('session_changed');
    cache.set(key,page);return page;
   }};
   try{
@@ -43,20 +44,24 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
     maxPricePence:peers.some(x=>x.recipe.maxPricePence===null)?null:Math.max(...peers.map(x=>x.recipe.maxPricePence))};
    const seen=m.catalog_revision===m.revision?(m.catalog_seen_ids||[]):[];
    const scan=await scanCatalog({source:budget,recipe:sourceRecipe,maxPages:2,maxRequests:6,perPage:50,knownIds:new Set(seen)});
+   const evaluated=scan.listings.map(listing=>({listing,result:matchListing(listing,m.recipe)}));
+   const reasons={};for(const {result} of evaluated)reasons[result.reason]=(reasons[result.reason]||0)+1;
+   diagnostics.push({monitorId:m.id,candidates:scan.listings.length,knownConditions:scan.listings.filter(x=>x.condition).length,
+    incomplete:scan.incomplete,reasons});
    const ok=await rpc('monitor_catalog_commit',{p_user:m.user_id,p_generation:account.generation,p_id:m.id,p_revision:m.revision,p_token:token,
-    p_items:scan.listings.map(listing=>({listing,result:matchListing(listing,m.recipe)})).filter(x=>x.result.status==='match'),
+    p_items:evaluated.filter(x=>x.result.status==='match'),
     p_seen:scan.listings.map(x=>x.id),p_complete:scan.coverageComplete,p_requests:scan.requests});
    if(ok)committed++;
   }catch(e){
    if(e.message==='cycle_budget')break;
-   const stop=[401,403,404].includes(e.status)||e.message==='source_schema'||e.name==='ProviderContractError'||['unexpected_content_type','invalid_json'].includes(e.code);
+   const stop=[401,403,404].includes(e.status)||['source_schema','session_changed'].includes(e.message)||e.name==='ProviderContractError'||['session_invalid','session_destination','unexpected_content_type','invalid_json'].includes(e.code);
    const delay=Math.min(3600000,120000*2**Math.min(account.failures||0,5));
-   await rpc('monitor_scan_failure',{p_user:m.user_id,p_generation:account.generation,
+   await rpc('monitor_public_failure',{p_user:m.user_id,p_generation:account.generation,p_http:e.status||null,p_requests:requests,
     p_status:stop?'blocked':e.status===429?'rate_limited':'degraded',
-    p_message:stop?(e.status===401?'Vinted rejected search access (401). Token expiry is not established; the connection method needs review.':e.status ? `Vinted returned HTTP ${e.status}. Automatic requests are paused.` : `Vinted response could not be read (${e.name==='ProviderContractError'?'catalogue schema':e.code==='unexpected_content_type'?'non-JSON response':e.code==='invalid_json'?'invalid JSON':'missing listing fields'}). Automatic requests are paused.`):e.status===429?'Vinted requested a pause. Scanning will resume after the retry time.':'Scan failed. The service will retry after a pause.',
+    p_message:stop?(e.status ? `Vinted returned HTTP ${e.status}. Catalogue requests are paused; no account token is required.` : 'Catalogue data or session changed unexpectedly. Automatic requests are paused.'):e.status===429?'Vinted requested a pause. Scanning will resume after the retry time.':'Scan failed. The service will retry after a pause.',
     p_retry:stop?null:new Date(Math.max(now()+delay,e.retryAt||0)).toISOString(),p_stop:stop});
    accounts.set(m.user_id,null);
   }
  }
- return {requests,committed};
+ return {requests,committed,diagnostics};
 }

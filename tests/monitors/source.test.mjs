@@ -129,3 +129,14 @@ test('durable full-page overlap completes a busy baseline on the following cycle
   const bad=await scanCatalog({source:duplicate,recipe,perPage:2,maxPages:1,knownIds:new Set(['1'])});
   assert.equal(bad.coverageComplete,false,'Duplicate-filled pages do not establish trustworthy overlap');
 });
+
+test('changing promoted cards remain candidates without preventing organic overlap',async()=>{
+ const {publicSession}=await import('./public-fixtures.mjs');
+ const source=createVintedSource({publicSession:publicSession(),request:async()=>json({items:[
+  ...Array.from({length:19},(_,i)=>item(i+1)),{...item(100),promoted:true,content_source:'search_promoted_items'}
+ ]})});
+ const scan=await scanCatalog({source,recipe:createRecipe({...canonBenchmark(),searchTerms:['Canon']}),perPage:20,maxPages:1,knownIds:new Set(Array.from({length:19},(_,i)=>String(i+1)))});
+ assert.equal(scan.coverageComplete,true);assert.equal(scan.listings.length,20,'Promoted finds are still evaluated');
+ const allAds=createVintedSource({publicSession:publicSession(),request:async()=>json({items:Array.from({length:20},(_,i)=>({...item(i+1),promoted:true}))})});
+ assert.equal((await scanCatalog({source:allAds,recipe:createRecipe({...canonBenchmark(),searchTerms:['Canon']}),perPage:20,maxPages:1,knownIds:new Set(Array.from({length:20},(_,i)=>String(i+1)))})).coverageComplete,false,'An ad-only page cannot prove overlap');
+});
