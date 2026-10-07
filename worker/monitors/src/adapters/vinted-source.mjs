@@ -50,11 +50,12 @@ export function validateAccessToken(value) {
 }
 
 /** @param {{ request: (url: URL, options: RequestInit) => Promise<Response>, now?: () => number, timeoutMs?: number, maxBytes?: number, accessToken?: string|null }} options */
-export function createVintedSource({ request, now = Date.now, timeoutMs = 10000, maxBytes = 1000000, accessToken = null, userAgent = 'RETRADE-Monitor/1.2' } = {}) {
+export function createVintedSource({ request, now = Date.now, timeoutMs = 10000, maxBytes = 1000000, accessToken = null, authMode = 'cookie', userAgent = 'RETRADE-Monitor/1.2' } = {}) {
   if (typeof request !== 'function') throw new TypeError('Explicit request transport required');
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000) throw new TypeError('Invalid timeout');
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 5000000) throw new TypeError('Invalid response bound');
   if (accessToken !== null) validateAccessToken(accessToken);
+  if (!['cookie','bearer'].includes(authMode)) throw new TypeError('Invalid token transport');
   if (typeof userAgent !== 'string' || !/^[\x20-\x7e]{10,512}$/.test(userAgent)) throw new TypeError('Invalid user agent');
   return {
     /** @param {{ searchText: string, minPricePence?: number, maxPricePence?: number|null, page?: number, perPage?: number, signal?: AbortSignal }} input */
@@ -81,7 +82,7 @@ export function createVintedSource({ request, now = Date.now, timeoutMs = 10000,
         return await Promise.race([aborted, (async () => {
           const response = await request(url, { method: 'GET', redirect: 'error', signal: controller.signal,
             headers: { accept: 'application/json', 'user-agent': userAgent,
-              ...(accessToken === null ? {} : { cookie: 'access_token_web=' + accessToken }) } });
+              ...(accessToken === null ? {} : authMode === 'bearer' ? { authorization: 'Bearer ' + accessToken } : { cookie: 'access_token_web=' + accessToken }) } });
           const observedAt = new Date(now()).toISOString();
           if (!response.ok) {
             await response.body?.cancel().catch(() => {});

@@ -23,7 +23,8 @@ async function fixture({expired=false,fail=null,second=false}={}){
  const cookies=[];let renewals=0;
  const request=async(url,opts)=>{
   if(url.pathname==='/oauth/token'){renewals++;return Response.json({access_token:'rotated-access-token-value',refresh_token:'rotated-refresh-token-value',expires_in:3600});}
-  cookies.push(opts.headers.cookie);
+  assert.equal(opts.headers.cookie,undefined,'OAuth access tokens are not browser cookie values');
+  cookies.push(opts.headers.authorization);
   if(fail)return new Response('private body',{status:fail,headers:{'retry-after':'600'}});
   return Response.json({items:[{id:123,title:'Canon 600D',price:{amount:'80',currency_code:'GBP'}}]});
  };
@@ -32,13 +33,13 @@ async function fixture({expired=false,fail=null,second=false}={}){
 }
 test('valid saved connection scans with owner isolation and no unnecessary renewal',async()=>{
  const f=await fixture({second:true});assert.equal(f.renewals,0);assert.equal(f.result.committed,2);
- assert.deepEqual(f.cookies,['access_token_web=synthetic-access-token','access_token_web=second-owner-access-token']);
+ assert.deepEqual(f.cookies,['Bearer synthetic-access-token','Bearer second-owner-access-token']);
  assert.equal(f.commits[0].p_user,'owner-a');assert.equal(f.commits[1].p_user,'owner-b');
  assert(!JSON.stringify(f.commits).includes('access-token'));
 });
 test('expired connection rotates and persists before catalog use',async()=>{
  const f=await fixture({expired:true});assert.equal(f.renewals,1);
- assert.deepEqual(f.cookies,['access_token_web=rotated-access-token-value']);
+ assert.deepEqual(f.cookies,['Bearer rotated-access-token-value']);
  const finish=f.calls.find(c=>c.name==='monitor_connection_finish');
  assert.equal((await unseal(finish.args.p_ciphertext,key,'owner-a')).refreshToken,'rotated-refresh-token-value');
  assert(f.calls.findIndex(c=>c.name==='monitor_connection_finish')<f.calls.findIndex(c=>c.name==='monitor_catalog_commit'));

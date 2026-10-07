@@ -28,7 +28,8 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
        if(saved && result.state==='verified'){credentials=result.credentials;snapshot.generation=claim.generation;}
       }
      }
-     if(credentials) account={...snapshot,source:createVintedSource({request,accessToken:credentials.accessToken,userAgent:credentials.userAgent,timeoutMs:7000,now})};
+     // Persistent access tokens come from OAuth renewal, not copied browser cookies.
+     if(credentials) account={...snapshot,source:createVintedSource({request,accessToken:credentials.accessToken,authMode:'bearer',userAgent:credentials.userAgent,timeoutMs:7000,now})};
     }catch{
      await rpc('monitor_scan_failure',{p_user:m.user_id,p_generation:snapshot.generation,p_status:'blocked',
       p_message:'Saved connection needs attention. Reconnect before automatic searches can resume.',p_retry:null,p_stop:true});
