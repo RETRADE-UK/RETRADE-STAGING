@@ -66,3 +66,20 @@ test('12-hour simulation renews across stateless worker restarts using each dura
  }
  assert.equal(renewals,6);
 });
+test('managed rate limits use the same ISO retry time for storage, callers and existing leases',async()=>{
+ const clock=Date.parse('2026-10-07T00:00:00Z'),expected=new Date(clock+600000).toISOString();
+ const ciphertext=await seal(input,key,'owner-a');let calls=0,stored;
+ const rpc=async(name,args)=>{
+  if(name==='monitor_connection_key')return key;
+  if(name==='monitor_connection_begin')return {accepted:true,attempt:'attempt',generation:'next',ciphertext};
+  if(name==='monitor_connection_finish'){stored=args;return true;}
+  throw Error(name);
+ };
+ const options={rpc,userId:'owner-a',snapshot:{state:'verified',ciphertext,expiresAt:new Date(clock-1).toISOString()},now:()=>clock,
+  request:async()=>{calls++;return new Response(null,{status:429,headers:{'retry-after':'600'}});}};
+ const result=await managedConnection(options);
+ assert.equal(result.state,'rate_limited');assert.equal(result.retryAt,expected);assert.equal(stored.p_retry,expected);
+ assert.equal(result.credentials,undefined);assert.equal(calls,1);
+ const leased=await managedConnection({...options,rpc:async(name,args)=>name==='monitor_connection_begin'?{accepted:false,retryAt:expected}:rpc(name,args)});
+ assert.equal(leased.retryAt,expected);assert.equal(calls,1,'An active retry lease makes no provider request');
+});

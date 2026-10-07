@@ -82,6 +82,6 @@ export async function managedConnection({rpc,request,userId,snapshot,credentials
       p_state:result.state,p_ciphertext:result.credentials?await seal(result.credentials,key,userId):null,
       p_expires:result.expiresAt||null,p_retry:result.retryAt?new Date(result.retryAt).toISOString():null});
     if (!saved) return {state:'unavailable'};
-    return {...result,generation:claim.generation};
+    return {...result,retryAt:result.retryAt?new Date(result.retryAt).toISOString():null,generation:claim.generation};
   } catch { return {state:'unavailable'}; }
 }
