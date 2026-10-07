@@ -6,6 +6,17 @@ export function hasTerm(text, term) {
   return escaped !== '' && new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}([^\\p{L}\\p{N}]|$)`, 'u').test(normalize(text));
 }
 
+// Two distinct named lenses must be included; generic "kit" earns no allowance.
+export function includesKitLens(value) {
+  const title=normalize(value).replace(/\s*-\s*/g,'-');
+  if (/\b(?:no lenses?|without lenses?|lens(?:es)? not included|body only|sold separately)\b/.test(title)) return false;
+  return /\b18-55(?:mm)?\b/.test(title);
+}
+export function isCameraBundle(value) {
+  const title=normalize(value).replace(/\s*-\s*/g,'-');
+  return includesKitLens(title) && /\b(?:55-250|75-300|70-300)(?:mm)?\b|\b50\s*mm\b/.test(title);
+}
+
 /** Three outcomes prevent an early catalog-only reject of description-only models. */
 export function matchListing(listing, input) {
   const recipe = createRecipe(input);
@@ -13,7 +24,7 @@ export function matchListing(listing, input) {
   const warnings = recipe.warningTerms.filter(term => hasTerm(text, term));
   // Camera model names on a compatibility list do not make an accessory a camera.
   const title = normalize(listing.title);
-  const descriptor = /\b(?:(?:expanded|field|user|instruction|pocket) guide|remote (?:switch|control)|rs[- ]?60e3|body cap|lens cap)\b/.exec(title);
+  const descriptor = /\b(?:(?:expanded|field|user|instruction|pocket) guide|remote (?:switch|control)|rs[- ]?60e3|body cap|lens cap|battery grip|battery charger|screen protector)\b/.exec(title);
   const prefix = descriptor ? title.slice(0, descriptor.index) : '';
   const modelInPrefix = recipe.models.some(model => recipe.kind === 'canon'
     ? canon.models.find(m => m.id === model).aliases.some(alias => hasTerm(prefix, alias)) : hasTerm(prefix, model))
@@ -22,6 +33,7 @@ export function matchListing(listing, input) {
   const accessoryOnly = recipe.kind === 'canon' && (
     /^(?:canon\s+)?(?:(?:replacement|genuine|original|new)\s+)*(?:battery|batteries|charger|lens|strap|case|bag|screen protector|manual|box|guide|remote switch|remote control|rs[- ]?60e3)\b/.test(title)
     || /\b(?:compatible with|for canon|fits canon)\b/.test(title)
+    || /^(?:canon\s+)?ef(?:-s)?\s*\d/.test(title)
     || (descriptor !== null && !bundledDescriptor)
     || /\b(?:lens|charger|battery|manual|box|strap|bag) only\b/.test(title)
   );
@@ -38,11 +50,15 @@ export function matchListing(listing, input) {
   if (rejected) return result('reject', `reject_term:${rejected}`);
   const rejectedTitle = recipe.titleRejectTerms.find(term => hasTerm(listing.title, term));
   if (rejectedTitle) return result('reject', `title_reject_term:${rejectedTitle}`);
+  const bundle=isCameraBundle(listing.title);
+  if (recipe.bundleMode==='require' && !bundle) return result('reject','bundle_evidence');
+  if (recipe.bundleMode==='exclude' && bundle) return result('reject','bundle_tier');
   const matchedModels = recipe.models.filter(model => recipe.kind === 'canon'
     ? canon.models.find(m => m.id === model).aliases.some(alias => hasTerm(text, alias)) : hasTerm(text, model));
   matchedModels.push(...recipe.customModels.filter(model => hasTerm(text, model)));
   if (!matchedModels.length) return result(listing.detailComplete ? 'reject' : 'pending', 'model');
-  if (matchedModels.every(model => recipe.modelMaxPricePence[model] !== undefined && listing.itemPricePence > recipe.modelMaxPricePence[model])) return result('reject', 'model_price', matchedModels);
+  const kitAllowance = includesKitLens(title) ? recipe.kitAllowancePence : 0;
+  if (matchedModels.every(model => recipe.modelMaxPricePence[model] !== undefined && listing.itemPricePence > recipe.modelMaxPricePence[model]+kitAllowance)) return result('reject', 'model_price', matchedModels);
   if (recipe.conditions.length && !listing.condition) return result(listing.detailComplete ? 'reject' : 'pending', 'missing_condition', matchedModels);
   if (recipe.conditions.length && !recipe.conditions.includes(listing.condition)) return result('reject', 'condition', matchedModels);
   // Restrictive buying rules need a complete description before final acceptance.

@@ -26,14 +26,29 @@ test('configured rules enforce exact boundaries, alias caps, reported-condition 
  assert.equal(matchListing(listing('Canon 600D',60,'Satisfactory'),low).status,'reject');
  assert.equal(matchListing(listing('Canon 600D',60,null),low).status,'pending');
 });
-test('incomplete original definitions remain labelled and cannot scan or alert',()=>{
+test('four complete tiers cover 20 models with gapless exclusive bands and conservative caps',()=>{
  assert.equal(tiers.length,4);
- assert.deepEqual(tiers.map(t=>[t.data.recipe.minPricePence,t.data.recipe.maxPricePence]),[[0,6000],[6100,10000],[10000,16000],[0,15000]]);
+ assert.deepEqual(tiers.map(t=>[t.data.recipe.minPricePence,t.data.recipe.maxPricePence]),[[0,6000],[6001,10000],[10001,16000],[0,15000]]);
+ assert.equal(tiers[0].data.recipe.models.length,20);
  for(const {data} of tiers){
-  assert(data.recipe.setupRequired);assert(!data.enabled);assert(!data.notifications);
-  assert.throws(()=>monitorInput({...data,enabled:true}),/original model and price rules/);
-  assert.equal(matchListing(listing('Canon 600D',50),data.recipe).reason,'setup_required');
+  assert(!data.recipe.setupRequired);assert(!data.enabled);assert(!data.notifications);
+  assert.doesNotThrow(()=>monitorInput({...data,enabled:true,notifications:true}));
  }
+ const hits=(title,price,status)=>tiers.map((t,i)=>matchListing(listing(title,price,status),t.data.recipe).status==='match'?i:null).filter(i=>i!==null);
+ for(const [title,price,expected] of [
+  ['Canon 700D',60,[0]],['Canon 700D',60.01,[1]],['Canon 700D',100,[1]],['Canon 700D',100.01,[]],
+  ['Canon 750D',100.01,[2]],['Canon 750D',130,[2]],['Canon 750D',130.01,[]],
+  ['Canon Rebel SL3',160,[2]],['Canon Rebel SL3',160.01,[]],['Canon EOS80D',120,[2]],
+  ['Canon 1000D',30,[0]],['Canon 1000D',30.01,[]],['Canon Rebel T3',40,[0]],
+  ['Canon 600D 18-55mm + 55-250mm lenses',100,[3]],
+  ['Canon 700D + 18-55 lens',120,[2]],['Canon 700D + 18-55 lens',120.01,[]],
+  ['Canon EF-S 18-55 lens 700D 600D',30,[]],
+  ['Canon 600D kit extras',100,[]],['Canon 600D body only 18-55 55-250 sold separately',100,[]],
+  ['Lens for Canon 600D 18-55 and 55-250',60,[]],['Canon 600D battery grip',20,[]],
+  ['Canon 750D faulty',60,[]],['Canon 750D read description',60,[]],['Rebel shoes',30,[]],
+ ])assert.deepEqual(hits(title,price),expected,title+' '+price);
+ assert.deepEqual(hits('Canon 750D',70,'Satisfactory'),[]);
+ assert.deepEqual(hits('Canon 750D',70,null),[]);
 });
 test('two price tiers reuse source requests but save only passing finds and retain ID-only overlap',async()=>{
  const key=Buffer.alloc(32,17).toString('base64'),owner='fixture-owner';

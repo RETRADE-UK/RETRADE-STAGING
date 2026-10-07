@@ -7,7 +7,9 @@
       "aliases": [
         "500d",
         "eos 500d",
-        "rebel t1i"
+        "rebel t1i",
+        "eos500d",
+        "500 d"
       ]
     },
     {
@@ -15,7 +17,9 @@
       "aliases": [
         "550d",
         "eos 550d",
-        "rebel t2i"
+        "rebel t2i",
+        "eos550d",
+        "550 d"
       ]
     },
     {
@@ -23,7 +27,9 @@
       "aliases": [
         "600d",
         "eos 600d",
-        "rebel t3i"
+        "rebel t3i",
+        "eos600d",
+        "600 d"
       ]
     },
     {
@@ -31,7 +37,9 @@
       "aliases": [
         "650d",
         "eos 650d",
-        "rebel t4i"
+        "rebel t4i",
+        "eos650d",
+        "650 d"
       ]
     },
     {
@@ -39,7 +47,9 @@
       "aliases": [
         "700d",
         "eos 700d",
-        "rebel t5i"
+        "rebel t5i",
+        "eos700d",
+        "700 d"
       ]
     },
     {
@@ -47,7 +57,9 @@
       "aliases": [
         "1000d",
         "eos 1000d",
-        "rebel xs"
+        "rebel xs",
+        "eos1000d",
+        "1000 d"
       ]
     },
     {
@@ -55,7 +67,9 @@
       "aliases": [
         "1100d",
         "eos 1100d",
-        "rebel t3"
+        "rebel t3",
+        "eos1100d",
+        "1100 d"
       ]
     },
     {
@@ -63,7 +77,9 @@
       "aliases": [
         "1200d",
         "eos 1200d",
-        "rebel t5"
+        "rebel t5",
+        "eos1200d",
+        "1200 d"
       ]
     },
     {
@@ -71,7 +87,9 @@
       "aliases": [
         "1300d",
         "eos 1300d",
-        "rebel t6"
+        "rebel t6",
+        "eos1300d",
+        "1300 d"
       ]
     },
     {
@@ -79,7 +97,9 @@
       "aliases": [
         "2000d",
         "eos 2000d",
-        "rebel t7"
+        "rebel t7",
+        "eos2000d",
+        "2000 d"
       ]
     },
     {
@@ -87,7 +107,96 @@
       "aliases": [
         "4000d",
         "eos 4000d",
-        "rebel t100"
+        "rebel t100",
+        "eos4000d",
+        "4000 d"
+      ]
+    },
+    {
+      "id": "100D",
+      "aliases": [
+        "100d",
+        "eos 100d",
+        "rebel sl1",
+        "eos100d",
+        "100 d"
+      ]
+    },
+    {
+      "id": "200D",
+      "aliases": [
+        "200d",
+        "eos 200d",
+        "rebel sl2",
+        "eos200d",
+        "200 d"
+      ]
+    },
+    {
+      "id": "250D",
+      "aliases": [
+        "250d",
+        "eos 250d",
+        "rebel sl3",
+        "eos250d",
+        "250 d"
+      ]
+    },
+    {
+      "id": "750D",
+      "aliases": [
+        "750d",
+        "eos 750d",
+        "rebel t6i",
+        "eos750d",
+        "750 d"
+      ]
+    },
+    {
+      "id": "760D",
+      "aliases": [
+        "760d",
+        "eos 760d",
+        "rebel t6s",
+        "eos760d",
+        "760 d"
+      ]
+    },
+    {
+      "id": "800D",
+      "aliases": [
+        "800d",
+        "eos 800d",
+        "rebel t7i",
+        "eos800d",
+        "800 d"
+      ]
+    },
+    {
+      "id": "60D",
+      "aliases": [
+        "60d",
+        "eos 60d",
+        "eos60d",
+        "60 d"
+      ]
+    },
+    {
+      "id": "70D",
+      "aliases": [
+        "70d",
+        "eos 70d",
+        "eos70d",
+        "70 d"
+      ]
+    },
+    {
+      "id": "80D",
+      "aliases": [
+        "80d",
+        "eos 80d",
+        "eos80d",
+        "80 d"
       ]
     }
   ],

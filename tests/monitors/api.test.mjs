@@ -210,3 +210,19 @@ test('actual handler encrypts rotation before returning status and fences discon
  completed=false;assert.equal((await post({op:'connectionTest',credentials})).status,409);
  assert(!calls.some(c=>/monitor_source_state|monitor_claim$|monitor_commit|outbox/.test(c.path)));
 });
+
+test('trial start is registered-owner scoped and pausing does not start another window',async()=>{
+ let anonymous=true;
+ const calls=transport((path,body)=>{
+  if(path==='/auth/v1/user')return {id:user,is_anonymous:anonymous};
+  if(path.endsWith('/rpc/monitor_trial_start')){assert.equal(body.p_user,user);return {};}
+  if(path.endsWith('/rpc/monitor_connection_automatic')){assert.equal(body.p_user,user);assert.equal(body.p_enabled,false);return null;}
+  if(path.endsWith('/rpc/monitor_connection_status'))return {state:'verified',automatic:true};
+ });
+ assert.equal((await post({op:'connectionAutomatic',enabled:true})).status,403);
+ anonymous=false;
+ assert.equal((await post({op:'connectionAutomatic',enabled:true,user_id:'foreign'})).status,200);
+ assert.equal((await post({op:'connectionAutomatic',enabled:false})).status,200);
+ assert.equal(calls.filter(c=>c.path.endsWith('/monitor_trial_start')).length,1);
+ assert(!calls.some(c=>c.path.includes('oauth')));
+});

@@ -77,3 +77,5 @@ current app. Only the monitor-specific bridge/style suffixes were extracted.
 Future improvements requested now: do everything the Discord monitor does, with
 better usability and efficiency. That is the product target, not a claim that
 the recovered prototype already supports those actions.
+
+Research-based tier completion and bounded trial: see `TRIAL_2026-10-07.md`.

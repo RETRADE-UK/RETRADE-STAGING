@@ -49,7 +49,7 @@ test('all Canon and Rebel aliases match either inclusive benchmark boundary', ()
     assert.equal(result.status, 'match', `${alias}/${price}`);
     assert.deepEqual(result.matchedModels, [model.id]); cases++;
   }
-  assert.equal(cases, 66);
+  assert.equal(cases, 194);
   for (const price of ['50.99', '100.01']) assert.equal(matchListing(listing({ price, currency: 'GBP' }), benchmark).status, 'reject');
   assert.equal(matchListing(listing({ title: 'Canon 1600D' }), benchmark).status, 'reject');
   assert.equal(matchListing(listing({ title: 'Canon Rebel T3i' }), benchmark).matchedModels[0], '600D');
