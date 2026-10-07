@@ -239,16 +239,12 @@ Deno.serve(async (req) => {
     const anonymous = user.is_anonymous === true;
     if (input.op === "connectionAutomatic") {
       if (anonymous || typeof input.enabled !== 'boolean') return reply({error:'Registered account and enabled setting required'},403);
-      await rpc("monitor_connection_automatic",{p_user:user.id,p_enabled:input.enabled});
-      return reply({connection:await rpc("monitor_connection_status",{p_user:user.id}),message:input.enabled?'Automatic searches enabled. The first scan is silent.':'Automatic searches paused.'});
+      if (input.enabled) await rpc("monitor_trial_start",{p_user:user.id});
+      else await rpc("monitor_connection_automatic",{p_user:user.id,p_enabled:false});
+      return reply({connection:await rpc("monitor_connection_status",{p_user:user.id}),message:input.enabled?'12-hour trial scheduled. Waiting for the first successful scan; the initial baseline is silent.':'Automatic searches paused.'});
     }
     if (input.op === "connectionDisconnect" || input.op === "connectionTest") {
       if (anonymous) return reply({ error: "Sign in with a registered staging account to connect Vinted." }, 403);
-      if (input.op === "connectionAutomatic") {
-      if (anonymous || typeof input.enabled !== 'boolean') return reply({error:'Registered account and enabled setting required'},403);
-      await rpc("monitor_connection_automatic",{p_user:user.id,p_enabled:input.enabled});
-      return reply({connection:await rpc("monitor_connection_status",{p_user:user.id}),message:input.enabled?'Automatic searches enabled. The first scan is silent.':'Automatic searches paused.'});
-    }
     if (input.op === "connectionDisconnect") {
         await rpc("monitor_connection_disconnect", { p_user: user.id });
         return reply({ connection: await rpc("monitor_connection_status", { p_user: user.id }), message: "Saved Vinted credentials deleted. Background monitoring is paused." });
