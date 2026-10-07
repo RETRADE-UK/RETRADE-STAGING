@@ -1,5 +1,7 @@
 # Monitor engine foundation
 
+**7 October catalogue update:** [Public sessions, current listing fields and setup](../../docs/features/monitors/PUBLIC_CATALOGUE_2026-10-07.md).
+
 This directory owns the shared server-side monitor modules, deployed through
 `supabase/functions/monitor-service/`. It stays outside the public asset manifest;
 there is no separate Node daemon. Persistence, scheduled execution and the native

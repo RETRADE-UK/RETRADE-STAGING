@@ -49,6 +49,17 @@ function condition(value) {
   return ({ new: 'new', new_with_tags: 'new', new_without_tags: 'new', very_good: 'very_good', good: 'good', satisfactory: 'satisfactory' })[v] ?? null;
 }
 
+function listingCondition(raw, listingId) {
+  const explicit = first(raw.status_title, raw.condition, raw.status);
+  if (explicit !== null) return condition(explicit);
+  // Current UK catalogue cards expose condition as the final display segment.
+  // Match the card to this item and recognise only complete known labels; never
+  // mine a seller title/accessibility sentence or guess an unfamiliar condition.
+  const card = raw.item_box;
+  if (!isRecord(card) || id(card.item_id) !== listingId || typeof card.second_line !== 'string') return null;
+  return condition(card.second_line.split('·').at(-1));
+}
+
 export function normalizeSeller(raw, { ratingScale = 'fraction' } = {}) {
   if (!['fraction', 'stars'].includes(ratingScale)) throw new TypeError('Explicit rating scale required');
   if (!isRecord(raw)) raw = {};
@@ -85,7 +96,7 @@ export function normalizeListing(raw, { observedAt, detailComplete = false, rati
     itemPricePence, quotedTotalPence, currency,
     // Provider 'total_item_price' has no validated delivery-cost guarantee.
     // Do not present it as landed cost or use it for buy scoring.
-    condition: condition(first(raw.status_title, raw.condition, raw.status)),
+    condition: listingCondition(raw, listingId),
     brand: text(first(raw.brand_title, raw.brand?.title, raw.brand)), imageUrls: images,
     seller: normalizeSeller(first(raw.user, raw.seller), { ratingScale }),
     observedAt: new Date(observedAt).toISOString(), detailComplete: detailComplete === true

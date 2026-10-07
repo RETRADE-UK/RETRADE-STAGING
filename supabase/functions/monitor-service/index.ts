@@ -9,13 +9,13 @@ import {
   createVintedSource,
   scanCatalog,
   retryAt,
-  validateAccessToken,
 } from "../../../worker/monitors/src/adapters/vinted-source.mjs";
 import { matchListing } from "../../../worker/monitors/src/engine/match.mjs";
 import { buildFeed } from "../../../worker/monitors/src/feed.mjs";
 import { canon } from "../../../worker/monitors/src/contracts.mjs";
 import { checkSession, sessionMessages } from "../../../worker/monitors/src/session-check.mjs";
-import { connectionInput, managedConnection, connectionMessages } from "../../../worker/monitors/src/connection.mjs";
+import { managedPublicConnection, persistPublicSession, publicMessages } from "../../../worker/monitors/src/public-connection.mjs";
+import { createPublicSession } from "../../../worker/monitors/src/adapters/vinted-public-session.mjs";
 import { automaticScan } from "../../../worker/monitors/src/automatic.mjs";
 import { canonTierPresets } from "../../../worker/monitors/src/presets.mjs";
 const url = Deno.env.get("SUPABASE_URL")!;
@@ -156,6 +156,42 @@ async function pushBatch(c: any) {
     }
   }
 }
+async function checkOwnedCatalogue(userId: string,input: any) {
+  const monitor=input.id?await own(userId,input.id):(await db("monitor_recipes?user_id=eq."+eq(userId)+"&archived=eq.false&order=created_at.asc&limit=1"))[0];
+  if(!monitor || monitor.archived) throw new TypeError("Create a monitor before checking catalogue access.");
+  const searchText=input.op==='catalogueSample'?input.searchText:monitor.recipe.searchTerms[0];
+  if(!monitor.recipe.searchTerms.includes(searchText)) throw new TypeError("Choose a saved search from this monitor.");
+  const claim=await rpc("monitor_session_claim",{p_user:userId});
+  if(!claim.accepted) return {status:'rate_limited',message:'Please wait before checking again.',retryAt:claim.retryAt,connection:await rpc('monitor_connection_status',{p_user:userId})};
+  const managed=await managedPublicConnection({rpc,request:fetch,userId,manual:true});
+  if(!managed.session) {
+    await rpc('monitor_session_finish',{p_user:userId,p_check:claim.checkId,p_monitor:monitor.id,p_revision:monitor.revision,
+      p_status:'unavailable',p_http:null,p_received:0,p_items:[],p_retry:managed.retryAt||null});
+    return {status:'unavailable',saved:0,message:publicMessages[managed.state as keyof typeof publicMessages]||publicMessages.unavailable,
+      retryAt:managed.retryAt||claim.retryAt,connection:await rpc('monitor_connection_status',{p_user:userId})};
+  }
+  const peers=(await db('monitor_recipes?user_id=eq.'+eq(userId)+'&archived=eq.false&enabled=eq.true'))
+    .filter((m:any)=>JSON.stringify(m.recipe.searchTerms)===JSON.stringify(monitor.recipe.searchTerms));
+  peers.push(monitor);
+  const sourceRecipe={...monitor.recipe,minPricePence:Math.min(...peers.map((m:any)=>m.recipe.minPricePence)),
+    maxPricePence:peers.some((m:any)=>m.recipe.maxPricePence===null)?null:Math.max(...peers.map((m:any)=>m.recipe.maxPricePence))};
+  const result=await checkSession({request:fetch,publicSession:managed.session,recipe:monitor.recipe,sourceRecipe,searchText});
+  if(result.httpStatus===200 && !await persistPublicSession({rpc,userId,generation:managed.generation,session:managed.session}))
+    throw new Error('Catalogue connection changed during the check. Refresh its status.');
+  const saved=await rpc('monitor_saved_session_finish',{p_user:userId,p_generation:managed.generation,p_check:claim.checkId,
+    p_monitor:monitor.id,p_revision:monitor.revision,p_status:result.status,p_http:result.httpStatus,p_received:result.received,
+    p_items:input.op==='catalogueSample'?result.items:[],p_retry:result.retryAt?new Date(result.retryAt).toISOString():null});
+  if(!saved) throw new Error('Monitor changed during the check. Refresh its status.');
+  // A failed manual check must pause an already running collector too.
+  if(!['sample_received','empty'].includes(result.status)) await rpc('monitor_public_failure',{
+    p_user:userId,p_generation:managed.generation,p_status:result.status==='rate_limited'?'rate_limited':'blocked',
+    p_message:result.httpStatus?'Catalogue check returned HTTP '+result.httpStatus+'. Monitoring is paused.':'Catalogue check could not be verified. Monitoring is paused.',
+    p_retry:result.retryAt?new Date(result.retryAt).toISOString():null,p_stop:true,p_http:result.httpStatus,p_requests:1});
+  return {status:result.status,received:result.received,saved:saved.saved,checkedAt:saved.checkedAt,retryAt:saved.retryAt,
+    message:result.status==='sample_received'?'Catalogue access verified. Public searches work without your Vinted account token.':
+      result.status==='blocked'||result.status==='access_rejected'?publicMessages.blocked:sessionMessages[result.status as keyof typeof sessionMessages],
+    connection:await rpc('monitor_connection_status',{p_user:userId})};
+}
 async function tick(c: any) {
   const token = crypto.randomUUID();
   if (!(await rpc("monitor_tick_lease", { p_token: token })))
@@ -207,17 +243,22 @@ Deno.serve(async (req) => {
       await rpc("monitor_push_receipt", {p_id:input.id,p_token:input.token,p_status:input.status});
       return reply({ok:true});
     }
-    if (input.op === "tick" || input.op === "sourceCheck") {
+    if (input.op === "tick" || input.op === "sourceCheck" || input.op === "catalogueCheck") {
       const c = await config();
       if (req.headers.get("x-monitor-token") !== c.token)
         return reply({ error: "Unauthorized" }, 401);
+      if (input.op === "catalogueCheck") {
+        if (!/^[a-f0-9-]{36}$/.test(input.userId || "")) throw new TypeError("Owner required");
+        return reply(await checkOwnedCatalogue(input.userId,input));
+      }
       if (input.op === "sourceCheck") {
         // Explicit operator diagnostic only. Never clears the activation gate,
         // starts jobs, retries a refusal or accepts an arbitrary destination.
         try {
-          const source = createVintedSource({ request: fetch, timeoutMs: 7000 });
-          const page = await source.searchPage({ searchText: "Canon", perPage: 1 });
-          return reply({ reachable: true, count: page.rawCount, checkedAt: new Date().toISOString() });
+          const {session}=await createPublicSession({request:fetch});
+          const source = createVintedSource({ request: fetch, publicSession:session, timeoutMs: 10000 });
+          const page = await source.searchPage({ searchText: "Canon", minPricePence:0,maxPricePence:16000,perPage:50 });
+          return reply({ reachable: true, count: page.rawCount, conditions:page.listings.filter(x=>x.condition).length, checkedAt: new Date().toISOString() });
         } catch (error) {
           return reply({ reachable: false, httpStatus: (error as any).status ?? null,
             reason: (error as any).code || "contract_failure", checkedAt: new Date().toISOString() });
@@ -246,44 +287,14 @@ Deno.serve(async (req) => {
     if (input.op === "connectionDisconnect") {
       if (anonymous) return reply({ error: "Sign in with a registered staging account to connect Vinted." }, 403);
       await rpc("monitor_connection_disconnect", { p_user: user.id });
-      return reply({ connection: await rpc("monitor_connection_status", { p_user: user.id }), message: "Saved Vinted credentials deleted. Background monitoring is paused." });
+      return reply({ connection: await rpc("monitor_connection_status", { p_user: user.id }), message: "Catalogue session and any saved Vinted credentials deleted. Monitoring is paused." });
     }
-    if (["connectionTest", "savedSessionCheck", "sessionCheck"].includes(input.op)) {
-      if (anonymous) return reply({ error: "Sign in with a registered staging account to check Vinted access." }, 403);
-      const savedMode = input.op !== "sessionCheck";
-      const submitted = input.op === "connectionTest" && input.credentials != null ? connectionInput(input.credentials) : null;
-      input.credentials = null;
-      // Legacy clients did not send the selected monitor with a renewal test.
-      const monitor = input.id ? await own(user.id, input.id) : (await db("monitor_recipes?user_id=eq."+user.id+"&archived=eq.false&limit=1"))[0];
-      if (!monitor || monitor.archived) throw new TypeError("Select an active monitor before checking its connection.");
-      const searchText = input.op === "connectionTest" ? monitor.recipe.searchTerms[0] : input.searchText;
-      if (!monitor.recipe.searchTerms.includes(searchText)) throw new TypeError("Choose a saved search from this monitor.");
-      if (!savedMode) validateAccessToken(input.accessToken);
-      const claim = await rpc("monitor_session_claim", { p_user: user.id });
-      if (!claim.accepted) return reply({ error: "Wait until " + claim.retryAt + " before checking again.", retryAt: claim.retryAt }, 429);
-      const managed = savedMode ? await managedConnection({rpc,request:fetch,userId:user.id,credentials:submitted}) : null;
-      if (managed && !managed.credentials) {
-        await rpc("monitor_session_finish", {p_user:user.id,p_check:claim.checkId,p_monitor:monitor.id,p_revision:monitor.revision,
-          p_status:"unavailable",p_http:null,p_received:0,p_items:[],p_retry:managed.retryAt || null});
-        return reply({connection:await rpc("monitor_connection_status",{p_user:user.id}),
-          status:"unavailable",saved:0,message:connectionMessages[managed.state as keyof typeof connectionMessages] || connectionMessages.unavailable,retryAt:managed.retryAt || null});
-      }
-      const result = await checkSession({request:fetch,accessToken:managed?.credentials?.accessToken || input.accessToken,
-        recipe:monitor.recipe,searchText,userAgent:managed?.credentials?.userAgent});
-      input.accessToken = null;
-      if (managed) managed.credentials = null;
-      const saved = await rpc(savedMode ? "monitor_saved_session_finish" : "monitor_session_finish", { p_user:user.id,p_check:claim.checkId,
-        ...(managed ? {p_generation:managed.generation} : {}),
-        p_monitor:monitor.id,p_revision:monitor.revision,p_status:result.status,p_http:result.httpStatus,
-        p_received:result.received,p_items:input.op === "connectionTest" ? [] : result.items,
-        p_retry:result.retryAt ? new Date(result.retryAt).toISOString() : null });
-      if (!saved) return reply({error:"The monitor or saved connection changed during the check. Refresh its status."},409);
-      return reply({ status:result.status,message:input.op === "connectionTest" && result.status === "sample_received"
-          ? "Saved connection and search access verified. Tokens renew automatically while monitoring runs."
-          : sessionMessages[result.status as keyof typeof sessionMessages],
-        received:result.received,saved:saved.saved,retryAt:saved.retryAt,checkedAt:saved.checkedAt,
-        ...(savedMode ? {connection:await rpc("monitor_connection_status",{p_user:user.id})} : {}) });
+    if (["catalogueTest", "catalogueSample"].includes(input.op)) {
+      if (anonymous) return reply({error:"Sign in with a registered staging account to check catalogue access."},403);
+      return reply(await checkOwnedCatalogue(user.id,input));
     }
+    if (["connectionTest", "savedSessionCheck", "sessionCheck"].includes(input.op))
+      return reply({error:"Monitor setup has changed. Refresh RETRADE and use Check catalogue access; account tokens are no longer required."},409);
     if (input.op === "bootstrap" || input.op === "status") {
       const c = await config();
       if (input.op === "bootstrap") {
@@ -301,7 +312,7 @@ Deno.serve(async (req) => {
       const connection = anonymous ? {state:'disconnected',stored:false,automatic:false} : await rpc("monitor_connection_status", {p_user:user.id});
       const connectedSource = connection.stored || connection.scanCheckedAt ? {
         status: connection.state !== 'verified' ? 'blocked' : !connection.automatic ? (connection.canStart ? 'paused' : 'blocked') : connection.scanStatus === 'ready' ? 'ready' : connection.scanStatus === 'waiting' ? 'starting' : 'degraded',
-        message: connection.state !== 'verified' ? 'Vinted session needs attention in Connection.' : !connection.automatic && connection.canStart ? 'Saved search access verified. Start the 12-hour trial when ready.' : connection.searchStatus==='access_rejected' ? sessionMessages.access_rejected : connection.scanMessage || 'Waiting for the first scheduled scan.',
+        message: connection.state !== 'verified' ? 'Catalogue access needs a check in Settings.' : !connection.automatic && connection.canStart ? 'Catalogue access verified. Start the 12-hour trial when ready.' : connection.searchStatus==='access_rejected' ? sessionMessages.access_rejected : connection.scanMessage || 'Waiting for the first scheduled scan.',
         checkedAt: connection.scanCheckedAt || connection.checkedAt, retryAt: connection.scanRetryAt,
         automatic:connection.automatic, intervalSeconds:60, trialEndsAt:connection.trialEndsAt
       } : null;
@@ -310,7 +321,7 @@ Deno.serve(async (req) => {
       }
       return reply({
         monitors,
-        capabilities: { sessionCheck: true, persistentConnection: true, automaticMonitoring: true },
+        capabilities: { sessionCheck: true, persistentConnection: true, publicCatalogue:true, automaticMonitoring: true },
         connection,
         pushDevices: anonymous ? [] : await rpc("monitor_push_status",{p_user:user.id}),
         canonModels: canon.models.map((model: any) => model.id),
