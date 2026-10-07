@@ -1,4 +1,4 @@
-import { seal, unseal, renewConnection } from './connection.mjs';
+import { managedConnection, connectionMessages } from './connection.mjs';
 import { createVintedSource, scanCatalog } from './adapters/vinted-source.mjs';
 import { matchListing } from './engine/match.mjs';
 
@@ -14,24 +14,14 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
    account=null;
    if(snapshot){
     try{
-     const key=await rpc('monitor_connection_key');
-     let credentials;
-     if(snapshot.state==='verified' && Date.parse(snapshot.expiresAt)>now()+120000){
-      credentials=await unseal(snapshot.ciphertext,key,m.user_id);
-     }else{
-      const claim=await rpc('monitor_connection_begin',{p_user:m.user_id,p_ciphertext:null});
-      if(claim.accepted){
-       const result=await renewConnection({credentials:await unseal(claim.ciphertext,key,m.user_id),request,now});
-       const saved=await rpc('monitor_connection_finish',{p_user:m.user_id,p_attempt:claim.attempt,p_generation:claim.generation,
-        p_state:result.state,p_ciphertext:result.credentials?await seal(result.credentials,key,m.user_id):null,
-        p_expires:result.expiresAt||null,p_retry:result.retryAt?new Date(result.retryAt).toISOString():null});
-       if(saved && result.state==='verified'){credentials=result.credentials;snapshot.generation=claim.generation;}
-      }
-     }
-     if(credentials) account={...snapshot,source:createVintedSource({request,accessToken:credentials.accessToken,userAgent:credentials.userAgent,timeoutMs:7000,now})};
+     const result=await managedConnection({rpc,request,userId:m.user_id,snapshot,now});
+     if(result.credentials) account={...snapshot,generation:result.generation,source:createVintedSource({request,accessToken:result.credentials.accessToken,userAgent:result.credentials.userAgent,timeoutMs:7000,now})};
+     else await rpc('monitor_scan_failure',{p_user:m.user_id,p_generation:result.generation || snapshot.generation,
+      p_status:result.state==='rate_limited'?'rate_limited':'blocked',p_message:connectionMessages[result.state] || connectionMessages.unavailable,
+      p_retry:result.retryAt || null,p_stop:result.state!=='rate_limited'});
     }catch{
      await rpc('monitor_scan_failure',{p_user:m.user_id,p_generation:snapshot.generation,p_status:'blocked',
-      p_message:'Saved connection needs attention. Reconnect before automatic searches can resume.',p_retry:null,p_stop:true});
+      p_message:'The saved connection could not be safely loaded. Connection storage needs review.',p_retry:null,p_stop:true});
     }
    }
    accounts.set(m.user_id,account);
@@ -63,7 +53,7 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
    const delay=Math.min(3600000,120000*2**Math.min(account.failures||0,5));
    await rpc('monitor_scan_failure',{p_user:m.user_id,p_generation:account.generation,
     p_status:stop?'blocked':e.status===429?'rate_limited':'degraded',
-    p_message:stop?(e.status ? `Vinted returned HTTP ${e.status}. Automatic requests are paused.` : `Vinted response could not be read (${e.name==='ProviderContractError'?'catalogue schema':e.code==='unexpected_content_type'?'non-JSON response':e.code==='invalid_json'?'invalid JSON':'missing listing fields'}). Automatic requests are paused.`):e.status===429?'Vinted requested a pause. Scanning will resume after the retry time.':'Scan failed. The service will retry after a pause.',
+    p_message:stop?(e.status===401?'Vinted rejected search access (401). Token expiry is not established; the connection method needs review.':e.status ? `Vinted returned HTTP ${e.status}. Automatic requests are paused.` : `Vinted response could not be read (${e.name==='ProviderContractError'?'catalogue schema':e.code==='unexpected_content_type'?'non-JSON response':e.code==='invalid_json'?'invalid JSON':'missing listing fields'}). Automatic requests are paused.`):e.status===429?'Vinted requested a pause. Scanning will resume after the retry time.':'Scan failed. The service will retry after a pause.',
     p_retry:stop?null:new Date(Math.max(now()+delay,e.retryAt||0)).toISOString(),p_stop:stop});
    accounts.set(m.user_id,null);
   }

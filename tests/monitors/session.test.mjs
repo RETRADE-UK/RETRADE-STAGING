@@ -32,7 +32,7 @@ test('empty and unfamiliar payloads never become a verified listing source', asy
   }
 });
 test('refusal, expiry and rate limit stop after one request and never echo provider bodies', async () => {
-  for(const [http,status] of [[401,'expired'],[403,'blocked'],[429,'rate_limited'],[404,'endpoint_unavailable'],[500,'unavailable']]) {
+  for(const [http,status] of [[401,'access_rejected'],[403,'blocked'],[429,'rate_limited'],[404,'endpoint_unavailable'],[500,'unavailable']]) {
     let calls=0;
     const r=await checkSession({...input,request:async()=>{calls++;return new Response(accessToken,{status:http,headers:{'Retry-After':'600'}});}});
     assert.equal(r.status,status);assert.equal(calls,1);assert(!JSON.stringify(r).includes(accessToken));assert.equal(r.items.length,0);

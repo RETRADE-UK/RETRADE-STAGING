@@ -28,33 +28,60 @@ export async function renewConnection({credentials,request,now=Date.now,timeoutM
   let timer;
   // An uncertain outcome may already have rotated the token: never retry it.
   try {
-    return await Promise.race([new Promise(resolve => {timer=setTimeout(()=>{controller.abort();resolve({state:'reconnect'});},timeoutMs);}), (async()=>{
+    return await Promise.race([new Promise(resolve => {timer=setTimeout(()=>{controller.abort();resolve({state:'unavailable'});},timeoutMs);}), (async()=>{
       const response = await request(new URL('https://www.vinted.co.uk/oauth/token'),{
         method:'POST',redirect:'error',signal:controller.signal,
         headers:{'content-type':'application/json',accept:'application/json','user-agent':input.userAgent},
         body:JSON.stringify({client_id:'web',scope:'user',grant_type:'refresh_token',refresh_token:input.refreshToken})
       });
       if (!response.ok) {
-        await response.body?.cancel().catch(()=>{});
-        return {state:response.status===403?'blocked':response.status===429?'rate_limited':'reconnect',
+        // Only an explicit invalid_grant proves that the saved grant is unusable.
+        // Never persist error descriptions: providers can echo credentials in them.
+        let code = null;
+        if ([400,401].includes(response.status)) {
+          try { const body=await readJson(response,40000); code=body?.error; } catch {}
+        } else await response.body?.cancel().catch(()=>{});
+        return {state:code==='invalid_grant'?'reconnect':[400,401,403].includes(response.status)?'blocked':response.status===429?'rate_limited':'unavailable',
           retryAt:response.status===429?retryAt(response.headers.get('retry-after'),now(),300000):null};
       }
       const payload = await readJson(response,40000);
       validateAccessToken(payload.access_token);
-      connectionInput({...input,refreshToken:payload.refresh_token});
-      if (!Number.isSafeInteger(payload.expires_in) || payload.expires_in<60 || payload.expires_in>2592000) return {state:'reconnect'};
-      return {state:'verified',credentials:{...input,refreshToken:payload.refresh_token,accessToken:payload.access_token},
+      const refreshToken=payload.refresh_token ?? input.refreshToken;
+      connectionInput({...input,refreshToken});
+      if (!Number.isSafeInteger(payload.expires_in) || payload.expires_in<60 || payload.expires_in>2592000) return {state:'unavailable'};
+      return {state:'verified',credentials:{...input,refreshToken,accessToken:payload.access_token},
         expiresAt:new Date(now()+payload.expires_in*1000).toISOString()};
     })()]);
-  } catch { return {state:'reconnect'}; }
+  } catch { return {state:'unavailable'}; }
   finally {clearTimeout(timer);controller.abort();}
 }
 export const connectionMessages = Object.freeze({
  disconnected:'No saved Vinted connection.',
  testing:'Testing session renewal…',
- verified:'Vinted session renewal succeeded. The replacement token is saved securely. Use automatic searches to keep enabled monitors updated.',
- reconnect:'Renewal could not be confirmed. Enter fresh Vinted details before another attempt; an uncertain request is never retried automatically.',
- blocked:'Vinted refused renewal (403). No automatic retries will run. The connection method needs review.',
+ verified:'Session renewal is available. Search access must also pass before the connection is ready.',
+ reconnect:'Vinted rejected the saved refresh grant. Reconnect your Vinted session.',
+ blocked:'Vinted refused renewal. This is a connection-method problem; a new token has not been shown to fix it.',
  rate_limited:'Vinted requested a pause. Wait until the next permitted test.',
- unavailable:'Connection storage is unavailable. No background requests will run.'
+ unavailable:'Renewal could not be safely confirmed. The saved connection is retained for review; an uncertain refresh is not repeated automatically.'
 });
+
+// The manual check and scheduled worker use the same expiry/rotation path.
+// Database leases serialize refreshes; a replacement must be durable before use.
+export async function managedConnection({rpc,request,userId,snapshot,credentials=null,now=Date.now}) {
+  try {
+    const current=snapshot ?? await rpc('monitor_connection_snapshot',{p_user:userId});
+    if (!credentials && (!current || !['verified','rate_limited'].includes(current.state)))
+      return {state:current?.state || 'disconnected',retryAt:current?.retryAt || null};
+    const key=await rpc('monitor_connection_key');
+    if (!credentials && current.state==='verified' && Date.parse(current.expiresAt)>now()+120000)
+      return {state:'verified',credentials:await unseal(current.ciphertext,key,userId),generation:current.generation,expiresAt:current.expiresAt};
+    const claim=await rpc('monitor_connection_begin',{p_user:userId,p_ciphertext:credentials?await seal(connectionInput(credentials),key,userId):null});
+    if (!claim.accepted) return {state:'rate_limited',retryAt:claim.retryAt};
+    const result=await renewConnection({credentials:await unseal(claim.ciphertext,key,userId),request,now});
+    const saved=await rpc('monitor_connection_finish',{p_user:userId,p_attempt:claim.attempt,p_generation:claim.generation,
+      p_state:result.state,p_ciphertext:result.credentials?await seal(result.credentials,key,userId):null,
+      p_expires:result.expiresAt||null,p_retry:result.retryAt?new Date(result.retryAt).toISOString():null});
+    if (!saved) return {state:'unavailable'};
+    return {...result,retryAt:result.retryAt?new Date(result.retryAt).toISOString():null,generation:claim.generation};
+  } catch { return {state:'unavailable'}; }
+}
