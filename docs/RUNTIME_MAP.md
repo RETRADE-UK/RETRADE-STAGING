@@ -44,7 +44,7 @@ Authenticated automatic scans live in `worker/monitors/src/automatic.mjs`; `sw.j
 reports push receipt/display-request status. The monitor page owns automatic
 start/pause and device diagnostics. See AUTOMATIC_2026-10-06.md in monitor docs.
 
-Saved connection controls stay in the monitor page. `connection.mjs` owns encrypted
+Saved connection controls stay under Settings in the monitor page; Finds is the default view. Manual access-token entry is retired. `connection.mjs` owns encrypted
 credential bundles and bounded renewal; service-only connection RPCs own storage,
 cooldown and disconnect fencing. See the dated persistent-connection handover.
 
