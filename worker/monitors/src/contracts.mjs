@@ -66,18 +66,21 @@ export function createRecipe(input = {}) {
     pence(price, 'model price limit', false);
   }
   if (input.setupRequired !== undefined && typeof input.setupRequired !== 'boolean') throw new TypeError('Invalid setup state');
+  const bundleMode = input.bundleMode ?? 'any';
+  if (!['any', 'require', 'exclude'].includes(bundleMode)) throw new TypeError('Invalid bundle rule');
+  const kitAllowancePence = pence(input.kitAllowancePence ?? 0, 'kit allowance', false);
   const recipe = {
     version: 1, kind, benchmark: input.benchmark ?? false, models,
     customModels: terms(input.customModels ?? [], 'customModels'),
     searchTerms: terms(input.searchTerms ?? [], 'searchTerms'),
     minPricePence, maxPricePence, conditions, rejectTerms, titleRejectTerms,
-    modelMaxPricePence: Object.freeze({...modelMaxPricePence}), setupRequired: input.setupRequired ?? false,
+    modelMaxPricePence: Object.freeze({...modelMaxPricePence}), setupRequired: input.setupRequired ?? false, bundleMode, kitAllowancePence,
     warningTerms: terms(input.warningTerms ?? [], 'warningTerms'),
     minProfitPence: pence(input.minProfitPence ?? 4000, 'minProfitPence', false),
     minRoiPercent, minReviews, minRating, zeroReviews, notifyLevels
   };
   if (!recipe.setupRequired && !recipe.models.length && !recipe.customModels.length) throw new TypeError('Select at least one model or custom model');
-  if (recipe.benchmark && (conditions.length || rejectTerms.length || titleRejectTerms.length || Object.keys(modelMaxPricePence).length || zeroReviews === 'hide' || notifyLevels.length)) {
+  if (recipe.benchmark && (conditions.length || rejectTerms.length || titleRejectTerms.length || Object.keys(modelMaxPricePence).length || bundleMode !== 'any' || kitAllowancePence || zeroReviews === 'hide' || notifyLevels.length)) {
     throw new TypeError('Benchmark must accept all conditions, warn instead of reject/hide, and remain feed-only');
   }
   for (const value of Object.values(recipe)) if (Array.isArray(value)) Object.freeze(value);

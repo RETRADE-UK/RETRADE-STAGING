@@ -208,6 +208,7 @@
         "</p><small>Checked " +
         esc(time(sampleObservedAt && data.source.status === "blocked" && !data.source.intervalSeconds ? sampleObservedAt : data.source.checkedAt)) +
         (data.source.retryAt && data.source.status !== "blocked" ? " · Next attempt " + esc(time(data.source.retryAt)) : "") +
+        (data.source.trialEndsAt ? " · Trial ends " + esc(time(data.source.trialEndsAt)) : "") +
         "</small></details></div>";
       health.dataset.state = data.source.status;
       connectionControls();
@@ -635,6 +636,8 @@
         (recipe.setupRequired ? 'Recovered name only: original model, price and bundle rules are still needed. This draft cannot scan or send alerts. ' : '') +
         (recipe.conditions && recipe.conditions.length ? 'Required reported condition: ' + esc(recipe.conditions.join(', ')) + '. Missing condition is excluded. ' : 'No reported-condition filter. ') +
         (recipe.titleRejectTerms && recipe.titleRejectTerms.length ? 'Title exclusions: ' + esc(recipe.titleRejectTerms.join(', ')) + '. ' : '') +
+        (recipe.bundleMode === 'require' ? 'Bundle requires 18–55mm plus a named 55–250mm, 75–300mm, 70–300mm or 50mm lens in the title. ' : recipe.bundleMode === 'exclude' ? 'Named two-lens bundles go to the Bundles tier to avoid duplicate alerts. ' : '') +
+        (recipe.kitAllowancePence ? 'Named 18–55mm kits allow ' + money(recipe.kitAllowancePence) + ' above the body cap, within the tier limit. ' : '') +
         (recipe.modelMaxPricePence && Object.keys(recipe.modelMaxPricePence).length ? 'Model caps: ' + Object.keys(recipe.modelMaxPricePence).map(function(k){return esc(k) + ' ' + money(recipe.modelMaxPricePence[k]);}).join(', ') + '. ' : '') +
         (recipe.kind === "canon"
           ? "Known Canon model codes include their Rebel aliases. "

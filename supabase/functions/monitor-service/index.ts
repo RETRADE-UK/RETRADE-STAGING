@@ -323,7 +323,7 @@ Deno.serve(async (req) => {
         status: connection.state !== 'verified' ? 'blocked' : !connection.automatic ? 'blocked' : connection.scanStatus === 'ready' ? 'ready' : connection.scanStatus === 'waiting' ? 'starting' : 'degraded',
         message: connection.state !== 'verified' ? 'Vinted session needs attention in Connection.' : connection.scanMessage || 'Waiting for the first scheduled scan.',
         checkedAt: connection.scanCheckedAt || connection.checkedAt, retryAt: connection.scanRetryAt,
-        automatic:connection.automatic, intervalSeconds:60
+        automatic:connection.automatic, intervalSeconds:60, trialEndsAt:connection.trialEndsAt
       } : null;
       if (connectedSource?.automatic && connectedSource.checkedAt && Date.parse(connectedSource.checkedAt)<Date.now()-180000 && connectedSource.status==='ready') {
         connectedSource.status='degraded';connectedSource.message='Scheduled scans are stale. The last successful check was more than three minutes ago.';

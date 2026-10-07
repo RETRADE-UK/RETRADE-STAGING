@@ -503,3 +503,8 @@ RPCs and owner-readable disposition storage. `sw.js` validates listing IDs befor
 opening Vinted on an alert click. No provider URLs or credentials enter the client.
 The existing comparator remains separate from all-history browsing. Source remains
 blocked. See `docs/features/monitors/INBOX_UX_2026-10-05.md`.
+
+Monitor trial build `20261007-monitor-trial-staging`: presets.mjs owns the four
+research-based tiers; match.mjs owns model/kit ceilings and exclusive bundle rules.
+Private connection trial timestamps fence claims and late commits. See
+`docs/features/monitors/TRIAL_2026-10-07.md` for limits and deployment verification.

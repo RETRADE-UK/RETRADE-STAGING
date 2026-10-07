@@ -63,7 +63,7 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
    const delay=Math.min(3600000,120000*2**Math.min(account.failures||0,5));
    await rpc('monitor_scan_failure',{p_user:m.user_id,p_generation:account.generation,
     p_status:stop?'blocked':e.status===429?'rate_limited':'degraded',
-    p_message:stop?'Vinted refused the scan or returned an unsupported response. Automatic requests are paused.':e.status===429?'Vinted requested a pause. Scanning will resume after the retry time.':'Scan failed. The service will retry after a pause.',
+    p_message:stop?(e.status ? `Vinted returned HTTP ${e.status}. Automatic requests are paused.` : `Vinted response could not be read (${e.name==='ProviderContractError'?'catalogue schema':e.code==='unexpected_content_type'?'non-JSON response':e.code==='invalid_json'?'invalid JSON':'missing listing fields'}). Automatic requests are paused.`):e.status===429?'Vinted requested a pause. Scanning will resume after the retry time.':'Scan failed. The service will retry after a pause.',
     p_retry:stop?null:new Date(Math.max(now()+delay,e.retryAt||0)).toISOString(),p_stop:stop});
    accounts.set(m.user_id,null);
   }
