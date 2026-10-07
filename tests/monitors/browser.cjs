@@ -62,9 +62,10 @@ const { open, settled } = require("../startup-browser.cjs");
         }
         if (d.op === 'connectionAutomatic') {connectionState.automatic=d.enabled;response={connection:connectionState,message:'Automatic setting saved.'};}
         if (d.op === 'connectionDisconnect') {connectionState={state:'disconnected',stored:false};response={connection:connectionState,message:'Credentials deleted.'};}
-        if (d.op === 'sessionCheck') {
+        if (d.op === 'sessionCheck') throw new Error('Retired access-token flow must not be called');
+        if (d.op === 'savedSessionCheck') {
           sessionCalls++;
-          assert.equal(d.accessToken,'synthetic-session-test-value');
+          assert.equal(d.accessToken,undefined,'Saved checks never ask for an access token');
           assert.equal(d.id,monitors[0].id); assert.equal(d.searchText,'Canon');
           if(sessionMode === 'failure') {status=503;response={error:'Session check unavailable'};}
           else if(sessionMode === 'success') {
@@ -139,13 +140,14 @@ const { open, settled } = require("../startup-browser.cjs");
         .getByText("Live source not connected", { exact: true })
         .waitFor();
       assert.equal(await page.locator('[data-panel="manage"]').isVisible(),false);
-      assert.equal(await page.locator('[data-panel="alerts"]').isVisible(),false);
-      await page.getByRole('button',{name:'Connection',exact:true}).click();
+      assert.equal(await page.locator('.monitor-phone').isVisible(),false);
+      await page.getByLabel('Monitor workspace').getByRole('button',{name:'Settings',exact:true}).click();
       assert.equal(await page.locator('.monitor-session-form').isVisible(),false,'Old backend never receives tokens');
       await page.getByText('Connection setup is not available yet. Your saved monitors and history remain available.',{exact:true}).waitFor();
       sessionCapability=true;
       await page.getByRole('button',{name:'Refresh',exact:true}).click();
-      await page.getByLabel('Access token (used once)').waitFor();
+      await page.getByLabel('Refresh token',{exact:true}).waitFor();
+      assert.equal(await page.locator('input[name="accessToken"]').count(),0,'No manual access token setup');
       for(const width of mobile ? [320,390] : [1024,1440]) {
         await page.setViewportSize({width,height:900});
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Connection fits width '+width);
@@ -169,42 +171,31 @@ const { open, settled } = require("../startup-browser.cjs");
       await page.getByRole('button',{name:'Test saved connection',exact:true}).click();
       await page.waitForFunction(()=>!document.querySelector('[data-connection="test"]').disabled);
       assert.equal(connectionTests,3);
-      await page.getByRole('button',{name:'Disconnect & delete credentials',exact:true}).click();
-      await page.getByText('Credentials deleted.',{exact:true}).waitFor();
-      assert.equal(await page.getByRole('button',{name:'Test saved connection',exact:true}).isEnabled(),false);
-      await page.getByLabel('Refresh token',{exact:true}).fill('synthetic-refresh-token-value');
-      await page.getByRole('button',{name:'Finds',exact:true}).click();
-      assert.equal(await page.getByLabel('Refresh token',{exact:true}).inputValue(),'');
-      await page.getByRole('button',{name:'Connection',exact:true}).click();
-      const checkSession=async()=>{
-        await page.getByLabel('Access token (used once)').fill('synthetic-session-test-value');
-        await page.getByRole('button',{name:'Check one search',exact:true}).click();
-        assert.equal(await page.getByLabel('Access token (used once)').inputValue(),'','Token cleared immediately');
-      };
-      await checkSession();
-      await page.getByText('Vinted refused the server request (403). 0 new sample finds saved.',{exact:true}).waitFor();
-      assert.equal(sessionCalls,1);
-      await page.getByText('Live source not connected',{exact:true}).waitFor();
-      sessionMode='failure'; await checkSession();
-      await page.getByText('Session check unavailable',{exact:true}).waitFor();
-      sessionMode='success'; await checkSession();
+      await page.locator('.monitor-search-check > summary').click();
+      sessionMode='success';
+      await page.getByRole('button',{name:'Check saved search',exact:true}).click();
       await page.getByRole('button',{name:'View sample finds',exact:true}).click();
       await page.getByText('Connection sample · no alert',{exact:true}).waitFor();
       assert.equal(await page.getByRole('link',{name:'View on Vinted ↗'}).getAttribute('href'),'https://www.vinted.co.uk/items/67890');
-      assert.equal(await page.evaluate(()=>JSON.stringify([localStorage,sessionStorage]).includes('synthetic-session-test-value')),false);
-      await page.getByText('Connection test succeeded · background monitoring inactive',{exact:true}).waitFor();
       feedRows.push({observed_at:'2026-10-06T10:00:00Z',baseline:true,result:{status:'pending',warnings:[]},listing:{id:'67891',title:'Unverified lens candidate',itemPricePence:7000,captureMode:'session_check'}});
       await page.getByRole('button',{name:'Refresh',exact:true}).click();
-      assert.equal(await page.getByText('Unverified lens candidate',{exact:true}).isVisible(),false);
-      assert.equal(await page.locator('.monitor-review').count(),0,'Non-matches have no review feed');
-      assert.equal(await page.getByText('Unverified lens candidate',{exact:true}).count(),0);
+      assert.equal(await page.getByText('Unverified lens candidate',{exact:true}).count(),0,'Non-matches never enter the feed');
       feedRows=[];
-      await page.getByRole('button',{name:'Refresh',exact:true}).click();
-      await page.getByRole('button',{name:'Connection',exact:true}).click();
-      await page.getByLabel('Access token (used once)').fill('synthetic-session-test-value');
+      await page.getByLabel('Monitor workspace').getByRole('button',{name:'Settings',exact:true}).click();
+      await page.locator('.monitor-disconnect > summary').click();
+      await page.getByRole('button',{name:'Disconnect & delete credentials',exact:true}).click();
+      await page.getByText('Credentials deleted.',{exact:true}).waitFor();
+      assert.equal(await page.locator('[data-connection="test"]').isEnabled(),false);
+      await page.getByLabel('Refresh token',{exact:true}).fill('synthetic-refresh-token-value');
       await page.getByRole('button',{name:'Finds',exact:true}).click();
-      assert.equal(await page.locator('.monitor-session-form input').inputValue(),'','Leaving Connection clears token');
-      await page.getByLabel('Monitor workspace').getByRole('button',{name:'Alerts',exact:true}).click();
+      assert.equal(await page.getByLabel('Refresh token',{exact:true}).inputValue(),'');
+      await page.getByLabel('Monitor workspace').getByRole('button',{name:'Settings',exact:true}).click();
+      assert.equal(await page.locator('input[name="accessToken"]').count(),0);
+      assert.equal(sessionCalls,1,'One search uses the saved connection');
+      await page.getByRole('button',{name:'Finds',exact:true}).click();
+      assert.equal(await page.locator('.monitor-tools').isVisible(),false,'Diagnostics stay out of the feed');
+      await page.getByLabel('Monitor workspace').getByRole('button',{name:'Settings',exact:true}).click();
+      await page.locator('.monitor-notification-checks > summary').click();
       assert.equal(await page.locator('[data-action="test"]').isEnabled(),false,'Another endpoint/account does not imply this device is ready');
       await page.locator('[data-action="push"]').click();
       await page.getByText('This device is connected. Send a test to confirm receipt.',{exact:true}).waitFor();
@@ -289,6 +280,7 @@ const { open, settled } = require("../startup-browser.cjs");
       await page.locator('[data-action="save-item"][aria-pressed="true"]').waitFor();
       await page.locator('[data-action="read-item"]').click();
       await page.getByRole('button',{name:'Mark unread',exact:true}).waitFor();
+      await page.getByLabel('Monitor workspace').getByRole('button',{name:'Settings',exact:true}).click();
       await page.locator('.monitor-tools > summary').click();
       const downloadEvent=page.waitForEvent('download');
       await page.getByRole('button',{name:'Export sample CSV'}).click();

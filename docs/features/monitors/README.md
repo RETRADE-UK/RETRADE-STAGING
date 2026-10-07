@@ -1,5 +1,7 @@
 # Vinted monitors — takeover, 23 September 2026
 
+**7 October workspace:** [Feed, monitors and one-time setup in Settings](SETTINGS_UX_2026-10-07.md).
+
 **7 October connection reliability:** [shared renewal, verified search access and the remaining source blocker](CONNECTION_HEALTH_2026-10-07.md). Four researched tiers are complete; live access remains blocked.
 
 **7 October tier recovery:** [match-only history and recovered monitor definitions](TIERS_2026-10-07.md). The newer v1.3 handover supplies four named price bands; all remain labelled drafts pending complete original model/bundle rules.

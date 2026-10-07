@@ -40,27 +40,36 @@
       timer = null,
       dialog = null;
     root.innerHTML =
-      '<div class="monitor-page"><header class="monitor-header"><div><span class="monitor-eyebrow">SOURCING INTELLIGENCE · STAGING</span><h1>Monitors</h1><p>Your searches. New finds. One place.</p></div><button class="btn btn-primary" data-action="new">+ New monitor</button></header><div class="monitor-message" role="status" aria-live="polite"></div><section class="monitor-health skeleton" aria-label="Loading source status"><p>Checking source connection…</p></section><div class="monitor-layout"><aside><div class="monitor-section-title"><h2>Your monitors</h2><button class="btn" data-action="refresh">Refresh</button></div><div class="monitor-list"><div class="monitor-card skeleton" style="height:160px"></div><div class="monitor-card skeleton" style="height:120px"></div></div><section class="monitor-card monitor-phone"><h2>Alerts on this phone</h2><p>Receive new matches even when RETRADE is closed. Alerts are separate from buying recommendations.</p><p class="monitor-push-help">On iPhone: Safari → Share → Add to Home Screen. Open that shortcut, then enable notifications.</p><div class="monitor-actions"><button class="btn" data-action="push">Enable notifications</button><button class="btn" data-action="test">Send test</button><button class="btn" data-action="unpush">Disable this device</button></div><p class="monitor-device-state"></p></section></aside><section class="monitor-results"><div class="monitor-section-title"><h2>Listing feed</h2><button class="btn" data-action="preview">Preview example cards</button></div><p class="monitor-feed-note"></p><div class="monitor-feed" aria-live="polite"></div><section class="monitor-card monitor-comparison"><div class="monitor-section-title"><h2>Compare with Discord</h2><button class="btn" data-action="export" disabled>Export sample CSV</button></div><p>Record the Vinted link and the actual Discord message time. This does not read your Discord account.</p><form class="monitor-compare-form"><label>Vinted listing link or ID<input name="listingId" required maxlength="2048" placeholder="https://www.vinted.co.uk/items/…"></label><label>Discord message time (your local time)<input name="observedAt" type="datetime-local" step="1" required></label><button class="btn" type="submit">Record observation</button></form><div class="monitor-stats"></div><div class="monitor-comparison-rows"></div></section></section></div></div>';
+      '<div class="monitor-page"><header class="monitor-header"><div><span class="monitor-eyebrow">SOURCING INTELLIGENCE · STAGING</span><h1>Monitors</h1><p>Only matching items. Your tiers, your rules.</p></div><button class="btn btn-primary" data-action="new">+ New monitor</button></header><div class="monitor-message" role="status" aria-live="polite"></div><section class="monitor-health skeleton" aria-label="Loading source status"><p>Checking source connection…</p></section><div class="monitor-layout"><aside><div class="monitor-section-title"><h2>Your monitors</h2><button class="btn" data-action="refresh">Refresh</button></div><div class="monitor-list"><div class="monitor-card skeleton" style="height:160px"></div><div class="monitor-card skeleton" style="height:120px"></div></div><section class="monitor-card monitor-phone"><h2>Alerts on this phone</h2><p>Receive new matches even when RETRADE is closed. Alerts are separate from buying recommendations.</p><p class="monitor-push-help">On iPhone: Safari → Share → Add to Home Screen. Open that shortcut, then enable notifications.</p><div class="monitor-actions"><button class="btn" data-action="push">Enable notifications</button><button class="btn" data-action="test">Send test</button><button class="btn" data-action="unpush">Disable this device</button></div><p class="monitor-device-state"></p></section></aside><section class="monitor-results"><div class="monitor-section-title"><h2>Listing feed</h2><button class="btn" data-action="preview">Preview example cards</button></div><p class="monitor-feed-note"></p><div class="monitor-feed" aria-live="polite"></div><section class="monitor-card monitor-comparison"><div class="monitor-section-title"><h2>Compare with Discord</h2><button class="btn" data-action="export" disabled>Export sample CSV</button></div><p>Record the Vinted link and the actual Discord message time. This does not read your Discord account.</p><form class="monitor-compare-form"><label>Vinted listing link or ID<input name="listingId" required maxlength="2048" placeholder="https://www.vinted.co.uk/items/…"></label><label>Discord message time (your local time)<input name="observedAt" type="datetime-local" step="1" required></label><button class="btn" type="submit">Record observation</button></form><div class="monitor-stats"></div><div class="monitor-comparison-rows"></div></section></section></div></div>';
     var $ = function (s) {
       return root.querySelector(s);
     };
     // Finds lead in DOM and visual order at every width.
     var nav = document.createElement("div");
     nav.className = "monitor-navigation"; nav.setAttribute("role", "navigation"); nav.setAttribute("aria-label", "Monitor workspace");
-    nav.innerHTML = '<button class="btn is-active" data-action="section" data-section="finds" aria-current="page">Finds</button><button class="btn" data-action="section" data-section="manage">Monitors</button><button class="btn" data-action="section" data-section="alerts">Alerts</button><button class="btn" data-action="section" data-section="connection">Connection</button>';
+    nav.innerHTML = '<button class="btn is-active" data-action="section" data-section="finds" aria-current="page">Finds</button><button class="btn" data-action="section" data-section="manage">Monitors</button><button class="btn" data-action="section" data-section="settings">Settings</button>';
     nav.appendChild($('[data-action="refresh"]')); $(".monitor-layout").before(nav);
     var manage = $(".monitor-layout aside"), finds = $(".monitor-results"), alerts = $(".monitor-phone");
     manage.dataset.panel = "manage"; finds.dataset.panel = "finds"; alerts.dataset.panel = "alerts";
     $(".monitor-layout").appendChild(alerts); $(".monitor-layout").prepend(finds);
     manage.hidden = true; alerts.hidden = true;
     var connection = document.createElement("section");
-    connection.className = "monitor-card monitor-connection"; connection.dataset.panel = "connection"; connection.hidden = true;
-    connection.innerHTML = '<h2>Check Vinted access</h2><p>Test one of your searches directly with Vinted. Any returned finds open the original listing and stay in your history.</p><p class="monitor-connection-availability" role="status">Checking availability…</p><form class="monitor-session-form" hidden autocomplete="off"><label>Monitor<select name="monitor" aria-label="Monitor to check"></select></label><label>Saved search<select name="searchText" aria-label="Saved search to check"></select></label><label>Access token (used once)<input name="accessToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" required minlength="20" maxlength="8192" aria-describedby="monitor-token-note"></label><p id="monitor-token-note" class="monitor-meta">Sent securely to RETRADE for one search, then discarded. It is never saved in your account or browser storage. Keep it private; do not paste it into chat.</p><details class="monitor-token-help"><summary>Where to find your token</summary><p>Sign in to Vinted in a desktop browser. Open developer tools → Application (Storage in Firefox) → Cookies → https://www.vinted.co.uk. Copy only the Value of <code>access_token_web</code>.</p><p>Do not copy <code>refresh_token_web</code> or the whole cookie header. A session token can grant account access; this check only reads search results. A token may not resolve a server refusal.</p></details><button class="btn btn-primary" type="submit">Check one search</button><p class="monitor-meta">One check per five minutes. Sample results do not enable background scans or send alerts.</p></form><p class="monitor-session-result" role="status" aria-live="polite"></p><button class="btn" data-action="session-finds" hidden>View sample finds</button>';
+    connection.className = "monitor-card monitor-connection"; connection.dataset.panel = "settings"; connection.hidden = true;
+    connection.innerHTML = '<h2>Monitor settings</h2><p>Connect Vinted once, then manage your searches from Monitors and browse matching items in Finds. Session renewal is automatic while the connection remains valid.</p><p class="monitor-connection-availability" role="status"></p><details class="monitor-search-check"><summary>Check a saved search</summary><form class="monitor-session-form" autocomplete="off"><label>Monitor<select name="monitor" aria-label="Monitor to check"></select></label><label>Saved search<select name="searchText" aria-label="Saved search to check"></select></label></form><p class="monitor-session-result" role="status" aria-live="polite"></p><button class="btn" data-action="session-finds" hidden>View sample finds</button></details>';
+
     var persistent = document.createElement("section");
     persistent.className = "monitor-persistent";
     persistent.hidden = true;
-    persistent.innerHTML = '<h2>Vinted connection</h2><p>Saved credentials renew automatically. Check the saved connection once to verify search access, then start a 12-hour trial. Searches stop automatically at the end. Enabled monitors check every minute, including when RETRADE is closed.</p><p class="monitor-persistent-state" role="status"></p><form class="monitor-persistent-form" autocomplete="off"><label>Refresh token<input name="refreshToken" type="password" required minlength="20" maxlength="8192" autocomplete="off" autocapitalize="off" spellcheck="false"></label><label>Vinted browser User-Agent<input name="userAgent" required minlength="10" maxlength="512" autocomplete="off" spellcheck="false"></label><label>Country<select name="country"><option value="GB">United Kingdom (GB)</option></select></label><details><summary>Where to find these details</summary><p>In the desktop browser signed in to Vinted, open developer tools → Application → Cookies → https://www.vinted.co.uk. Copy only the Value of <code>refresh_token_web</code>.</p><p>For User-Agent, open a request to www.vinted.co.uk in Network → Headers → Request Headers and copy User-Agent. Do not copy other headers or tokens.</p></details><p class="monitor-meta">Saving authorises RETRADE to store these credentials encrypted and test session renewal. A successful test saves any replacement token. Renewal may affect another tool sharing the same Vinted session. Logging out of RETRADE keeps this connection; Disconnect deletes it. Never paste credentials into chat.</p><button class="btn btn-primary" type="submit">Save &amp; check connection</button></form><div class="monitor-actions"><button class="btn" type="button" data-connection="test">Test saved connection</button><button class="btn" type="button" data-connection="sample">Check saved search</button><button class="btn btn-primary" type="button" data-connection="automatic">Start 12-hour trial</button><button class="btn" type="button" data-connection="disconnect">Disconnect &amp; delete credentials</button></div><p class="monitor-persistent-result" role="status" aria-live="polite"></p>';
-    connection.prepend(persistent);
+    persistent.innerHTML = '<h2>Vinted connection</h2><p>Your connection is stored encrypted and renews in the background. After search access is verified, you can run a 12-hour trial. Reconnect only if Vinted invalidates the session.</p><p class="monitor-persistent-state" role="status"></p><form class="monitor-persistent-form" autocomplete="off"><label>Refresh token<input name="refreshToken" type="password" required minlength="20" maxlength="8192" autocomplete="off" autocapitalize="off" spellcheck="false"></label><label>Vinted browser User-Agent<input name="userAgent" required minlength="10" maxlength="512" autocomplete="off" spellcheck="false"></label><label>Country<select name="country"><option value="GB">United Kingdom (GB)</option></select></label><details><summary>Where to find these details</summary><p>In the desktop browser signed in to Vinted, open developer tools → Application → Cookies → https://www.vinted.co.uk. Copy only the Value of <code>refresh_token_web</code>.</p><p>For User-Agent, open a request to www.vinted.co.uk in Network → Headers → Request Headers and copy User-Agent. Do not copy other headers or tokens.</p></details><p class="monitor-meta">Saving authorises RETRADE to store these credentials encrypted and test session renewal. A successful test saves any replacement token. Renewal may affect another tool sharing the same Vinted session. Logging out of RETRADE keeps this connection; Disconnect deletes it. Never paste credentials into chat.</p><button class="btn btn-primary" type="submit">Save &amp; check connection</button></form><div class="monitor-actions"><button class="btn" type="button" data-connection="test">Test saved connection</button><button class="btn" type="button" data-connection="sample">Check saved search</button><button class="btn btn-primary" type="button" data-connection="automatic">Start 12-hour trial</button><button class="btn" type="button" data-connection="disconnect">Disconnect &amp; delete credentials</button></div><p class="monitor-persistent-result" role="status" aria-live="polite"></p>';
+    connection.querySelector('.monitor-search-check').before(persistent);
+    connection.querySelector('.monitor-search-check').appendChild(persistent.querySelector('[data-connection="sample"]'));
+    var disconnectOptions = document.createElement('details');
+    disconnectOptions.className = 'monitor-disconnect';
+    disconnectOptions.innerHTML = '<summary>Disconnect Vinted</summary><p>This stops automatic searches and deletes the saved connection. Your monitors and finds remain.</p>';
+    disconnectOptions.appendChild(persistent.querySelector('[data-connection="disconnect"]'));
+    persistent.appendChild(disconnectOptions);
+    delete alerts.dataset.panel; alerts.hidden = false;
+    connection.appendChild(alerts);
     var connectionBusy = false;
     function clearConnectionInputs() {
       persistent.querySelector('input[name="refreshToken"]').value = "";
@@ -91,7 +100,7 @@
       clearConnectionInputs();
       void runConnection('connectionTest', credentials);
     };
-    persistent.querySelector('[data-connection="sample"]').onclick = async function() {
+    connection.querySelector('[data-connection="sample"]').onclick = async function() {
       if (sessionBusy || !current()) return;
       var serial = ++sessionSerial; sessionBusy = true; connectionControls();
       persistent.querySelector('.monitor-persistent-result').textContent = 'Checking the selected search…';
@@ -129,9 +138,17 @@
     var localTest=document.createElement("button");localTest.className="btn";localTest.dataset.action="test-local";localTest.textContent="Test this screen";alerts.querySelector('.monitor-actions').appendChild(localTest);
     var delivery=document.createElement("div");delivery.className="monitor-delivery";alerts.appendChild(delivery);
     var help=document.createElement("p");help.className="monitor-meta";help.textContent="If a device acknowledges the notification but no banner appears, check Notification Centre, Focus / Do Not Disturb, and notification permissions for RETRADE or your browser.";alerts.appendChild(help);
+    var notificationChecks = document.createElement("details");
+    notificationChecks.className = "monitor-notification-checks";
+    notificationChecks.innerHTML = "<summary>Notification tests &amp; troubleshooting</summary>";
+    ['test', 'test-all', 'test-local', 'unpush'].forEach(function(action) {
+      notificationChecks.appendChild(alerts.querySelector('[data-action="' + action + '"]'));
+    });
+    notificationChecks.appendChild(delivery); notificationChecks.appendChild(help);
+    alerts.appendChild(notificationChecks);
     var choices = document.createElement("div"); choices.className = "monitor-alert-list"; alerts.appendChild(choices);
     var toolbar = document.createElement("div"); toolbar.className = "monitor-feed-toolbar";
-    toolbar.innerHTML = '<label>Monitor<select class="monitor-picker" aria-label="Choose monitor"></select></label><form class="monitor-search-form"><label>Search history<input name="query" type="search" maxlength="100" placeholder="Model, title or listing ID"></label><button class="btn" type="submit">Search</button></form><div class="monitor-filters" role="group" aria-label="Filter found items"><button class="btn is-active" data-action="filter" data-filter="all" aria-pressed="true">History</button><button class="btn" data-action="filter" data-filter="new" aria-pressed="false">Unread</button><button class="btn" data-action="filter" data-filter="saved" aria-pressed="false">Saved</button></div>';
+    toolbar.innerHTML = '<label>Monitor<select class="monitor-picker" aria-label="Choose monitor"></select></label><form class="monitor-search-form"><label>Search history<input name="query" type="search" maxlength="100" placeholder="Model, title or listing ID"></label><button class="btn" type="submit">Search</button></form><div class="monitor-filters" role="group" aria-label="Filter found items"><button class="btn is-active" data-action="filter" data-filter="all" aria-pressed="true">All matches</button><button class="btn" data-action="filter" data-filter="new" aria-pressed="false">Unread</button><button class="btn" data-action="filter" data-filter="saved" aria-pressed="false">Saved</button></div>';
     finds.prepend(toolbar);
     var searchToggle = document.createElement("button"); searchToggle.className = "btn monitor-search-toggle";
     searchToggle.dataset.action = "search-toggle"; searchToggle.textContent = "Search";
@@ -140,12 +157,12 @@
     var tools = document.createElement("details"); tools.className = "monitor-tools";
     tools.innerHTML = "<summary>Examples &amp; Discord comparison</summary><p>Testing tools only. These do not connect a listing source.</p>";
     tools.appendChild(finds.querySelector(".monitor-section-title")); tools.querySelector("h2").remove();
-    tools.appendChild($(".monitor-comparison")); finds.appendChild(tools);
-    var more = document.createElement("button"); more.className = "btn monitor-load-more"; more.dataset.action = "more"; more.textContent = "Load older finds"; more.hidden = true; tools.before(more);
+    tools.appendChild($(".monitor-comparison")); connection.appendChild(tools);
+    var more = document.createElement("button"); more.className = "btn monitor-load-more"; more.dataset.action = "more"; more.textContent = "Load older finds"; more.hidden = true; finds.appendChild(more);
     function showSection(name) {
-      if (name !== "connection") { $(".monitor-session-form").elements.accessToken.value = ""; clearConnectionInputs(); }
+      if (name !== "settings") clearConnectionInputs();
       root.querySelectorAll("[data-panel]").forEach(function(el) {el.hidden = el.dataset.panel !== name;});
-      root.querySelectorAll('[data-action="section"]').forEach(function(el) {
+      nav.querySelectorAll('[data-action="section"]').forEach(function(el) {
         el.classList.toggle("is-active", el.dataset.section === name);
         if(el.dataset.section === name) el.setAttribute("aria-current","page"); else el.removeAttribute("aria-current");
       });
@@ -177,12 +194,11 @@
     }
     function select(id) {
       ++sessionSerial;
-      $(".monitor-session-form").elements.accessToken.value = "";
       $(".monitor-session-result").textContent = "";
       $('[data-action="session-finds"]').hidden = true;
       selected = id;
       preview = false;
-      $('.monitor-results [data-action="preview"]').textContent = "Preview example cards";
+      $('[data-action="preview"]').textContent = "Preview example cards";
       clearFeed();
     }
     function controls() {
@@ -213,6 +229,10 @@
         (data.source.trialEndsAt ? " · Trial ends " + esc(time(data.source.trialEndsAt)) : "") +
         "</small></details></div>";
       health.dataset.state = data.source.status;
+      var setupAction = document.createElement('button');
+      setupAction.className = 'btn'; setupAction.dataset.action = 'section'; setupAction.dataset.section = 'settings';
+      setupAction.textContent = !data.connection || !data.connection.stored ? 'Set up Vinted' : data.connection.automatic ? 'Settings' : 'Review connection';
+      health.appendChild(setupAction);
       connectionControls();
       $('.monitor-delivery').innerHTML = (data.pushDevices || []).map(function(d) {
         var text = d.displayedAt ? 'Device requested notification display · ' + time(d.displayedAt) : d.failedAt ? 'Device could not display the notification' : d.receivedAt ? 'Device received the push; display not confirmed' : d.state === 'sent' ? 'Push provider accepted · awaiting device acknowledgement' : d.state === 'failed' ? 'Delivery failed · reconnect this device' : d.state ? 'Delivery queued' : 'Registered · no test recorded';
@@ -314,19 +334,22 @@
         (c.searchCheckedAt ? ' · Search checked ' + time(c.searchCheckedAt) : '');
       var searchCooling = !!((sessionRetryAt && Date.parse(sessionRetryAt)>Date.now()) || (c.checkRetryAt && Date.parse(c.checkRetryAt)>Date.now()));
       var cooling = !!(c.retryAt && Date.parse(c.retryAt)>Date.now());
-      persistent.querySelector('[data-connection="sample"]').disabled = connectionBusy || sessionBusy || ['verified','rate_limited'].indexOf(c.state)<0 || !current() || searchCooling;
+      connection.querySelector('[data-connection="sample"]').disabled = connectionBusy || sessionBusy || ['verified','rate_limited'].indexOf(c.state)<0 || !current() || searchCooling;
       persistent.querySelector('form').hidden = c.stored && c.state !== 'reconnect';
       persistent.querySelector('button[type="submit"]').disabled = connectionBusy || sessionBusy || cooling || searchCooling;
       persistent.querySelector('[data-connection="test"]').disabled = connectionBusy || sessionBusy || cooling || searchCooling || !c.stored || ['verified','rate_limited'].indexOf(c.state)<0;
       persistent.querySelector('[data-connection="disconnect"]').disabled = connectionBusy || !c.stored;
+      disconnectOptions.hidden = !c.stored;
+      persistent.querySelector('[data-connection="test"]').hidden = !c.stored;
+      autoButton.hidden = autoButton.hidden || !c.stored;
 
-      var form = $(".monitor-session-form"), available = !!(data.capabilities && data.capabilities.sessionCheck);
-      form.hidden = !available || data.anonymous || c.stored;
+      var form = $(".monitor-session-form"), available = supported;
+      form.hidden = !supported || !c.stored;
+      $(".monitor-search-check").hidden = !supported || !c.stored;
       $(".monitor-connection-availability").textContent = !available
         ? "Connection setup is not available yet. Your saved monitors and history remain available."
         : data.anonymous ? "Sign in with a registered staging account to check your Vinted session."
-        : c.stored ? "Your saved connection renews automatically. Use Check saved search to verify access without copying a token." : "A successful sample proves this request worked. Save a connection to enable automatic renewal.";
-      if (!available || data.anonymous) form.elements.accessToken.value = "";
+        : c.stored ? "Your saved connection renews automatically. Use Check saved search to verify access without copying a token." : "Start with your Vinted connection below, choose your monitors, then enable alerts on each device.";
       form.elements.monitor.innerHTML = data.monitors.filter(function(m) {return !m.archived;}).map(function(m) {
         return '<option value="' + esc(m.id) + '"' + (m.id === selected ? ' selected' : '') + '>' + esc(m.name) + '</option>';
       }).join('');
@@ -335,8 +358,7 @@
         return '<option value="' + esc(term) + '">' + esc(term) + '</option>';
       }).join('') : '';
       if (m && m.recipe.searchTerms.includes(oldSearch)) form.elements.searchText.value = oldSearch;
-      form.querySelector('button[type="submit"]').disabled = sessionBusy || !m || m.archived ||
-        !!(sessionRetryAt && Date.parse(sessionRetryAt) > Date.now());
+
     }
     async function refresh() {
       var token = ++refreshToken;
@@ -577,7 +599,7 @@
       $(".monitor-feed-note").textContent = preview
         ? "EXAMPLES ONLY · fictional listings, never saved or notified."
         : "";
-      $('.monitor-results [data-action="preview"]').textContent = preview
+      $('[data-action="preview"]').textContent = preview
         ? "Back to live feed"
         : "Preview example cards";
       if (!preview) return loadHistory(false);
@@ -840,7 +862,7 @@
             if (actionNumber === actionSerial) message(action === "save-item" ? (item.saved ? "Removed from your RETRADE saved list." : "Saved in RETRADE. Vinted favourites are unchanged.") : "Read status updated.");
           }
         }
-        if (action === "preview") await examples();
+        if (action === "preview") { showSection("finds"); await examples(); }
         if (action === "export") exportComparison();
         if (action === "refresh") { message(""); historyCursor = null; historyExpanded = false; await refresh(); if(actionNumber === actionSerial) message("Monitors refreshed."); }
         if (["push", "test", "test-all", "test-local", "unpush"].includes(action)) await push(action);
@@ -867,36 +889,7 @@
       select(event.target.value); controls();
       try {await loadHistory(false);} catch(e) {message(e.message,true);}
     };
-    $(".monitor-session-form").onsubmit = async function(event) {
-      event.preventDefault();
-      if (sessionBusy || !data || data.anonymous || !data.capabilities || !data.capabilities.sessionCheck) return;
-      var form = event.currentTarget, tokenInput = form.elements.accessToken;
-      if (!/^[A-Za-z0-9._~-]{20,8192}$/.test(tokenInput.value)) {
-        tokenInput.value = ""; $(".monitor-session-result").textContent = "Enter only the access_token_web value, without quotes or other cookies."; return;
-      }
-      var requestData = {id:selected, searchText:form.elements.searchText.value, accessToken:tokenInput.value};
-      tokenInput.value = "";
-      var serial = ++sessionSerial; sessionBusy = true; connectionControls();
-      $(".monitor-session-result").textContent = "Checking one search…";
-      $('[data-action="session-finds"]').hidden = true;
-      try {
-        var result = await api.request("sessionCheck",requestData);
-        if (!alive || serial !== sessionSerial) return;
-        sessionRetryAt = result.retryAt;
-        $(".monitor-session-result").textContent = result.message + " " + result.saved + " new sample finds saved.";
-        $('[data-action="session-finds"]').hidden = result.status !== "sample_received";
-        if (result.status === "sample_received") await loadHistory(false);
-      } catch(e) {
-        if (alive && serial === sessionSerial) {
-          sessionRetryAt = e.retryAt || null;
-          $(".monitor-session-result").textContent = e.message;
-        }
-      } finally {
-        requestData.accessToken = null;
-        sessionBusy = false;
-        if (alive) connectionControls();
-      }
-    };
+    $(".monitor-session-form").onsubmit = function(event) { event.preventDefault(); };
     $(".monitor-picker").onchange = async function(event) {
       select(event.target.value); controls();
       try {await loadHistory(false);} catch(e) {message(e.message,true);}
