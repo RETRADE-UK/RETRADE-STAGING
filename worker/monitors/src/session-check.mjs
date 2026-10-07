@@ -17,7 +17,7 @@ export async function checkSession({ request, accessToken, recipe: input, search
       received: page.rawCount, retryAt: null,
       items: page.listings.map(listing => ({
         listing: { ...listing, captureMode: 'session_check' }, result: matchListing(listing, recipe),
-      })).filter(item => item.result.status !== 'reject') };
+      })).filter(item => item.result.status === 'match') };
   } catch (error) {
     // Neither raw responses nor exception messages may echo a credential.
     const status = error.status === 401 ? 'expired' : error.status === 403 ? 'blocked' :

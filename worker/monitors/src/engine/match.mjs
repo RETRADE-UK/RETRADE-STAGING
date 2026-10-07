@@ -11,10 +11,24 @@ export function matchListing(listing, input) {
   const recipe = createRecipe(input);
   const text = `${listing.title ?? ''}\n${listing.description ?? ''}`;
   const warnings = recipe.warningTerms.filter(term => hasTerm(text, term));
-  const accessoryOnly = /^(?:canon\s+)?(?:replacement\s+)?(?:battery|batteries|charger|lens|strap|case|bag|screen protector|manual|box)\b/i.test(listing.title ?? '')
-    || /\b(?:compatible with|for canon|fits canon)\b/i.test(listing.title ?? '');
+  // Camera model names on a compatibility list do not make an accessory a camera.
+  const title = normalize(listing.title);
+  const descriptor = /\b(?:(?:expanded|field|user|instruction|pocket) guide|remote (?:switch|control)|rs[- ]?60e3|body cap|lens cap)\b/.exec(title);
+  const prefix = descriptor ? title.slice(0, descriptor.index) : '';
+  const modelInPrefix = recipe.models.some(model => recipe.kind === 'canon'
+    ? canon.models.find(m => m.id === model).aliases.some(alias => hasTerm(prefix, alias)) : hasTerm(prefix, model))
+    || recipe.customModels.some(model => hasTerm(prefix, model));
+  const bundledDescriptor = modelInPrefix && /(?:\b(?:with|includes?|including)\b|[+&])/.test(prefix);
+  const accessoryOnly = recipe.kind === 'canon' && (
+    /^(?:canon\s+)?(?:(?:replacement|genuine|original|new)\s+)*(?:battery|batteries|charger|lens|strap|case|bag|screen protector|manual|box|guide|remote switch|remote control|rs[- ]?60e3)\b/.test(title)
+    || /\b(?:compatible with|for canon|fits canon)\b/.test(title)
+    || (descriptor !== null && !bundledDescriptor)
+    || /\b(?:lens|charger|battery|manual|box|strap|bag) only\b/.test(title)
+  );
   if (accessoryOnly) warnings.push('possible_accessory_only');
   const result = (status, reason, matchedModels = []) => ({ status, reason, matchedModels, warnings });
+  if (recipe.setupRequired) return result('reject', 'setup_required');
+  if (accessoryOnly) return result('reject', 'accessory_only');
   if (listing.platform !== 'vinted' || !listing.id) return result('reject', 'identity');
   if (listing.currency !== null && listing.currency !== 'GBP') return result('reject', 'currency');
   if (listing.itemPricePence != null && (!Number.isSafeInteger(listing.itemPricePence) || listing.itemPricePence < 0)) return result('reject', 'invalid_price');
@@ -22,15 +36,17 @@ export function matchListing(listing, input) {
   if (listing.itemPricePence < recipe.minPricePence || (recipe.maxPricePence !== null && listing.itemPricePence > recipe.maxPricePence)) return result('reject', 'price');
   const rejected = recipe.rejectTerms.find(term => hasTerm(text, term));
   if (rejected) return result('reject', `reject_term:${rejected}`);
+  const rejectedTitle = recipe.titleRejectTerms.find(term => hasTerm(listing.title, term));
+  if (rejectedTitle) return result('reject', `title_reject_term:${rejectedTitle}`);
   const matchedModels = recipe.models.filter(model => recipe.kind === 'canon'
     ? canon.models.find(m => m.id === model).aliases.some(alias => hasTerm(text, alias)) : hasTerm(text, model));
   matchedModels.push(...recipe.customModels.filter(model => hasTerm(text, model)));
   if (!matchedModels.length) return result(listing.detailComplete ? 'reject' : 'pending', 'model');
+  if (matchedModels.every(model => recipe.modelMaxPricePence[model] !== undefined && listing.itemPricePence > recipe.modelMaxPricePence[model])) return result('reject', 'model_price', matchedModels);
   if (recipe.conditions.length && !listing.condition) return result(listing.detailComplete ? 'reject' : 'pending', 'missing_condition', matchedModels);
   if (recipe.conditions.length && !recipe.conditions.includes(listing.condition)) return result('reject', 'condition', matchedModels);
   // Restrictive buying rules need a complete description before final acceptance.
   if (recipe.rejectTerms.length && !listing.detailComplete) return result('pending', 'description_required', matchedModels);
-  // Wording is only a heuristic. Keep ambiguous accessories visible for review;
-  // warnings prevent BUY/SNIPE instead of silently discarding a real camera kit.
+  // Pending candidates remain internal until their required evidence is present.
   return result('match', 'model', [...new Set(matchedModels)]);
 }

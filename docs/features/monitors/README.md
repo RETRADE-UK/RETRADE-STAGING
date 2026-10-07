@@ -1,5 +1,7 @@
 # Vinted monitors — takeover, 23 September 2026
 
+**7 October tier recovery:** [match-only history and recovered monitor definitions](TIERS_2026-10-07.md). Two price bands are defined; Bundle Sniper and High Value remain labelled drafts pending their original rules.
+
 **6 October automatic scans:** [minute cadence, authenticated worker and push diagnostics](AUTOMATIC_2026-10-06.md).
 
 **6 October saved connection:** [private renewal test and credential storage](PERSISTENT_CONNECTION_2026-10-06.md). Background activation still awaits a live renewal test.

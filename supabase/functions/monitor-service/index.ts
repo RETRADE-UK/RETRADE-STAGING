@@ -1,7 +1,6 @@
 // Staging-only service. User JWTs are verified with Auth; cron uses a private DB token.
 import webpush from "npm:web-push@3.6.7";
 import {
-  preset,
   monitorInput,
   subscriptionInput,
   comparatorInput,
@@ -18,6 +17,7 @@ import { canon } from "../../../worker/monitors/src/contracts.mjs";
 import { checkSession, sessionMessages } from "../../../worker/monitors/src/session-check.mjs";
 import { connectionInput, seal, unseal, renewConnection, connectionMessages } from "../../../worker/monitors/src/connection.mjs";
 import { automaticScan } from "../../../worker/monitors/src/automatic.mjs";
+import { canonTierPresets } from "../../../worker/monitors/src/presets.mjs";
 const url = Deno.env.get("SUPABASE_URL")!;
 const service = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const cors = {
@@ -307,11 +307,9 @@ Deno.serve(async (req) => {
     if (input.op === "bootstrap" || input.op === "status") {
       const c = await config();
       if (input.op === "bootstrap") {
-        const data = preset();
-        if (anonymous) data.enabled = false;
-        await rpc("monitor_save", {
+        for (const tier of canonTierPresets()) await rpc("monitor_save", {
           p_user: user.id, p_id: null, p_revision: null,
-          p_data: data, p_preset: "canon-rl-v1",
+          p_data: tier.data, p_preset: tier.key,
         });
       }
       const monitors = await db(
@@ -377,7 +375,9 @@ Deno.serve(async (req) => {
       const c = input.cursor;
       if (c != null && (typeof c !== 'object' || typeof c.at !== 'string' || c.at.length > 40 || !Number.isFinite(Date.parse(c.at)) || typeof c.id !== 'string' || !/^[1-9]\d{0,19}$/.test(c.id)))
         throw new TypeError("Invalid history cursor");
-      return reply(await rpc("monitor_history", {p_user:user.id,p_monitor:m.id,p_filter:input.filter,p_query:input.query,p_cursor:c || null}));
+      const history = await rpc("monitor_history", {p_user:user.id,p_monitor:m.id,p_filter:input.filter,p_query:input.query,p_cursor:c || null});
+      history.rows = history.rows.filter((row:any) => matchListing(row.listing,m.recipe).status === 'match');
+      return reply(history);
     }
     if (input.op === "itemState") {
       const m = await own(user.id, input.id);
@@ -393,6 +393,7 @@ Deno.serve(async (req) => {
       const snapshot = await rpc("monitor_feed_snapshot", {
         p_user: user.id, p_monitor: m.id, p_revision: m.revision,
       });
+      snapshot.matches = snapshot.matches.filter((row:any) => matchListing(row.listing,m.recipe).status === 'match');
       return reply(buildFeed(snapshot));
     }
 

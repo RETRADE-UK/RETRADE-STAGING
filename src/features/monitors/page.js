@@ -224,7 +224,7 @@
         return '<option value="' + esc(m.id) + '"' + (m.id === selected ? " selected" : "") + '>' + esc(m.name) + (m.archived ? " · Archived" : "") + '</option>';
       }).join("");
       $(".monitor-alert-list").innerHTML = '<h2>Alerts by monitor</h2><p>Only enabled monitors with alerts on can notify you. The first scan stays silent.</p>' + data.monitors.filter(function(m) {return !m.archived;}).map(function(m) {
-        return '<div class="monitor-alert-row"><div><strong>' + esc(m.name) + '</strong><small>' + (!m.enabled ? "Paused · no alerts" : data.source.status === "blocked" ? "Waiting for source" : "Enabled") + '</small></div><button class="btn" data-action="alerts-toggle" data-id="' + esc(m.id) + '" aria-pressed="' + !!m.notifications + '" ' + (data.anonymous ? "disabled" : "") + '>' + (m.notifications ? "Alerts on" : "Alerts off") + '</button></div>';
+        return '<div class="monitor-alert-row"><div><strong>' + esc(m.name) + '</strong><small>' + (!m.enabled ? "Paused · no alerts" : data.source.status === "blocked" ? "Waiting for source" : "Enabled") + '</small></div><button class="btn" data-action="alerts-toggle" data-id="' + esc(m.id) + '" aria-pressed="' + !!m.notifications + '" ' + (data.anonymous || m.recipe.setupRequired ? "disabled" : "") + '>' + (m.notifications ? "Alerts on" : "Alerts off") + '</button></div>';
       }).join("");
       $(".monitor-list").innerHTML = data.monitors
         .map(function (m) {
@@ -235,7 +235,9 @@
             esc(m.id) +
             '"><span class="monitor-state">' +
             esc(
-              m.archived
+              m.recipe.setupRequired
+                ? "Needs original rules"
+                : m.archived
                 ? "Archived"
                 : !m.enabled
                   ? "Paused"
@@ -262,7 +264,7 @@
             '">Edit</button><button class="btn" data-action="toggle" data-id="' +
             esc(m.id) +
             '" ' +
-            (data.anonymous || m.archived ? "disabled" : "") +
+            (data.anonymous || m.archived || m.recipe.setupRequired ? "disabled" : "") +
             ">" +
             (m.enabled ? "Pause" : "Resume") +
             '</button><button class="btn" data-action="duplicate" data-id="' +
@@ -332,8 +334,10 @@
       var result = await api.request(data ? "status" : "bootstrap");
       if (!alive || token !== refreshToken) return;
       data = result;
-      if (!selected || !current())
-        select(data.monitors[0] && data.monitors[0].id);
+      if (!selected || !current() || current().archived) {
+        var first = data.monitors.find(function(m) {return !m.archived && !m.recipe.setupRequired;}) || data.monitors[0];
+        select(first && first.id);
+      }
       controls();
       connectionControls();
       if (!historyExpanded) await loadHistory(false);
@@ -363,20 +367,19 @@
       var token = ++historyToken, id = selected;
       var result = await api.request("history", {id:id, filter:historyFilter, query:historyQuery, cursor:more ? historyCursor : null});
       if (!alive || token !== historyToken || id !== selected || preview) return;
-      historyRows = more ? historyRows.concat(result.rows) : result.rows;
+      var matches = result.rows.filter(function(row) { return row.result && row.result.status === "match"; });
+      historyRows = more ? historyRows.concat(matches) : matches;
       historyExpanded = !!more;
       historyCursor = result.nextCursor;
       historyRows.forEach(function(row) { if(row.listing.captureMode === "session_check" && (!sampleObservedAt || Date.parse(row.observed_at) > Date.parse(sampleObservedAt))) sampleObservedAt = row.observed_at; });
       controls();
-      $(".monitor-feed-note").textContent = historyRows.length + (historyCursor ? "+" : "") + (historyRows.length === 1 && !historyCursor ? " candidate" : " candidates") + " · " + historyRows.filter(function(r){return r.result.status === "match";}).length + " confirmed matches" + " · all rule versions" + (historyQuery ? ' · Search: “' + historyQuery + '”' : ' · saved to your account');
+      $(".monitor-feed-note").textContent = historyRows.length + (historyCursor ? "+" : "") + (historyRows.length === 1 && !historyCursor ? " match" : " matches") + " · current tier rules" + (historyQuery ? ' · Search: “' + historyQuery + '”' : ' · saved to your account');
       $('[data-action="more"]').hidden = !historyCursor;
       var signature = JSON.stringify([id,historyFilter,historyRows]);
       if (signature === lastFeed) return;
       var expanded = Array.from($(".monitor-feed").querySelectorAll(".monitor-listing details[open]")).map(function(el) {return el.closest("[data-listing]").dataset.listing + ":" + el.className;});
       var focus = document.activeElement, focusId = focus && focus.dataset.listing, focusAction = focus && focus.dataset.action;
-      var reviewOpen = !!$(".monitor-review[open]");
       cards(historyRows,false); lastFeed = signature;
-      if ($(".monitor-review")) $(".monitor-review").open = reviewOpen;
       $(".monitor-feed").querySelectorAll(".monitor-listing details").forEach(function(el) {el.open = expanded.includes(el.closest("[data-listing]").dataset.listing + ":" + el.className);});
       if (focusId) {
         var next = Array.from($(".monitor-feed").querySelectorAll("[data-action]")).find(function(el) {return el.dataset.listing === focusId && el.dataset.action === focusAction;});
@@ -398,6 +401,7 @@
       }
     }
     function cards(rows, isPreview) {
+      if (!isPreview) rows = rows.filter(function(row) { return row.result && row.result.status === "match"; });
       if (!rows.length) {
         $(".monitor-feed").innerHTML =
           '<div class="monitor-empty"><div class="monitor-radar" aria-hidden="true">◎</div><h3>No finds to show</h3><p>' +
@@ -405,12 +409,11 @@
             historyFilter === "saved" ? "Save listings to keep a shortlist here. This saves in RETRADE, not in your Vinted favourites." :
             historyFilter === "new" ? "You have no unread confirmed matches." :
             data.source.status === "blocked" ? "Your searches are saved, but the live listing source is not connected. No items have been invented or imported from Discord." :
-            "Newly discovered items stay here, even when you change or pause a monitor.") +
+            "Only listings passing the current tier rules appear here. Pausing preserves matching finds.") +
           "</p></div>";
         return;
       }
       var previousDay = {match:"",pending:""};
-      var pendingRows = [];
       var rendered = rows
         .map(function (row) {
           var l = row.listing,
@@ -486,11 +489,10 @@
               : "") +
             "</div></div></article>"
           );
-          if (!isPreview && row.result.status === "pending") { pendingRows.push(markup); return ""; }
           return markup;
         })
         .join("");
-      $(".monitor-feed").innerHTML = rendered + (pendingRows.length ? '<details class="monitor-review"><summary>Needs review (' + pendingRows.length + ')</summary><p>These candidates have not passed all monitor rules. They may be unrelated; no listing alerts are sent for them.</p>' + pendingRows.join("") + '</details>' : "");
+      $(".monitor-feed").innerHTML = rendered;
     }
     function stats(result) {
       var c = result.comparison;
@@ -629,18 +631,22 @@
         (recipe.maxPricePence == null ? "" : recipe.maxPricePence / 100) +
         '"></label></div><label>Flag these words for review (comma separated)<textarea name="warnings" rows="2" placeholder="faulty, untested, spares">' +
         esc(recipe.warningTerms.join(", ")) +
-        '</textarea></label><p class="monitor-meta">All conditions stay visible. ' +
+        '</textarea></label><p class="monitor-meta">' +
+        (recipe.setupRequired ? 'Recovered name only: original model, price and bundle rules are still needed. This draft cannot scan or send alerts. ' : '') +
+        (recipe.conditions && recipe.conditions.length ? 'Required reported condition: ' + esc(recipe.conditions.join(', ')) + '. Missing condition is excluded. ' : 'No reported-condition filter. ') +
+        (recipe.titleRejectTerms && recipe.titleRejectTerms.length ? 'Title exclusions: ' + esc(recipe.titleRejectTerms.join(', ')) + '. ' : '') +
+        (recipe.modelMaxPricePence && Object.keys(recipe.modelMaxPricePence).length ? 'Model caps: ' + Object.keys(recipe.modelMaxPricePence).map(function(k){return esc(k) + ' ' + money(recipe.modelMaxPricePence[k]);}).join(', ') + '. ' : '') +
         (recipe.kind === "canon"
           ? "Known Canon model codes include their Rebel aliases. "
           : "") +
-        'Detailed condition/seller filters will follow verified source access. Changing matching rules starts a new silent baseline.</p><label class="monitor-check"><input name="enabled" type="checkbox" ' +
+        'Seller claims and faults hidden in descriptions are not verified by a catalogue match. Changing matching rules starts a new silent baseline.</p><label class="monitor-check"><input name="enabled" type="checkbox" ' +
         (m && m.enabled && !duplicate ? "checked" : "") +
         " " +
-        (data.anonymous ? "disabled" : "") +
+        (data.anonymous || recipe.setupRequired ? "disabled" : "") +
         '> Monitor enabled</label><label class="monitor-check"><input name="notifications" type="checkbox" ' +
         (m && m.notifications && !duplicate ? "checked" : "") +
         " " +
-        (data.anonymous ? "disabled" : "") +
+        (data.anonymous || recipe.setupRequired ? "disabled" : "") +
         '> Push every new confirmed match to my subscribed devices</label><p class="monitor-form-error" role="alert"></p><button class="btn btn-primary" type="submit">Save monitor</button></form>';
       root.appendChild(dialog);
       dialog.addEventListener("close", function () {
@@ -682,6 +688,7 @@
               : Math.round(Number(fd.get("max")) * 100),
           warningTerms: terms("warnings"),
         });
+        if (next.modelMaxPricePence) next.modelMaxPricePence = Object.fromEntries(Object.entries(next.modelMaxPricePence).filter(function(pair){return next.models.includes(pair[0]);}));
         try {
           var result = await api.request("save", {
             id: editing ? m.id : null,

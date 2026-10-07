@@ -85,7 +85,7 @@ export function normalizeListing(raw, { observedAt, detailComplete = false, rati
     itemPricePence, quotedTotalPence, currency,
     // Provider 'total_item_price' has no validated delivery-cost guarantee.
     // Do not present it as landed cost or use it for buy scoring.
-    condition: condition(first(raw.status_title, raw.condition)),
+    condition: condition(first(raw.status_title, raw.condition, raw.status)),
     brand: text(first(raw.brand_title, raw.brand?.title, raw.brand)), imageUrls: images,
     seller: normalizeSeller(first(raw.user, raw.seller), { ratingScale }),
     observedAt: new Date(observedAt).toISOString(), detailComplete: detailComplete === true

@@ -1,5 +1,10 @@
 # Runtime ownership
 
+Monitor tier recovery uses `worker/monitors/src/presets.mjs` for recovered presets
+and `monitor_catalog_commit` for match-only writes plus minimal overlap IDs.
+History shows the current recipe revision; the native page has no pending-results
+feed. See `docs/features/monitors/TIERS_2026-10-07.md`.
+
 PDF banner fine adjustment (v1.5.103): the shared compositor lifts the complete
 shield by 0.2 mm and lowers the title/tagline by 0.2 mm from v1.5.101 positions.
 The 42 mm artwork width and banner size are unchanged. Pixel-bound tests verify

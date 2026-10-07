@@ -58,17 +58,26 @@ export function createRecipe(input = {}) {
   if (!Number.isFinite(minRating) || minRating < 0 || minRating > 5) throw new TypeError('Invalid minimum rating');
   if (!Number.isFinite(minRoiPercent) || minRoiPercent < 0 || minRoiPercent > 100000) throw new TypeError('Invalid minimum ROI');
   const rejectTerms = terms(input.rejectTerms ?? [], 'rejectTerms');
+  const titleRejectTerms = terms(input.titleRejectTerms ?? [], 'titleRejectTerms');
+  const modelMaxPricePence = input.modelMaxPricePence ?? {};
+  if (!isRecord(modelMaxPricePence) || Object.keys(modelMaxPricePence).length > 100) throw new TypeError('Invalid model price limits');
+  for (const [model, price] of Object.entries(modelMaxPricePence)) {
+    if (!models.includes(model)) throw new TypeError('Price limit must belong to a selected model');
+    pence(price, 'model price limit', false);
+  }
+  if (input.setupRequired !== undefined && typeof input.setupRequired !== 'boolean') throw new TypeError('Invalid setup state');
   const recipe = {
     version: 1, kind, benchmark: input.benchmark ?? false, models,
     customModels: terms(input.customModels ?? [], 'customModels'),
     searchTerms: terms(input.searchTerms ?? [], 'searchTerms'),
-    minPricePence, maxPricePence, conditions, rejectTerms,
+    minPricePence, maxPricePence, conditions, rejectTerms, titleRejectTerms,
+    modelMaxPricePence: Object.freeze({...modelMaxPricePence}), setupRequired: input.setupRequired ?? false,
     warningTerms: terms(input.warningTerms ?? [], 'warningTerms'),
     minProfitPence: pence(input.minProfitPence ?? 4000, 'minProfitPence', false),
     minRoiPercent, minReviews, minRating, zeroReviews, notifyLevels
   };
   if (!recipe.models.length && !recipe.customModels.length) throw new TypeError('Select at least one model or custom model');
-  if (recipe.benchmark && (conditions.length || rejectTerms.length || zeroReviews === 'hide' || notifyLevels.length)) {
+  if (recipe.benchmark && (conditions.length || rejectTerms.length || titleRejectTerms.length || Object.keys(modelMaxPricePence).length || zeroReviews === 'hide' || notifyLevels.length)) {
     throw new TypeError('Benchmark must accept all conditions, warn instead of reject/hide, and remain feed-only');
   }
   for (const value of Object.values(recipe)) if (Array.isArray(value)) Object.freeze(value);

@@ -163,13 +163,13 @@ test('request-heavy recipes cannot starve never-scanned monitors in an unordered
     if (path.endsWith('/rpc/monitor_connection_worker')) return {state:'verified',ciphertext,generation:id,expiresAt:new Date(Date.now()+3600000).toISOString()};
     if (path.startsWith('/rest/v1/monitor_matches?')) return [];
     if (path.startsWith('/web/gateway/svc-catalogue/items?')) return {items:Array.from({length:50},(_,i)=>({id:i+1,title:'Canon 600D',price:{amount:'80',currency_code:'GBP'}}))};
-    if (path.endsWith('/rpc/monitor_auto_commit')) return true;
+    if (path.endsWith('/rpc/monitor_catalog_commit')) return true;
     if (path.endsWith('/rpc/monitor_source_state')) return null;
     if (path.endsWith('/rpc/monitor_push_claim')) return [];
     if (path.endsWith('/rpc/monitor_release_claims') || path.endsWith('/rpc/monitor_tick_release')) return null;
   });
   assert.equal((await post({op:'tick'},false,{'x-monitor-token':config.token})).status,200);
-  assert.deepEqual(calls.filter(c=>c.path.endsWith('/rpc/monitor_auto_commit')).map(c=>c.body.p_id),[waiting]);
+  assert.deepEqual(calls.filter(c=>c.path.endsWith('/rpc/monitor_catalog_commit')).map(c=>c.body.p_id),[waiting]);
   assert.equal(calls.filter(c=>c.path.startsWith('/web/gateway/svc-catalogue/items?')).length,6);
 });
 
