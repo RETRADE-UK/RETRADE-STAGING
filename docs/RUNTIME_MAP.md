@@ -1,5 +1,10 @@
 # Runtime ownership
 
+Monitor setup remains owned by `src/features/monitors/page.js` and its existing
+feature stylesheet. A disposed local countdown presents server cooldowns without
+source requests; connection updates fence stale page status responses. See
+`docs/features/monitors/SETUP_CLARITY_2026-10-07.md`.
+
 Monitor tier recovery uses `worker/monitors/src/presets.mjs` for recovered presets
 and `monitor_catalog_commit` for match-only writes plus minimal overlap IDs.
 History shows the current recipe revision; the native page has no pending-results
