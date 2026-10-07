@@ -1,5 +1,7 @@
 # Vinted monitors — takeover, 23 September 2026
 
+**7 October setup clarity:** [Visible controls, connection replacement and cooldown feedback](SETUP_CLARITY_2026-10-07.md).
+
 **7 October workspace:** [Feed, monitors and one-time setup in Settings](SETTINGS_UX_2026-10-07.md).
 
 **7 October connection reliability:** [shared renewal, verified search access and the remaining source blocker](CONNECTION_HEALTH_2026-10-07.md). Four researched tiers are complete; live access remains blocked.

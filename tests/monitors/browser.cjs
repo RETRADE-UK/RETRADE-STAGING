@@ -29,7 +29,7 @@ const { open, settled } = require("../startup-browser.cjs");
         ],
         calls = 0, failBootstrap = true, delayedSave = null, releaseSave = null,
         statusState = "blocked", feedRows = [], failState = false, deviceRegistered = false,
-        connectionState = {state:'disconnected',stored:false}, connectionTests = 0,
+        connectionState = {state:'disconnected',stored:false}, connectionTests = 0, disconnects = 0,
         sessionCapability = false, sessionMode = 'blocked', sessionCalls = 0;
       await page.route("**/functions/v1/monitor-service", async (route) => {
         calls++;
@@ -61,7 +61,7 @@ const { open, settled } = require("../startup-browser.cjs");
           connectionState={state:'verified',stored:true,canStart:connectionTests>1,searchStatus:connectionTests>1?'ready':'access_rejected'};response={connection:connectionState,message:connectionTests>1?'Connection ready.':'Renewal test succeeded.'};
         }
         if (d.op === 'connectionAutomatic') {connectionState.automatic=d.enabled;response={connection:connectionState,message:'Automatic setting saved.'};}
-        if (d.op === 'connectionDisconnect') {connectionState={state:'disconnected',stored:false};response={connection:connectionState,message:'Credentials deleted.'};}
+        if (d.op === 'connectionDisconnect') {disconnects++;connectionState={state:'disconnected',stored:false};response={connection:connectionState,message:'Credentials deleted.'};}
         if (d.op === 'sessionCheck') throw new Error('Retired access-token flow must not be called');
         if (d.op === 'savedSessionCheck') {
           sessionCalls++;
@@ -130,6 +130,7 @@ const { open, settled } = require("../startup-browser.cjs");
         const interval = window.setInterval;
         window.setInterval = function(fn, ms, ...args) {
           if(ms === 30000) window.__monitorPoll = fn;
+          if(ms === 1000) window.__monitorConnectionTick = fn;
           return interval(fn, ms, ...args);
         };
         goToTab("monitors");
@@ -152,25 +153,74 @@ const { open, settled } = require("../startup-browser.cjs");
         await page.setViewportSize({width,height:900});
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Connection fits width '+width);
       }
-      await page.screenshot({path:'/tmp/monitors-connection-'+(mobile?'mobile':'desktop')+'.png',fullPage:true});
+      const tokenHelp=page.locator('.monitor-setup-help > summary');
+      await tokenHelp.focus();await page.keyboard.press('Enter');
+      assert(await page.locator('.monitor-setup-help').evaluate(e=>e.open));
+      await page.keyboard.press('Enter');
+      assert.equal(await page.locator('.monitor-setup-help').evaluate(e=>e.open),false);
+      await page.screenshot({path:'/tmp/monitors-connection-'+(mobile?'mobile':'desktop')+'.png',fullPage:true,animations:'disabled'});
+      await page.evaluate(()=>{_applyResolvedTheme('dark');window.scrollTo(0,0);});
+      await page.screenshot({path:'/tmp/monitors-connection-dark-'+(mobile?'mobile':'desktop')+'.png',fullPage:true,animations:'disabled'});
+      await page.evaluate(()=>{_applyResolvedTheme('light');});
+      // Disconnect preserves cooldown, but its reason and automatic expiry must be visible.
+      const clock=Date.now();
+      connectionState={state:'disconnected',stored:false,retryAt:new Date(clock+90000).toISOString(),checkRetryAt:new Date(clock+60000).toISOString()};
+      await page.evaluate(t=>{window.__realNow=Date.now;Date.now=()=>t;},clock);
+      await page.getByRole('button',{name:'Refresh',exact:true}).click();
+      await page.getByText(/Next connection check in 1:30/).waitFor();
+      assert.equal(await page.getByRole('button',{name:'Connect Vinted',exact:true}).isEnabled(),false);
       await page.getByLabel('Refresh token',{exact:true}).fill('synthetic-refresh-token-value');
+      await page.getByRole('button',{name:'Use this browser',exact:true}).click();
+      assert.equal(await page.getByLabel('Vinted browser User-Agent',{exact:true}).inputValue(),await page.evaluate(()=>navigator.userAgent));
+      await page.getByRole('button',{name:'Refresh',exact:true}).click();
+      assert.equal(await page.getByLabel('Refresh token',{exact:true}).inputValue(),'synthetic-refresh-token-value','Status refresh preserves an unfinished form');
+      const checksBefore=connectionTests;
+      await page.evaluate(t=>{Date.now=()=>t;window.__monitorConnectionTick();},clock+91000);
+      assert.equal(await page.getByRole('button',{name:'Connect Vinted',exact:true}).isEnabled(),true,'Cooldown expires without a page refresh');
+      assert.equal(connectionTests,checksBefore,'Countdown never contacts Vinted');
+      assert.equal(await page.locator('.monitor-connection-wait').isVisible(),false);
+      await page.evaluate(()=>{Date.now=window.__realNow;});
+      connectionState={state:'disconnected',stored:false};
+      await page.getByRole('button',{name:'Refresh',exact:true}).click();
       await page.getByLabel('Vinted browser User-Agent',{exact:true}).fill('Synthetic Browser 1.0');
-      await page.getByRole('button',{name:'Save & check connection',exact:true}).click();
+      // Cookie headers are rejected locally without replacing a saved credential.
+      await page.getByLabel('Refresh token',{exact:true}).fill('refresh_token_web=invalid-value');
+      await page.getByRole('button',{name:'Connect Vinted',exact:true}).click();
+      assert.equal(connectionTests,checksBefore);
+      assert(await page.getByLabel('Refresh token',{exact:true}).evaluate(e=>!!e.validationMessage));
+      await page.getByLabel('Refresh token',{exact:true}).fill('  synthetic-refresh-token-value  ');
+      await page.getByRole('button',{name:'Connect Vinted',exact:true}).click();
       await page.getByText('Renewal test succeeded.',{exact:true}).waitFor();
       assert.equal(await page.getByLabel('Refresh token',{exact:true}).inputValue(),'');
       assert.equal(await page.evaluate(()=>JSON.stringify([localStorage,sessionStorage]).includes('synthetic-refresh-token-value')),false);
       assert.equal(await page.getByRole('button',{name:'Start 12-hour trial',exact:true}).isEnabled(),false,'Renewal alone cannot start a trial');
       assert.equal(await page.getByLabel('Refresh token',{exact:true}).isVisible(),false,'Saved sessions do not repeatedly ask for tokens');
-      await page.getByText(/Search access rejected \(401\)/).waitFor();
-      await page.getByRole('button',{name:'Test saved connection',exact:true}).click();
+      await page.getByText(/Vinted renewed your session but rejected search access/).waitFor();
+      // Updating credentials is explicit and never requires deleting the working connection.
+      await page.getByRole('button',{name:'Update connection',exact:true}).click();
+      assert.equal(disconnects,0);
+      assert.equal(await page.getByLabel('Refresh token',{exact:true}).isVisible(),true);
+      await page.getByLabel('Refresh token',{exact:true}).fill('synthetic-unsaved-replacement');
+      await page.getByRole('button',{name:'Cancel',exact:true}).click();
+      assert.equal(await page.getByLabel('Refresh token',{exact:true}).inputValue(),'');
+      assert.equal(disconnects,0);assert.equal(connectionTests,1);
+      assert.equal(await page.getByLabel('Refresh token',{exact:true}).isVisible(),false);
+      await page.screenshot({path:'/tmp/monitors-blocked-'+(mobile?'mobile':'desktop')+'.png',fullPage:true,animations:'disabled'});
+      await page.getByRole('button',{name:'Check connection',exact:true}).click();
       await page.getByText('Connection ready.',{exact:true}).waitFor();
       await page.getByRole('button',{name:'Start 12-hour trial',exact:true}).click();
       await page.getByRole('button',{name:'Pause automatic searches',exact:true}).waitFor();
       await page.getByRole('button',{name:'Pause automatic searches',exact:true}).click();
       await page.getByRole('button',{name:'Start 12-hour trial',exact:true}).waitFor();
-      await page.getByRole('button',{name:'Test saved connection',exact:true}).click();
+      await page.getByRole('button',{name:'Check connection',exact:true}).click();
       await page.waitForFunction(()=>!document.querySelector('[data-connection="test"]').disabled);
       assert.equal(connectionTests,3);
+      await page.getByRole('button',{name:'Update connection',exact:true}).click();
+      await page.getByLabel('Refresh token',{exact:true}).fill('synthetic-refresh-token-value');
+      await page.getByLabel('Vinted browser User-Agent',{exact:true}).fill('Synthetic Browser 1.0');
+      await page.getByRole('button',{name:'Save new connection',exact:true}).click();
+      await page.waitForFunction(()=>document.querySelector('.monitor-persistent-form').hidden && !document.querySelector('[data-connection="test"]').disabled);
+      assert.equal(connectionTests,4);assert.equal(disconnects,0,'Replacement submits directly without disconnecting');
       await page.locator('.monitor-search-check > summary').click();
       sessionMode='success';
       await page.getByRole('button',{name:'Check saved search',exact:true}).click();
