@@ -76,7 +76,7 @@ export function createRecipe(input = {}) {
     minProfitPence: pence(input.minProfitPence ?? 4000, 'minProfitPence', false),
     minRoiPercent, minReviews, minRating, zeroReviews, notifyLevels
   };
-  if (!recipe.models.length && !recipe.customModels.length) throw new TypeError('Select at least one model or custom model');
+  if (!recipe.setupRequired && !recipe.models.length && !recipe.customModels.length) throw new TypeError('Select at least one model or custom model');
   if (recipe.benchmark && (conditions.length || rejectTerms.length || titleRejectTerms.length || Object.keys(modelMaxPricePence).length || zeroReviews === 'hide' || notifyLevels.length)) {
     throw new TypeError('Benchmark must accept all conditions, warn instead of reject/hide, and remain feed-only');
   }

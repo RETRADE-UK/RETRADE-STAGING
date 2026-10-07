@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {createRecipe} from '../../worker/monitors/src/contracts.mjs';
 import {canonTierPresets} from '../../worker/monitors/src/presets.mjs';
 import {matchListing} from '../../worker/monitors/src/engine/match.mjs';
 import {normalizeListing} from '../../worker/monitors/src/adapters/vinted-normalize.mjs';
@@ -9,8 +10,9 @@ import {seal} from '../../worker/monitors/src/connection.mjs';
 const tiers=canonTierPresets();
 const raw=(id,title,price,status='Very good')=>({id,title,price:{amount:String(price),currency_code:'GBP'},status});
 const listing=(title,price,status)=>normalizeListing(raw(123,title,price,status),{observedAt:'2026-10-07T00:00:00Z'});
-test('restored bands have exact boundaries, alias caps, reported-condition and title filters',()=>{
- const low=tiers[0].data.recipe,mid=tiers[1].data.recipe;
+test('configured rules enforce exact boundaries, alias caps, reported-condition and title filters',()=>{
+ const shared={models:['600D','650D','700D'],conditions:['good','very_good'],titleRejectTerms:['faulty'],modelMaxPricePence:{'600D':7000,'700D':9500}};
+ const low=createRecipe({...shared,maxPricePence:7500}),mid=createRecipe({...shared,minPricePence:7501,maxPricePence:12500});
  for(const [title,price,tier,expected] of [
   ['Canon EOS 650D',75,low,'match'],['Canon EOS 650D',75.01,low,'reject'],
   ['Canon EOS 650D',75,mid,'reject'],['Canon EOS 650D',75.01,mid,'match'],
@@ -26,7 +28,8 @@ test('restored bands have exact boundaries, alias caps, reported-condition and t
 });
 test('incomplete original definitions remain labelled and cannot scan or alert',()=>{
  assert.equal(tiers.length,4);
- for(const {data} of tiers.slice(2)){
+ assert.deepEqual(tiers.map(t=>[t.data.recipe.minPricePence,t.data.recipe.maxPricePence]),[[0,6000],[6100,10000],[10000,16000],[0,15000]]);
+ for(const {data} of tiers){
   assert(data.recipe.setupRequired);assert(!data.enabled);assert(!data.notifications);
   assert.throws(()=>monitorInput({...data,enabled:true}),/original model and price rules/);
   assert.equal(matchListing(listing('Canon 600D',50),data.recipe).reason,'setup_required');
@@ -35,7 +38,7 @@ test('incomplete original definitions remain labelled and cannot scan or alert',
 test('two price tiers reuse source requests but save only passing finds and retain ID-only overlap',async()=>{
  const key=Buffer.alloc(32,17).toString('base64'),owner='fixture-owner';
  const encrypted=await seal({accessToken:'synthetic-only-access-token',refreshToken:'synthetic-refresh',userAgent:'Synthetic Browser 1.0',country:'GB'},key,owner);
- const monitors=tiers.slice(0,2).map((t,i)=>({id:'m'+i,user_id:owner,revision:1,recipe:t.data.recipe}));
+ const monitors=[{minPricePence:0,maxPricePence:7500},{minPricePence:7501,maxPricePence:12500}].map((band,i)=>({id:'m'+i,user_id:owner,revision:1,recipe:createRecipe({...band,models:['600D','700D'],searchTerms:['Canon','EOS Rebel'],conditions:['good','very_good'],titleRejectTerms:['faulty']})}));
  const commits=[];let requests=0;
  const result=await automaticScan({token:'fixture',db:async()=>[],rpc:async(name,args)=>{
   if(name==='monitor_auto_claim')return monitors;

@@ -1,24 +1,17 @@
-import { canon, createRecipe } from './contracts.mjs';
+import { createRecipe } from './contracts.mjs';
 
-// Recovered August 25 monitor names; June/July broad trials are not replacements.
-// Bundle / High Value definitions were not recovered: inert drafts, never guesses.
+// Latest recovered proposal: August 27, carried into the v1.3 handover (PR #27).
+// Prices/names survived, but complete model/ceiling/bundle rules did not.
+// No illustrative model examples are silently promoted into active buying rules.
 export function canonTierPresets() {
-  const common = {
-    models: canon.models.map(m => m.id), searchTerms: ['Canon', 'EOS Rebel'],
-    conditions: ['good', 'very_good'],
-    titleRejectTerms: ['spares', 'parts only', 'not working', 'faulty', 'broken', 'untested',
-      'damaged', 'for repair', 'sensor fault', 'shutter fault'],
-    modelMaxPricePence: { '500D':6500, '1100D':7000, '550D':8000, '1200D':9000,
-      '600D':7000, '1300D':10000, '700D':9500 },
-    warningTerms: ['no charger', 'charger missing', 'no battery'],
-  };
   const specs = [
-    ['canon-budget-75-v1', 'Canon £0–£75', 0, 7500, false],
-    ['canon-mid-125-v1', 'Canon £75.01–£125', 7501, 12500, false],
-    ['canon-bundle-draft-v1', 'Canon Bundle Sniper · needs rules', 0, null, true],
-    ['canon-high-value-draft-v1', 'Canon High Value · needs rules', 0, null, true],
+    ['canon-cheap-sniper-60-v1', 'Cheap Sniper £0–£60 · needs rules', 0, 6000],
+    ['canon-61-100-v1', 'Canon £61–£100 · needs rules', 6100, 10000],
+    ['canon-premium-160-v1', 'Premium £100–£160 · needs rules', 10000, 16000],
+    ['canon-bundles-150-v1', 'Bundles £0–£150 · needs rules', 0, 15000],
   ];
-  return specs.map(([key,name,minPricePence,maxPricePence,setupRequired]) => ({key,
+  return specs.map(([key,name,minPricePence,maxPricePence]) => ({key,
     data:{name, enabled:false, notifications:false, archived:false,
-      recipe:createRecipe({...common,minPricePence,maxPricePence,setupRequired})}}));
+      recipe:createRecipe({models:[],searchTerms:['Canon','EOS Rebel'],
+        minPricePence,maxPricePence,setupRequired:true})}}));
 }

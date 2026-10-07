@@ -335,7 +335,7 @@
       if (!alive || token !== refreshToken) return;
       data = result;
       if (!selected || !current() || current().archived) {
-        var first = data.monitors.find(function(m) {return !m.archived && !m.recipe.setupRequired;}) || data.monitors[0];
+        var first = data.monitors.find(function(m) {return !m.archived && !m.recipe.setupRequired;}) || data.monitors.find(function(m) {return !m.archived;}) || data.monitors[0];
         select(first && first.id);
       }
       controls();
