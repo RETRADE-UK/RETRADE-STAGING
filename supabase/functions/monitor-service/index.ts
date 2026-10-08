@@ -14,7 +14,7 @@ import { matchListing } from "../../../worker/monitors/src/engine/match.mjs";
 import { buildFeed } from "../../../worker/monitors/src/feed.mjs";
 import { canon } from "../../../worker/monitors/src/contracts.mjs";
 import { checkSession, sessionMessages } from "../../../worker/monitors/src/session-check.mjs";
-import { managedPublicConnection, persistPublicSession, publicMessages } from "../../../worker/monitors/src/public-connection.mjs";
+import { managedPublicConnection, persistPublicSession, publicConnectionDiagnostics, publicMessages } from "../../../worker/monitors/src/public-connection.mjs";
 import { createPublicSession } from "../../../worker/monitors/src/adapters/vinted-public-session.mjs";
 import { automaticScan } from "../../../worker/monitors/src/automatic.mjs";
 import { canonTierPresets } from "../../../worker/monitors/src/presets.mjs";
@@ -243,10 +243,14 @@ Deno.serve(async (req) => {
       await rpc("monitor_push_receipt", {p_id:input.id,p_token:input.token,p_status:input.status});
       return reply({ok:true});
     }
-    if (input.op === "tick" || input.op === "sourceCheck" || input.op === "catalogueCheck") {
+    if (["tick", "sourceCheck", "catalogueCheck", "connectionDiagnostics"].includes(input.op)) {
       const c = await config();
       if (req.headers.get("x-monitor-token") !== c.token)
         return reply({ error: "Unauthorized" }, 401);
+      if (input.op === "connectionDiagnostics") {
+        if (!/^[a-f0-9-]{36}$/.test(input.userId || "")) throw new TypeError("Owner required");
+        return reply(await publicConnectionDiagnostics({rpc,userId:input.userId}));
+      }
       if (input.op === "catalogueCheck") {
         if (!/^[a-f0-9-]{36}$/.test(input.userId || "")) throw new TypeError("Owner required");
         return reply(await checkOwnedCatalogue(input.userId,input));

@@ -47,6 +47,20 @@ export async function persistPublicSession({rpc,userId,generation,session,now=Da
     p_ciphertext:await seal(validatePublicSession(session),key,userId),p_expires:publicSessionExpiresAt(session,now())});
 }
 
+// Operator-only, read-only timing evidence. Never return token claims, cookie
+// values, anonymous identifiers, encryption material or provider responses.
+export async function publicConnectionDiagnostics({rpc,userId,now=Date.now}) {
+  const current=await rpc('monitor_public_snapshot',{p_user:userId});
+  if(current?.mode!=='public' || !current.ciphertext) return {stored:false};
+  const key=await rpc('monitor_connection_key');
+  let session;
+  try {session=validatePublicSession(await unseal(current.ciphertext,key,userId));}
+  catch {return {stored:true,valid:false};}
+  const effectiveExpiresAt=publicSessionExpiresAt(session,now());
+  return {stored:true,valid:true,recordedExpiresAt:current.expiresAt,
+    effectiveExpiresAt,expired:Date.parse(effectiveExpiresAt)<=now(),cookieCount:session.cookies.length};
+}
+
 export const publicMessages=Object.freeze({
   blocked:'Vinted refused catalogue access from this server. Monitoring is paused; no account token is needed.',
   rate_limited:'Vinted requested a pause. Wait until the next permitted check.',

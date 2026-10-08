@@ -57,6 +57,26 @@ test('catalogue checks require registered ownership and durable cooldown before 
  assert.equal((await post({op:'connectionTest',credentials:{refreshToken:'retired'}})).status,409);
 });
 
+test('operator expiry diagnostic is read-only, authenticated and contains no session secrets',async()=>{
+ const key=Buffer.alloc(32,42).toString('base64'),clock=Date.now();
+ const exp=Math.floor(clock/1000)+900;
+ const token='private-header.'+Buffer.from(JSON.stringify({exp,privateClaim:'never-return'})).toString('base64url')+'.private-signature';
+ const ciphertext=await seal(publicSession(token,clock),key,user);
+ const calls=transport((path,body)=>{
+  if(path.endsWith('/rpc/monitor_config'))return config;
+  if(path.endsWith('/rpc/monitor_public_snapshot')){assert.equal(body.p_user,user);return {mode:'public',ciphertext,expiresAt:new Date(clock+3600000).toISOString()};}
+  if(path.endsWith('/rpc/monitor_connection_key'))return key;
+ });
+ assert.equal((await post({op:'connectionDiagnostics',userId:user})).status,401,'A user JWT cannot read operator diagnostics');
+ assert.equal((await post({op:'connectionDiagnostics',userId:'invalid'},false,{'x-monitor-token':config.token})).status,400);
+ const r=await post({op:'connectionDiagnostics',userId:user},false,{'x-monitor-token':config.token});
+ assert.equal(r.status,200);
+ const result=await r.json();
+ assert.deepEqual(result,{stored:true,valid:true,recordedExpiresAt:new Date(clock+3600000).toISOString(),effectiveExpiresAt:new Date(exp*1000).toISOString(),expired:false,cookieCount:1});
+ for(const secret of [token,key,'privateClaim','never-return','synthetic-anonymous-id','ciphertext'])assert(!JSON.stringify(result).includes(secret));
+ assert(calls.every(c=>['monitor_config','monitor_public_snapshot','monitor_connection_key'].some(fn=>c.path.endsWith('/rpc/'+fn))));
+});
+
 test('public setup persists before searching, stores match-only samples and stops on refusal',async()=>{
  const key=Buffer.alloc(32,42).toString('base64');let completed=true,rejected=false,healthy=false;
  const calls=transport((path,body)=>{

@@ -12,9 +12,10 @@ time rather than erasing the failure history.
 
 The existing v1.4 worker then completed another 44 tier checks before a second
 403 at 06:13 UTC. The session had been created at 05:58 UTC and was recorded
-as valid until 06:58 UTC. The second refusal therefore did not coincide with
-the locally recorded expiry. These renewal fixes must not be described as a
-proven cure for that separate upstream refusal.
+as valid until 06:58 UTC. The second refusal did not coincide with the locally
+recorded cookie expiry, but the previous worker did not inspect token expiry.
+Protected, read-only expiry diagnostics will check whether the effective token
+lifetime was shorter. These fixes are not yet a proven cure for the refusal.
 
 ## Changes
 
@@ -23,6 +24,9 @@ proven cure for that separate upstream refusal.
 - Applicable access-cookie expiry is tracked alongside the encrypted jar.
   A readable JWT expiry can only shorten the refresh time; it is never trusted
   as an authentication or authorization claim. Opaque tokens still work.
+- An operator-only diagnostic reports recorded and effective expiry timestamps
+  without returning cookies, token claims, anonymous identifiers or keys. It
+  makes no provider request and does not alter the connection.
 - Rotated catalogue cookies and expiry are saved atomically under the existing
   owner/generation fence. Renewal occurs before the earliest expiry.
 - A single SQL predicate controls cron wakeups, claims and session reads.
@@ -51,18 +55,18 @@ generation fencing, expiry persistence, denied client/foreign-owner access,
 refusal stops and one alert per device. These tests do not prove that Vinted
 will continue permitting hosted catalogue access.
 
-Local validation: `npm run check` passed all 79 monitor tests and the asset/
+Local validation: `npm run check` passed all 80 monitor tests and the asset/
 invariant checks; `npm run build` passed; all three monitor database suites
 passed. The full browser suite could not start because the browser binary was
 not installed and its download returned an invalid archive. It remains a CI gate.
 
-This change is committed locally on `fix/monitor-session-continuity` but has not
-been pushed, migrated or deployed. The GitHub push was rejected by automatic
-approval review pending explicit permission to publish the branch. After that
-permission, open a PR, require passing CI, merge, apply the migration only to
-staging, and deploy the matching service bundle. Then verify normal hosted
-session renewal and continued scans. Do not resume a refused source as part of
-deployment without a successful explicit access check.
+Publication was explicitly authorized and PR #34 is open on
+`fix/monitor-session-continuity`. Require passing CI before merge, then apply
+the migration only to staging and deploy the matching service bundle. Check
+the protected expiry diagnostic before the explicit catalogue access check.
+Verify normal hosted session renewal and continued scans. Do not resume a
+refused source without a successful explicit access check. PR #34 tracks the
+release results after this pre-deployment handover snapshot.
 
 An unrestricted always-on service and a real eligible-listing alert remain
 unproven until a sustained observation succeeds.
