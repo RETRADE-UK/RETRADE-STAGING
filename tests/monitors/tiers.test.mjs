@@ -29,7 +29,7 @@ test('configured rules enforce exact boundaries, alias caps, reported-condition 
 });
 test('four complete tiers cover 20 models with gapless exclusive bands and conservative caps',()=>{
  assert.equal(tiers.length,4);
- assert.deepEqual(tiers.map(t=>[t.data.recipe.minPricePence,t.data.recipe.maxPricePence]),[[0,6000],[6001,10000],[10001,16000],[0,15000]]);
+ assert.deepEqual(tiers.map(t=>[t.data.recipe.minPricePence,t.data.recipe.maxPricePence]),[[0,6000],[6001,10000],[10001,20000],[0,20000]]);
  assert.equal(tiers[0].data.recipe.models.length,20);
  for(const {data} of tiers){
   assert(!data.recipe.setupRequired);assert(!data.enabled);assert(!data.notifications);
@@ -43,6 +43,9 @@ test('four complete tiers cover 20 models with gapless exclusive bands and conse
   ['Canon 1000D',30,[0]],['Canon 1000D',30.01,[]],['Canon Rebel T3',40,[0]],
   ['Canon 600D 18-55mm + 55-250mm lenses',100,[3]],
   ['Canon 700D + 18-55 lens',120,[2]],['Canon 700D + 18-55 lens',120.01,[]],
+  ['Canon 250D + 18-55mm lens',180,[2]],['Canon 250D + 18-55mm lens',180.01,[]],
+  ['Canon 80D 18-55mm + 55-250mm lenses',200,[3]],['Canon 80D 18-55mm + 55-250mm lenses',200.01,[]],
+  ['Canon 4000D + 18-55mm lens',180,[]],
   ['Canon EF-S 18-55 lens 700D 600D',30,[]],
   ['Canon 600D kit extras',100,[]],['Canon 600D body only 18-55 55-250 sold separately',100,[]],
   ['Lens for Canon 600D 18-55 and 55-250',60,[]],['Canon 600D battery grip',20,[]],

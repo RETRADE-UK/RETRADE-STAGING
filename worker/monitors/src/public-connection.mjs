@@ -67,3 +67,11 @@ export const publicMessages=Object.freeze({
   rate_limited:'Vinted requested a pause. Wait until the next permitted check.',
   unavailable:'Catalogue access could not be verified. Monitoring is paused; try a check after the wait shown below.'
 });
+
+// Explain an observed refusal without retaining provider bodies or suggesting
+// that another account token will resolve an anti-bot challenge.
+export function publicFailureMessage({status=null,diagnostics=null}={}) {
+  if ([401,403].includes(status) && diagnostics?.challengeSignal)
+    return 'Vinted returned an anti-bot challenge. Automatic searches are stopped. A renewed account token will not resolve this challenge; catalogue access needs approval from the provider.';
+  return status ? `Vinted returned HTTP ${status}. Catalogue requests are paused; no account token is required.` : publicMessages.blocked;
+}

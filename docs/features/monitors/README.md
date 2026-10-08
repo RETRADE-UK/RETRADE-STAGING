@@ -1,5 +1,7 @@
 # Vinted monitors — takeover, 23 September 2026
 
+**8 October evening:** [Confirmed anti-bot refusal, wider tier window and remaining access dependency](ACCESS_REVIEW_2026-10-08.md). Monitoring is off; no sustained connection or real-listing push is proven.
+
 **8 October continuity:** [Overnight refusal, session renewal and recovery](CONTINUITY_2026-10-08.md).
 
 **7 October catalogue update:** [Public sessions, current listing fields and setup](PUBLIC_CATALOGUE_2026-10-07.md).

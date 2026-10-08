@@ -1,4 +1,4 @@
-import { managedPublicConnection, persistPublicSession, publicMessages } from './public-connection.mjs';
+import { managedPublicConnection, persistPublicSession, publicMessages, publicFailureMessage } from './public-connection.mjs';
 import { createVintedSource, scanCatalog } from './adapters/vinted-source.mjs';
 import { matchListing } from './engine/match.mjs';
 
@@ -20,7 +20,7 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
      if(result.session) account={...snapshot,session:result.session,generation:result.generation,source:createVintedSource({request,publicSession:result.session,timeoutMs:10000,now})};
      else if(!result.deferred) await rpc('monitor_public_failure',{p_user:m.user_id,p_generation:result.generation || snapshot.generation,p_http:result.httpStatus||null,p_requests:0,
       p_status:result.state==='rate_limited'?'rate_limited':result.retryable?'degraded':'blocked',
-      p_message:result.retryable?'Catalogue renewal was interrupted. The saved session will retry after a pause.':publicMessages[result.state] || publicMessages.unavailable,
+      p_message:result.retryable?'Catalogue renewal was interrupted. The saved session will retry after a pause.':result.diagnostics?.challengeSignal?publicFailureMessage({status:result.httpStatus,diagnostics:result.diagnostics}):publicMessages[result.state] || publicMessages.unavailable,
       p_retry:result.retryAt || null,p_stop:!result.retryable});
     }catch{
      await rpc('monitor_public_failure',{p_user:m.user_id,p_generation:snapshot.generation,p_http:null,p_requests:0,p_status:'degraded',
@@ -62,7 +62,7 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
    const delay=Math.min(3600000,120000*2**Math.min(account.failures||0,5));
    await rpc('monitor_public_failure',{p_user:m.user_id,p_generation:account.generation,p_http:e.status||null,p_requests:requests,
     p_status:stop?'blocked':e.status===429?'rate_limited':'degraded',
-    p_message:stop?(e.status ? `Vinted returned HTTP ${e.status}. Catalogue requests are paused; no account token is required.` : 'Catalogue data or session changed unexpectedly. Automatic requests are paused.'):e.status===429?'Vinted requested a pause. Scanning will resume after the retry time.':'Scan failed. The service will retry after a pause.',
+    p_message:stop?(e.status ? publicFailureMessage(e) : 'Catalogue data or session changed unexpectedly. Automatic requests are paused.'):e.status===429?'Vinted requested a pause. Scanning will resume after the retry time.':'Scan failed. The service will retry after a pause.',
     p_retry:stop?null:new Date(Math.max(now()+delay,e.retryAt||0)).toISOString(),p_stop:stop});
    accounts.set(m.user_id,null);
   }

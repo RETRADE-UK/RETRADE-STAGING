@@ -12,12 +12,13 @@ export function canonTierPresets() {
   const specs = [
     ['canon-cheap-sniper-60-v1', 'Cheap Sniper · up to £60', 0, 6000, 'exclude'],
     ['canon-61-100-v1', 'Canon Value · £60.01–£100', 6001, 10000, 'exclude'],
-    ['canon-premium-160-v1', 'Canon Premium · £100.01–£160', 10001, 16000, 'exclude'],
-    ['canon-bundles-150-v1', 'Canon Bundles · up to £150', 0, 15000, 'require'],
+    // Keep stable preset identities so bootstrap never creates duplicates.
+    ['canon-premium-160-v1', 'Canon Premium · £100.01–£200', 10001, 20000, 'exclude'],
+    ['canon-bundles-150-v1', 'Canon Bundles · up to £200', 0, 20000, 'require'],
   ];
   return specs.map(([key,name,minPricePence,maxPricePence,bundleMode]) => {
     const caps = Object.fromEntries(Object.entries(canonBodyCaps)
-      .map(([model,cap])=>[model,bundleMode==='require'?Math.min(15000,cap+4500):cap])
+      .map(([model,cap])=>[model,bundleMode==='require'?Math.min(maxPricePence,cap+4500):cap])
       .filter(([,cap])=>cap+(bundleMode==='require'?0:2000)>=minPricePence));
     return {key,data:{name,enabled:false,notifications:false,archived:false,
       recipe:createRecipe({models:Object.keys(caps),searchTerms:['Canon','EOS','Rebel'],
