@@ -1,6 +1,6 @@
 // Public UK catalogue sessions. Fixed destinations, no account credentials,
 // challenge handling, redirects or automatic retries after a refusal.
-import { SourceError, retryAt } from './vinted-source.mjs';
+import { SourceError, retryAt, refusalDiagnostics } from './vinted-source.mjs';
 export const PUBLIC_AGENT = 'RETRADE-Monitor/1.4 (+https://test.retrade-uk.com)';
 const hosts = new Set(['www.vinted.co.uk', 'api.vinted.co.uk']);
 const cookieName = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
@@ -89,8 +89,13 @@ export async function createPublicSession({request, session: previous=null, now=
         headers:{'user-agent':PUBLIC_AGENT,accept:'text/html','accept-language':'en-GB,en;q=0.9',
           ...(previous ? {cookie:publicCookieHeader(previous,url,now()),
             ...(previous.anonId ? {'x-anon-id':previous.anonId} : {})} : {})}});
-      if(!response.ok) throw new SourceError(response.status===429?'rate_limited':response.status===403?'blocked':'http_error',
-        {status:response.status,retryAt:retryAt(response.headers.get('retry-after'),now(),300000)});
+      if(!response.ok) {
+        clearTimeout(timer);
+        const diagnostics=[401,403].includes(response.status)?await refusalDiagnostics(response):null;
+        if(!diagnostics)void response.body?.cancel().catch(()=>{});
+        throw new SourceError(response.status===429?'rate_limited':response.status===403?'blocked':'http_error',
+          {status:response.status,retryAt:retryAt(response.headers.get('retry-after'),now(),300000),diagnostics});
+      }
       if(!response.headers.get('content-type')?.includes('text/html')) throw new SourceError('unexpected_content_type');
       const session=acceptPublicCookies(previous ? structuredClone(previous) : {mode:'public',version:1,cookies:[]},response.headers,url,now());
       session.anonId=response.headers.get('x-anon-id') || previous?.anonId || null;

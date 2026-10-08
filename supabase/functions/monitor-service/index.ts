@@ -168,6 +168,7 @@ async function checkOwnedCatalogue(userId: string,input: any) {
     await rpc('monitor_session_finish',{p_user:userId,p_check:claim.checkId,p_monitor:monitor.id,p_revision:monitor.revision,
       p_status:'unavailable',p_http:null,p_received:0,p_items:[],p_retry:managed.retryAt||null});
     return {status:'unavailable',saved:0,message:publicMessages[managed.state as keyof typeof publicMessages]||publicMessages.unavailable,
+      ...(input.op==='catalogueCheck'?{diagnostics:{stage:'renewal',httpStatus:managed.httpStatus||null,failure:managed.diagnostics||null}}:{}),
       retryAt:managed.retryAt||claim.retryAt,connection:await rpc('monitor_connection_status',{p_user:userId})};
   }
   const peers=(await db('monitor_recipes?user_id=eq.'+eq(userId)+'&archived=eq.false&enabled=eq.true'))
@@ -188,6 +189,7 @@ async function checkOwnedCatalogue(userId: string,input: any) {
     p_message:result.httpStatus?'Catalogue check returned HTTP '+result.httpStatus+'. Monitoring is paused.':'Catalogue check could not be verified. Monitoring is paused.',
     p_retry:result.retryAt?new Date(result.retryAt).toISOString():null,p_stop:true,p_http:result.httpStatus,p_requests:1});
   return {status:result.status,received:result.received,saved:saved.saved,checkedAt:saved.checkedAt,retryAt:saved.retryAt,
+    ...(input.op==='catalogueCheck'?{diagnostics:{stage:'catalogue',httpStatus:result.httpStatus,failure:result.diagnostics??null}}:{}),
     message:result.status==='sample_received'?'Catalogue access verified. Public searches work without your Vinted account token.':
       result.status==='blocked'||result.status==='access_rejected'?publicMessages.blocked:sessionMessages[result.status as keyof typeof sessionMessages],
     connection:await rpc('monitor_connection_status',{p_user:userId})};

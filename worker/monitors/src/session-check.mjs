@@ -27,7 +27,7 @@ export async function checkSession({ request, accessToken, publicSession=null, r
       error.code === 'timeout' ? 'timeout' : error.name === 'ProviderContractError' ||
       ['unexpected_content_type', 'invalid_json', 'response_too_large'].includes(error.code) ? 'schema_changed' : 'unavailable';
     return { status, httpStatus: Number.isInteger(error.status) ? error.status : null,
-      items: [], received: 0, retryAt: error.retryAt ?? null };
+      items: [], received: 0, retryAt: error.retryAt ?? null, diagnostics:error.diagnostics ?? null };
   }
 }
 

@@ -15,6 +15,7 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
    if(snapshot){
     try{
      const result=await managedPublicConnection({rpc,request,userId:m.user_id,snapshot,now});
+     if(result.diagnostics)diagnostics.push({monitorId:m.id,stage:'renewal',httpStatus:result.httpStatus,failure:result.diagnostics});
      if(result.renewed)renewals++;
      if(result.session) account={...snapshot,session:result.session,generation:result.generation,source:createVintedSource({request,publicSession:result.session,timeoutMs:10000,now})};
      else if(!result.deferred) await rpc('monitor_public_failure',{p_user:m.user_id,p_generation:result.generation || snapshot.generation,p_http:result.httpStatus||null,p_requests:0,
@@ -56,6 +57,7 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
    if(ok)committed++;
   }catch(e){
    if(e.message==='cycle_budget')break;
+   diagnostics.push({monitorId:m.id,httpStatus:e.status||null,failure:e.diagnostics||null});
    const stop=[401,403,404].includes(e.status)||['source_schema','session_changed'].includes(e.message)||e.name==='ProviderContractError'||['session_invalid','session_destination','unexpected_content_type','invalid_json'].includes(e.code);
    const delay=Math.min(3600000,120000*2**Math.min(account.failures||0,5));
    await rpc('monitor_public_failure',{p_user:m.user_id,p_generation:account.generation,p_http:e.status||null,p_requests:requests,
