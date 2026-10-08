@@ -55,18 +55,30 @@ generation fencing, expiry persistence, denied client/foreign-owner access,
 refusal stops and one alert per device. These tests do not prove that Vinted
 will continue permitting hosted catalogue access.
 
-Local validation: `npm run check` passed all 80 monitor tests and the asset/
-invariant checks; `npm run build` passed; all three monitor database suites
-passed. The full browser suite could not start because the browser binary was
-not installed and its download returned an invalid archive. It remains a CI gate.
+Release #34 merged as `c7018d7` after CI run `37738558019` passed the
+complete browser/database suite and 80 monitor tests. The staging migration was
+applied as `20261008064702`; service v20 and the Pages build deployed. All 15
+deployed source modules match the merged release. Production was not changed.
 
-Publication was explicitly authorized and PR #34 is open on
-`fix/monitor-session-continuity`. Require passing CI before merge, then apply
-the migration only to staging and deploy the matching service bundle. Check
-the protected expiry diagnostic before the explicit catalogue access check.
-Verify normal hosted session renewal and continued scans. Do not resume a
-refused source without a successful explicit access check. PR #34 tracks the
-release results after this pre-deployment handover snapshot.
+At 06:47 UTC the protected diagnostic found a valid saved jar whose effective
+expiry remained 06:58:42 UTC; no earlier readable token expiry was found. At
+06:48:06 the existing session returned HTTP 200 with 50 catalogue items. The
+original bounded trial resumed without resetting its 628 checks or two errors.
+The first scheduled request at 06:49:01 then returned HTTP 403, before renewal.
+The worker stopped, retained the history (628 checks, three errors) and queued
+one stop notification for each of two registered devices. Both push providers
+accepted delivery. This disproves a claim that the renewal changes alone cured
+hosted access; it does not identify Vinted's reason for refusing the request.
+
+The manual and scheduled paths use the same source adapter, public-session
+storage, Canon query, 0–160 GBP source window and 50-item first page. The next
+operator diagnostic adds bounded refusal classification: only fixed flags for
+content type, challenge/authentication text signals and protection-header
+presence leave the worker. It reads at most 16 KiB for 250 ms; no body, header
+value, challenge URL, cookie or identifier is logged or returned. A stalled
+refusal body remains HTTP 403 and cannot become a retryable timeout. No challenge
+is followed and no automatic request follows a refusal. This follow-up is
+pending release; two additional tests bring the monitor suite to 82.
 
 An unrestricted always-on service and a real eligible-listing alert remain
 unproven until a sustained observation succeeds.

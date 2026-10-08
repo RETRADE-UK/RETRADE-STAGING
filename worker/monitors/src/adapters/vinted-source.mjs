@@ -5,9 +5,41 @@ import { ProviderContractError, parseSearchPage, mergeListing } from './vinted-n
 import { PUBLIC_AGENT, publicCookieHeader, acceptPublicCookies, validatePublicSession } from './vinted-public-session.mjs';
 
 export class SourceError extends Error {
-  constructor(code, { status = null, retryAt = null } = {}) {
+  constructor(code, { status = null, retryAt = null, diagnostics = null } = {}) {
     super(code); this.name = 'SourceError'; this.code = code; this.status = status; this.retryAt = retryAt;
+    this.diagnostics = diagnostics;
   }
+}
+
+// A refusal is terminal regardless of these hints. Inspect at most 16 KiB for
+// 250 ms, emit only fixed labels/booleans, and never follow a challenge URL.
+async function refusalDiagnostics(response) {
+  const type=response.headers.get('content-type')?.toLowerCase() || '';
+  const result={contentType:type.includes('json')?'json':type.includes('html')?'html':'other',
+    inspected:false,challengeSignal:false,authenticationSignal:false,
+    protectionHeader:['x-datadome','x-datadome-cid','x-dd-b','cf-mitigated'].some(h=>response.headers.has(h)),
+    retryAfterSupplied:response.headers.has('retry-after')};
+  const reader=response.body?.getReader();
+  if(!reader)return result;
+  let timer;
+  try {
+    const text=await Promise.race([
+      new Promise(resolve=>{timer=setTimeout(()=>resolve(null),250);}),
+      (async()=>{
+        const chunks=[];let size=0;
+        for(;;){const {value,done}=await reader.read();if(done)break;size+=value.byteLength;if(size>16384)return null;chunks.push(value);}
+        const bytes=new Uint8Array(size);let at=0;for(const c of chunks){bytes.set(c,at);at+=c.byteLength;}
+        return new TextDecoder().decode(bytes);
+      })()
+    ]);
+    if(typeof text==='string') {
+      result.inspected=true;
+      result.challengeSignal=/captcha|captcha-delivery|datadome|challenge-platform/i.test(text);
+      result.authenticationSignal=/invalid[_ -]token|token[_ -]expired|expired[_ -]token|invalid[_ -]grant|jwt[_ -]expired/i.test(text);
+    }
+  }catch { /* Preserve the original HTTP refusal if its body cannot be read. */ }
+  finally {clearTimeout(timer);void reader.cancel().catch(()=>{});}
+  return result;
 }
 
 export function retryAt(header, now, fallbackMs) {
@@ -94,10 +126,14 @@ export function createVintedSource({ request, now = Date.now, timeoutMs = 10000,
               ...(accessToken === null ? {} : { cookie: 'access_token_web=' + accessToken }) } });
           const observedAt = new Date(now()).toISOString();
           if (!response.ok) {
-            await response.body?.cancel().catch(() => {});
+            // The HTTP result is already known. A stalled error body must not
+            // turn a hard refusal into a retryable timeout.
+            clearTimeout(timer);
+            const diagnostics=[401,403].includes(response.status)?await refusalDiagnostics(response):null;
+            if(!diagnostics)void response.body?.cancel().catch(() => {});
             const delay = response.status === 403 ? 300000 : 120000;
             throw new SourceError(response.status === 429 ? 'rate_limited' : response.status === 403 ? 'blocked' : 'http_error',
-              { status: response.status, retryAt: retryAt(response.headers.get('retry-after'), now(), delay) });
+              { status: response.status, retryAt: retryAt(response.headers.get('retry-after'), now(), delay), diagnostics });
           }
           if (publicSession) acceptPublicCookies(publicSession,response.headers,url,now());
           const payload = await readJson(response, maxBytes);

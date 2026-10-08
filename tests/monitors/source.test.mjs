@@ -47,6 +47,30 @@ test('malformed, non-JSON and oversized responses fail explicitly', async () => 
   }
 });
 
+test('refusal diagnostics retain only bounded fixed signals and never follow challenge links',async()=>{
+ let calls=0;
+ const secret='private-provider-value';
+ const source=createVintedSource({request:async()=>{
+  calls++;return Response.json({url:'https://geo.captcha-delivery.com/captcha/?secret='+secret},{status:403,headers:{'x-dd-b':secret}});
+ }});
+ await assert.rejects(source.searchPage({searchText:'Canon'}),e=>{
+  assert.equal(e.status,403);assert.deepEqual(e.diagnostics,{contentType:'json',inspected:true,challengeSignal:true,authenticationSignal:false,protectionHeader:true,retryAfterSupplied:false});
+  assert(!JSON.stringify(e).includes(secret));assert(!JSON.stringify(e).includes('https://'));return true;
+ });
+ assert.equal(calls,1);
+ const oversized=createVintedSource({request:async()=>new Response('x'.repeat(16385),{status:403})});
+ await assert.rejects(oversized.searchPage({searchText:'Canon'}),e=>e.status===403&&!e.diagnostics.inspected);
+});
+
+test('a stalled refusal body remains a hard refusal and is cancelled within the diagnostic bound',async()=>{
+ let cancelled=false,calls=0;
+ const source=createVintedSource({timeoutMs:20,request:async()=>{
+  calls++;return new Response(new ReadableStream({cancel(){cancelled=true;}}),{status:403});
+ }});
+ await assert.rejects(source.searchPage({searchText:'Canon'}),e=>e.status===403&&!e.diagnostics.inspected);
+ assert(cancelled);assert.equal(calls,1);
+});
+
 test('requests are bounded even if a transport hangs and ignores abort', async () => {
   let signal;
   const source = createVintedSource({ timeoutMs: 10, request: async (_, options) => { signal = options.signal; return new Promise(() => {}); } });
