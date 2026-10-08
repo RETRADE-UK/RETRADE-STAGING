@@ -15,6 +15,7 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
    if(snapshot){
     try{
      const result=await managedPublicConnection({rpc,request,userId:m.user_id,snapshot,now});
+     if(result.diagnostics)diagnostics.push({monitorId:m.id,stage:'renewal',httpStatus:result.httpStatus,failure:result.diagnostics});
      if(result.renewed)renewals++;
      if(result.session) account={...snapshot,session:result.session,generation:result.generation,source:createVintedSource({request,publicSession:result.session,timeoutMs:10000,now})};
      else if(!result.deferred) await rpc('monitor_public_failure',{p_user:m.user_id,p_generation:result.generation || snapshot.generation,p_http:result.httpStatus||null,p_requests:0,

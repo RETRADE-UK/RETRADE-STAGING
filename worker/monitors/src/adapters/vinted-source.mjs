@@ -13,7 +13,7 @@ export class SourceError extends Error {
 
 // A refusal is terminal regardless of these hints. Inspect at most 16 KiB for
 // 250 ms, emit only fixed labels/booleans, and never follow a challenge URL.
-async function refusalDiagnostics(response) {
+export async function refusalDiagnostics(response) {
   const type=response.headers.get('content-type')?.toLowerCase() || '';
   const result={contentType:type.includes('json')?'json':type.includes('html')?'html':'other',
     inspected:false,challengeSignal:false,authenticationSignal:false,

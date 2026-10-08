@@ -67,8 +67,9 @@ test('refused renewal stops after one request and keeps previous ciphertext out 
   throw Error(name);
  };
  const result=await managedPublicConnection({rpc,userId:'owner',snapshot:{mode:'public',state:'verified',ciphertext,expiresAt:new Date(now).toISOString()},
-  request:async()=>{calls++;return new Response('private-body',{status:403});}});
+  request:async()=>{calls++;return Response.json({url:'https://geo.captcha-delivery.com/captcha/?private-body'},{status:403});}});
  assert.equal(calls,1);assert.equal(result.state,'blocked');assert.equal(result.retryable,false);
+ assert.equal(result.diagnostics.challengeSignal,true);
  assert.equal(finish.p_ciphertext,null);assert(!JSON.stringify(result).includes('private'));
 });
 

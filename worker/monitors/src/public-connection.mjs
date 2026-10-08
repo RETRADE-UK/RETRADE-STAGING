@@ -26,18 +26,19 @@ export async function managedPublicConnection({rpc,request,userId,snapshot,manua
       return {state:'verified',session:previous,generation:current.generation};
     return {state:'rate_limited',deferred:true,retryAt:claim.retryAt,generation:claim.generation};
   }
-  let session=null,expiresAt=null,state='unavailable',retryAt=null,httpStatus=null;
+  let session=null,expiresAt=null,state='unavailable',retryAt=null,httpStatus=null,diagnostics=null;
   try {
     ({session,expiresAt}=await createPublicSession({request,session:previous,now}));state='verified';
   } catch(e) {
     httpStatus=e.status||null;
+    diagnostics=e.diagnostics||null;
     state=[401,403,404].includes(e.status) || ['session_invalid','session_destination','session_missing','session_expired','unexpected_content_type'].includes(e.code)
       ?'blocked':e.status===429?'rate_limited':'unavailable';
     retryAt=state==='blocked'?null:new Date(Math.max(e.retryAt||0,now()+300000)).toISOString();
   }
   const saved=await rpc('monitor_connection_finish',{p_user:userId,p_attempt:claim.attempt,p_generation:claim.generation,
     p_state:state,p_ciphertext:session?await seal(session,key,userId):null,p_expires:expiresAt,p_retry:retryAt});
-  return saved?{state,session,generation:claim.generation,retryAt,httpStatus,renewed:state==='verified',retryable:state==='unavailable'||state==='rate_limited'}
+  return saved?{state,session,generation:claim.generation,retryAt,httpStatus,diagnostics,renewed:state==='verified',retryable:state==='unavailable'||state==='rate_limited'}
     :{state:'unavailable',deferred:true,generation:claim.generation};
 }
 
