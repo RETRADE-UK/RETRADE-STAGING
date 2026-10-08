@@ -1,5 +1,7 @@
 # Vinted monitors — takeover, 23 September 2026
 
+**8 October continuity:** [Overnight refusal, session renewal and recovery](CONTINUITY_2026-10-08.md).
+
 **7 October catalogue update:** [Public sessions, current listing fields and setup](PUBLIC_CATALOGUE_2026-10-07.md).
 
 **7 October setup clarity:** [Visible controls, connection replacement and cooldown feedback](SETUP_CLARITY_2026-10-07.md).

@@ -72,7 +72,7 @@ test('public setup persists before searching, stores match-only samples and stop
    assert(completed,'uncommitted session cannot be used');assert(path.includes('per_page=50'));
    return rejected?new Response('private error',{status:403}):{items:[{id:123,title:'Canon 600D',price:{amount:'80',currency_code:'GBP'},item_box:{item_id:123,second_line:'Very good'}}]};
   }
-  if(path.endsWith('/rpc/monitor_public_persist'))return true;
+  if(path.endsWith('/rpc/monitor_public_session_save'))return true;
   if(path.endsWith('/rpc/monitor_saved_session_finish')){
    assert.equal(body.p_user,user);assert.equal(body.p_generation,id);healthy=body.p_status==='sample_received';
    if(healthy){assert.equal(body.p_items[0].listing.condition,'very_good');assert.equal(body.p_items[0].listing.captureMode,'session_check');}
@@ -167,7 +167,7 @@ test('request-heavy recipes cannot starve never-scanned monitors in an unordered
     if (path.endsWith('/rpc/monitor_connection_worker')) return {mode:'public',state:'verified',ciphertext,generation:id,expiresAt:new Date(Date.now()+3600000).toISOString()};
     if (path.startsWith('/rest/v1/monitor_matches?')) return [];
     if (path.startsWith('/svc-catalogue/items?')) return {items:Array.from({length:50},(_,i)=>({id:i+1,title:'Canon 600D',price:{amount:'80',currency_code:'GBP'}}))};
-    if (path.endsWith('/rpc/monitor_catalog_commit')||path.endsWith('/rpc/monitor_public_persist')) return true;
+    if (path.endsWith('/rpc/monitor_catalog_commit')||path.endsWith('/rpc/monitor_public_session_save')) return true;
     if (path.endsWith('/rpc/monitor_source_state')) return null;
     if (path.endsWith('/rpc/monitor_push_claim')) return [];
     if (path.endsWith('/rpc/monitor_release_claims') || path.endsWith('/rpc/monitor_tick_release')) return null;

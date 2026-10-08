@@ -1,5 +1,10 @@
 # Runtime ownership
 
+**8 October continuity:** [Session renewal, durable expiry and recovery](features/monitors/CONTINUITY_2026-10-08.md).
+The existing session adapter/connection/automatic worker own renewal. The shared
+`monitor_public_due` predicate governs cron, claims and session reads. Cache build:
+`20261008-monitor-continuity-staging`.
+
 **7 October catalogue update:** [Public sessions, current listing fields and setup](features/monitors/PUBLIC_CATALOGUE_2026-10-07.md).
 
 Monitor setup remains owned by `src/features/monitors/page.js` and its existing

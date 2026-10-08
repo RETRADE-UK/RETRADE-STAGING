@@ -16,7 +16,7 @@ async function fixture({expired=false,fail=null,second=false}={}){
   if(name==='monitor_connection_worker')return {mode:'public',state:'verified',generation:'generation',ciphertext:args.p_user==='owner-a'?encrypted:await seal(publicSession('second-public-token'),key,'owner-b'),expiresAt:new Date(Date.now()+(expired?-1:3600000)).toISOString()};
   if(name==='monitor_connection_key')return key;
   if(name==='monitor_public_begin')return {accepted:true,attempt:'attempt',generation:'generation',ciphertext:encrypted};
-  if(name==='monitor_connection_finish'||name==='monitor_public_persist')return true;
+  if(name==='monitor_connection_finish'||name==='monitor_public_session_save')return true;
   if(name==='monitor_catalog_commit'){commits.push(args);return true;}
   if(name==='monitor_scan_failure'||name==='monitor_public_failure'){failures.push(args);return null;}
   throw new Error(name);

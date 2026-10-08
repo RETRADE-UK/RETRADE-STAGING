@@ -345,6 +345,9 @@
       if (connectionBusy || sessionBusy || c.state === 'testing') {
         title = connectionOperation === 'connectionDisconnect' ? 'Resetting catalogue access…' : 'Checking catalogue access…';
         next = 'Please wait. The result will appear here.'; badge = 'Working';
+      } else if (c.automatic && ['degraded','rate_limited'].includes(c.scanStatus)) {
+        title = 'Monitoring will retry automatically'; badge = 'Retrying';
+        next = (c.scanMessage || 'A temporary connection issue interrupted scanning.') + (c.scanRetryAt ? ' Next attempt ' + time(c.scanRetryAt) + '.' : '');
       } else if (['blocked','unavailable','reconnect'].includes(c.state) || ['access_rejected','blocked','endpoint_unavailable','schema_changed'].includes(c.searchStatus)) {
         title = 'Catalogue access needs attention'; badge = 'Paused'; tone = 'attention';
         next = c.scanMessage || 'Vinted catalogue access could not be verified from the server. No account token is needed. Monitoring stays paused until a check succeeds.';

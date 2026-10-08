@@ -6,7 +6,7 @@ import { matchListing } from './engine/match.mjs';
 export async function automaticScan({rpc,db,request,token,now=Date.now}) {
  const monitors=await rpc('monitor_auto_claim',{p_token:token});
  monitors.sort((a,b)=>(Date.parse(a.last_success_at||'1970-01-01')-Date.parse(b.last_success_at||'1970-01-01'))||String(a.id).localeCompare(String(b.id)));
- const accounts=new Map(),cache=new Map(),diagnostics=[];let requests=0,committed=0;
+ const accounts=new Map(),cache=new Map(),diagnostics=[];let requests=0,committed=0,renewals=0;
  for(const m of monitors){
   let account=accounts.get(m.user_id);
   if(account===undefined){
@@ -15,13 +15,15 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
    if(snapshot){
     try{
      const result=await managedPublicConnection({rpc,request,userId:m.user_id,snapshot,now});
+     if(result.renewed)renewals++;
      if(result.session) account={...snapshot,session:result.session,generation:result.generation,source:createVintedSource({request,publicSession:result.session,timeoutMs:10000,now})};
-     else await rpc('monitor_public_failure',{p_user:m.user_id,p_generation:result.generation || snapshot.generation,p_http:result.httpStatus||null,p_requests:0,
-      p_status:result.state==='rate_limited'?'rate_limited':'blocked',p_message:publicMessages[result.state] || publicMessages.unavailable,
-      p_retry:result.retryAt || null,p_stop:result.state!=='rate_limited'});
+     else if(!result.deferred) await rpc('monitor_public_failure',{p_user:m.user_id,p_generation:result.generation || snapshot.generation,p_http:result.httpStatus||null,p_requests:0,
+      p_status:result.state==='rate_limited'?'rate_limited':result.retryable?'degraded':'blocked',
+      p_message:result.retryable?'Catalogue renewal was interrupted. The saved session will retry after a pause.':publicMessages[result.state] || publicMessages.unavailable,
+      p_retry:result.retryAt || null,p_stop:!result.retryable});
     }catch{
-     await rpc('monitor_public_failure',{p_user:m.user_id,p_generation:snapshot.generation,p_http:null,p_requests:0,p_status:'blocked',
-      p_message:'The catalogue session could not be safely loaded. Connection storage needs review.',p_retry:null,p_stop:true});
+     await rpc('monitor_public_failure',{p_user:m.user_id,p_generation:snapshot.generation,p_http:null,p_requests:0,p_status:'degraded',
+      p_message:'Connection storage is temporarily unavailable. Monitoring will retry after a pause.',p_retry:new Date(now()+300000).toISOString(),p_stop:false});
     }
    }
    accounts.set(m.user_id,account);
@@ -33,7 +35,7 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
    if(requests>=6)throw new Error('cycle_budget');
    requests++;const page=await account.source.searchPage(q);
    if(page.listings.some(l=>!l.title||!l.url||l.currency!=='GBP'||l.itemPricePence===null) || (m.recipe.conditions.length && page.listings.length && page.listings.every(l=>l.condition===null)))throw new Error('source_schema');
-   if(!await persistPublicSession({rpc,userId:m.user_id,generation:account.generation,session:account.session}))throw new Error('session_changed');
+   if(!await persistPublicSession({rpc,userId:m.user_id,generation:account.generation,session:account.session,now}))throw new Error('session_changed');
    cache.set(key,page);return page;
   }};
   try{
@@ -63,5 +65,5 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
    accounts.set(m.user_id,null);
   }
  }
- return {requests,committed,diagnostics};
+ return {requests,committed,renewals,diagnostics};
 }
