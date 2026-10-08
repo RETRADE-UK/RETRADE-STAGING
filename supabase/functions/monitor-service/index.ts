@@ -14,7 +14,7 @@ import { matchListing } from "../../../worker/monitors/src/engine/match.mjs";
 import { buildFeed } from "../../../worker/monitors/src/feed.mjs";
 import { canon } from "../../../worker/monitors/src/contracts.mjs";
 import { checkSession, sessionMessages } from "../../../worker/monitors/src/session-check.mjs";
-import { managedPublicConnection, persistPublicSession, publicConnectionDiagnostics, publicMessages } from "../../../worker/monitors/src/public-connection.mjs";
+import { managedPublicConnection, persistPublicSession, publicConnectionDiagnostics, publicMessages, publicFailureMessage } from "../../../worker/monitors/src/public-connection.mjs";
 import { createPublicSession } from "../../../worker/monitors/src/adapters/vinted-public-session.mjs";
 import { automaticScan } from "../../../worker/monitors/src/automatic.mjs";
 import { canonTierPresets } from "../../../worker/monitors/src/presets.mjs";
@@ -167,7 +167,7 @@ async function checkOwnedCatalogue(userId: string,input: any) {
   if(!managed.session) {
     await rpc('monitor_session_finish',{p_user:userId,p_check:claim.checkId,p_monitor:monitor.id,p_revision:monitor.revision,
       p_status:'unavailable',p_http:null,p_received:0,p_items:[],p_retry:managed.retryAt||null});
-    return {status:'unavailable',saved:0,message:publicMessages[managed.state as keyof typeof publicMessages]||publicMessages.unavailable,
+    return {status:'unavailable',saved:0,message:managed.diagnostics?.challengeSignal?publicFailureMessage({status:managed.httpStatus,diagnostics:managed.diagnostics}):publicMessages[managed.state as keyof typeof publicMessages]||publicMessages.unavailable,
       ...(input.op==='catalogueCheck'?{diagnostics:{stage:'renewal',httpStatus:managed.httpStatus||null,failure:managed.diagnostics||null}}:{}),
       retryAt:managed.retryAt||claim.retryAt,connection:await rpc('monitor_connection_status',{p_user:userId})};
   }
@@ -186,12 +186,12 @@ async function checkOwnedCatalogue(userId: string,input: any) {
   // A failed manual check must pause an already running collector too.
   if(!['sample_received','empty'].includes(result.status)) await rpc('monitor_public_failure',{
     p_user:userId,p_generation:managed.generation,p_status:result.status==='rate_limited'?'rate_limited':'blocked',
-    p_message:result.httpStatus?'Catalogue check returned HTTP '+result.httpStatus+'. Monitoring is paused.':'Catalogue check could not be verified. Monitoring is paused.',
+    p_message:result.httpStatus?publicFailureMessage({status:result.httpStatus,diagnostics:result.diagnostics}):'Catalogue check could not be verified. Monitoring is paused.',
     p_retry:result.retryAt?new Date(result.retryAt).toISOString():null,p_stop:true,p_http:result.httpStatus,p_requests:1});
   return {status:result.status,received:result.received,saved:saved.saved,checkedAt:saved.checkedAt,retryAt:saved.retryAt,
     ...(input.op==='catalogueCheck'?{diagnostics:{stage:'catalogue',httpStatus:result.httpStatus,failure:result.diagnostics??null}}:{}),
     message:result.status==='sample_received'?'Catalogue access verified. Public searches work without your Vinted account token.':
-      result.status==='blocked'||result.status==='access_rejected'?publicMessages.blocked:sessionMessages[result.status as keyof typeof sessionMessages],
+      result.status==='blocked'||result.status==='access_rejected'?publicFailureMessage({status:result.httpStatus,diagnostics:result.diagnostics}):sessionMessages[result.status as keyof typeof sessionMessages],
     connection:await rpc('monitor_connection_status',{p_user:userId})};
 }
 async function tick(c: any) {

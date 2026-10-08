@@ -8,7 +8,7 @@ const key=Buffer.alloc(32,42).toString('base64');
 const credentials=publicSession();
 const recipe={...canonBenchmark(),searchTerms:['Canon']};
 const m={id:'monitor-a',user_id:'owner-a',revision:1,recipe};
-async function fixture({expired=false,fail=null,second=false}={}){
+async function fixture({expired=false,fail=null,second=false,challenge=false}={}){
  const encrypted=await seal(credentials,key,m.user_id), calls=[],commits=[],failures=[];
  const rpc=async(name,args)=>{
   calls.push({name,args});
@@ -25,7 +25,7 @@ async function fixture({expired=false,fail=null,second=false}={}){
  const request=async(url,opts)=>{
   if(url.pathname==='/'){renewals++;return new Response('',{headers:{'content-type':'text/html','set-cookie':'access_token_web=new-public-token; Domain=.vinted.co.uk; Path=/; Secure; Max-Age=3600'}});}
   cookies.push(opts.headers.cookie);
-  if(fail)return new Response('private body',{status:fail,headers:{'retry-after':'600'}});
+  if(fail)return new Response(challenge?'captcha private-provider-data':'private body',{status:fail,headers:{'retry-after':'600'}});
   return Response.json({items:[{id:123,title:'Canon 600D',price:{amount:'80',currency_code:'GBP'}}]});
  };
  const result=await automaticScan({rpc,db:async()=>[],request,token:'lease'});
@@ -48,4 +48,13 @@ test('403 stops and 429 persists retry time without retrying the source',async()
  for(const status of [403,429]){const f=await fixture({fail:status});assert.equal(f.cookies.length,1);assert.equal(f.commits.length,0);
  assert.equal(f.failures[0].p_stop,status===403);assert(!JSON.stringify(f.failures).includes('private body'));
  if(status===429)assert(Date.parse(f.failures[0].p_retry)>Date.now()+590000);}
+});
+
+test('anti-bot refusal is explained without exposing its body or retrying',async()=>{
+ const f=await fixture({fail:403,challenge:true});
+ assert.equal(f.cookies.length,1);assert.equal(f.commits.length,0);
+ assert.equal(f.failures[0].p_stop,true);
+ assert.match(f.failures[0].p_message,/anti-bot challenge/);
+ assert(f.failures[0].p_message.length<=240);
+ assert(!JSON.stringify(f.failures).includes('private-provider-data'));
 });
