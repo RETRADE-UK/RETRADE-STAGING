@@ -60,7 +60,7 @@ test('two price tiers reuse source requests but save only passing finds and reta
   if(name==='monitor_auto_claim')return monitors;
   if(name==='monitor_connection_worker')return {mode:'public',state:'verified',generation:'fixture',ciphertext:encrypted,expiresAt:new Date(Date.now()+3600000).toISOString()};
   if(name==='monitor_connection_key')return key;
-  if(name==='monitor_public_persist')return true;
+  if(name==='monitor_public_session_save')return true;
   if(name==='monitor_catalog_commit'){commits.push(args);return true;}
   throw new Error(name);
  },request:async(url)=>{

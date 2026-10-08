@@ -56,24 +56,51 @@ export function acceptPublicCookies(session, headers, url, now = Date.now()) {
   return validatePublicSession(session);
 }
 
-export async function createPublicSession({request, now=Date.now, timeoutMs=12000}) {
+// JWT claims are only an earlier refresh hint, never proof of authentication.
+// Opaque cookies keep their provider/local expiry. Never extend either expiry.
+export function publicSessionExpiresAt(session, now=Date.now()) {
+  validatePublicSession(session);
+  const applicable = session.cookies.filter(c => c.name === 'access_token_web'
+    && (c.hostOnly ? c.domain === 'api.vinted.co.uk' : ['vinted.co.uk','api.vinted.co.uk'].includes(c.domain))
+    && (c.path === '/' || '/svc-catalogue/items' === c.path || '/svc-catalogue/items'.startsWith(c.path.endsWith('/') ? c.path : c.path + '/')));
+  const expiries = applicable.map(c => {
+    let expiry = c.expiresAt;
+    const parts = c.value.split('.');
+    if (parts.length === 3 && /^[A-Za-z0-9_-]+$/.test(parts[1])) {
+      try {
+        const encoded = parts[1].replaceAll('-', '+').replaceAll('_', '/');
+        const exp = JSON.parse(atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, '='))).exp;
+        if (Number.isSafeInteger(exp) && exp > 0 && exp < 8.64e12) expiry = Math.min(expiry, exp * 1000);
+      } catch { /* Not a readable JWT: the cookie expiry remains authoritative. */ }
+    }
+    return expiry;
+  });
+  return new Date(expiries.length ? Math.min(...expiries) : now).toISOString();
+}
+
+export async function createPublicSession({request, session: previous=null, now=Date.now, timeoutMs=12000}) {
   if(typeof request!=='function') throw new TypeError('Explicit request transport required');
+  if(previous) validatePublicSession(previous);
   const controller=new AbortController(); let timer;
   try {
     return await Promise.race([new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new SourceError('timeout'));},timeoutMs);}), (async()=>{
       const url=new URL('https://www.vinted.co.uk/');
       const response=await request(url,{method:'GET',redirect:'error',signal:controller.signal,
-        headers:{'user-agent':PUBLIC_AGENT,accept:'text/html','accept-language':'en-GB,en;q=0.9'}});
+        headers:{'user-agent':PUBLIC_AGENT,accept:'text/html','accept-language':'en-GB,en;q=0.9',
+          ...(previous ? {cookie:publicCookieHeader(previous,url,now()),
+            ...(previous.anonId ? {'x-anon-id':previous.anonId} : {})} : {})}});
       if(!response.ok) throw new SourceError(response.status===429?'rate_limited':response.status===403?'blocked':'http_error',
         {status:response.status,retryAt:retryAt(response.headers.get('retry-after'),now(),300000)});
       if(!response.headers.get('content-type')?.includes('text/html')) throw new SourceError('unexpected_content_type');
-      const session=acceptPublicCookies({mode:'public',version:1,cookies:[],anonId:response.headers.get('x-anon-id')},response.headers,url,now());
+      const session=acceptPublicCookies(previous ? structuredClone(previous) : {mode:'public',version:1,cookies:[]},response.headers,url,now());
+      session.anonId=response.headers.get('x-anon-id') || previous?.anonId || null;
       // No response body is needed, retained, executed or logged.
       await response.body?.cancel().catch(()=>{});
       const apiCookies=publicCookieHeader(session,new URL('https://api.vinted.co.uk/svc-catalogue/items'),now());
       if(!/(?:^|; )access_token_web=/.test(apiCookies)) throw new SourceError('session_missing');
-      const access=session.cookies.filter(c=>c.name==='access_token_web');
-      return {session,expiresAt:new Date(Math.min(...access.map(c=>c.expiresAt))).toISOString()};
+      const expiresAt=publicSessionExpiresAt(session,now());
+      if(Date.parse(expiresAt)<=now()+30000) throw new SourceError('session_expired');
+      return {session,expiresAt};
     })()]);
   } finally {clearTimeout(timer);controller.abort();}
 }

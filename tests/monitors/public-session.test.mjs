@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createPublicSession, acceptPublicCookies, publicCookieHeader } from '../../worker/monitors/src/adapters/vinted-public-session.mjs';
+import { createPublicSession, acceptPublicCookies, publicCookieHeader, publicSessionExpiresAt } from '../../worker/monitors/src/adapters/vinted-public-session.mjs';
 import { createVintedSource } from '../../worker/monitors/src/adapters/vinted-source.mjs';
 import { normalizeListing } from '../../worker/monitors/src/adapters/vinted-normalize.mjs';
 import { publicSession } from './public-fixtures.mjs';
@@ -47,6 +47,31 @@ test('session failures stop after one bounded request including a stalled transp
  }
  await assert.rejects(createPublicSession({timeoutMs:5,request:()=>new Promise(()=>{})}),e=>e.code==='timeout');
  await assert.rejects(createPublicSession({request:async()=>new Response('',{headers:{'content-type':'text/html','set-cookie':'access_token_web=host-only; Path=/'}})}),e=>e.code==='session_missing');
+});
+
+test('renewal carries the existing scoped session and keeps anonymous identity across restarts',async()=>{
+ const previous=publicSession('current',now);
+ previous.cookies.push({name:'api_only',value:'not-for-homepage',domain:'api.vinted.co.uk',hostOnly:true,path:'/',expiresAt:now+3600000});
+ const result=await createPublicSession({session:previous,now:()=>now,request:async(url,opts)=>{
+  assert.equal(url.href,'https://www.vinted.co.uk/');
+  assert.equal(opts.headers.cookie,'access_token_web=current');
+  assert.equal(opts.headers['x-anon-id'],previous.anonId);
+  return new Response('',{headers:{'content-type':'text/html','set-cookie':'access_token_web=renewed; Domain=.vinted.co.uk; Path=/; Max-Age=1800'}});
+ }});
+ assert.equal(previous.cookies[0].value,'current','Do not mutate a session before a successful replacement');
+ assert.equal(result.session.anonId,previous.anonId);
+ assert.equal(Date.parse(result.expiresAt),now+1800000);
+});
+
+test('access expiry honors earlier JWT hints and cookie scope but never extends cookie lifetime',()=>{
+ const jwt=exp=>'header.'+Buffer.from(JSON.stringify({exp})).toString('base64url')+'.signature';
+ for(const [exp,expected] of [[now/1000+300,now+300000],[now/1000+7200,now+3600000]]) {
+  assert.equal(Date.parse(publicSessionExpiresAt(publicSession(jwt(exp),now),now)),expected);
+ }
+ for(const value of ['opaque-token','a.not-json.b',jwt('bad')]) assert.equal(Date.parse(publicSessionExpiresAt(publicSession(value,now),now)),now+3600000);
+ const s=publicSession('api',now);s.cookies.push({...s.cookies[0],value:'wrong-scope',domain:'www.vinted.co.uk',expiresAt:now-1});
+ assert.equal(Date.parse(publicSessionExpiresAt(s,now)),now+3600000);
+ s.cookies=[];assert.equal(Date.parse(publicSessionExpiresAt(s,now)),now);
 });
 
 test('current condition cards normalise exactly and never infer from a title or unknown status',()=>{

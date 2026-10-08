@@ -14,7 +14,7 @@ import { matchListing } from "../../../worker/monitors/src/engine/match.mjs";
 import { buildFeed } from "../../../worker/monitors/src/feed.mjs";
 import { canon } from "../../../worker/monitors/src/contracts.mjs";
 import { checkSession, sessionMessages } from "../../../worker/monitors/src/session-check.mjs";
-import { managedPublicConnection, persistPublicSession, publicMessages } from "../../../worker/monitors/src/public-connection.mjs";
+import { managedPublicConnection, persistPublicSession, publicConnectionDiagnostics, publicMessages } from "../../../worker/monitors/src/public-connection.mjs";
 import { createPublicSession } from "../../../worker/monitors/src/adapters/vinted-public-session.mjs";
 import { automaticScan } from "../../../worker/monitors/src/automatic.mjs";
 import { canonTierPresets } from "../../../worker/monitors/src/presets.mjs";
@@ -243,10 +243,14 @@ Deno.serve(async (req) => {
       await rpc("monitor_push_receipt", {p_id:input.id,p_token:input.token,p_status:input.status});
       return reply({ok:true});
     }
-    if (input.op === "tick" || input.op === "sourceCheck" || input.op === "catalogueCheck") {
+    if (["tick", "sourceCheck", "catalogueCheck", "connectionDiagnostics"].includes(input.op)) {
       const c = await config();
       if (req.headers.get("x-monitor-token") !== c.token)
         return reply({ error: "Unauthorized" }, 401);
+      if (input.op === "connectionDiagnostics") {
+        if (!/^[a-f0-9-]{36}$/.test(input.userId || "")) throw new TypeError("Owner required");
+        return reply(await publicConnectionDiagnostics({rpc,userId:input.userId}));
+      }
       if (input.op === "catalogueCheck") {
         if (!/^[a-f0-9-]{36}$/.test(input.userId || "")) throw new TypeError("Owner required");
         return reply(await checkOwnedCatalogue(input.userId,input));
@@ -311,8 +315,8 @@ Deno.serve(async (req) => {
       );
       const connection = anonymous ? {state:'disconnected',stored:false,automatic:false} : await rpc("monitor_connection_status", {p_user:user.id});
       const connectedSource = connection.stored || connection.scanCheckedAt ? {
-        status: connection.state !== 'verified' ? 'blocked' : !connection.automatic ? (connection.canStart ? 'paused' : 'blocked') : connection.scanStatus === 'ready' ? 'ready' : connection.scanStatus === 'waiting' ? 'starting' : 'degraded',
-        message: connection.state !== 'verified' ? 'Catalogue access needs a check in Settings.' : !connection.automatic && connection.canStart ? 'Catalogue access verified. Start the 12-hour trial when ready.' : connection.searchStatus==='access_rejected' ? sessionMessages.access_rejected : connection.scanMessage || 'Waiting for the first scheduled scan.',
+        status: connection.automatic ? (connection.state !== 'verified' ? 'degraded' : connection.scanStatus === 'ready' ? 'ready' : connection.scanStatus === 'waiting' ? 'starting' : 'degraded') : connection.canStart ? 'paused' : 'blocked',
+        message: connection.automatic ? connection.scanMessage || 'Waiting for the next scheduled scan.' : connection.canStart ? 'Catalogue access verified. Start the 12-hour trial when ready.' : connection.state !== 'verified' ? 'Catalogue access needs a check in Settings.' : connection.searchStatus==='access_rejected' ? sessionMessages.access_rejected : connection.scanMessage || 'Waiting for the first scheduled scan.',
         checkedAt: connection.scanCheckedAt || connection.checkedAt, retryAt: connection.scanRetryAt,
         automatic:connection.automatic, intervalSeconds:60, trialEndsAt:connection.trialEndsAt
       } : null;
