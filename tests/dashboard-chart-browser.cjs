@@ -38,6 +38,6 @@ const {open,settled}=require('./startup-browser.cjs');
    assert(sparse.withinScale,'The tight ceiling must contain every visible forecast');
    assert.deepEqual(errors,[]);await context.close();
   }
-  console.log('PASS dashboard outlier ceiling, period redraws and bar/axis geometry on mobile and desktop');
+  console.log('PASS dashboard tight ceilings, period redraws, bar/axis geometry and sparse forecasts on mobile and desktop');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
