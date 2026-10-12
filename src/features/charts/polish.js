@@ -48,29 +48,34 @@
     var rawMax=Math.max.apply(Math,vals);
     var rawMin=Math.min.apply(Math,[0].concat((revData||[]).map(num),(profitData||[]).map(num),forecast?[num(forecast.profit)]:[]));
     if(rawMax<=0&&rawMin>=0)return {min:0,max:100,step:50,ticks:[0,50,100]};
-    var target=Math.max(2,targetIntervals||3),paddedMax=rawMax>0?rawMax*1.05:0,paddedMin=rawMin<0?rawMin*1.05:0;
-    var step=niceStep((paddedMax-paddedMin)/target||1);
+    // The ceiling follows the plotted values, not the (much coarser) grid step.
+    // A 5% pad followed by grid rounding could turn a £1,950 peak into £3,000.
+    var target=Math.max(2,targetIntervals||3);
+    var unit=rawMax>=100?100:rawMax>=10?10:rawMax>=1?1:rawMax>=.1?.1:.01;
+    var yMax=rawMax>0?Math.max(unit,Math.ceil((rawMax-1e-9)/unit)*unit):0;
+    yMax=Number(yMax.toFixed(2));
+    var paddedMin=rawMin<0?rawMin*1.05:0;
+    var step=niceStep((yMax-paddedMin)/target||1);
     var yMin=rawMin<0?Math.floor(paddedMin/step)*step:0;
-    var yMax=Math.ceil(paddedMax/step)*step;
     if(yMax<=yMin)yMax=yMin+step;
-    var intervals=Math.round((yMax-yMin)/step);
-    if(intervals>target+1){
+    if((yMax-yMin)/step>target+1){
       step=nextNiceStep(step);
       yMin=rawMin<0?Math.floor(paddedMin/step)*step:0;
-      yMax=Math.ceil(paddedMax/step)*step;
-      intervals=Math.round((yMax-yMin)/step);
     }
-    intervals=Math.max(1,intervals);
-    var ticks=[];
-    for(var i=0;i<=intervals;i++)ticks.push(yMin+i*step);
-    ticks=ticks.filter(function(v){return v<=yMax+Math.abs(step)*.001;});
+    var ticks=[yMin],intervals=Math.ceil((yMax-yMin)/step);
+    for(var i=1;i<intervals;i++){
+      var tick=Number((yMin+i*step).toFixed(8));
+      // Keep the exact ceiling labelled without crowding it with a nearby tick.
+      if(tick<yMax&&(yMax-tick>=step*.5||Math.abs(tick)<step*.001))ticks.push(tick);
+    }
+    ticks.push(yMax);
     return {min:yMin,max:yMax,step:step,ticks:ticks};
   }
   function fmtAxisMoney(v){
     v=num(v);if(Math.abs(v)<.00001)return '£0';
     var sign=v<0?'−':'',a=Math.abs(v);
     if(a>=1000000){var m=a/1000000;return sign+'£'+m.toFixed(m>=10||Math.abs(m-Math.round(m))<.001?0:1)+'m';}
-    if(a>=1000){var k=a/1000;return sign+'£'+k.toFixed(k>=10||Math.abs(k-Math.round(k))<.001?0:1)+'k';}
+    if(a>=1000){var k=a/1000;return sign+'£'+k.toFixed(Math.abs(k-Math.round(k))<.001?0:1)+'k';}
     if(a>=10||Math.abs(a-Math.round(a))<.001)return sign+'£'+Math.round(a);
     return sign+'£'+a.toFixed(1);
   }
