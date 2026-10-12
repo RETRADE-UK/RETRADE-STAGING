@@ -23,6 +23,19 @@ const {open,settled}=require('./startup-browser.cjs');
     assert.equal(actual.barCount,4);
     assert(Math.abs(actual.height/actual.plotHeight-peak/ceiling)<.002,'Bars use the same tight scale as the axis');
    }
+   const sparse=await page.evaluate(()=>{
+    const svg=Array.from(document.querySelectorAll('#p-summary svg')).find(s=>s.getClientRects().length&&s.__rtPolishedSnapshot);
+    const options=Object.assign({},svg.__rtPolishedSnapshot.opts,{partialLast:true,drawKey:'current_fy',tertiaryData:[0,0,0,0],tertiaryCounts:[0,0,0,0]});
+    SUMMARY_PERIOD='current_fy';
+    _renderChartInto(svg,['Apr','May','Jun','Jul'],[0,80,0,45],[0,0,0,15],[],options);
+    const index=el=>Number(el.style.getPropertyValue('--bar-i'));
+    const top=Math.min(...Array.from(svg.querySelectorAll('.rt-polished-axis line'),el=>Number(el.getAttribute('y1'))));
+    const shells=Array.from(svg.querySelectorAll('.rt-chart-forecast-shell'));
+    return {forecastIndices:shells.map(index),actualIndices:Array.from(svg.querySelectorAll('.rt-chart-actual-overlay'),index),withinScale:shells.every(el=>Number(el.getAttribute('y'))>=top-.1)};
+   });
+   assert.deepEqual(sparse.forecastIndices,[3,3],'Empty earlier buckets must not hide the current-month forecast');
+   assert.deepEqual(sparse.actualIndices,[3,3],'Keep actual overlays on the same final bucket');
+   assert(sparse.withinScale,'The tight ceiling must contain every visible forecast');
    assert.deepEqual(errors,[]);await context.close();
   }
   console.log('PASS dashboard outlier ceiling, period redraws and bar/axis geometry on mobile and desktop');

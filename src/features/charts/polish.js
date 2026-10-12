@@ -213,7 +213,10 @@
     var last=revData.length-1;
     var revenueBars=svgEl.querySelectorAll('.rt-chart-primary-bar:not(.rt-chart-profit-bar)');
     var profitBars=svgEl.querySelectorAll('.rt-chart-profit-bar');
-    var revRect=revenueBars[last]||null,profitRect=profitBars[last]||null;
+    // Zero-value buckets have no rectangle; DOM position is not the data index.
+    // Match the original bucket so a missing earlier month cannot hide the forecast.
+    var revRect=Array.prototype.find.call(revenueBars,function(rect){return parseBarIndex(rect)===last;})||null;
+    var profitRect=Array.prototype.find.call(profitBars,function(rect){return parseBarIndex(rect)===last;})||null;
     if(revRect){
       revRect.classList.add('rt-chart-forecast-shell');
       setRectY(revRect,forecast.rev,sy);
