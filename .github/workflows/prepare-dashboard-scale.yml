@@ -37,7 +37,7 @@ jobs:
               if(yMax<=yMin)yMax=yMin+step;
               if((yMax-yMin)/step>target+1){
                 step=nextNiceStep(step);
-                yMin=rawMin<0?Math.floor(paddedMin/step)*step;
+                yMin=rawMin<0?Math.floor(paddedMin/step)*step:0;
               }
               var ticks=[yMin],intervals=Math.ceil((yMax-yMin)/step);
               for(var i=1;i<intervals;i++){
