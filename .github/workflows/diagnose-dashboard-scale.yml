@@ -49,14 +49,15 @@ jobs:
           '''
           assert s.count(anchor)==1
           p.write_text(s.replace(anchor,regression+anchor))
+          Path('.github/workflows/diagnose-dashboard-scale.yml').unlink()
           PY
       - run: npm run check
       - run: npm run build
-      - name: Commit only the runtime lookup and its regression test
+      - name: Commit the two chart files and removal of this temporary workflow
         run: |
           git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/features/charts/polish.js tests/dashboard-chart-browser.cjs
+          git add src/features/charts/polish.js tests/dashboard-chart-browser.cjs .github/workflows/diagnose-dashboard-scale.yml
           git commit -m 'fix(charts): match forecast bars by bucket when earlier months are empty'
           git push origin HEAD:fix/dashboard-chart-ceiling-20261012
