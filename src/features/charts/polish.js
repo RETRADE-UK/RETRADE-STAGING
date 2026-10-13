@@ -254,6 +254,10 @@
     var forecast=buildForecast(revData,profitData,opts);
     var refunds=Array.isArray(opts.tertiaryData)?opts.tertiaryData:[];
     var scale=buildScale(revData,profitData,refunds,mobile?(H<215?2:3):4,forecast);
+    // Refined money labels can have an extra digit; keep them inside the SVG.
+    var labelChars=scale.ticks.reduce(function(longest,v){return Math.max(longest,fmtAxisMoney(v).length);},0);
+    pad.l=Math.max(pad.l,Math.ceil(fontSize*(labelChars*.65+.9)+4));
+    innerW=W-pad.l-pad.r;bandW=innerW/Math.max(1,n);
     var yRange=(scale.max-scale.min)||1;
     var sy=function(v){return pad.t+innerH-((num(v)-scale.min)/yRange)*innerH;};
 
