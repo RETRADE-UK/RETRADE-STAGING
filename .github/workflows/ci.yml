@@ -2,11 +2,12 @@ name: RETRADE CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, fix/month-groups-fy-reconciliation]
 permissions:
   contents: read
 jobs:
   safety:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,6 +17,7 @@ jobs:
       - run: npm run check
       - run: npm run build
   browser:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,7 +28,6 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm test
-
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -34,3 +35,45 @@ jobs:
           path: /tmp/monitors-*.png
           if-no-files-found: ignore
           retention-days: 7
+  prepare-scoped-fix:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/fix/month-groups-fy-reconciliation'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply exact scoped edits to the isolated fix branch
+        run: python3 scripts/prepare-month-fy.py
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run check
+      - name: Regression tests using synthetic data only
+        env:
+          RETRADE_CAPTURE: /tmp/retrade-capture
+        run: |
+          node tests/cost-months-performance-browser.cjs
+          node tests/costs-browser.cjs
+          node tests/tax-browser.cjs
+          node tests/dashboard-chart-browser.cjs
+      - run: npm run build
+      - name: Commit validated fix, restore CI and remove temporary source tooling
+        run: |
+          git fetch --depth=1 origin 7dce82805ada2783a8308f04163c8e93549ff5d1
+          git show 7dce82805ada2783a8308f04163c8e93549ff5d1:.github/workflows/ci.yml > .github/workflows/ci.yml
+          rm scripts/prepare-month-fy.py .github/workflows/review-month-groups.yml
+          git add src/core/application.js assets/styles/workspaces.css config/assets.js index.html package.json tests/cost-months-performance-browser.cjs docs/releases/cost-months-net-margin-2026-10-13.md scripts/prepare-month-fy.py .github/workflows/review-month-groups.yml .github/workflows/ci.yml
+          git diff --cached --check
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix: collapsible expense months and reconciled FY net margin'
+          git push origin HEAD:fix/month-groups-fy-reconciliation
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: expense-months-net-reconciliation
+          path: /tmp/retrade-capture
+          retention-days: 2
+          if-no-files-found: warn
