@@ -522,3 +522,22 @@ Private connection trial timestamps fence claims and late commits. See
 `docs/features/monitors/TRIAL_2026-10-07.md` for limits and deployment verification.
 
 Monitor connection build `20261007-monitor-connection-staging`: `connection.mjs` owns the shared manual/worker session manager. The private search-health columns and generation-fenced saved-session RPC own readiness independently of token renewal. See `docs/features/monitors/CONNECTION_HEALTH_2026-10-07.md`.
+
+
+## Dashboard headroom refinement — 13 October 2026
+
+`src/features/charts/polish.js` remains the sole dashboard geometry owner.
+Add 5% above the largest positive plotted value before rounding. Prefer the
+existing round-money increment, refining it when it would exceed 10% total
+headroom (minimum increment: one penny). Grid spacing cannot inflate this
+ceiling. Zero baselines, negative bounds, refunds and FY forecasts remain.
+Refined ceilings retain accurate labels; accounting inputs are not changed.
+Examples: GBP 1,900 -> 2,000; GBP 1,950 -> 2,100; GBP 2,000 -> 2,100.
+
+Existing cache/version behaviour is unchanged. Rotate the manifest and all
+HTML asset tags together to `20261013-chart-headroom` (staging: `-staging`).
+Scale tests cover 1,104 cases; browser tests measure the visible gap on mobile
+and desktop, as well as sparse forecasts and redraws. All data is synthetic.
+Design reference: https://www.chartjs.org/docs/latest/axes/cartesian/linear.html#grace
+The 5% target and 10% rounding cap are RETRADE presentation choices; no new
+chart dependency is introduced.
