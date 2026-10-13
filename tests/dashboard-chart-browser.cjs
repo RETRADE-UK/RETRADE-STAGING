@@ -4,10 +4,12 @@ const {open,settled}=require('./startup-browser.cjs');
 (async()=>{
  const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{}),args:['--no-sandbox']});
  try{
-  for(const mobile of [true,false]){
+  for(const width of [320,390,1440]){
+   const mobile=width<560;
    const {page,context,errors}=await open(browser,{signedIn:true,mobile});await settled(page);
+   await page.setViewportSize({width,height:mobile?844:1000});
    await page.waitForFunction(()=>Array.from(document.querySelectorAll('#p-summary svg')).some(s=>s.getClientRects().length&&s.__rtPolishedSnapshot));
-   for(const [peak,ceiling,label] of [[1950,2100,'£2.1k'],[2000,2100,'£2.1k'],[2000.01,2200,'£2.2k'],[1900,2000,'£2k'],[95,100,'£100'],[1050,1110,'£1.11k']]){
+   for(const [peak,ceiling,label] of [[1950,2100,'£2.1k'],[2000,2100,'£2.1k'],[2000.01,2200,'£2.2k'],[1900,2000,'£2k'],[95,100,'£100'],[1050,1110,'£1.11k'],[1000100,1050200,'£1.0502m']]){
     const actual=await page.evaluate(({peak})=>{
      const svg=Array.from(document.querySelectorAll('#p-summary svg')).find(s=>s.getClientRects().length&&s.__rtPolishedSnapshot);
      const options=Object.assign({},svg.__rtPolishedSnapshot.opts,{partialLast:false,drawKey:'axis-regression-'+peak,tertiaryData:[0,0,0,0],tertiaryCounts:[0,0,0,0]});
@@ -17,10 +19,15 @@ const {open,settled}=require('./startup-browser.cjs');
      const bars=Array.from(svg.querySelectorAll('.rt-chart-primary-bar:not(.rt-chart-profit-bar)'));
      const heights=bars.map(el=>Number(el.getAttribute('height')));
      const top=Math.min(...ys),bottom=Math.max(...ys);
-     return {labels:Array.from(axis.querySelectorAll('text'),el=>el.textContent),height:Math.max(...heights),plotHeight:bottom-top,barCount:bars.length,gap:Math.min(...bars.map(el=>Number(el.getAttribute('y'))))-top};
+     const labelsFit=Array.from(axis.querySelectorAll('text')).every(el=>el.getBBox().x>=1);
+     const hitStart=Number(svg.querySelector('.rt-chart-col rect').getAttribute('x'));
+     const gridStart=Number(axis.querySelector('line').getAttribute('x1'));
+     return {labelsFit,hitStart,gridStart,labels:Array.from(axis.querySelectorAll('text'),el=>el.textContent),height:Math.max(...heights),plotHeight:bottom-top,barCount:bars.length,gap:Math.min(...bars.map(el=>Number(el.getAttribute('y'))))-top};
     },{peak});
     assert.equal(actual.labels.at(-1),label,'Exact padded ceiling on '+(mobile?'mobile':'desktop'));
     assert.equal(actual.barCount,4);
+    assert(actual.labelsFit,'Money labels fit inside the SVG at '+width+'px');
+    assert(Math.abs(actual.hitStart-actual.gridStart)<.1,'Hit columns stay aligned with the adjusted gutter');
     assert(Math.abs(actual.height/actual.plotHeight-peak/ceiling)<.002,'Bars use the same scale as the axis');
     assert(actual.gap/actual.plotHeight>=.047,'Visible breathing room above the tallest bar');
     assert(actual.gap/actual.plotHeight<=.092,'No excessive empty space from coarse rounding');
