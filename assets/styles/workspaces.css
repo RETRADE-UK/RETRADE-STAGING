@@ -408,3 +408,14 @@
 .purchase-item-nav>button:first-child{flex:0 0 auto}
 .purchase-item-nav>.purchase-item-link{display:block;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
 @media(max-width:340px){.purchase-line{grid-template-columns:minmax(0,1fr)} }
+
+/* Expense month disclosures: totals remain visible; search/selection reveal all. */
+.rt #p-expenses .cost-month-heading{flex:1;min-width:0;text-align:left;}
+.rt #p-expenses .cost-month-toggle{width:100%;min-height:44px;box-sizing:border-box;border:0;border-bottom:1px solid var(--border);border-radius:0;font-family:inherit;text-align:left;cursor:pointer;}
+.rt #p-expenses .cost-month-toggle:hover{background:var(--surface3,var(--surface2));}
+.rt #p-expenses .cost-month-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:-3px;}
+.rt #p-expenses .cost-month-toggle[aria-expanded="false"]{border-bottom-color:transparent;}
+.rt #p-expenses .cost-month-chevron{flex-shrink:0;color:var(--muted);font-size:14px;line-height:1;}
+.rt #p-expenses .cost-month-toggle[aria-expanded="false"] .cost-month-chevron{transform:rotate(-90deg);}
+.rt #p-expenses .cost-month-rows[hidden]{display:none!important;}
+.rt #p-expenses .ledger-month-label .lm-total{flex-shrink:0;}
