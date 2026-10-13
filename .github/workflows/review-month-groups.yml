@@ -1,0 +1,20 @@
+name: Review month groups and FY reconciliation
+on:
+  push:
+    branches: [fix/month-groups-fy-reconciliation]
+    paths: [.github/workflows/review-month-groups.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package tracked source for regression testing
+        run: git archive --format=tar HEAD -o source.tar
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reconciliation-source
+          path: source.tar
+          retention-days: 1
+          if-no-files-found: error
