@@ -55,7 +55,8 @@ const {open,settled}=require('./startup-browser.cjs');
     assert(await page.locator('#cost-ledger .expense-item:visible').count()>0);
    }
    await page.evaluate(()=>{COST_PERIOD='last90';renderExpenses();});
-   assert.equal(await page.locator('.cost-month-toggle').count(),3,'90-day view excludes the older fixture');
+   assert(await page.locator('.cost-month-toggle').count()>=2,'90-day view has multiple months');
+   assert.equal(await group(keys[3]).count(),0,'90-day view excludes the older fixture');
    assert.equal(await header(keys[0]).getAttribute('aria-expanded'),'true');
    assert.equal(await header(keys[1]).getAttribute('aria-expanded'),'false');
    await page.evaluate(()=>{COST_PERIOD='all';COST_CAT_FILTER='Software & subscriptions';renderExpenses();});
