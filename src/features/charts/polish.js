@@ -48,11 +48,14 @@
     var rawMax=Math.max.apply(Math,vals);
     var rawMin=Math.min.apply(Math,[0].concat((revData||[]).map(num),(profitData||[]).map(num),forecast?[num(forecast.profit)]:[]));
     if(rawMax<=0&&rawMin>=0)return {min:0,max:100,step:50,ticks:[0,50,100]};
-    // The ceiling follows the plotted values, not the (much coarser) grid step.
-    // A 5% pad followed by grid rounding could turn a £1,950 peak into £3,000.
+    // Add 5% breathing room, independently of the much coarser grid step.
+    // Prefer round hundreds, but refine the increment when rounding would add
+    // more than 10% above the peak. One penny is the minimum money increment.
     var target=Math.max(2,targetIntervals||3);
+    var paddedMax=rawMax>0?rawMax*1.05:0;
     var unit=rawMax>=100?100:rawMax>=10?10:rawMax>=1?1:rawMax>=.1?.1:.01;
-    var yMax=rawMax>0?Math.max(unit,Math.ceil((rawMax-1e-9)/unit)*unit):0;
+    while(unit>.01&&Math.ceil((paddedMax-1e-9)/unit)*unit>rawMax*1.10+1e-9)unit/=10;
+    var yMax=rawMax>0?Math.max(unit,Math.ceil((paddedMax-1e-9)/unit)*unit):0;
     yMax=Number(yMax.toFixed(2));
     var paddedMin=rawMin<0?rawMin*1.05:0;
     var step=niceStep((yMax-paddedMin)/target||1);
@@ -74,10 +77,10 @@
   function fmtAxisMoney(v){
     v=num(v);if(Math.abs(v)<.00001)return '£0';
     var sign=v<0?'−':'',a=Math.abs(v);
-    if(a>=1000000){var m=a/1000000;return sign+'£'+m.toFixed(m>=10||Math.abs(m-Math.round(m))<.001?0:1)+'m';}
-    if(a>=1000){var k=a/1000;return sign+'£'+k.toFixed(Math.abs(k-Math.round(k))<.001?0:1)+'k';}
-    if(a>=10||Math.abs(a-Math.round(a))<.001)return sign+'£'+Math.round(a);
-    return sign+'£'+a.toFixed(1);
+    // Preserve the refined ceiling in the label (e.g. £1.11k, not £1.1k).
+    if(a>=1000000)return sign+'£'+Number((a/1000000).toFixed(4))+'m';
+    if(a>=1000)return sign+'£'+Number((a/1000).toFixed(2))+'k';
+    return sign+'£'+Number(a.toFixed(2));
   }
   function fmtForecastMoney(v){
     v=Math.max(0,num(v));
