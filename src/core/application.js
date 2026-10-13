@@ -1129,6 +1129,10 @@ let COST_VISIBLE=[];
 let COST_SELECTION_OWNER=null;
 let COST_PERIOD='mtd';       // mtd|taxyear|lastMonth|last30|last90|all — defaults to This month to mirror Sales History (v2.11.3)
 let COST_CAT_FILTER='all';   // 'all' or a canonical EXPENSE_CATEGORY_DEFS label
+// Session-only disclosure choices, scoped to the account and filtered period.
+// Search and selection temporarily reveal rows without overwriting these choices.
+let _costMonthScope='';
+let _costMonthExpanded=Object.create(null);
 let SELECTION_MODE=false;
 let STOCK_SORT='days-asc';          // stock sort: profit | roi | price | days-desc | days-asc | cost-desc
 let STOCK_FILTER='all';           // listed-age filter: all | fresh | maturing | slow | stale
@@ -14933,19 +14937,31 @@ function _monthlyMoneyFlowHTML(){
     +'<div id="monthly-money-flow" class="money-flow-rows"></div></div>';
 }
 
+// Performance's FY header and breakdown share both the accounting result and
+// the margin denominator. A mean of item margins is not business net margin.
+function _performancePeriodSummary(from,to,label){
+  const pnl=_buildPnLSummary(from,to,label);
+  const grossRevenue=Number(pnl.revenue)||0;
+  const customerRefunds=+(pnl.events||[]).filter(function(e){return e.isReturnAdjustment;})
+    .reduce(function(sum,e){return sum+Math.max(0,-(Number(e.salePrice)||0));},0).toFixed(2);
+  const netRevenue=+(grossRevenue-customerRefunds).toFixed(2);
+  const netProfit=Number(pnl.netProfit)||0;
+  return {pnl:pnl,grossRevenue:grossRevenue,customerRefunds:customerRefunds,
+    netRevenue:netRevenue,netProfit:netProfit,netMargin:netRevenue!==0?netProfit/netRevenue*100:null};
+}
+
 function renderMonthlyMoneyFlow(){
   const host=document.getElementById('monthly-money-flow');
   if(!host)return;
   const r=_monthlyPeriodResolve(MONTHLY_PERIOD);
-  let p;
-  try{ p=_buildPnLSummary(r.from,r.to,r.label); }
+  let summary;
+  try{ summary=_performancePeriodSummary(r.from,r.to,r.label); }
   catch(e){ host.innerHTML='<div class="mf-foot">Unable to build P&amp;L summary.</div>'; return; }
 
-  const grossRevenue=Number(p.revenue)||0;
-  const flowEvents=getSaleEventsInRange(r.from,r.to);
-  const customerRefunds=+flowEvents.filter(function(e){return e.isReturnAdjustment;})
-    .reduce(function(sum,e){return sum+Math.max(0,-(Number(e.salePrice)||0));},0).toFixed(2);
-  const netRevenue=+(grossRevenue-customerRefunds).toFixed(2);
+  const p=summary.pnl;
+  const grossRevenue=summary.grossRevenue;
+  const customerRefunds=summary.customerRefunds;
+  const netRevenue=summary.netRevenue;
   const cogs=Number(p.cogs)||0;
   const selling=Number((p.selling&&p.selling.total))||0;
   // p.selling.total includes the customer refund itself plus any return postage.
@@ -14953,13 +14969,13 @@ function renderMonthlyMoneyFlow(){
   // postage and all other selling costs remain in this line and reconciliation.
   const otherSelling=+(selling-customerRefunds).toFixed(2);
   const overheads=Number((p.overheads&&p.overheads.total))||0;
-  const net=Number(p.netProfit)||0;
+  const net=summary.netProfit;
 
-  if(grossRevenue<=0){
+  if(grossRevenue===0&&customerRefunds===0&&cogs===0&&otherSelling===0&&overheads===0&&net===0){
     host.innerHTML='<div class="mf-foot">No sales in '+esc(r.label)+'. Once you log sales, this will bridge gross revenue to net profit.</div>';
     return;
   }
-  const pct=function(v){return Math.max(0,Math.min(100,(Math.abs(v)/grossRevenue)*100));};
+  const pct=function(v){return grossRevenue>0?Math.max(0,Math.min(100,(Math.abs(v)/grossRevenue)*100)):0;};
   const row=function(label,val,colour,cls){
     return '<div class="mf-row'+(cls?' '+cls:'')+'">'
       +'<div class="mf-top"><span class="mf-label">'+esc(label)+'</span><span class="mf-val">'+fmt(val)+'</span></div>'
@@ -14967,7 +14983,7 @@ function renderMonthlyMoneyFlow(){
       +'</div>';
   };
   const netColour=net>=0?'var(--green)':'var(--red)';
-  const margin=netRevenue!==0?(net/netRevenue*100):null;
+  const margin=summary.netMargin;
   host.innerHTML=
      row('Gross revenue',grossRevenue,'var(--state-listed)','mf-key')
     +(customerRefunds>0?row('− Refunds',customerRefunds,'var(--red)','mf-deduction'):'')
@@ -14979,7 +14995,7 @@ function renderMonthlyMoneyFlow(){
       +'<div class="mf-top"><span class="mf-label">Net profit</span><span class="mf-val" style="color:'+netColour+'">'+fmt(net)+'</span></div>'
       +'<div class="mf-bar"><span class="mf-fill" style="width:'+pct(net).toFixed(1)+'%;background:'+netColour+'"></span></div>'
     +'</div>'
-    +'<div class="mf-foot">'+esc(r.label)+' · '+(p.soldCount||0)+' sold'+(margin!==null?' · '+margin.toFixed(1)+'% net margin':'')+'. Bars are % of gross revenue · reconciles with your Tax Return.</div>';
+    +'<div class="mf-foot">'+esc(r.label)+' · '+(p.soldCount||0)+' sold'+(margin!==null?' · '+margin.toFixed(1)+'% net margin':'')+(grossRevenue>0?'. Bars are % of gross revenue.':'. No gross sales in this period.')+'</div>';
 }
 
 function renderMonthlyProfitabilityChart(statsForMonth){
@@ -15082,7 +15098,6 @@ function renderMonthlyGrid(){
     if(!_monthStatsCache.has(k))_monthStatsCache.set(k,calcMonthStatsBySale(k,_calendarStatsCtx));
     return _monthStatsCache.get(k);
   };
-  const monthEvents=function(k){return _calendarEventsByMonth.get(k)||[];};
 
   // Build set of FYs to show: previous, current, next + any FY with data
   const fySet=new Set([currentFY-1, currentFY]);
@@ -15123,27 +15138,17 @@ function renderMonthlyGrid(){
     const defaultCollapsed=fy!==currentFY;
     const isCollapsed=_fyCollapsed[fy]!==undefined?_fyCollapsed[fy]:defaultCollapsed;
 
-    let fyProfit=0,fySold=0,fyROISum=0,fyROICount=0,fyMarginSum=0,fyMarginCount=0;
-    months.forEach(function(k){
-      // Session B: FY rollups attribute by sale date, not listing month.
-      const ms=monthStats(k);
-      fyProfit+=ms.netProfit;   // v2.21.21 — net (after overheads), uniform with the top P&L summary + month-detail page
-      fySold+=ms.soldCount;
-      // Roll up ROI from this month's sale events (not from items in DB[k]).
-      monthEvents(k).forEach(function(ev){
-        if(!ev.isReturned&&ev.roi!==null){fyROISum+=ev.roi;fyROICount++;}
-        if(!ev.isReturned&&ev.margin!==null&&ev.margin!==undefined){fyMarginSum+=ev.margin;fyMarginCount++;}
-      });
-    });
-    const fyAvgROI=fyROICount>0?(fyROISum/fyROICount):null;
-    const fyAvgMargin=fyMarginCount>0?(fyMarginSum/fyMarginCount):null;
+    const fyRange=_monthlyPeriodResolve('fy:'+fy);
+    const fySummary=_performancePeriodSummary(fyRange.from,fyRange.to,fyRange.label);
+    const fyProfit=fySummary.netProfit,fySold=fySummary.pnl.soldCount||0;
+    const fyNetMargin=fySummary.netMargin;
     const fyLabel=_getFYLabelHTML(fy);
     const profitColor=fyProfit>0?'var(--green)':fyProfit<0?'var(--red)':'var(--muted)';
     const chevronRot=isCollapsed?'-90deg':'0deg';
     const borderCol='var(--border)';
     const labelCol=isCurrentFY?'var(--accent)':'var(--text)';
     const currentBadge=isCurrentFY?'<span class="fy-current-badge" style="font-size:10px;font-weight:700;background:var(--accent);color:#000;border-radius:4px;padding:2px 7px;letter-spacing:0.5px;flex-shrink:0;">CURRENT</span>':'';
-    const roiSpan=fyAvgMargin!==null?'<span style="color:var(--text-secondary)">'+fyAvgMargin.toFixed(1)+'% avg margin</span>':'';
+    const netMarginSpan=fyNetMargin!==null?'<span data-fy-net-margin style="color:var(--text-secondary)" title="Net profit divided by net revenue, after refunds and all costs">'+fyNetMargin.toFixed(1)+'% net margin</span>':'';
 
     let gridHTML='';
     {
@@ -15207,8 +15212,8 @@ function renderMonthlyGrid(){
       +'<div style="display:flex;align-items:center;gap:20px;">'
       +'<div style="display:flex;gap:16px;align-items:center;font-size:13px;">'
       +'<span class="fy-stat-hide" style="color:var(--text-secondary)">'+fySold+' sold</span>'
-      +(roiSpan?roiSpan.replace('<span ','<span class="fy-stat-hide" '):'')
-      +'<span style="font-weight:700;color:'+profitColor+'">'+fmt(fyProfit)+'</span>'
+      +(netMarginSpan?netMarginSpan.replace('<span ','<span class="fy-stat-hide" '):'')
+      +'<span data-fy-net-profit title="Net profit after all costs" style="font-weight:700;color:'+profitColor+'">'+fmt(fyProfit)+'</span>'
       +'</div>'
       +'<span data-fy-chevron="'+fy+'" style="font-size:14px;color:var(--muted);transition:transform 0.2s;display:inline-block;transform:rotate('+chevronRot+');">▾</span>'
       +'</div></div>'
@@ -19286,6 +19291,18 @@ function _costSearchMatch(record,kind){
     .join(' ').toLocaleLowerCase();
   return words.every(word=>text.includes(word));
 }
+function toggleCostMonth(month){
+  if(!/^\d{4}-\d{2}$/.test(month))return;
+  const section=document.querySelector('#cost-ledger [data-cost-month="'+month+'"]');
+  const button=section&&section.querySelector('.cost-month-toggle');
+  const rows=section&&section.querySelector('.cost-month-rows');
+  if(!button||!rows)return;
+  const expanded=button.getAttribute('aria-expanded')!=='true';
+  _costMonthExpanded[month]=expanded;
+  button.setAttribute('aria-expanded',String(expanded));
+  rows.hidden=!expanded;
+  // Keep the mounted list, focus and scroll context; a disclosure is not a render.
+}
 function searchCosts(value){
   COST_SEARCH=value;COST_SELECTED.clear();renderExpenses(true);
 }
@@ -19381,6 +19398,11 @@ function renderExpenses(listOnly){
   trips.forEach(function(t,origIdx){if(!_tripMatch(t))return;const k=_mKey(t.date);if(!mMap[k])mMap[k]={trips:[],expenses:[]};mMap[k].trips.push({t,origIdx});});
   expenses.forEach(function(e,idx){if(!_expMatch(e))return;const k=_mKey(e.date);if(!mMap[k])mMap[k]={trips:[],expenses:[]};mMap[k].expenses.push({e,idx});});
   const sortedMonths=Object.keys(mMap).sort((a,b)=>b.localeCompare(a));
+  const monthScope=JSON.stringify([_currentUserId,COST_PERIOD,COST_CAT_FILTER,_per.from,_per.to]);
+  if(monthScope!==_costMonthScope){_costMonthScope=monthScope;_costMonthExpanded=Object.create(null);}
+  // Single-month views need no disclosure. Never hide search results or rows
+  // covered by Select all; restore browsing choices when those modes finish.
+  const canCollapseMonths=sortedMonths.length>1&&!COST_SEARCH.trim()&&!COST_SELECTION_MODE;
   const _tripRow=function({t,origIdx}){
     const r=_tieredById[t.id]||{totalCost:0,mileageCost:0,expensesCost:0,isSplit:false,tier2Miles:0,ratePerMile:t.ratePerMile||0.45};
     const expCount=Array.isArray(t.expenses)?t.expenses.length:0;
@@ -19436,12 +19458,16 @@ function renderExpenses(listOnly){
       .concat(mE.map(x=>({date:x.e.date||'',kind:'exp',x})))
       .sort((a,b)=>b.date.localeCompare(a.date));
     const rows=items.map(it=>it.kind==='trip'?_tripRow(it.x):_expRow(it.x)).join('');
-    return `<div class="ledger-month">
-      <div class="ledger-month-label">
-        <span>${_fmtMK(mk)} <span class="lm-count">${rc} item${rc!==1?'s':''}</span></span>
-        <span class="lm-total">${mTot>0?'−'+fmt(mTot):'—'}</span>
-      </div>
-      ${rows}
+    const expanded=!canCollapseMonths||(_costMonthExpanded[mk]!==undefined?_costMonthExpanded[mk]:mk===sortedMonths[0]);
+    const rowsId='cost-month-rows-'+mk;
+    const heading=`<span class="cost-month-heading">${_fmtMK(mk)} <span class="lm-count">${rc} item${rc!==1?'s':''}</span></span>
+        <span class="lm-total">${mTot>0?'−'+fmt(mTot):'—'}</span>`;
+    const header=canCollapseMonths
+      ?`<button type="button" class="ledger-month-label cost-month-toggle" aria-expanded="${expanded}" aria-controls="${rowsId}" onclick="toggleCostMonth('${mk}')">${heading}<span class="cost-month-chevron" aria-hidden="true">▾</span></button>`
+      :`<div class="ledger-month-label">${heading}</div>`;
+    return `<div class="ledger-month" data-cost-month="${mk}">
+      ${header}
+      <div id="${rowsId}" class="cost-month-rows"${expanded?'':' hidden'}>${rows}</div>
     </div>`;
   }).join('');
 
