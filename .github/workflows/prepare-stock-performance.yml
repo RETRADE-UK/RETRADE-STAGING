@@ -41,14 +41,15 @@ jobs:
           echo "649d31e50db7fddaeb7c7b279ea585f56ef6205e734b6357f569639d05d0edfd  $PATCH_DIR/stock-performance-staging.patch" | sha256sum --check
           git apply --check --whitespace=error "$PATCH_DIR/stock-performance-staging.patch"
           git apply --index --whitespace=error "$PATCH_DIR/stock-performance-staging.patch"
+          git rm .github/workflows/prepare-stock-performance.yml
           python3 - <<'PY'
           import subprocess
           expected = {'assets/styles/workspaces.css','config/assets.js','docs/RUNTIME_MAP.md','index.html','package.json','src/core/application.js','src/features/charts/polish.js','tests/dashboard-chart-browser.cjs','tests/dashboard-chart-scale.cjs','tests/stock-performance-browser.cjs','tests/stock-performance.cjs'}
-          actual = set(subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines())
-          assert actual == expected, 'Unexpected patch scope'
+          actual = set(subprocess.check_output(['git','diff','--cached','--name-only','origin/main'],text=True).splitlines())
+          assert actual == expected, 'Final candidate must contain only the tested source changes; no release tooling'
           PY
           git diff --cached --check
-          git diff --cached --stat
+          git diff --cached --stat origin/main
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run check
@@ -61,7 +62,6 @@ jobs:
           test "$(git rev-parse origin/main)" = '404b9bf3c855fc3267c40df41e071d868b481f18'
           test "$(git rev-parse origin/fix/stock-performance-release-20261014)" = "$GITHUB_SHA"
           git diff --exit-code
-          git rm .github/workflows/prepare-stock-performance.yml
           git diff --cached --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
