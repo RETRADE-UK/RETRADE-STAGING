@@ -616,3 +616,33 @@ Finalize removes the obsolete SVG forecast label; no second dashboard hover
 listener or native title competes with the readout. Dashed bars, run-rate maths,
 refunds and tap-to-open behaviour retain their existing owners.
 The forecast-readout asset generation refreshes cached clients.
+
+### 14 October 2026 — compact Stock / Sales selection workflow
+
+Core owns the shared one-row selection toolbar, capability checks and batch
+commands; workspaces.css owns its responsive action menu. Stock exposes Mark
+sold / Unlist, with Platform, Bundle sale, Create Job Lot, Link purchase and
+Duplicate to stock under More. Sales exposes Undo sales / Duplicate to stock.
+Unlisted and Returned queues instead expose Duplicate / Create Job Lot.
+Mobile uses selected count / Actions / Done. Actions reserve space immediately;
+row selection updates in place and Select all follows the actual filtered rows.
+Destructive deletion and disposal stay on individual item pages.
+
+Sales selection keys identify sale/return events, including distinct cycles for
+the same item. The bundle renderers expose their IDs for in-place selection.
+Bulk undo only reverses the selected latest completed standalone sale, retaining
+costs, earlier return history and incurred relist fees. Refunds, grouped orders,
+archived/returned items and partner allocations require individual review.
+Confirmation rechecks the exact records; a changed record cancels the batch.
+Each successful batch uses the existing durable save owner once.
+
+Duplication shares the existing record builder. Batch copies are new Unlisted
+stock sourced today, with new item/part IDs and sequential names. Costs/photos/
+partner terms are retained; sale/return history, payments, old purchase/group/run
+links and cloud revision markers are cleared. Source records are untouched.
+No schema or accounting-engine changes. The bulk-selection cache generation
+refreshes both environments (staging retains its isolated binding).
+
+Synthetic Chromium/WebKit coverage exercises six widths, single-row controls,
+exact visible selection, independent sale cycles, batch cancellation, mixed
+eligibility, resale reversal, duplicate isolation, and keyboard menu dismissal.

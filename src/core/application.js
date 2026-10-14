@@ -12246,14 +12246,14 @@ async function withdrawSelectedStock(){
   if(_stockWithdrawPending)return;
   const ids=[...STOCK_SELECTED];
   const eligible=ids.filter(function(id){const r=_findItemRecordById(id);return r&&_canWithdrawStock(r.item);});
-  if(!eligible.length){toast('Select listed items to withdraw','err');return;}
+  if(!eligible.length){toast('Select listed items to unlist','err');return;}
   _stockWithdrawPending=true;
   try{
     const skipped=ids.length-eligible.length;
-    const ok=await showConfirm('Withdraw '+eligible.length+' listing'+(eligible.length===1?'':'s')+'?',
+    const ok=await showConfirm('Unlist '+eligible.length+' listing'+(eligible.length===1?'':'s')+'?',
       'Move to Unlisted in RETRADE. Current asking price, platform and postage settings are cleared. Costs, photos, notes and return history are kept. This does not end listings on selling platforms.'
       +(skipped?' '+skipped+' other selected item'+(skipped===1?' is':'s are')+' left unchanged.':''),
-      {okLabel:'Withdraw',danger:false,icon:'info'});
+      {okLabel:'Unlist',danger:false,icon:'info'});
     if(!ok)return;
     let changed=0;
     eligible.forEach(function(id){
@@ -12261,12 +12261,12 @@ async function withdrawSelectedStock(){
       // Recheck live state and lot membership after the confirmation.
       if(r&&_applyStockWithdrawal(r.item)){STOCK_SELECTED.delete(id);changed++;}
     });
-    if(!changed){toast('Those items are no longer eligible to withdraw','err');return;}
+    if(!changed){toast('Those items are no longer eligible to unlist','err');return;}
     await saveDB();
     STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;
     _goToSourcedStock();
     toast(changed+' item'+(changed===1?'':'s')+' moved to Unlisted'+(changed<eligible.length?' · changed records were skipped':''));
-  }catch(error){toast('Withdrawal could not finish saving. Check sync status before retrying.','err');console.error('[stock withdrawal]',error);}
+  }catch(error){toast('Unlisting could not finish saving. Check sync status before retrying.','err');console.error('[stock withdrawal]',error);}
   finally{_stockWithdrawPending=false;}
 }
 
@@ -12281,9 +12281,9 @@ function withdrawToSourced(m, id){
   if(!item){ toast('Item not found','error'); return; }
   if(item.state !== 'listed'){
     if(item.state==='sold'||item.state==='returned'){
-      toast('Cannot withdraw a '+item.state+' item — relist it first, then withdraw','error');
+      toast('Cannot unlist a '+item.state+' item — relist it first, then unlist','error');
     } else {
-      toast('Only listed items can be moved back to sourced','error');
+      toast('Only listed items can be moved to Unlisted','error');
     }
     return;
   }
@@ -12294,7 +12294,7 @@ function withdrawToSourced(m, id){
   // Confirmation modal — builds inline modal overlay
   const returnWarning = hasReturnHistory
     ? `<div style="background:var(--accent-dim);border:1px solid rgba(212,136,10,0.25);border-radius:8px;padding:10px 12px;margin:12px 0;font-size:12px;color:var(--warn)">
-        <strong>⚠ Note:</strong> This item was previously sold and returned. Withdrawing preserves the return history but clears the current listing.
+        <strong>⚠ Note:</strong> This item was previously sold and returned. Unlisting preserves the return history but clears the current listing.
       </div>` : '';
 
   const modalHtml = `
@@ -12302,7 +12302,7 @@ function withdrawToSourced(m, id){
          style="position:fixed;inset:0;background:var(--overlay);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;">
       <div onclick="event.stopPropagation()"
            style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;max-width:380px;width:100%;box-shadow:0 20px 60px var(--shadow-md);">
-        <div style="font-size:16px;font-weight:700;margin-bottom:4px;color:var(--text)">Move "${itemName}" back to sourced?</div>
+        <div style="font-size:16px;font-weight:700;margin-bottom:4px;color:var(--text)">Unlist "${itemName}"?</div>
         <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">The listing data will be cleared:</div>
         ${returnWarning}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;font-size:12px;">
@@ -12315,11 +12315,11 @@ function withdrawToSourced(m, id){
             <div style="color:var(--text-secondary);line-height:1.8">Cost &amp; name<br>Photo &amp; notes<br>Parts &amp; expenses<br>Date sourced<br>Category &amp; location</div>
           </div>
         </div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:18px">You can list it again any time.</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:18px">This moves it to Unlisted in RETRADE. End any external marketplace listing separately.</div>
         <div style="display:flex;gap:10px;justify-content:flex-end">
           <button class="btn btn-secondary" onclick="closeWithdrawModal()" style="min-width:80px">Cancel</button>
           <button class="btn btn-primary" onclick="confirmWithdrawToSourced('${srcMonth}','${id}')"
-                  style="min-width:80px;background:var(--accent)">Move</button>
+                  style="min-width:80px;background:var(--accent)">Unlist</button>
         </div>
       </div>
     </div>`;
@@ -12363,7 +12363,7 @@ function confirmWithdrawToSourced(m, id){
     if(idx !== -1){ srcMonth=k; item=DB[k][idx]; itemIdx=idx; }
   });
   if(!item || !_canWithdrawStock(item)){
-    toast('Item not found or no longer eligible to withdraw','error');
+    toast('Item not found or no longer eligible to unlist','error');
     return;
   }
   // Mutate in place — preserve id, gid, cost, name, notes, parts, photo,
@@ -12381,7 +12381,7 @@ function confirmWithdrawToSourced(m, id){
   // Refresh UI — close any open panel/item page, navigate to sourced view
   if(typeof closePanel === 'function') closePanel();
   _goToSourcedStock();
-  toast('Moved to sourced','success');
+  toast('Moved to Unlisted','success');
 }
 
 // Pre-save parts accumulator for Stock Quick Add form.
@@ -15644,22 +15644,8 @@ function renderMonth(){
       </select>
     </div>
 
-      <div class="list-toolbar">
-        ${SELECTION_MODE?`
-          <button class="sel-check" onclick="${SELECTED_ITEMS.size===visible.length?'SELECTED_ITEMS.clear();renderMonth()':'selectAllMonth()'}">
-            <span class="sel-check-box ${SELECTED_ITEMS.size===visible.length?'all':SELECTED_ITEMS.size>0?'some':''}">
-              ${SELECTED_ITEMS.size===visible.length?'\u2713':SELECTED_ITEMS.size>0?'\u2212':''}
-            </span>
-            <span style="color:${SELECTED_ITEMS.size>0?'var(--text)':'var(--text-secondary)'}">${SELECTED_ITEMS.size>0?SELECTED_ITEMS.size+' selected':'Select all'}</span>
-          </button>
-          ${SELECTED_ITEMS.size>0?`
-            <select class="bulk-ctrl bulk-plat-sel" data-source="month"><option value="">Platform</option>${Object.values(PLATFORMS).filter(p=>p.live).map(p=>`<option value="${p.id}">${p.short}</option>`).join('')}</select>
-            <button class="bulk-ctrl is-danger" onclick="bulkAction('delete')">${icon('trash',14)} Delete</button>
-          `:''}
-          <button class="sel-exit" onclick="toggleSelectionMode()">\u2715 Done</button>
-        `:`
-          <button class="select-toggle" ${visible.length?'':'disabled'} onclick="toggleSelectionMode()">Select</button>
-        `}
+      <div class="list-toolbar${SELECTION_MODE?' bulk-selection-toolbar month-selection-toolbar':''}">
+        ${SELECTION_MODE?_bulkSelectionToolbarHTML('month'):`<button class="select-toggle" ${visible.length?'':'disabled'} onclick="toggleSelectionMode()">Select</button>`}
       </div>
     </div>
     ${cAll===0?`
@@ -15681,6 +15667,7 @@ function renderMonth(){
     `}
   `;
   document.getElementById('p-monthly').innerHTML=html;
+  _refreshMonthSelection();
   _paintSelBar('month');
 }
 
@@ -15692,7 +15679,7 @@ function renderMonth(){
 function renderSaleEventRow(ev){
   const i=ev.item;
   const m=ev.month;
-  const selected=SELECTED_ITEMS.has(i.id);
+  const key=_monthEventKey(ev),selected=_monthEventSelected(ev);
   const status=ev.isReturnAdjustment?'returned':((Number(ev.sale)||1)>=2?'resold':'sold');
   const profit=ev.profit;
   const margin=ev.margin;
@@ -15734,12 +15721,12 @@ function renderSaleEventRow(ev){
   }
 
   const leftSlot=SELECTION_MODE
-    ?'<label class="item-checkbox-left" onclick="event.stopPropagation()"><input type="checkbox" '+(selected?'checked':'')+' onchange="toggleSelect(\''+i.id+'\')" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;margin-right:4px"></label>'
+    ?'<label class="item-checkbox-left" onclick="event.stopPropagation()"><input type="checkbox" '+(selected?'checked':'')+' onchange="toggleSelect(\''+key+'\')" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;margin-right:4px"></label>'
     :'<div class="status-dot '+status+'"></div>';
 
   // Row click — capture active page at click time so ← Back returns to correct page
   const rowClick=SELECTION_MODE
-    ?'onclick="toggleSelect(\''+i.id+'\')"'
+    ?'onclick="toggleSelect(\''+key+'\')"'
     :'onclick="openItemPage(\''+m+'\',\''+i.id+'\',document.querySelector(\'.page.on\').id)"';
 
   // Sale-event badge — prefix with sale number for clarity when item appears twice
@@ -15759,7 +15746,7 @@ function renderSaleEventRow(ev){
       '<button class="danger" onclick="event.stopPropagation();deleteItem(\''+m+'\',\''+i.id+'\')">'+icon('trash',14)+' Delete</button>'+
     '</div></div>';
 
-  return'<div class="item-row'+(selected?' selected':'')+'" '+rowClick+'>'+
+  return'<div data-sale-key="'+esc(key)+'" class="item-row'+(selected?' selected':'')+'" '+rowClick+'>'+
     '<div class="item-main">'+
       '<div class="item-row-inner">'+
         leftSlot+
@@ -15788,15 +15775,15 @@ function renderSaleEventRow(ev){
 // them into ONE combined row that taps through to openBundlePage (the combined
 // P&L). Display-only: month KPIs + selection totals still iterate the raw
 // per-item events, so nothing financial changes.
+function _bundleVisibleEvents(bid){return (window.__monthItems||[]).filter(function(ev){return !ev.isReturnAdjustment&&_eventBundleId(ev)===bid;});}
 function _bundleAllSelected(bid){
-  const ids=_bundleItems(bid).map(function(i){return i.id;});
-  return ids.length>0 && ids.every(function(id){return SELECTED_ITEMS.has(id);});
+  const events=_bundleVisibleEvents(bid);
+  return events.length>0&&events.every(_monthEventSelected);
 }
 function _toggleBundleSelect(bid){
-  const ids=_bundleItems(bid).map(function(i){return i.id;});
-  const all=_bundleAllSelected(bid);
-  ids.forEach(function(id){ if(all)SELECTED_ITEMS.delete(id); else SELECTED_ITEMS.add(id); });
-  renderMonth();
+  const events=_bundleVisibleEvents(bid),all=_bundleAllSelected(bid);
+  events.forEach(function(ev){const key=_monthEventKey(ev);if(all)SELECTED_ITEMS.delete(key);else SELECTED_ITEMS.add(key);});
+  _refreshMonthSelection();
 }
 function renderBundleSaleRow(bid, members){
   let rev=0, profit=0, dateSold='';
@@ -15823,7 +15810,7 @@ function renderBundleSaleRow(bid, members){
   const rowClick=SELECTION_MODE
     ?'onclick="_toggleBundleSelect(\''+bid+'\')"'
     :'onclick="openBundlePage(\''+bid+'\')"';
-  return '<div class="item-row bundle-row" '+rowClick+'>'+
+  return '<div data-sale-bundle="'+esc(bid)+'" class="item-row bundle-row" '+rowClick+'>'+
     '<div class="item-main">'+
       '<div class="item-row-inner">'+
         leftSlot+
@@ -16086,7 +16073,7 @@ function renderItemRow(m,i){
       (i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');moveReturnedToUnlisted(\''+m+'\',\''+i.id+'\')">'+icon('inbox',14)+' Move to Unlisted</button>':'')+
       (_canAddToJobLot(i)?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openAddToJobLot(\''+m+'\',\''+i.id+'\')" style="color:var(--purple)">'+icon('joblot',14)+' Add to Job Lot</button>':'')+
       (!i.isReturned&&!i.dateSold&&!i.resaleSalePrice?'<button onclick="event.stopPropagation();markSold(\''+m+'\',\''+i.id+'\')">' + '<svg width="14" height="14" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.5 1.5h4a1 1 0 011 1v4a.5.5 0 01-.15.35l-6 6a1 1 0 01-1.41 0l-4-4a1 1 0 010-1.41l6-6A.5.5 0 018.5 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="11" cy="4" r="0.8" fill="currentColor"/></svg> Mark Sold</button>':'')+
-      (!i.dateSold&&!i.resaleSalePrice&&i.state==='listed'?'<button onclick="event.stopPropagation();withdrawToSourced(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">'+icon('withdraw',14)+' Withdraw</button>':'')+
+      (!i.dateSold&&!i.resaleSalePrice&&i.state==='listed'?'<button onclick="event.stopPropagation();withdrawToSourced(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">'+icon('withdraw',14)+' Unlist</button>':'')+
       ((i.dateSold||i.resaleSalePrice)&&!i.isReturned?'<button onclick="event.stopPropagation();openReturn(\''+m+'\',' + "'"+i.id+"'"+')">'+icon('return',14)+' Log Return</button>':'')+
       '<button onclick="event.stopPropagation();confirmDupeItem(\''+m+'\',' + "'"+i.id+"'"+')">' + '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M3 11V3a1 1 0 011-1h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg> Duplicate</button>'+
       (_canScrap(i)?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');openScrapModal(\''+m+'\',\''+i.id+'\')" style="color:var(--warn)">'+icon('dispose',14)+' Dispose</button>':'')+
@@ -16323,72 +16310,163 @@ function openItemDetail(m,id,noHistory){
   openPanel(i.item,html,pushHistory);
 }
 
-function toggleSelect(id){
-  if(SELECTED_ITEMS.has(id)){SELECTED_ITEMS.delete(id);}else{SELECTED_ITEMS.add(id);}
-  renderMonth();
+// Selection actions share one row. Monthly keys identify the exact sale/return
+// event; stock keeps item IDs. Legacy item-ID callers remain readable.
+let _selectionActionPending=false;
+function _monthEventKey(ev){
+  const part=ev.isReturnAdjustment?'r:'+((ev.returnEntry&&ev.returnEntry.id)||ev.returnIndex):'s:'+ev.sale;
+  return encodeURIComponent(ev.item.id).replace(/'/g,'%27')+'|'+encodeURIComponent(part).replace(/'/g,'%27');
+}
+function _monthEventSelected(ev){return !!(ev&&ev.item&&(SELECTED_ITEMS.has(_monthEventKey(ev))||SELECTED_ITEMS.has(ev.item.id)));}
+function _selectedMonthEvents(){return (window.__monthItems||[]).filter(_monthEventSelected);}
+function _saleBulkUndoReason(ev){
+  if(!ev||ev.isReturnAdjustment)return 'Refunds and returns must be reviewed on the item page.';
+  const rec=_findItemRecordById(ev.item.id),i=rec&&rec.item,n=Number(ev.sale)||1;
+  if(!i)return 'The item is no longer available.';
+  if(_activeJobLotMembership(i.id)||_itemHasGroupedSale(i))return 'Grouped sales must be reversed from their order page.';
+  if((_saleReconciliations||[]).some(function(r){return r.attachedItemId===i.id||r.targetSaleItemId===i.id||(r.resultingAllocation||[]).some(function(a){return a.itemId===i.id;});}))return 'Reconciled sales must be reviewed on the item or order page.';
+  if(i.accountSettled||_hasSettlementHistoryForItem(i.id))return 'Review the recorded partner allocation or payment on the item page first.';
+  if(i.scrappedAt||i.isReturned)return 'Returned or archived items must be reviewed on the item page.';
+  const current=i.resaleSalePrice&&i.resaleDateSold?_currentResaleSaleNo(i):i.dateSold?1:0;
+  if(n!==current)return 'Only the latest completed sale can be undone. Open older sales on the item page.';
+  if((i.returnHistory||[]).some(function(r){return (Number(r.saleNo)||1)===n;}))return 'This sale has a refund or return. Review it on the item page first.';
+  const cycle=_saleCycleSnapshot(i,n);
+  if(!cycle||cycle.date!==ev.saleDate||cycle.price!==ev.salePrice)return 'The sale changed. Refresh the selection before continuing.';
+  return '';
+}
+function _bulkActionButton(ctx,action,label,ico,extra){
+  return '<button type="button" class="bulk-ctrl '+(extra||'')+'" data-'+ctx+'-action="'+action+'" disabled onclick="runSelectionAction(\''+ctx+'\',\''+action+'\')">'+icon(ico,14)+' '+label+'</button>';
+}
+function _bulkSelectionToolbarHTML(ctx){
+  const stock=ctx==='stock',onHand=stock&&['sourced','returned'].includes(STOCK_STATE_FILTER);
+  const primary=onHand
+    ?_bulkActionButton(ctx,'duplicate','Duplicate to stock','dupe')+_bulkActionButton(ctx,'joblot','Create Job Lot','joblot')
+    :stock
+    ?_bulkActionButton(ctx,'sold','Mark sold','sold','is-sold')+_bulkActionButton(ctx,'withdraw','Unlist','withdraw')
+    :_bulkActionButton(ctx,'undo','Undo sales','revert')+_bulkActionButton(ctx,'duplicate','Duplicate to stock','dupe');
+  const more=stock
+    ?(onHand?'':'<select aria-label="Change platform for selected stock" class="bulk-ctrl bulk-plat-sel" data-stock-action="platform" data-source="stock" disabled><option value="">🏪 Platform</option>'+Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){return '<option value="'+p.id+'">'+p.short+'</option>';}).join('')+'</select>'
+      +_bulkActionButton(ctx,'bundle','Bundle sale','sold')+_bulkActionButton(ctx,'joblot','Create Job Lot','joblot'))
+      +(typeof openPurchaseLink==='function'?_bulkActionButton(ctx,'purchase','Link purchase','expense'):'')
+      +(onHand?'':_bulkActionButton(ctx,'duplicate','Duplicate to stock','dupe'))
+    :'<p class="bulk-action-hint" data-month-selection-hint hidden></p>';
+  return '<button type="button" class="sel-check" role="checkbox" aria-label="Select all shown" aria-checked="false" onclick="'+(stock?'selectAllStockVisible()':'selectAllMonth()')+'"><span class="sel-check-box" aria-hidden="true"></span><span data-'+ctx+'-selection-count role="status">Select all</span></button>'
+    +'<div class="bulk-primary-actions">'+primary+'</div>'
+    +'<details class="bulk-actions-menu'+(stock?'':' bulk-mobile-menu')+'"><summary class="bulk-ctrl"><span class="bulk-more-label">More</span><span class="bulk-actions-label">Actions</span><span aria-hidden="true">⌄</span></summary><div class="bulk-actions-popover"><div class="bulk-mobile-actions">'+primary+'</div>'+more+'</div></details>'
+    +'<button type="button" class="sel-exit" onclick="'+(stock?'toggleStockSelection()':'toggleSelectionMode()')+'">Done</button>';
+}
+function _closeBulkMenus(){document.querySelectorAll('.bulk-actions-menu[open]').forEach(function(el){el.open=false;});}
+document.addEventListener('click',function(e){if(!e.target.closest('.bulk-actions-menu'))_closeBulkMenus();});
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape')return;
+  const menu=document.querySelector('.bulk-actions-menu[open]');
+  if(menu){e.preventDefault();e.stopPropagation();menu.open=false;menu.querySelector('summary').focus();}
+});
+function _refreshMonthSelection(){
+  if(!SELECTION_MODE)return;
+  const page=document.getElementById('p-monthly');if(!page)return;
+  const visible=window.__monthItems||[],keys=new Set(visible.map(_monthEventKey));
+  // Filters/search can never leave hidden rows queued for a later batch action.
+  [...SELECTED_ITEMS].forEach(function(k){if(!keys.has(k)&&!visible.some(function(ev){return ev.item.id===k;}))SELECTED_ITEMS.delete(k);});
+  page.querySelectorAll('[data-sale-key]').forEach(function(row){
+    const selected=SELECTED_ITEMS.has(row.dataset.saleKey);
+    row.classList.toggle('selected',selected);
+    const input=row.querySelector('.item-checkbox-left input');if(input)input.checked=selected;
+  });
+  page.querySelectorAll('[data-sale-bundle]').forEach(function(row){
+    const evs=_bundleVisibleEvents(row.dataset.saleBundle),all=evs.length>0&&evs.every(_monthEventSelected),some=evs.some(_monthEventSelected);
+    row.classList.toggle('selected',all);
+    const input=row.querySelector('.item-checkbox-left input');if(input){input.checked=all;input.indeterminate=some&&!all;}
+  });
+  const selected=_selectedMonthEvents(),all=visible.length>0&&visible.every(_monthEventSelected);
+  const checkbox=page.querySelector('.sel-check'),box=page.querySelector('.sel-check-box');
+  if(checkbox)checkbox.setAttribute('aria-checked',all?'true':selected.length?'mixed':'false');
+  if(box){box.classList.toggle('all',all);box.classList.toggle('some',!all&&selected.length>0);box.textContent=all?'✓':selected.length?'−':'';}
+  const count=page.querySelector('[data-month-selection-count]');if(count)count.textContent=selected.length?selected.length+' selected':'Select all';
+  const undo=selected.some(function(ev){return !_saleBulkUndoReason(ev);}),reason=selected.length&&!undo?_saleBulkUndoReason(selected[0]):'';
+  page.querySelectorAll('[data-month-action]').forEach(function(el){el.disabled=_selectionActionPending||!(el.dataset.monthAction==='undo'?undo:selected.length);el.title=el.dataset.monthAction==='undo'?reason:'';});
+  const hint=page.querySelector('[data-month-selection-hint]');if(hint){hint.textContent=reason;hint.hidden=!reason;}
+  _paintSelBar('month');
+}
+function _selectedBulkRecords(ctx){
+  const ids=ctx==='stock'?[...STOCK_SELECTED]:[...new Set(_selectedMonthEvents().map(function(ev){return ev.item.id;}))];
+  return ids.map(_findItemRecordById).filter(Boolean);
+}
+async function _undoSelectedSales(){
+  const events=_selectedMonthEvents(),eligible=events.filter(function(ev){return !_saleBulkUndoReason(ev);});
+  if(!eligible.length){toast(events.length?_saleBulkUndoReason(events[0]):'Select sales to undo','err');return;}
+  const reviewed=eligible.map(function(ev){return {ev:ev,before:JSON.stringify(_findItemRecordById(ev.item.id).item)};});
+  const total=eligible.reduce(function(sum,ev){const c=_saleCycleSnapshot(ev.item,ev.sale);return sum+c.price+c.postage;},0);
+  const skipped=events.length-eligible.length,reasons=[...new Set(events.map(_saleBulkUndoReason).filter(Boolean))];
+  const ok=await showConfirm('Undo '+eligible.length+' sale'+(eligible.length===1?'':'s')+'?',
+    'Remove '+fmt(total)+' in recorded sales and return '+eligible.length+' item'+(eligible.length===1?'':'s')+' to Listed. Item costs, photos, notes and earlier sale history are kept. This corrects sales recorded by mistake.'
+    +(skipped?' '+skipped+' selected record'+(skipped===1?' needs':'s need')+' individual review and will stay unchanged. '+reasons.join(' '):''),
+    {okLabel:'Undo sales',danger:false});
+  if(!ok)return;
+  if(reviewed.some(function(x){const r=_findItemRecordById(x.ev.item.id);return !r||JSON.stringify(r.item)!==x.before||_saleBulkUndoReason(x.ev);})){toast('A selected sale changed. Review the selection and try again.','err');return;}
+  reviewed.forEach(function(x){
+    const i=_findItemRecordById(x.ev.item.id).item;
+    if(Number(x.ev.sale)>1){
+      i.resaleSalePrice=null;i.resaleDateSold=null;i.resaleGrossProfit=null;
+      i.resalePostage=null;i.resaleShippingCost=null;i.resalePackagingCost=null;i.resalePromoPercent=null;
+    }else{i.dateSold=null;i.soldOnPlatform=null;i.salePlatform=null;}
+    i.state='listed';i.isReturned=false;i.grossProfit=null;
+    SELECTED_ITEMS.delete(_monthEventKey(x.ev));SELECTED_ITEMS.delete(i.id);
+  });
+  // One durable save captures all reversals together through the existing owner.
+  if(!SELECTED_ITEMS.size)SELECTION_MODE=false;
+  await saveDB();renderMonth();
+  toast(eligible.length+' sale'+(eligible.length===1?'':'s')+' undone · items returned to Listed');
+}
+async function _duplicateSelectedStock(ctx){
+  const records=_selectedBulkRecords(ctx);if(!records.length)return;
+  const reviewed=records.map(function(r){return {id:r.item.id,before:JSON.stringify(r.item)};});
+  const ok=await showConfirm('Duplicate '+records.length+' item'+(records.length===1?'':'s')+' to stock?',
+    'Create one new Unlisted copy per item, sourced today. Item details, costs, photos and partner terms are copied; sale history, payments and purchase/order links are cleared. Check the copies’ purchase details before listing. The originals stay unchanged.',
+    {okLabel:'Duplicate to stock',danger:false});
+  if(!ok)return;
+  if(reviewed.some(function(x){const r=_findItemRecordById(x.id);return !r||JSON.stringify(r.item)!==x.before;})){toast('A selected item changed. Review the selection and try again.','err');return;}
+  records.forEach(function(r){_duplicateItemRecord(r.month,r.item.id,{unlisted:true,freshStock:true});});
+  STOCK_SELECTED.clear();SELECTED_ITEMS.clear();STOCK_SELECTION_MODE=false;SELECTION_MODE=false;
+  await saveDB();_goToSourcedStock();toast(records.length+' new Unlisted cop'+(records.length===1?'y':'ies')+' created');
+}
+async function runSelectionAction(ctx,action){
+  if(_selectionActionPending)return;
+  _closeBulkMenus();_selectionActionPending=true;_refreshStockSelection();_refreshMonthSelection();
+  try{
+    if(action==='duplicate')return await _duplicateSelectedStock(ctx);
+    if(ctx==='month'){if(action==='undo')return await _undoSelectedSales();return;}
+    if(action==='withdraw')return await withdrawSelectedStock();
+    if(action==='sold'){
+      const rows=_selectedBulkRecords('stock');if(!rows.length||!_stockSelectionCapabilities().sold)return;
+      const reviewed=rows.map(function(r){return {id:r.item.id,before:JSON.stringify(r.item)};});
+      const total=rows.reduce(function(sum,r){return sum+(Number(r.item.salePrice)||0)+(Number(r.item.postage)||0);},0);
+      if(!await showConfirm('Mark '+rows.length+' item'+(rows.length===1?'':'s')+' sold?', 'Record '+fmt(total)+' in sales today using each item’s current asking price and buyer postage. Use the item page if the agreed price or sale date differs.',{okLabel:'Mark sold',danger:false}))return;
+      if(reviewed.some(function(x){const r=_findItemRecordById(x.id);return !r||JSON.stringify(r.item)!==x.before;})||!_stockSelectionCapabilities().sold){toast('The selection changed. Review it before marking sold.','err');return;}
+      return await stockBulkAction('sold');
+    }
+    const caps=_stockSelectionCapabilities();if(!caps[action])return;
+    if(action==='bundle')openBundleSaleModal();
+    else if(action==='joblot')openCreateJobLotFromSelection();
+    else if(action==='purchase'&&typeof openPurchaseLink==='function')openPurchaseLink();
+  }catch(error){toast('The action could not finish saving. Check sync status before retrying.','err');console.error('[bulk action]',error);}
+  finally{_selectionActionPending=false;_refreshStockSelection();_refreshMonthSelection();}
 }
 
+function toggleSelect(key){
+  if(!SELECTION_MODE)return;
+  if(SELECTED_ITEMS.has(key))SELECTED_ITEMS.delete(key);else SELECTED_ITEMS.add(key);
+  _refreshMonthSelection();
+}
 function toggleSelectionMode(){
   SELECTION_MODE=!SELECTION_MODE;
-  if(!SELECTION_MODE)SELECTED_ITEMS.clear();
+  SELECTED_ITEMS.clear();
   renderMonth();
 }
-
 function selectAllMonth(){
-  // Select all items visible in current filter
-  // Session B: filter set is now sold | all | returned, driven by sale events.
-  const events=getSaleEventsInMonth(SELECTED_MONTH);
-  let visible=events;
-  if(MONTH_FILTER==='sold')visible=events.filter(e=>!e.isReturnAdjustment);
-  else if(MONTH_FILTER==='returned')visible=events.filter(e=>e.isReturnAdjustment);
-  const allSelected=visible.length>0&&visible.every(e=>SELECTED_ITEMS.has(e.item.id));
-  if(allSelected){visible.forEach(e=>SELECTED_ITEMS.delete(e.item.id));}
-  else{visible.forEach(e=>SELECTED_ITEMS.add(e.item.id));}
-  renderMonth();
-}
-
-async function bulkAction(action){
-  if(action==='sold'){
-    const today=new Date().toISOString().split('T')[0];
-    let changed=0,relistedSkipped=0,protectedSkipped=0,invalidSkipped=0;
-    SELECTED_ITEMS.forEach(function(id){
-      const rec=_findItemRecordById(id),item=rec&&rec.item;
-      if(!item){invalidSkipped++;return;}
-      if(_activeJobLotMembership(id)){protectedSkipped++;return;}
-      if(!_lifecycleCan(item,'markSold')){invalidSkipped++;return;}
-      if(_itemHasPriorFullReturn(item)){relistedSkipped++;return;}
-      item.dateSold=today;item.isReturned=false;item.state='sold';
-      if(!item.soldOnPlatform)item.soldOnPlatform=_itemPlatform(item);
-      item.grossProfit=calcGrossProfit(item);changed++;
-    });
-    if(!changed){
-      const msg=relistedSkipped?'Relisted items must be sold individually so Sale 2+ is recorded correctly':protectedSkipped?'Selected item is managed through a Job Lot':'No selected listed items can be sold';
-      toast(msg,'err');return;
-    }
-    saveDB();SELECTED_ITEMS.clear();SELECTION_MODE=false;
-    let msg='Marked '+changed+' item'+(changed===1?'':'s')+' as sold';
-    if(relistedSkipped)msg+=' · skipped '+relistedSkipped+' relisted item'+(relistedSkipped===1?'':'s');
-    if(protectedSkipped)msg+=' · skipped '+protectedSkipped+' Job Lot item'+(protectedSkipped===1?'':'s');
-    toast(msg);renderMonth();
-  }else if(action==='delete'){
-    const grouped=[...SELECTED_ITEMS].filter(function(id){const r=_findItemRecordById(id);return !!(r&&_itemHasGroupedSale(r.item));});
-    if(grouped.length){toast('Grouped-order items can’t be deleted individually. Correct the grouped order first.','err');return;}
-    const ok=await showConfirm('Delete '+SELECTED_ITEMS.size+' items?','This cannot be undone.',{icon:'delete',okLabel:'Delete all'});
-    if(!ok)return;
-    SELECTED_ITEMS.forEach(function(id){
-      const rec=_findItemRecordById(id);
-      if(rec){
-        const snap=JSON.parse(JSON.stringify(rec.item));
-        _pushActivity(snap.id,snap.item||'',_actStatus(snap),'deleted',snap,rec.month,'user-delete');
-        const fresh=_findItemRecordById(id);
-        if(fresh)DB[fresh.month].splice(fresh.index,1);
-      }
-    });
-    saveDB();
-    SELECTED_ITEMS.clear();SELECTION_MODE=false;
-    toast('Items deleted');
-    renderMonth();
-  }
+  const visible=window.__monthItems||[],all=visible.length>0&&visible.every(_monthEventSelected);
+  visible.forEach(function(ev){const key=_monthEventKey(ev);if(all)SELECTED_ITEMS.delete(key);else SELECTED_ITEMS.add(key);});
+  _refreshMonthSelection();
 }
 
 // STOCK PAGE
@@ -16475,36 +16553,25 @@ function toggleStockGroup(key){
 function _stockSelectionCapabilities(){
   const rows=[...STOCK_SELECTED].map(function(id){const r=_findItemRecordById(id);return r&&r.item;}).filter(Boolean);
   const listed=rows.length>0&&rows.every(function(i){return _canWithdrawStock(i)&&!_itemHasPriorFullReturn(i);});
-  return {sold:listed,bundle:listed&&rows.length>1,platform:rows.length>0&&rows.every(_canWithdrawStock),purchase:rows.length>0,
+  return {sold:listed,bundle:listed&&rows.length>1,platform:rows.length>0&&rows.every(_canWithdrawStock),purchase:rows.length>0,duplicate:rows.length>0,
     joblot:rows.length>0&&rows.every(function(i){return _canAddToJobLot(i);}),
-    withdraw:rows.some(_canWithdrawStock),dispose:rows.some(function(i){return _canScrap(i)&&!_activeJobLotMembership(i.id);}),
-    delete:rows.length>0&&rows.every(function(i){return !_activeJobLotMembership(i.id)&&!_itemHasGroupedSale(i);})};
+    withdraw:rows.some(_canWithdrawStock)};
 }
-function _stockSelectionToolbarHTML(){
-  return '<div class="stock-selection-heading">'
-    +'<button class="sel-check" onclick="selectAllStockVisible()"><span class="sel-check-box"></span><span data-stock-selection-count>Select all</span></button>'
-    +'<button class="sel-exit" onclick="toggleStockSelection()">× Done</button></div>'
-    +'<div class="stock-selection-actions">'
-    +'<button class="bulk-ctrl is-sold" data-stock-action="sold" disabled onclick="stockBulkAction(\'sold\',window.__stockItems||[])">'+icon('sold',14)+' Mark Sold</button>'
-    +'<button class="bulk-ctrl" data-stock-action="bundle" disabled onclick="openBundleSaleModal()">'+icon('sold',14)+' Bundle sale</button>'
-    +'<select aria-label="Change platform for selected stock" class="bulk-ctrl bulk-plat-sel" data-stock-action="platform" data-source="stock" disabled><option value="">🏪 Platform</option>'+Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){return '<option value="'+p.id+'">'+p.short+'</option>';}).join('')+'</select>'
-    +'<button class="bulk-ctrl" data-stock-action="joblot" disabled onclick="openCreateJobLotFromSelection()">'+icon('joblot',14)+' Job Lot</button>'
-    +'<button class="bulk-ctrl" data-stock-action="withdraw" disabled onclick="stockBulkAction(\'withdraw\',window.__stockItems||[])">'+icon('withdraw',14)+' Withdraw</button>'
-    +'<button class="bulk-ctrl" data-stock-action="dispose" disabled onclick="openStockBulkDispose()">'+icon('dispose',14)+' Dispose</button>'
-    +(typeof openPurchaseLink==='function'?'<button class="bulk-ctrl" data-stock-action="purchase" disabled onclick="openPurchaseLink()">Link purchase</button>':'')
-    +'<button class="bulk-ctrl is-danger" data-stock-action="delete" disabled onclick="stockBulkAction(\'delete\',window.__stockItems||[])">'+icon('trash',14)+' Delete</button></div>';
-}
+function _stockSelectionToolbarHTML(){return _bulkSelectionToolbarHTML('stock');}
 function _refreshStockSelection(){
   if(!STOCK_SELECTION_MODE)return;
   const page=document.getElementById('p-stock');if(!page)return;
+  const shownIds=new Set((window.__stockItems||[]).map(function(i){return i.id;}));
+  [...STOCK_SELECTED].forEach(function(id){if(!shownIds.has(id))STOCK_SELECTED.delete(id);});
   page.querySelectorAll('[data-stock-item]').forEach(function(row){
     const selected=STOCK_SELECTED.has(row.dataset.stockItem);
     row.classList.toggle('selected',selected);
     const input=row.querySelector('input[type="checkbox"]');if(input)input.checked=selected;
   });
   const caps=_stockSelectionCapabilities();
-  page.querySelectorAll('[data-stock-action]').forEach(function(control){control.disabled=!caps[control.dataset.stockAction];});
+  page.querySelectorAll('[data-stock-action]').forEach(function(control){control.disabled=_selectionActionPending||!caps[control.dataset.stockAction];});
   const visible=window.__stockItems||[],all=visible.length>0&&visible.every(function(i){return STOCK_SELECTED.has(i.id);});
+  const check=page.querySelector('.sel-check');if(check)check.setAttribute('aria-checked',all?'true':STOCK_SELECTED.size?'mixed':'false');
   const box=page.querySelector('.sel-check-box');if(box){box.classList.toggle('all',all);box.classList.toggle('some',!all&&STOCK_SELECTED.size>0);box.textContent=all?'✓':STOCK_SELECTED.size?'−':'';}
   const count=page.querySelector('[data-stock-selection-count]');if(count)count.textContent=STOCK_SELECTED.size?STOCK_SELECTED.size+' selected':'Select all';
   _paintSelBar('stock');
@@ -17515,17 +17582,9 @@ async function bulkChangePlatform(platId, source){
   if(!platId||!PLATFORMS[platId])return;
   const label=PLATFORMS[platId].label;
 
-  // Sales History edits the ACTUAL sale-cycle platform, matching the individual
-  // receipt platform pickers. Selection is item-id based today, so if two rows
-  // for the same item are visibly selected (e.g. Sale 1 + current resale), each
-  // visible sale cycle is corrected once. Return-adjustment rows resolve back to
-  // their parent sale cycle rather than carrying an independent platform.
+  // Legacy callers still use this entry; selected rows resolve per sale cycle.
   if(source==='month'){
-    const ids=new Set([...SELECTED_ITEMS].map(function(id){return String(id);}));
-    if(!ids.size)return;
-    const events=(window.__monthItems||[]).filter(function(ev){
-      return ev&&ev.item&&ids.has(String(ev.item.id));
-    });
+    const events=_selectedMonthEvents();
     if(!events.length){toast('No selected sale events to update','err');return;}
 
     const seen=new Set();
@@ -17726,14 +17785,14 @@ function _paintSelBar(ctx){
     else if(STOCK_SEARCH){entries=all;mode='filtered';}
   } else { pageId='p-monthly';
     const all=window.__monthItems||[];
-    if(SELECTION_MODE&&SELECTED_ITEMS.size>0){entries=all.filter(function(e){return e.item&&SELECTED_ITEMS.has(e.item.id);});mode='selected';}
+    if(SELECTION_MODE){entries=all.filter(_monthEventSelected);mode='selected';}
     else if(MONTH_SEARCH){entries=all;mode='filtered';}
   }
   // v2.21.19 — append to <body>, NOT the page: .page.on runs a transform
   // animation (pageFade), which makes it the containing block for this
   // position:fixed bar and clips it below the fold / misaligns it on desktop.
   let bar=document.getElementById('sel-totals-bar');
-  if(!entries||(!entries.length&&!(ctx==='stock'&&mode==='selected'))){ if(bar)bar.remove(); document.body.classList.remove('rt-selbar-on'); return; }
+  if(!entries||(!entries.length&&mode!=='selected')){ if(bar)bar.remove(); document.body.classList.remove('rt-selbar-on'); return; }
   const html=_selTotalsBarInner(_selectionTotals(entries),ctx,mode);
   if(!bar){ bar=document.createElement('div'); bar.id='sel-totals-bar'; bar.className='sel-totals-bar'; document.body.appendChild(bar); }
   bar.innerHTML=html;
@@ -17760,6 +17819,7 @@ function _liveMonthSearch(q){
   window.__monthItems=shown;
   if(el)el.innerHTML=shown.length?_renderMonthList(shown):('<div class="inlist-empty">No sales match \u201c'+esc(q)+'\u201d</div>');
   const cnt=document.getElementById('month-search-count'); if(cnt)cnt.textContent=q?(shown.length+' of '+base.length):'';
+  _refreshMonthSelection();
   _paintSelBar('month');
 }
 function _selClear(ctx){ if(ctx==='stock'){STOCK_SEARCH='';renderStock();} else {MONTH_SEARCH='';renderMonth();} }
@@ -18199,7 +18259,7 @@ function _renderStockCore(){
             <select aria-label="Sort stock" class="sort-select" onchange="setStockSort(this.value)">${sortHTML}</select>
           </div>`;
       })():''}
-      <div class="list-toolbar${STOCK_SELECTION_MODE?' stock-selection-toolbar':''}">
+      <div class="list-toolbar${STOCK_SELECTION_MODE?' stock-selection-toolbar bulk-selection-toolbar':''}">
         ${STOCK_SELECTION_MODE?_stockSelectionToolbarHTML():`<button class="select-toggle" onclick="toggleStockSelection()">Select</button>`}
       </div>
       </div>
@@ -22440,14 +22500,15 @@ function confirmDupeItem(m,id){
     {okLabel:'Duplicate',danger:false,icon:'info'}
   ).then(function(ok){if(ok)duplicateItem(m,id);});
 }
-function duplicateItem(m,id,context){
+function _duplicateItemRecord(m,id,options){
+  options=options||{};
   const item=(DB[m]||[]).find(i=>i.id===id);
   if(!item)return;
   const copy=JSON.parse(JSON.stringify(item));
   copy.id=_newId('dup');
   copy.purchaseGroupId=null;copy.purchaseGroupName=null;
   copy.gid='R-'+String(getNextGID()).padStart(4,'0');
-  const copyUnlisted=_itemLifecycleState(item)==='sourced';
+  const copyUnlisted=!!options.unlisted||_itemLifecycleState(item)==='sourced';
   copy.dateListed=copyUnlisted?null:new Date().toISOString().split('T')[0];
   // v2.09.2 — Force a clean "active listing" state. Previously only dateSold /
   // grossProfit / isReturned were cleared, so duplicating a sold-then-relisted
@@ -22473,7 +22534,8 @@ function duplicateItem(m,id,context){
   copy.resaleShippingCost=null;copy.resalePostage=null;
   copy.resalePackagingCost=null;copy.resalePromoPercent=null;
   copy.refreshHistory=[];copy._lastRelistAt=null;copy._lastRefreshAt=null;
-  copy.accountPaidAmount=null;
+  copy.accountPaidAmount=options.freshStock?item.accountPaidAmount:null;
+  delete copy._cloudUpdatedAt;
   delete copy.supplierRefund;delete copy.supplierRefundDate;
   delete copy.purchaseId;delete copy.purchaseAllocationId;
   // Child records must have their own IDs, never overwrite the source parts.
@@ -22497,8 +22559,23 @@ function duplicateItem(m,id,context){
   copy.copySeq=maxSeq+1;
   copy.item=baseName+' - '+copy.copySeq;
   if(!Array.isArray(DB[m])) DB[m]=[];
-  DB[m].push(copy);saveDB();
-  toast('Duplicated');
+  if(options.freshStock){
+    copy.purchaseGroupId=null;copy.purchaseGroupName=null;
+    copy.dateSourced=_todayISO();copy.sourcingRunId=null;
+    copy.estSalePrice=Number(item.resaleSalePrice||item.salePrice||item.estSalePrice)||0;
+    _WITHDRAW_CLEAR_FIELDS.forEach(function(f){copy[f]=null;});
+    ['salePrice','shippingCost','postage','packagingCost','promoPercent'].forEach(function(f){copy[f]=0;});
+    copy.parts.forEach(function(part){part.date=copy.dateSourced;});
+  }
+  const target=options.freshStock?currentMonthKey():m;
+  if(!Array.isArray(DB[target]))DB[target]=[];
+  DB[target].push(copy);
+  return copy;
+}
+function duplicateItem(m,id,context){
+  const copy=_duplicateItemRecord(m,id);if(!copy)return;
+  const copyUnlisted=copy.state==='sourced';
+  saveDB();toast('Duplicated');
   if(context==='panel'){
     openItemDetail(m,copy.id);
     return;
@@ -23074,7 +23151,7 @@ function _stepBackTitle(i){
   // listing. Stepping back must undo that relist, never withdraw it to sourced.
   const rr=_latestRelistedReturnRef(i);
   if(_itemLifecycleState(i)==='listed'&&rr)return 'Undo relist';
-  if(i.state==='listed')return 'Back to sourced';
+  if(i.state==='listed')return 'Unlist';
   return null;
 }
 function stepBack(m,id){

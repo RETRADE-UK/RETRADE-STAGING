@@ -16,15 +16,18 @@ const {chromium}=require('playwright');const {open,settled}=require('./startup-b
    await page.waitForFunction(()=>!document.querySelector('#p-stock').hasAttribute('aria-busy'));
    await page.locator('#p-stock .select-toggle').click();
    const actions=page.locator('#p-stock [data-stock-action]');
-   assert((await actions.count())>=7,'Every action has space before the first selection');
-   for(const control of await actions.all()){assert(await control.isVisible());assert(await control.isDisabled());}
+   for(const control of await actions.all())assert(await control.isDisabled());
    assert(await page.locator('#sel-totals-bar').isVisible(),'Zero selected totals reserve their space too');
-   const formats=await actions.evaluateAll(els=>els.map(e=>{const s=getComputedStyle(e);return {height:e.getBoundingClientRect().height,radius:s.borderRadius,font:s.fontSize,weight:s.fontWeight};}));
-   formats.forEach(f=>assert.deepEqual(f,formats[0],'All stock actions share control format'));
+   const menu=page.locator('#p-stock .bulk-actions-menu');
+   await menu.locator('summary').click();
    const platform=page.locator('[data-stock-action="platform"]');
    assert.equal(await platform.locator('option').first().innerText(),'🏪 Platform');
    assert.equal(await platform.evaluate(e=>getComputedStyle(e).textAlignLast),'center');
    assert(await platform.evaluate(e=>{const s=getComputedStyle(e);return s.paddingLeft===s.paddingRight;}),'Platform label is centred within symmetric padding');
+   const formats=await page.locator('#p-stock [data-stock-action]:visible').evaluateAll(els=>els.map(e=>{const s=getComputedStyle(e);return {height:e.getBoundingClientRect().height,radius:s.borderRadius,font:s.fontSize,weight:s.fontWeight};}));
+   formats.forEach(f=>assert.deepEqual(f,formats[0],'Bulk actions share control format'));
+   await menu.locator('summary').click();
+   const unlist=async()=>{if(width<600)await menu.locator('summary').click();await page.locator('[data-stock-action="withdraw"]:visible').click();};
 
    const row=id=>page.locator('[data-stock-item="'+id+'"]');
    await row('a').evaluate(e=>e.scrollIntoView({block:'center',behavior:'instant'}));await page.waitForTimeout(80);
@@ -37,7 +40,7 @@ const {chromium}=require('playwright');const {open,settled}=require('./startup-b
    assert(after.same,'Selecting must not rebuild the stock rows');
    assert(Math.abs(before.y-after.y)<=1&&Math.abs(before.scroll-after.scroll)<=1,'First selection does not push the list or scroll: '+JSON.stringify({width,before,after}));
    assert.equal(after.toolbar,before.toolbar,'Toolbar height is already reserved');
-   assert(await page.locator('[data-stock-action="withdraw"]').isEnabled());
+   assert(await page.locator('[data-stock-action="withdraw"]').first().isEnabled());
    assert(await page.locator('[data-stock-action="bundle"]').isDisabled());
    await row('b').locator('input').check();
    assert(await page.locator('[data-stock-action="bundle"]').isEnabled());
@@ -45,9 +48,9 @@ const {chromium}=require('playwright');const {open,settled}=require('./startup-b
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Toolbar fits '+width+'px');
    await row('c').locator('input').check();
    const baseline=await page.evaluate(()=>JSON.stringify(DB));
-   await page.locator('[data-stock-action="withdraw"]').click();
+   await unlist();
    await page.locator('#confirm-cancel').click();assert.equal(await page.evaluate(()=>JSON.stringify(DB)),baseline,'Cancel makes no changes');
-   await page.locator('[data-stock-action="withdraw"]').click();
+   await unlist();
    assert((await page.locator('#confirm-msg').innerText()).includes('1 other selected item'));
    await page.locator('#confirm-ok').click();
    await page.waitForFunction(()=>STOCK_STATE_FILTER==='sourced'&&!STOCK_SELECTION_MODE);
