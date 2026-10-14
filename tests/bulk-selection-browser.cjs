@@ -98,7 +98,7 @@ async function action(page,name){
    await menu.locator('summary').focus();await page.keyboard.press('Enter');
    assert(await menu.evaluate(e=>e.open));
    const bounds=await menu.locator('.bulk-actions-popover').boundingBox();assert(bounds.x>=0&&bounds.x+bounds.width<=width+1);
-   assert(bounds.y>=0&&bounds.y+bounds.height<=(width<=600?640:1000)+1,'Actions fit vertically');
+   assert(bounds.y>=0&&bounds.y+bounds.height<=(width<=600?640:1000)+1,'Actions fit vertically: '+JSON.stringify({width,bounds}));
    await page.keyboard.press('Escape');assert(!(await menu.evaluate(e=>e.open)));
    await menu.locator('summary').click();await page.locator('#p-stock .sel-exit').click();assert.equal(await page.locator('#p-stock .bulk-selection-toolbar').count(),0);
    if(process.env.RETRADE_CAPTURE){await page.locator('#p-stock .select-toggle').click();fs.mkdirSync(process.env.RETRADE_CAPTURE,{recursive:true});await page.locator('#p-stock .rt-list-controls').screenshot({path:process.env.RETRADE_CAPTURE+'/bulk-stock-'+width+'.png'});}

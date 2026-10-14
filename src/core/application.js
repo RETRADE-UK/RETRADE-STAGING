@@ -16352,8 +16352,14 @@ function _bulkSelectionToolbarHTML(ctx){
     :'<p class="bulk-action-hint" data-month-selection-hint hidden></p>';
   return '<button type="button" class="sel-check" role="checkbox" aria-label="Select all shown" aria-checked="false" onclick="'+(stock?'selectAllStockVisible()':'selectAllMonth()')+'"><span class="sel-check-box" aria-hidden="true"></span><span data-'+ctx+'-selection-count role="status">Select all</span></button>'
     +'<div class="bulk-primary-actions">'+primary+'</div>'
-    +'<details class="bulk-actions-menu'+(stock?'':' bulk-mobile-menu')+'" ontoggle="_positionBulkMenu(this)"><summary class="bulk-ctrl"><span class="bulk-more-label">More</span><span class="bulk-actions-label">Actions</span><span aria-hidden="true">⌄</span></summary><div class="bulk-actions-popover"><div class="bulk-mobile-actions">'+primary+'</div>'+more+'</div></details>'
+    +'<details class="bulk-actions-menu'+(stock?'':' bulk-mobile-menu')+'" ontoggle="_positionBulkMenu(this)"><summary class="bulk-ctrl" onclick="_toggleBulkMenu(event,this)"><span class="bulk-more-label">More</span><span class="bulk-actions-label">Actions</span><span aria-hidden="true">⌄</span></summary><div class="bulk-actions-popover"><div class="bulk-mobile-actions">'+primary+'</div>'+more+'</div></details>'
     +'<button type="button" class="sel-exit" onclick="'+(stock?'toggleStockSelection()':'toggleSelectionMode()')+'">Done</button>';
+}
+function _toggleBulkMenu(event,summary){
+  event.preventDefault();
+  const menu=summary.closest('details');menu.open=!menu.open;
+  // Position synchronously; the native toggle event is queued after opening.
+  _positionBulkMenu(menu);
 }
 function _positionBulkMenu(menu){
   if(!menu.open)return;
