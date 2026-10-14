@@ -431,7 +431,7 @@
 @media(max-width:600px){.rt #p-stock .stock-selection-actions{grid-template-columns:repeat(2,minmax(0,1fr));}}
 
 /* Native platform picker shares the centred label and spacing of bulk buttons. */
-.rt #p-stock .stock-selection-actions select.bulk-ctrl{display:block;text-align:center;text-align-last:center;padding:0 28px;background-image:var(--control-caret);background-position:right 10px center;}
+.rt #p-stock .stock-selection-actions select.bulk-ctrl{display:block;text-align:center;text-align-last:center;padding:0 28px;background-image:var(--control-caret);background-repeat:no-repeat;background-size:12px 12px;background-position:right 10px center;}
 .rt #p-stock .stock-selection-actions select.bulk-ctrl option{text-align:start;}
 /* Legible credential fields avoid iOS focus zoom without affecting workspace inputs. */
 #auth-overlay form input{font-size:16px!important;}

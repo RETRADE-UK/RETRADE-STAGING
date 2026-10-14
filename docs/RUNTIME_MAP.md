@@ -597,3 +597,12 @@ cover 320/390/1440px controls. Cache: 20261014-login-autofill-stock-format
 
 References: Apple enabling-password-autofill-on-an-html-input-element and
 https://web.dev/articles/sign-in-form-best-practices (form submission and removal).
+
+
+## Stock Platform arrow — 14 October 2026
+
+`workspaces.css` explicitly renders the native Platform picker's background
+caret once at 12px, vertically centred 10px from the right edge. This overrides
+the toolbar background shorthand that reset the original no-repeat setting.
+The centred label, storefront icon and native selection behaviour are retained.
+Cache generation: `20261014-platform-arrow` (staging adds `-staging`).
