@@ -606,3 +606,13 @@ caret once at 12px, vertically centred 10px from the right edge. This overrides
 the toolbar background shorthand that reset the original no-repeat setting.
 The centred label, storefront icon and native selection behaviour are retained.
 Cache generation: `20261014-platform-arrow` (staging adds `-staging`).
+
+### 14 October 2026 — contained dashboard forecast readout
+
+Dashboard polish passes the existing numeric forecast into the core scrubber.
+Its one HTML tooltip shows actuals and month-end projections together and stays
+inside the SVG's visible bounds, accounting for card padding and the legend.
+Finalize removes the obsolete SVG forecast label; no second dashboard hover
+listener or native title competes with the readout. Dashed bars, run-rate maths,
+refunds and tap-to-open behaviour retain their existing owners.
+The forecast-readout asset generation refreshes cached clients.

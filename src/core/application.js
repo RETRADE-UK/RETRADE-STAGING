@@ -14105,12 +14105,17 @@ function _setupChartScrub(svgEl,ctx){
   const extraTooltipData=Array.isArray(ctx.extraTooltipData)?ctx.extraTooltipData:null;
   const extraTooltipLabel=ctx.extraTooltipLabel||'Gross Profit';
   const extraTooltipColor=ctx.extraTooltipColor||'var(--text-secondary)';
+  const forecast=ctx.forecast||null;
+  const containTooltip=!!ctx.containTooltip;
   const parent=svgEl.parentElement;
   if(!parent)return;
   const cs=getComputedStyle(parent);
   if(cs.position==='static')parent.style.position='relative';
   let tip=parent.querySelector('.rt-chart-scrub-tip');
   if(!tip){tip=document.createElement('div');tip.className='rt-chart-scrub-tip';tip.style.display='none';parent.appendChild(tip);}
+  tip.classList.toggle('rt-chart-scrub-tip--contained',containTooltip);
+  tip.style.display='none';
+  tip.style.top='';tip.style.maxWidth='';
   const scrubG=svgEl.querySelector('.rt-chart-scrub');
   if(!scrubG)return;
   const sLine=scrubG.querySelector('.rt-scrub-line');
@@ -14154,14 +14159,36 @@ function _setupChartScrub(svgEl,ctx){
       else{sTert.style.display='none';}
     }
     scrubG.style.display='';
+    const showForecast=forecast&&idx===forecast.index;
     tip.innerHTML=
-      '<div class="tip-period">'+esc(labels[idx])+'</div>'
+      '<div class="tip-period">'+esc(labels[idx])+(showForecast?' · Actual so far':'')+'</div>'
       +'<div class="tip-row"><span class="tip-dot" style="background:'+primaryColor+'"></span>'+primaryLabel+' <strong>'+fmtMoneyTip(r)+'</strong></div>'
       +'<div class="tip-row"><span class="tip-dot" style="background:'+secondaryColor+'"></span>'+secondaryLabel+' <strong>'+fmtMoneyTip(p)+'</strong></div>'
       +(extraTooltipData?'<div class="tip-row"><span class="tip-dot" style="background:'+extraTooltipColor+'"></span>'+extraTooltipLabel+' <strong>'+fmtMoneyTip(extraTooltipData[idx]||0)+'</strong></div>':'')
       +(tertiaryData&&tv!==0?'<div class="tip-row"><span class="tip-dot" style="background:'+tertiaryColor+'"></span>'+tertiaryLabel+(tertiaryCounts&&Number(tertiaryCounts[idx])>0?' ('+Number(tertiaryCounts[idx])+')':'')+' <strong>−'+fmtMoneyTip(tv)+'</strong></div>':'');
+    if(showForecast){
+      tip.innerHTML+='<div class="tip-forecast"><div class="tip-period">Forecast · month end</div>'
+        +'<div class="tip-row"><span class="tip-dot tip-dot--forecast" style="color:'+primaryColor+'"></span><span>'+esc(primaryLabel)+'</span><strong>'+fmtMoneyTip(forecast.rev)+'</strong></div>'
+        +'<div class="tip-row"><span class="tip-dot tip-dot--forecast" style="color:'+secondaryColor+'"></span><span>'+esc(secondaryLabel)+'</span><strong>'+fmtMoneyTip(forecast.profit)+'</strong></div></div>';
+    }
     tip.style.display='block';
     const rect=svgEl.getBoundingClientRect();
+    if(containTooltip){
+      // The SVG can be inset by the card's padding/legend. Position in the
+      // parent's coordinate space, and keep the one readout inside the plot.
+      const bounds=parent.getBoundingClientRect();
+      const insetX=rect.left-bounds.left-parent.clientLeft+parent.scrollLeft;
+      const insetY=rect.top-bounds.top-parent.clientTop+parent.scrollTop;
+      const minLeft=insetX+6,maxRight=insetX+rect.width-6;
+      tip.style.maxWidth=Math.max(0,rect.width-12)+'px';
+      const tipW=tip.offsetWidth;
+      const anchor=insetX+(cx/W)*rect.width;
+      let left=anchor+14;
+      if(left+tipW>maxRight)left=anchor-tipW-14;
+      tip.style.left=Math.max(minLeft,Math.min(maxRight-tipW,left))+'px';
+      tip.style.top=(insetY+6)+'px';
+      return;
+    }
     const cssX=(cx/W)*rect.width;
     const tipW=tip.offsetWidth||140;
     let left=cssX-tipW/2;
