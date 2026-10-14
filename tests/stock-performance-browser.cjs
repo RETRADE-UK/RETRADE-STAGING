@@ -22,8 +22,8 @@ const {chromium}=require('playwright');const {open,settled}=require('./startup-b
    await menu.locator('summary').click();
    const platform=page.locator('[data-stock-action="platform"]');
    assert.equal(await platform.locator('option').first().innerText(),'🏪 Platform');
-   assert.equal(await platform.evaluate(e=>getComputedStyle(e).textAlignLast),'center');
-   assert(await platform.evaluate(e=>{const s=getComputedStyle(e);return s.paddingLeft===s.paddingRight;}),'Platform label is centred within symmetric padding');
+   assert.equal(await platform.evaluate(e=>getComputedStyle(e).textAlignLast),'left');
+   assert(await platform.evaluate(e=>{const s=getComputedStyle(e),other=e.closest('.bulk-actions-popover').querySelector('button.bulk-ctrl');return s.paddingLeft===getComputedStyle(other).paddingLeft;}),'Platform uses the same left inset as the other menu actions');
    const formats=await page.locator('#p-stock [data-stock-action]:visible').evaluateAll(els=>els.map(e=>{const s=getComputedStyle(e);return {height:e.getBoundingClientRect().height,radius:s.borderRadius,font:s.fontSize,weight:s.fontWeight};}));
    formats.forEach(f=>assert.deepEqual(f,formats[0],'Bulk actions share control format'));
    await menu.locator('summary').click();

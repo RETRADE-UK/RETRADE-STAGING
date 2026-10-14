@@ -647,3 +647,10 @@ refreshes both environments (staging retains its isolated binding).
 Synthetic Chromium/WebKit coverage exercises six widths, single-row controls,
 exact visible selection, independent sale cycles, batch cancellation, mixed
 eligibility, resale reversal, duplicate isolation, and keyboard menu dismissal.
+
+### 14 October 2026 — Platform menu alignment
+
+The native Platform picker in the bulk action menu uses the same left inset
+as the other action icons and labels. Its single caret stays at the right edge.
+The existing picker behaviour is unchanged. Static cache generation:
+`20261014-platform-menu-alignment` (staging adds `-staging`).

@@ -432,7 +432,7 @@
 .rt .bulk-actions-menu>summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 .rt .bulk-actions-popover{position:absolute;right:0;top:calc(100% + 6px);width:246px;max-width:calc(100vw - 48px);max-height:min(430px,65vh);overflow-y:auto;overscroll-behavior:contain;z-index:250;display:flex;flex-direction:column;gap:6px;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 32px #0003;}
 .rt .bulk-actions-popover .bulk-ctrl{width:100%;min-width:0;justify-content:flex-start;padding:0 12px;}
-.rt .bulk-actions-popover select.bulk-ctrl{display:block;text-align:center;text-align-last:center;padding:0 28px;background-image:var(--control-caret);background-repeat:no-repeat;background-size:12px 12px;background-position:right 10px center;}
+.rt :is(#p-stock,#p-monthly) .bulk-actions-popover select.bulk-ctrl{display:block;text-align:left;text-align-last:left;padding:0 28px 0 12px;background-image:var(--control-caret);background-repeat:no-repeat;background-size:12px 12px;background-position:right 10px center;}
 .rt .bulk-actions-popover select.bulk-ctrl option{text-align:start;}
 .rt .bulk-actions-label,.rt .bulk-mobile-actions,.rt .bulk-mobile-menu{display:none;}
 .rt .bulk-action-hint{font-size:12px;line-height:1.5;color:var(--text-secondary);margin:4px 6px;}
