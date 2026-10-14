@@ -3,7 +3,7 @@
  *
  * Small visual corrections only:
  * - Current FY keeps the dashboard current-month forecast shell; other dashboard ranges stay actual-only.
- * - Current FY forecast text is contextual only: hover on desktop, press-and-hold near September on touch.
+ * - Current FY actuals and month-end forecast share one hover/touch readout.
  * - 30-day daily bars keep extra breathing room and quieter outlines on small screens.
  * - Refund legend remains a true event dot.
  * - Sales forecast keeps only the dotted projection + hollow end points; forecast text appears contextually near Sep on hover/touch.
@@ -62,18 +62,14 @@
 #p-summary svg.rt-dense-daily-bars .rt-chart-profit-bar{stroke-width:.5!important;stroke-opacity:.44!important;}\
 /* Forecast labels stay out of the plot until the user asks for them. */\
 #p-summary .rt-chart-forecast-label{display:none!important;}\
-#p-summary .rt-dashboard-hover-forecast,\
 #p-monthly .rt-sales-hover-forecast{pointer-events:none;opacity:0;transition:opacity 120ms ease-out;}\
-#p-summary .rt-dashboard-hover-forecast.is-visible,\
 #p-monthly .rt-sales-hover-forecast.is-visible{opacity:1;}\
-#p-summary .rt-dashboard-hover-forecast rect,\
 #p-monthly .rt-sales-hover-forecast rect{fill:var(--surface-1);stroke:var(--border);stroke-width:1;vector-effect:non-scaling-stroke;}\
-#p-summary .rt-dashboard-hover-forecast text,\
 #p-monthly .rt-sales-hover-forecast text{fill:var(--text-secondary);font-family:var(--font-body);font-weight:650;letter-spacing:.01em;}\
 /* Sales projection: dotted continuation + hollow destination points do the visual work. */\
 #p-monthly .rt-sales-forecast-layer .rt-sales-actual-dot{display:none!important;}\
 #p-monthly .rt-sales-forecast-layer .rt-sales-forecast-label{display:none!important;}\
-@media(prefers-reduced-motion:reduce){#p-summary .rt-dashboard-hover-forecast,#p-monthly .rt-sales-hover-forecast{transition:none;}}';
+@media(prefers-reduced-motion:reduce){#p-monthly .rt-sales-hover-forecast{transition:none;}}';
     document.head.appendChild(s);
   }
 
@@ -136,69 +132,11 @@
     return {group:g,W:W};
   }
 
-  function installDashboardForecastHold(svgEl,label,shells){
-    if(!svgEl||!label||!shells||!shells.length)return;
-    if(svgEl.__rtDashboardForecastCleanup){try{svgEl.__rtDashboardForecastCleanup();}catch(_){}svgEl.__rtDashboardForecastCleanup=null;}
-    var prior=svgEl.querySelector('.rt-dashboard-hover-forecast');if(prior)prior.remove();
-
-    var revShell=null;
-    Array.prototype.some.call(shells,function(shell){
-      if(!shell.classList.contains('rt-chart-profit-bar')){revShell=shell;return true;}
-      return false;
-    });
-    revShell=revShell||shells[0];
-    var x=num(revShell.getAttribute('x'))+num(revShell.getAttribute('width'))/2;
-    var topY=Infinity;
-    Array.prototype.forEach.call(shells,function(shell){topY=Math.min(topY,num(shell.getAttribute('y')));});
-    if(!isFinite(topY))topY=30;
-
-    label=String(label||'').replace(/^month\s+forecast\s+/i,'Forecast ').trim();
-    var bubble=buildContextBubble(svgEl,'rt-dashboard-hover-forecast',label,x,topY),g=bubble.group,W=bubble.W;
-    var threshold=Math.max(34,Math.min(58,W*.09));
-    var holdTimer=0,startX=0,startY=0,holding=false;
-
-    function near(clientX){var px=svgPointX(svgEl,clientX);return isFinite(px)&&Math.abs(px-x)<=threshold;}
-    function show(){g.classList.add('is-visible');holding=true;}
-    function hide(){g.classList.remove('is-visible');holding=false;}
-    function cancelHold(){if(holdTimer){clearTimeout(holdTimer);holdTimer=0;}}
-    function onPointerMove(e){
-      if(!e||!isFinite(e.clientX))return;
-      if(e.pointerType==='mouse'){
-        g.classList.toggle('is-visible',near(e.clientX));
-        return;
-      }
-      if(holdTimer&&Math.hypot((e.clientX||0)-startX,(e.clientY||0)-startY)>10)cancelHold();
-    }
-    function onPointerDown(e){
-      if(!e||!isFinite(e.clientX)||!near(e.clientX))return;
-      if(e.pointerType==='mouse'){show();return;}
-      cancelHold();startX=e.clientX||0;startY=e.clientY||0;
-      holdTimer=setTimeout(function(){holdTimer=0;show();},240);
-    }
-    function onPointerUp(){cancelHold();if(holding)setTimeout(hide,80);}
-    function onPointerLeave(){cancelHold();hide();}
-    svgEl.addEventListener('pointermove',onPointerMove,{passive:true});
-    svgEl.addEventListener('pointerdown',onPointerDown,{passive:true});
-    svgEl.addEventListener('pointerup',onPointerUp,{passive:true});
-    svgEl.addEventListener('pointercancel',onPointerUp,{passive:true});
-    svgEl.addEventListener('pointerleave',onPointerLeave,{passive:true});
-    svgEl.__rtDashboardForecastCleanup=function(){
-      cancelHold();
-      svgEl.removeEventListener('pointermove',onPointerMove);
-      svgEl.removeEventListener('pointerdown',onPointerDown);
-      svgEl.removeEventListener('pointerup',onPointerUp);
-      svgEl.removeEventListener('pointercancel',onPointerUp);
-      svgEl.removeEventListener('pointerleave',onPointerLeave);
-    };
-  }
-
   function cleanDashboardForecast(svgEl){
     if(!svgEl)return;
-    var labelEl=svgEl.querySelector('.rt-chart-forecast-label');
-    var label=labelEl?String(labelEl.textContent||'').trim():'';
-    if(labelEl)labelEl.remove();
-    var shells=svgEl.querySelectorAll('.rt-chart-forecast-shell');
-    if(label&&shells.length)installDashboardForecastHold(svgEl,label,shells);
+    // Dashboard actuals and the numeric forecast share the HTML scrub readout.
+    // A separate SVG label can be covered by that readout or clipped by the card.
+    Array.prototype.forEach.call(svgEl.querySelectorAll('.rt-chart-forecast-label,.rt-dashboard-hover-forecast'),function(el){el.remove();});
   }
 
   function installSalesForecastHover(svgEl,label,rings){

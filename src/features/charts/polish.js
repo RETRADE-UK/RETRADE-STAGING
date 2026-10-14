@@ -296,7 +296,11 @@
 
     var hitGroups=svgEl.querySelectorAll('.rt-chart-col');
     Array.prototype.forEach.call(hitGroups,function(g,i){
-      if(i>=n)return;var hit=g.querySelector('rect');
+      if(i>=n)return;
+      // The HTML readout owns hover values; avoid a second native tooltip.
+      var title=g.querySelector('title');
+      if(title){g.setAttribute('aria-label',title.textContent);title.remove();}
+      var hit=g.querySelector('rect');
       if(hit){hit.setAttribute('x',(pad.l+i*bandW).toFixed(1));hit.setAttribute('width',bandW.toFixed(1));}
     });
     var skip=Math.max(1,Math.ceil(n/Math.max(1,opts.maxXLabels||n))),labelIndices=[];
@@ -323,7 +327,9 @@
       tertiaryData:refunds,tertiaryColor:opts.tertiaryColor||'var(--red)',
       tertiaryLabel:opts.tertiaryLabel||'Refunds',
       tertiaryCounts:Array.isArray(opts.tertiaryCounts)?opts.tertiaryCounts:null,
-      tertiaryEvents:false,tertiaryEventY:NaN
+      tertiaryEvents:false,tertiaryEventY:NaN,
+      containTooltip:true,
+      forecast:forecast?{index:n-1,rev:forecast.rev,profit:forecast.profit}:null
     });
 
     var shouldDraw=(drawBefore===undefined)||(drawBefore!==opts.drawKey);
