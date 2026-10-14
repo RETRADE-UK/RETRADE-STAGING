@@ -572,3 +572,28 @@ No tax/accounting-engine rules, boundaries, database schema or user data changed
 Verification: tests/stock-performance.cjs, tests/stock-performance-browser.cjs
 and the chart scale/browser suites. All records are synthetic. New static
 generation: 20261013-stock-performance-polish (staging adds -staging).
+
+## Credential forms and Stock control formatting — 14 October 2026
+
+Core owns auth-screen switching and completion. Sign-in has its own POST form,
+submit button, stable username/password names and explicit username/current-password
+hints. Signup/recovery retain new-password hints. Hidden auth steps are inert and
+disabled. Successful authentication removes all credential forms from the document
+without rewriting submitted input types or values; only pristine HTML is retained
+for later sign-out. Passwords are never stored by the app. Session persistence and
+Supabase verification remain with the existing auth owner.
+
+Fake credential fields are removed. The workspace guard excludes the whole auth
+overlay, runs immediately even after a deferred load, and treats newly inserted
+form controls as ordinary data across routes and lazy panels. Searches use search
+input types. Browser password managers ultimately control save/autofill prompts;
+synthetic Chromium/WebKit tests verify form semantics and isolation, not iCloud
+Keychain UI or physical iPhone behaviour.
+
+Stock retains the native Platform picker with a storefront icon, centred text and
+symmetric padding. Button geometry and eligibility are unchanged. Regression checks
+cover 320/390/1440px controls. Cache: 20261014-login-autofill-stock-format
+(staging adds -staging).
+
+References: Apple enabling-password-autofill-on-an-html-input-element and
+https://web.dev/articles/sign-in-form-best-practices (form submission and removal).
