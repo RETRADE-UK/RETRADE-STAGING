@@ -24,7 +24,7 @@ async function action(page,name){
  const browser=await (isWebkit?webkit:chromium).launch({headless:true,...(!isWebkit&&process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{}),args:isWebkit?[]:['--no-sandbox']});
  try{
   for(const width of [320,390,600,768,944,1440]){
-   const {page,context,errors}=await open(browser,{signedIn:true,mobile:width<=600});await settled(page);await page.setViewportSize({width,height:1000});await page.waitForTimeout(220);await seed(page);
+   const {page,context,errors}=await open(browser,{signedIn:true,mobile:width<=600});await settled(page);await page.setViewportSize({width,height:width<=600?640:1000});await page.waitForTimeout(220);await seed(page);
    await page.locator('#p-monthly .select-toggle').click();
    const toolbar=page.locator('.month-selection-toolbar');
    const checkLayout=async()=>{
@@ -98,9 +98,16 @@ async function action(page,name){
    await menu.locator('summary').focus();await page.keyboard.press('Enter');
    assert(await menu.evaluate(e=>e.open));
    const bounds=await menu.locator('.bulk-actions-popover').boundingBox();assert(bounds.x>=0&&bounds.x+bounds.width<=width+1);
+   assert(bounds.y>=0&&bounds.y+bounds.height<=(width<=600?640:1000)+1,'Actions fit vertically');
    await page.keyboard.press('Escape');assert(!(await menu.evaluate(e=>e.open)));
    await menu.locator('summary').click();await page.locator('#p-stock .sel-exit').click();assert.equal(await page.locator('#p-stock .bulk-selection-toolbar').count(),0);
    if(process.env.RETRADE_CAPTURE){await page.locator('#p-stock .select-toggle').click();fs.mkdirSync(process.env.RETRADE_CAPTURE,{recursive:true});await page.locator('#p-stock .rt-list-controls').screenshot({path:process.env.RETRADE_CAPTURE+'/bulk-stock-'+width+'.png'});}
+   await page.evaluate(()=>{STOCK_SELECTION_MODE=true;STOCK_STATE_FILTER='all';renderStock();});
+   const allMenu=page.locator('#p-stock .bulk-actions-menu');await allMenu.locator('summary').click();await page.waitForTimeout(30);
+   const allBounds=await allMenu.locator('.bulk-actions-popover').boundingBox();
+   assert(allBounds.y>=0&&allBounds.y+allBounds.height<=(width<=600?640:1000)+1,'Full Stock action menu stays inside short screens');
+   const lastAction=allMenu.locator('[data-stock-action="duplicate"]');await lastAction.scrollIntoViewIfNeeded();
+   assert(await allMenu.evaluate(e=>e.open),'Scrolling within the menu keeps it open');
    assert.deepEqual(errors,[]);await context.close();console.log('PASS bulk selection / undo / duplicate '+width+'px '+(isWebkit?'WebKit':'Chromium'));
   }
  }finally{await browser.close();}

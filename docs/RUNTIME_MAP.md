@@ -624,7 +624,8 @@ commands; workspaces.css owns its responsive action menu. Stock exposes Mark
 sold / Unlist, with Platform, Bundle sale, Create Job Lot, Link purchase and
 Duplicate to stock under More. Sales exposes Undo sales / Duplicate to stock.
 Unlisted and Returned queues instead expose Duplicate / Create Job Lot.
-Mobile uses selected count / Actions / Done. Actions reserve space immediately;
+Mobile uses selected count / Actions / Done. Menus open above or below the
+toolbar to fit the viewport; long menus scroll internally on short screens. Actions reserve space immediately;
 row selection updates in place and Select all follows the actual filtered rows.
 Destructive deletion and disposal stay on individual item pages.
 

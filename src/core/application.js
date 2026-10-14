@@ -16352,9 +16352,23 @@ function _bulkSelectionToolbarHTML(ctx){
     :'<p class="bulk-action-hint" data-month-selection-hint hidden></p>';
   return '<button type="button" class="sel-check" role="checkbox" aria-label="Select all shown" aria-checked="false" onclick="'+(stock?'selectAllStockVisible()':'selectAllMonth()')+'"><span class="sel-check-box" aria-hidden="true"></span><span data-'+ctx+'-selection-count role="status">Select all</span></button>'
     +'<div class="bulk-primary-actions">'+primary+'</div>'
-    +'<details class="bulk-actions-menu'+(stock?'':' bulk-mobile-menu')+'"><summary class="bulk-ctrl"><span class="bulk-more-label">More</span><span class="bulk-actions-label">Actions</span><span aria-hidden="true">⌄</span></summary><div class="bulk-actions-popover"><div class="bulk-mobile-actions">'+primary+'</div>'+more+'</div></details>'
+    +'<details class="bulk-actions-menu'+(stock?'':' bulk-mobile-menu')+'" ontoggle="_positionBulkMenu(this)"><summary class="bulk-ctrl"><span class="bulk-more-label">More</span><span class="bulk-actions-label">Actions</span><span aria-hidden="true">⌄</span></summary><div class="bulk-actions-popover"><div class="bulk-mobile-actions">'+primary+'</div>'+more+'</div></details>'
     +'<button type="button" class="sel-exit" onclick="'+(stock?'toggleStockSelection()':'toggleSelectionMode()')+'">Done</button>';
 }
+function _positionBulkMenu(menu){
+  if(!menu.open)return;
+  const panel=menu.querySelector('.bulk-actions-popover'),anchor=menu.querySelector('summary').getBoundingClientRect();
+  const below=Math.max(0,innerHeight-anchor.bottom-12),above=Math.max(0,anchor.top-12);
+  const upward=below<Math.min(panel.scrollHeight+2,430)&&above>below;
+  panel.style.maxHeight=Math.max(44,Math.min(430,Math.floor(upward?above:below)))+'px';
+  panel.style.top=upward?'auto':'calc(100% + 6px)';
+  panel.style.bottom=upward?'calc(100% + 6px)':'auto';
+}
+window.addEventListener('resize',function(){_closeBulkMenus();});
+window.addEventListener('scroll',function(e){
+  if(e.target.closest&&e.target.closest('.bulk-actions-popover'))return;
+  document.querySelectorAll('.bulk-actions-menu[open]').forEach(_positionBulkMenu);
+},{capture:true,passive:true});
 function _closeBulkMenus(){document.querySelectorAll('.bulk-actions-menu[open]').forEach(function(el){el.open=false;});}
 document.addEventListener('click',function(e){if(!e.target.closest('.bulk-actions-menu'))_closeBulkMenus();});
 document.addEventListener('keydown',function(e){
