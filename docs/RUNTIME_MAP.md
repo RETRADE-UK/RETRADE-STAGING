@@ -541,3 +541,34 @@ and desktop, as well as sparse forecasts and redraws. All data is synthetic.
 Design reference: https://www.chartjs.org/docs/latest/axes/cartesian/linear.html#grace
 The 5% target and 10% rounding cap are RETRADE presentation choices; no new
 chart dependency is introduced.
+
+
+## Stock selection and Performance reconciliation — 13 October 2026
+
+The chart geometry owner (`src/features/charts/polish.js`) keeps 5% positive
+headroom with bounded money rounding, now refining through 5/10 increments.
+Only a regular grid is labelled: no extra irregular terminal tick. A £70 peak
+uses a £75 ceiling with £0/£25/£50/£75 ticks. Plot bounds and labelled ticks are
+separate; a large sale cannot force a jump to the next coarse grid interval.
+
+Core remains the owner of duplicate creation, withdrawal, and Stock selection.
+Unlisted duplicates retain their state and no listing date/fee. A copy gets a
+new identity and independent part IDs, clears completed-sale/settlement data,
+and chooses a numbered name across all month buckets using persisted titles.
+Staging's separate purchase-group resets and Link purchase action remain.
+
+Stock reserves all bulk actions and its zero-selection totals from entry.
+Eligibility only enables/disables controls. Checkbox changes update existing
+rows instead of replacing the list. Bulk withdrawal shares the single-item
+reset, confirms scope, rechecks live eligibility/lot membership after confirmation,
+and uses the existing durable save path. It does not end marketplace listings.
+
+Performance's monthly cards, monthly chart and drill-down share dated components
+from the existing canonical FY summary, including the FY's motor-cost exclusion
+and removed-stock/write-off costs. Cost-only and return-only months remain visible.
+The FY headline is not replaced with the former incomplete monthly sum.
+No tax/accounting-engine rules, boundaries, database schema or user data changed.
+
+Verification: tests/stock-performance.cjs, tests/stock-performance-browser.cjs
+and the chart scale/browser suites. All records are synthetic. New static
+generation: 20261013-stock-performance-polish (staging adds -staging).

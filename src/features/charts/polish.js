@@ -51,10 +51,14 @@
     // Add 5% breathing room, independently of the much coarser grid step.
     // Prefer round hundreds, but refine the increment when rounding would add
     // more than 10% above the peak. One penny is the minimum money increment.
-    var target=Math.max(2,targetIntervals||3);
+    var target=Math.max(3,targetIntervals||3);
     var paddedMax=rawMax>0?rawMax*1.05:0;
     var unit=rawMax>=100?100:rawMax>=10?10:rawMax>=1?1:rawMax>=.1?.1:.01;
-    while(unit>.01&&Math.ceil((paddedMax-1e-9)/unit)*unit>rawMax*1.10+1e-9)unit/=10;
+    // Refine through 5/10 increments, not arbitrary pounds (e.g. 70 -> 75).
+    while(unit>.01&&Math.ceil((paddedMax-1e-9)/unit)*unit>rawMax*1.10+1e-9){
+      var magnitude=Math.pow(10,Math.floor(Math.log10(unit)+1e-9));
+      unit=Math.max(.01,unit/magnitude>2?magnitude:magnitude/2);
+    }
     var yMax=rawMax>0?Math.max(unit,Math.ceil((paddedMax-1e-9)/unit)*unit):0;
     yMax=Number(yMax.toFixed(2));
     var paddedMin=rawMin<0?rawMin*1.05:0;
@@ -65,13 +69,14 @@
       step=nextNiceStep(step);
       yMin=rawMin<0?Math.floor(paddedMin/step)*step:0;
     }
-    var ticks=[yMin],intervals=Math.ceil((yMax-yMin)/step);
-    for(var i=1;i<intervals;i++){
-      var tick=Number((yMin+i*step).toFixed(8));
-      // Keep the exact ceiling labelled without crowding it with a nearby tick.
-      if(tick<yMax&&(yMax-tick>=step*.5||Math.abs(tick)<step*.001))ticks.push(tick);
-    }
-    ticks.push(yMax);
+    // Prefer a regular ceiling when the next nice interval fits it exactly
+    // (75 -> 0,25,50,75), without extending the data domain.
+    var alternate=nextNiceStep(step),ratio=yMax/alternate;
+    if(yMin===0&&ratio>=3&&Math.abs(ratio-Math.round(ratio))<1e-8&&Math.abs(yMax/step-Math.round(yMax/step))>1e-8)step=alternate;
+    var ticks=[],intervals=Math.floor((yMax-yMin)/step+1e-9);
+    for(var i=0;i<=intervals;i++)ticks.push(Number((yMin+i*step).toFixed(8)));
+    // When the next regular tick would waste space, leave the small top gap
+    // unlabelled rather than adding an odd final tick such as £74 or £1.11k.
     return {min:yMin,max:yMax,step:step,ticks:ticks};
   }
   function fmtAxisMoney(v){
@@ -258,6 +263,9 @@
     var labelChars=scale.ticks.reduce(function(longest,v){return Math.max(longest,fmtAxisMoney(v).length);},0);
     pad.l=Math.max(pad.l,Math.ceil(fontSize*(labelChars*.65+.9)+4));
     innerW=W-pad.l-pad.r;bandW=innerW/Math.max(1,n);
+    svgEl.dataset.scaleMin=String(scale.min);
+    svgEl.dataset.scaleMax=String(scale.max);
+    svgEl.dataset.scaleStep=String(scale.step);
     var yRange=(scale.max-scale.min)||1;
     var sy=function(v){return pad.t+innerH-((num(v)-scale.min)/yRange)*innerH;};
 

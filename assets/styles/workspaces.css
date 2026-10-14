@@ -419,3 +419,13 @@
 .rt #p-expenses .cost-month-toggle[aria-expanded="false"] .cost-month-chevron{transform:rotate(-90deg);}
 .rt #p-expenses .cost-month-rows[hidden]{display:none!important;}
 .rt #p-expenses .ledger-month-label .lm-total{flex-shrink:0;}
+
+/* Stock selection reserves every action from entry; eligibility never moves rows. */
+.rt #p-stock .rt-list-controls>.stock-selection-toolbar:has(.sel-check){display:block;width:100%;min-width:0;}
+.rt #p-stock .stock-selection-heading{display:flex;align-items:center;justify-content:space-between;min-height:44px;margin-bottom:8px;}
+.rt #p-stock .stock-selection-heading .sel-check{min-width:132px;min-height:44px;}
+.rt #p-stock .stock-selection-heading .sel-exit{min-height:44px;margin-left:auto;}
+.rt #p-stock .stock-selection-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;}
+.rt #p-stock .stock-selection-actions .bulk-ctrl{width:100%;min-width:0;justify-content:center;padding:0 8px;}
+.rt #p-stock .stock-selection-actions [disabled]{opacity:.4;cursor:not-allowed;transform:none;}
+@media(max-width:600px){.rt #p-stock .stock-selection-actions{grid-template-columns:repeat(2,minmax(0,1fr));}}
