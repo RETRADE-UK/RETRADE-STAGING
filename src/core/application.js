@@ -2201,8 +2201,7 @@ function _pwMeter(inputId, wrapId){
 }
 function showSignupScreen(){
   var ov=document.getElementById('auth-overlay'); if(ov)ov.style.display='flex';
-  ['auth-screen-login','auth-screen-reset','auth-screen-newpass'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});
-  var su=document.getElementById('auth-screen-signup'); if(su)su.style.display='block';
+  _setAuthScreen('signup');
   var err=document.getElementById('signup-error'); if(err)err.style.display='none';
   setTimeout(function(){var e=document.getElementById('signup-name');if(e)e.focus();},60);
 }
@@ -2314,18 +2313,17 @@ async function doSignIn(){
 }
 
 function showForgotPassword(){
-  document.getElementById('auth-screen-login').style.display = 'none';
-  document.getElementById('auth-screen-reset').style.display = 'block';
-  // Pre-fill email if already typed on login screen
+  _ensureAuthScreens();
   const loginEmail = document.getElementById('auth-email').value.trim();
+  _setAuthScreen('reset');
+  // Pre-fill email if already typed on login screen.
   if(loginEmail) document.getElementById('reset-email').value = loginEmail;
   document.getElementById('reset-error').style.display = 'none';
-  setTimeout(()=>document.getElementById('reset-email').focus(), 50);
+  setTimeout(function(){const input=document.getElementById('reset-email');if(input&&!input.disabled)input.focus();},50);
 }
 
 function showLoginScreen(){
-  ['auth-screen-reset','auth-screen-signup','auth-screen-newpass'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});
-  document.getElementById('auth-screen-login').style.display = 'block';
+  _setAuthScreen('login');
   // Gate: hide dev bypass button unless this is a dev build
   const _pb = document.getElementById('preview-btn');
   if(_pb) _pb.style.display = PREVIEW_MODE_ENABLED ? 'block' : 'none';
@@ -2333,8 +2331,7 @@ function showLoginScreen(){
 
 function showNewPasswordScreen(){
   var ov=document.getElementById('auth-overlay'); if(ov)ov.style.display='flex';
-  ['auth-screen-login','auth-screen-reset'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});
-  var np=document.getElementById('auth-screen-newpass'); if(np)np.style.display='block';
+  _setAuthScreen('newpass');
   var err=document.getElementById('newpass-error'); if(err)err.style.display='none';
   setTimeout(function(){var e=document.getElementById('newpass-1');if(e)e.focus();},60);
 }
@@ -11046,7 +11043,7 @@ function openBulkAssignAccountModal(accountId){
     const items=_baAcctItems();
     const selCount=_baAcctSelected.size;
     let html='<div style="margin-bottom:10px;">'
-      +'<input type="text" id="ba-acct-search" value="'+esc(_baAcctSearch)+'" placeholder="Search items\u2026" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:12px;color:var(--text);" oninput="_baAcctSearchChange(this.value)">'
+      +'<input type="search" id="ba-acct-search" name="ba-acct-search" value="'+esc(_baAcctSearch)+'" placeholder="Search items\u2026" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:12px;color:var(--text);" oninput="_baAcctSearchChange(this.value)">'
       +'</div>';
     if(items.length===0){
       html+='<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px;">No items match</div>';
@@ -11305,7 +11302,7 @@ function openBulkAssignModal(runId){
       +'<option value="90d"'+((_baFilter==='90d')?' selected':'')+'>Last 90 days</option>'
       +'<option value="all"'+((_baFilter==='all')?' selected':'')+'>All time</option>'
       +'</select>'
-      +'<input type="text" id="ba-search" value="'+esc(_baSearch)+'" placeholder="Search\u2026" style="flex:1;min-width:100px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:12px;color:var(--text);" oninput="_baSearchChange(this.value,\''+runId+'\');">'
+      +'<input type="search" id="ba-search" name="ba-search" value="'+esc(_baSearch)+'" placeholder="Search\u2026" style="flex:1;min-width:100px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);font-size:12px;color:var(--text);" oninput="_baSearchChange(this.value,\''+runId+'\');">'
       +'</div>'
       // v2.19.26 — the escape hatch for a genuine re-tag. Off by default.
       +'<label style="display:flex;align-items:center;gap:7px;margin-bottom:10px;font-size:12px;color:var(--text-secondary);cursor:pointer;">'
@@ -16463,7 +16460,7 @@ function _stockSelectionToolbarHTML(){
     +'<div class="stock-selection-actions">'
     +'<button class="bulk-ctrl is-sold" data-stock-action="sold" disabled onclick="stockBulkAction(\'sold\',window.__stockItems||[])">'+icon('sold',14)+' Mark Sold</button>'
     +'<button class="bulk-ctrl" data-stock-action="bundle" disabled onclick="openBundleSaleModal()">'+icon('sold',14)+' Bundle sale</button>'
-    +'<select aria-label="Change platform for selected stock" class="bulk-ctrl bulk-plat-sel" data-stock-action="platform" data-source="stock" disabled><option value="">Platform</option>'+Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){return '<option value="'+p.id+'">'+p.short+'</option>';}).join('')+'</select>'
+    +'<select aria-label="Change platform for selected stock" class="bulk-ctrl bulk-plat-sel" data-stock-action="platform" data-source="stock" disabled><option value="">🏪 Platform</option>'+Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){return '<option value="'+p.id+'">'+p.short+'</option>';}).join('')+'</select>'
     +'<button class="bulk-ctrl" data-stock-action="joblot" disabled onclick="openCreateJobLotFromSelection()">'+icon('joblot',14)+' Job Lot</button>'
     +'<button class="bulk-ctrl" data-stock-action="withdraw" disabled onclick="stockBulkAction(\'withdraw\',window.__stockItems||[])">'+icon('withdraw',14)+' Withdraw</button>'
     +'<button class="bulk-ctrl" data-stock-action="dispose" disabled onclick="openStockBulkDispose()">'+icon('dispose',14)+' Dispose</button>'
@@ -17341,7 +17338,7 @@ function openLinkToSaleModal(m,id){
     ?'<div class="info-box" style="margin-bottom:12px;color:var(--warn)"><strong>Returned-item history found.</strong> If you choose a financial reconciliation, RETRADE will preserve the current record in Activity before converting this item into the historical order. If you are not certain, use <strong>Link only · needs review</strong>.</div>':'';
   const html=historyWarn
     +'<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.55;">Use this only to repair an older order that was recorded incompletely. Pick the sale this physical item really belonged to. You will choose how the old total should be treated <strong>before any money is changed</strong>.</div>'
-    +'<div class="fg"><input type="text" id="link-search" placeholder="Search sold items by name or ref…" autocomplete="off" oninput="_linkFilter(this.value)"></div>'
+    +'<div class="fg"><input type="search" id="link-search" name="link-search" placeholder="Search sold items by name or ref…" autocomplete="off" oninput="_linkFilter(this.value)"></div>'
     +'<div id="link-cands">'+_linkCandsHTML('')+'</div>';
   openPanel('Reconcile “'+esc(orphan.item||'item')+'” with a sale',html);
 }
@@ -17747,7 +17744,7 @@ function _inlistSearchHTML(ctx){
   const cnt = val?(shownN+' of '+base):'';
   return '<div class="inlist-search">'
     +'<span class="inlist-search-ic">'+_selSearchIco(15)+'</span>'
-    +'<input id="'+ctx+'-search-input" class="inlist-search-input" type="text" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" aria-label="Search '+(ctx==='stock'?'stock':'sales')+'" placeholder="Search '+(ctx==='stock'?'stock':'sales')+'\u2026" value="'+esc(val||'')+'" oninput="'+fn+'(this.value)">'
+    +'<input id="'+ctx+'-search-input" class="inlist-search-input" type="search" name="'+ctx+'-search" inputmode="search" enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" aria-label="Search '+(ctx==='stock'?'stock':'sales')+'" placeholder="Search '+(ctx==='stock'?'stock':'sales')+'\u2026" value="'+esc(val||'')+'" oninput="'+fn+'(this.value)">'
     +(val?'<button class="inlist-search-clear" onclick="_selClear(\''+ctx+'\')" title="Clear search">\u2715</button>':'')
     +'<span id="'+ctx+'-search-count" class="inlist-search-count">'+esc(cnt)+'</span>'
     +'</div>';
@@ -24488,24 +24485,34 @@ initCountry();
 // Show auth overlay while we check session. If already signed in, boot straight
 // into the app. If not, show the sign-in form.
 
-// Chrome scans the entire DOM for credential forms (type=password + email-like
-// field nearby) and offers autofill on ANY input that even loosely matches the
-// pattern. Hiding the auth overlay with display:none doesn't help — Chrome
-// still indexes hidden inputs. Swapping type/autocomplete off the inputs once
-// signed in removes the credential signal so the rest of the app's text/number
-// inputs don't trigger autofill or the "save password" toast.
+// Keep genuine credential forms isolated from the workspace. Preserve browser
+// submission semantics, then remove completed forms without changing their values
+// or input types first. Only pristine markup is retained for the next login.
+const _authScreenMarkup=Array.from(document.querySelectorAll('#auth-overlay > form')).map(function(form){return form.outerHTML;});
+function _ensureAuthScreens(){
+  const overlay=document.getElementById('auth-overlay');
+  if(overlay&&!document.getElementById('auth-screen-login'))overlay.insertAdjacentHTML('beforeend',_authScreenMarkup.join(''));
+}
+function _setAuthScreen(active){
+  _ensureAuthScreens();
+  document.querySelectorAll('#auth-overlay > form').forEach(function(form){
+    const shown=form.id==='auth-screen-'+active;
+    form.style.display=shown?'block':'none';form.inert=!shown;
+    form.querySelectorAll('input,button,select,textarea').forEach(function(control){control.disabled=!shown;});
+    if(!shown)form.querySelectorAll('input[autocomplete="current-password"],input[autocomplete="new-password"]').forEach(function(input){input.value='';});
+  });
+}
 function _neutralizeAuthInputs(){
-  const e = document.getElementById('auth-email');
-  const p = document.getElementById('auth-pass');
-  if(e){ e.type='text'; e.removeAttribute('autocomplete'); e.value=''; }
-  if(p){ p.type='text'; p.removeAttribute('autocomplete'); p.value=''; }
+  const forms=document.querySelectorAll('#auth-overlay > form');
+  if(!forms.length)return;
+  // Same-document navigation plus removal signals a completed SPA sign-in.
+  try{history.replaceState(history.state,'',location.href);}catch(e){}
+  forms.forEach(function(form){form.remove();});
 }
 function _restoreAuthInputs(){
-  const e = document.getElementById('auth-email');
-  const p = document.getElementById('auth-pass');
-  if(e){ e.type='email';    e.setAttribute('autocomplete','email'); }
-  if(p){ p.type='password'; p.setAttribute('autocomplete','current-password'); }
+  _setAuthScreen('login');
 }
+_setAuthScreen('login');
 
 (async function boot(){
   const overlay = document.getElementById('auth-overlay');
@@ -24515,9 +24522,7 @@ function _restoreAuthInputs(){
       overlay.classList.add('rt-auth-leaving');
       setTimeout(function(){overlay.style.display='none';overlay.classList.remove('rt-auth-leaving');},280);
     }else overlay.style.display = 'none';
-    // Neutralize auth inputs so Chrome's password manager doesn't detect them
-    // as a sign-in form anywhere in the app. Changing type away from
-    // password/email and stripping the autocomplete hints removes the signal.
+    // Completed credential forms must not remain attached to workspace fields.
     _neutralizeAuthInputs();
     document.getElementById('main-content').style.display = '';
     // v2.19.19 -- boot app shell. This replaces a hand-rolled `innerWidth > 600`
@@ -24786,26 +24791,8 @@ function exportForSupabase(){
 // Usage: open browser console and run: exportForSupabase()
 // Then paste the JSON into Supabase Table Editor > Import or use the REST API
 
-// Strategy: two-layer defence.
-//   Layer 1 — Honeypot fields injected into each input container.
-//   Layer 2 — Attribute sweep stamps every non-auth input with autocomplete=off.
-// Auth inputs (auth-email, auth-pass, reset-email) excluded from both layers.
-
-const _AUTOFILL_HONEYPOT = `
-  <input type="text" name="username_fake" tabindex="-1"
-         autocomplete="username" aria-hidden="true"
-         style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;" />
-  <input type="password" name="password_fake" tabindex="-1"
-         autocomplete="new-password" aria-hidden="true"
-         style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;" />`;
-
-function _injectHoneypots(containerEl){
-  if(!containerEl) return;
-  if(containerEl.querySelector('[name="username_fake"]')) return;
-  containerEl.insertAdjacentHTML('afterbegin', _AUTOFILL_HONEYPOT);
-}
-
-const _AUTH_INPUT_IDS = new Set(['auth-email','auth-pass','auth-pass-confirm','reset-email']);
+// Workspace fields are ordinary data, never credential traps. Auth forms own
+// their standard autocomplete hints; do not inject fake username/password pairs.
 
 // Accessibility hardening for the many generated forms: most fields already have
 // visible labels and stable ids, but older markup omitted `for`. Associate each
@@ -24821,27 +24808,34 @@ function _wireFormLabels(root){
 }
 
 function _suppressPasswordManagers(root){
-  root = root || document;
-  const inputs = root.querySelectorAll('input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=submit]):not([type=button]):not([type=file])');
+  root=root||document;
+  const selector='input,textarea,select';
+  const inputs=Array.from(root.querySelectorAll(selector));
+  if(root.matches&&root.matches(selector))inputs.unshift(root);
   inputs.forEach(function(el){
-    if(_AUTH_INPUT_IDS.has(el.id)) return; // leave auth inputs alone
-    if(el.name==='username_fake'||el.name==='password_fake') return; // skip honeypots
-    if(el.getAttribute('autocomplete')==='off') return; // already done
+    if(el.closest('#auth-overlay'))return;
+    if(/^(checkbox|radio|hidden|submit|button|file)$/.test(el.type))return;
     el.setAttribute('autocomplete','off');
-    el.setAttribute('autocorrect','off');
-    el.setAttribute('autocapitalize','off');
-    el.setAttribute('spellcheck','false');
-    el.setAttribute('data-lpignore','true');   // LastPass
-    el.setAttribute('data-form-type','other'); // 1Password
+    el.setAttribute('data-lpignore','true');
+    el.setAttribute('data-1p-ignore','true');
+    el.setAttribute('data-form-type','other');
   });
 }
+// Core loads after the document load event on some launches. Install immediately,
+// and inspect only newly inserted subtrees so all routes and lazy forms are covered.
+(function(){
+  _suppressPasswordManagers(document);_wireFormLabels(document);
+  new MutationObserver(function(records){
+    records.forEach(function(record){record.addedNodes.forEach(function(node){
+      if(node.nodeType!==1||node.closest('#auth-overlay'))return;
+      _suppressPasswordManagers(node);_wireFormLabels(node.closest('.fg')||node);
+    });});
+  }).observe(document.body,{childList:true,subtree:true});
+})();
 // Run on load for static inputs
 window.addEventListener('load', function(){
   _suppressPasswordManagers();
   _wireFormLabels();
-  ['mark-sold-modal','relist-modal','return-modal'].forEach(function(id){
-    _injectHoneypots(document.getElementById(id));
-  });
   // F1: Delegated listener for inline listing fee input in P&L receipt
   document.addEventListener('change', function(e){
     const el=e.target;
@@ -24948,24 +24942,6 @@ window.addEventListener('load', function(){
     }
   });
 });
-// Re-run whenever panel content is injected (covers Quick Add, Relist, Item Page etc.)
-(function(){
-  const _observe=function(id,subtree){
-    const el=document.getElementById(id);
-    if(!el)return;
-    const obs=new MutationObserver(function(){
-      _suppressPasswordManagers(el);
-      _wireFormLabels(el);
-      _injectHoneypots(el);
-    });
-    obs.observe(el,{childList:true,subtree:!!subtree});
-  }
-  _observe('panel-content',false); // slide-panel: Quick Add, Relist, return form, edit form
-  _observe('p-item',true);         // full-page item view: ip-field inputs (nested)
-  _observe('modal-overlay',false); // mark-sold + other modals
-})();
-
-
 /* ==========================================================================
    RETRADE v1.4 — INTEGRATED LAUNCH-HARDENING LAYER · 2026-08-27
    Embedded in app.js so the deployable DEV pack keeps the established project

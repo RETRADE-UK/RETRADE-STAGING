@@ -19,6 +19,13 @@ const {chromium}=require('playwright');const {open,settled}=require('./startup-b
    assert((await actions.count())>=7,'Every action has space before the first selection');
    for(const control of await actions.all()){assert(await control.isVisible());assert(await control.isDisabled());}
    assert(await page.locator('#sel-totals-bar').isVisible(),'Zero selected totals reserve their space too');
+   const formats=await actions.evaluateAll(els=>els.map(e=>{const s=getComputedStyle(e);return {height:e.getBoundingClientRect().height,radius:s.borderRadius,font:s.fontSize,weight:s.fontWeight};}));
+   formats.forEach(f=>assert.deepEqual(f,formats[0],'All stock actions share control format'));
+   const platform=page.locator('[data-stock-action="platform"]');
+   assert.equal(await platform.locator('option').first().innerText(),'🏪 Platform');
+   assert.equal(await platform.evaluate(e=>getComputedStyle(e).textAlignLast),'center');
+   assert(await platform.evaluate(e=>{const s=getComputedStyle(e);return s.paddingLeft===s.paddingRight;}),'Platform label is centred within symmetric padding');
+
    const row=id=>page.locator('[data-stock-item="'+id+'"]');
    await row('a').evaluate(e=>e.scrollIntoView({block:'center',behavior:'instant'}));await page.waitForTimeout(80);
    const before=await row('a').evaluate(el=>{window.__firstStockRow=el;return {y:el.getBoundingClientRect().top,scroll:scrollY,toolbar:document.querySelector('.stock-selection-toolbar').getBoundingClientRect().height};});
