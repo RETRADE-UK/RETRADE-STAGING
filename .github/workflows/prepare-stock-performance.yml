@@ -2,9 +2,10 @@ name: Prepare reviewed stock fixes
 on:
   push:
     branches: [fix/stock-performance-release-20261014]
-    paths: [scripts/stock-performance-release.patch]
+    paths: [.github/workflows/prepare-stock-performance.yml]
 permissions:
   contents: write
+  actions: read
 concurrency:
   group: stock-performance-release-staging
   cancel-in-progress: false
@@ -22,14 +23,24 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Retrieve the tested staging candidate
+        uses: actions/download-artifact@v4
+        with:
+          repository: RETRADE-UK/RETRADE
+          run-id: 38483427254
+          name: stock-performance-candidate-staging
+          path: ${{ runner.temp }}/reviewed-stock-fix
+          github-token: ${{ github.token }}
       - name: Validate and apply the reviewed plain-text patch
+        env:
+          PATCH_DIR: ${{ runner.temp }}/reviewed-stock-fix
         run: |
           set -euo pipefail
           test "$(git rev-parse origin/main)" = '404b9bf3c855fc3267c40df41e071d868b481f18'
           test "$(git hash-object src/core/application.js)" = 'cb285a169b3526d623ba54daf556d4b053916b9f'
-          echo '649d31e50db7fddaeb7c7b279ea585f56ef6205e734b6357f569639d05d0edfd  scripts/stock-performance-release.patch' | sha256sum --check
-          git apply --check --whitespace=error scripts/stock-performance-release.patch
-          git apply --index --whitespace=error scripts/stock-performance-release.patch
+          echo "649d31e50db7fddaeb7c7b279ea585f56ef6205e734b6357f569639d05d0edfd  $PATCH_DIR/stock-performance-staging.patch" | sha256sum --check
+          git apply --check --whitespace=error "$PATCH_DIR/stock-performance-staging.patch"
+          git apply --index --whitespace=error "$PATCH_DIR/stock-performance-staging.patch"
           python3 - <<'PY'
           import subprocess
           expected = {'assets/styles/workspaces.css','config/assets.js','docs/RUNTIME_MAP.md','index.html','package.json','src/core/application.js','src/features/charts/polish.js','tests/dashboard-chart-browser.cjs','tests/dashboard-chart-scale.cjs','tests/stock-performance-browser.cjs','tests/stock-performance.cjs'}
@@ -50,7 +61,7 @@ jobs:
           test "$(git rev-parse origin/main)" = '404b9bf3c855fc3267c40df41e071d868b481f18'
           test "$(git rev-parse origin/fix/stock-performance-release-20261014)" = "$GITHUB_SHA"
           git diff --exit-code
-          git rm scripts/stock-performance-release.patch .github/workflows/prepare-stock-performance.yml
+          git rm .github/workflows/prepare-stock-performance.yml
           git diff --cached --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
