@@ -12233,6 +12233,46 @@ const _WITHDRAW_CLEAR_FIELDS = [
   'promoPercent','sdRateIdx','sdBuyerPays'
 ];
 
+function _canWithdrawStock(item){
+  return !!(item&&item.state==='listed'&&_itemLifecycleState(item)==='listed'&&!_activeJobLotMembership(item.id));
+}
+function _applyStockWithdrawal(item){
+  if(!_canWithdrawStock(item))return false;
+  item.state='sourced';
+  _WITHDRAW_CLEAR_FIELDS.forEach(function(f){item[f]=null;});
+  ['salePrice','shippingCost','postage','packagingCost','promoPercent'].forEach(function(f){item[f]=0;});
+  item.dateListed=null;item.soldOnPlatform=null;
+  return true;
+}
+let _stockWithdrawPending=false;
+async function withdrawSelectedStock(){
+  if(_stockWithdrawPending)return;
+  const ids=[...STOCK_SELECTED];
+  const eligible=ids.filter(function(id){const r=_findItemRecordById(id);return r&&_canWithdrawStock(r.item);});
+  if(!eligible.length){toast('Select listed items to withdraw','err');return;}
+  _stockWithdrawPending=true;
+  try{
+    const skipped=ids.length-eligible.length;
+    const ok=await showConfirm('Withdraw '+eligible.length+' listing'+(eligible.length===1?'':'s')+'?',
+      'Move to Unlisted in RETRADE. Current asking price, platform and postage settings are cleared. Costs, photos, notes and return history are kept. This does not end listings on selling platforms.'
+      +(skipped?' '+skipped+' other selected item'+(skipped===1?' is':'s are')+' left unchanged.':''),
+      {okLabel:'Withdraw',danger:false,icon:'info'});
+    if(!ok)return;
+    let changed=0;
+    eligible.forEach(function(id){
+      const r=_findItemRecordById(id);
+      // Recheck live state and lot membership after the confirmation.
+      if(r&&_applyStockWithdrawal(r.item)){STOCK_SELECTED.delete(id);changed++;}
+    });
+    if(!changed){toast('Those items are no longer eligible to withdraw','err');return;}
+    await saveDB();
+    STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;
+    _goToSourcedStock();
+    toast(changed+' item'+(changed===1?'':'s')+' moved to Unlisted'+(changed<eligible.length?' · changed records were skipped':''));
+  }catch(error){toast('Withdrawal could not finish saving. Check sync status before retrying.','err');console.error('[stock withdrawal]',error);}
+  finally{_stockWithdrawPending=false;}
+}
+
 function withdrawToSourced(m, id){
   if(_jobLotActionGuard(id))return;
   // Find item — search all months (same pattern as submitListFromSourced)
@@ -12325,18 +12365,13 @@ function confirmWithdrawToSourced(m, id){
     const idx = (DB[k]||[]).findIndex(function(x){ return x.id===id; });
     if(idx !== -1){ srcMonth=k; item=DB[k][idx]; itemIdx=idx; }
   });
-  if(!item || item.state !== 'listed'){
-    toast('Item not found or no longer listed','error');
+  if(!item || !_canWithdrawStock(item)){
+    toast('Item not found or no longer eligible to withdraw','error');
     return;
   }
   // Mutate in place — preserve id, gid, cost, name, notes, parts, photo,
   // dateSourced, source, location, returnHistory, category
-  item.state = 'sourced';
-  _WITHDRAW_CLEAR_FIELDS.forEach(function(f){ item[f] = null; });
-  // Reset numeric fields to 0 rather than null
-  ['salePrice','shippingCost','postage','packagingCost','promoPercent'].forEach(function(f){ item[f] = 0; });
-  item.dateListed = null;
-  item.soldOnPlatform = null;
+  _applyStockWithdrawal(item);
 
   // Persist to Supabase via standard save path (boundary guard validates state)
   try{
@@ -14950,6 +14985,51 @@ function _performancePeriodSummary(from,to,label){
     netRevenue:netRevenue,netProfit:netProfit,netMargin:netRevenue!==0?netProfit/netRevenue*100:null};
 }
 
+// Calendar cards and drill-down use the same dated components as their FY
+// header, including write-offs and the FY's existing motor-cost exclusion.
+function _performanceFYMonths(fy,ctx){
+  const range=_monthlyPeriodResolve('fy:'+fy),summary=_performancePeriodSummary(range.from,range.to,range.label),p=summary.pnl;
+  const months=new Map();
+  _fyKeys(fy).forEach(function(k){months.set(k,{grossProfit:0,tripsCost:0,expensesCost:0,archiveLoss:0,hasCosts:false});});
+  function add(date,field,value){
+    if(!date||date<range.from||date>range.to)return;
+    const row=months.get(_monthKeyFromDate(String(date).slice(0,10)));if(!row)return;
+    row[field]+=Number(value)||0;
+    if(field!=='grossProfit'&&Number(value))row.hasCosts=true;
+  }
+  (p.events||[]).forEach(function(ev){add(ev.saleDate,'grossProfit',_saleBreakdown(ev).netProfit);});
+  const allTrips=DB.trips||[],tiered=(ctx&&ctx.tieredTrips)||calcTieredTrips(allTrips);
+  const excludeMotor=p.motorDoubleClaim&&p.motorMethod==='mileage';
+  function cost(date,field,e){
+    if(excludeMotor&&_resolveExpenseCat(e.category).label==='Motor, van & travel')return;
+    add(date,field,e.amount);
+  }
+  (p.expenses.trips||[]).forEach(function(t){
+    const row=tiered[allTrips.indexOf(t)];
+    if(row&&!(p.motorDoubleClaim&&p.motorMethod==='actual'))add(t.date,'tripsCost',row.mileageCost);
+    (Array.isArray(t.expenses)?t.expenses:[]).forEach(function(e){cost(t.date,'tripsCost',e);});
+  });
+  (p.expenses.expenses||[]).forEach(function(e){cost(e.date,'expensesCost',e);});
+  allItems().forEach(function(i){
+    if(!i||!i.scrappedAt)return;
+    const loss=typeof _cashRemovedItemNet==='function'?_cashRemovedItemNet(i):Math.max(0,(Number(i.costPrice)||0)+calcPartsCost(i)-(Number(i.supplierRefund)||0));
+    if(loss>0)add(i.scrappedAt,'archiveLoss',loss);
+  });
+  months.forEach(function(row){
+    row.grossProfit=+row.grossProfit.toFixed(2);
+    row.overheads=+(row.tripsCost+row.expensesCost+row.archiveLoss).toFixed(2);
+    row.netProfit=+(row.grossProfit-row.overheads).toFixed(2);
+  });
+  return {summary:summary,months:months};
+}
+function _performanceMonthStats(k,ctx){
+  ctx=ctx||{};
+  const fy=keyYear(k)-(MONTHS.indexOf(keyCode(k))<3?1:0);
+  if(!ctx.performanceFYs)ctx.performanceFYs=new Map();
+  if(!ctx.performanceFYs.has(fy))ctx.performanceFYs.set(fy,_performanceFYMonths(fy,ctx));
+  return Object.assign({},calcMonthStatsBySale(k,ctx),ctx.performanceFYs.get(fy).months.get(k));
+}
+
 function renderMonthlyMoneyFlow(){
   const host=document.getElementById('monthly-money-flow');
   if(!host)return;
@@ -15018,8 +15098,9 @@ function renderMonthlyProfitabilityChart(statsForMonth){
   }
   const showYear=keys.length>12;
   const labels=[],netRevenue=[],grossProfit=[],netProfit=[],refunds=[],refundCounts=[];
+  const monthContext={};
   keys.forEach(function(k){
-    const ms=(typeof statsForMonth==='function')?statsForMonth(k):calcMonthStatsBySale(k);
+    const ms=(typeof statsForMonth==='function')?statsForMonth(k):_performanceMonthStats(k,monthContext);
     const short=MONTH_NAMES[keyCode(k)].slice(0,3);
     labels.push(showYear?short+' '+String(keyYear(k)).slice(-2):short);
     netRevenue.push(Number(ms.totalRev)||0);
@@ -15095,7 +15176,7 @@ function renderMonthlyGrid(){
   const _calendarStatsCtx={eventsByMonth:_calendarEventsByMonth,tieredTrips:calcTieredTrips(DB.trips||[])};
   const _monthStatsCache=new Map();
   const monthStats=function(k){
-    if(!_monthStatsCache.has(k))_monthStatsCache.set(k,calcMonthStatsBySale(k,_calendarStatsCtx));
+    if(!_monthStatsCache.has(k))_monthStatsCache.set(k,_performanceMonthStats(k,_calendarStatsCtx));
     return _monthStatsCache.get(k);
   };
 
@@ -15115,11 +15196,15 @@ function renderMonthlyGrid(){
     const yr=keyYear(mk),fy=mo>=3?yr:yr-1;
     if(fy<=currentFY)fySet.add(fy);
   });
+  (DB.expenses||[]).concat(DB.trips||[],allItems().map(function(i){return {date:i.scrappedAt};})).forEach(function(e){
+    const k=e.date&&_monthKeyFromDate(String(e.date).slice(0,10));if(!k)return;
+    const year=keyYear(k)-(MONTHS.indexOf(keyCode(k))<3?1:0);if(year<=currentFY)fySet.add(year);
+  });
   const fyYears=Array.from(fySet).sort(function(a,b){return b-a;}).filter(function(fy){
     if(fy===currentFY)return true;
     return _fyKeys(fy).some(function(k){
       const ms=monthStats(k);
-      return ms.soldCount>0||ms.eventCount>0;
+      return ms.soldCount>0||ms.eventCount>0||ms.hasCosts;
     });
   }); // newest first, data-bearing years only
 
@@ -15139,7 +15224,8 @@ function renderMonthlyGrid(){
     const isCollapsed=_fyCollapsed[fy]!==undefined?_fyCollapsed[fy]:defaultCollapsed;
 
     const fyRange=_monthlyPeriodResolve('fy:'+fy);
-    const fySummary=_performancePeriodSummary(fyRange.from,fyRange.to,fyRange.label);
+    monthStats(months[0]);
+    const fySummary=_calendarStatsCtx.performanceFYs.get(fy).summary;
     const fyProfit=fySummary.netProfit,fySold=fySummary.pnl.soldCount||0;
     const fyNetMargin=fySummary.netMargin;
     const fyLabel=_getFYLabelHTML(fy);
@@ -15159,20 +15245,20 @@ function renderMonthlyGrid(){
       const visibleMonths=displayMonths.filter(function(k){
         const ms=monthStats(k);
         const hasSales=ms.soldCount>0||ms.eventCount>0;
-        return k===curMonthKey||hasSales;
+        return k===curMonthKey||hasSales||ms.hasCosts;
       });
       const cards=visibleMonths.map(function(k){
         // Session B: card profit and sold count come from sale-attribution,
         // but listedCount stays as listing-month inventory (kept in the bySale
         // helper for this exact use).
         const ms=monthStats(k);
-        const hasItems=(DB[k]||[]).length>0||ms.soldCount>0||ms.eventCount>0;
+        const hasItems=(DB[k]||[]).length>0||ms.soldCount>0||ms.eventCount>0||ms.hasCosts;
         const hasActivity=ms.soldCount>0||ms.listedCount>0||ms.eventCount>0;
         const isCurrent=k===curMonthKey;
         // Truly empty: no items at all AND no sale events AND not current month
         const trulyEmpty=!hasItems&&!isCurrent;
         // Has activity but 0 net sold (could still have returned events)
-        const hasListedOnly=hasItems&&ms.soldCount===0;
+        const hasListedOnly=hasItems&&ms.eventCount===0&&!ms.hasCosts;
         const borderStyle=isCurrent?'border-color:var(--accent);':'';
         let cardContent;
         if(trulyEmpty){
@@ -15181,7 +15267,7 @@ function renderMonthlyGrid(){
           cardContent='<div class="mval nil">—</div>';
         } else {
           const profVal=ms.netProfit>0?'pos':ms.netProfit<0?'neg':'nil';
-          cardContent='<div class="mval '+profVal+'">'+(ms.soldCount>0?fmt(ms.netProfit):'—')+'</div>';
+          cardContent='<div class="mval '+profVal+'" data-month-net-profit="'+k+'" title="Net profit after all costs">'+fmt(ms.netProfit)+'</div>';
         }
         const monthLabel=MONTH_NAMES[keyCode(k)]; // e.g. 'April'
         return '<div class="mcard'+(trulyEmpty?' mcard-empty':'')+'"'+(isCurrent?' aria-current="date"':'')+' style="'+borderStyle+'" onclick="goToMonth(\''+k+'\')">'
@@ -15342,7 +15428,7 @@ function renderMonth(){
   if(routeHost)routeHost.dataset.rtSalesMonth=m;
   // Session B: Monthly = sales-history view. KPIs and items list are driven by
   // sale-event attribution (dateSold / resaleDateSold), NOT by listing month.
-  const stats=calcMonthStatsBySale(m);
+  const stats=_performanceMonthStats(m);
   const events=getSaleEventsInMonth(m);
 
   // Counts for chips — sale events landing in this month.
@@ -16362,6 +16448,44 @@ function toggleStockGroup(key){
   el.classList.toggle('collapsed',collapsed);
 }
 
+function _stockSelectionCapabilities(){
+  const rows=[...STOCK_SELECTED].map(function(id){const r=_findItemRecordById(id);return r&&r.item;}).filter(Boolean);
+  const listed=rows.length>0&&rows.every(function(i){return _canWithdrawStock(i)&&!_itemHasPriorFullReturn(i);});
+  return {sold:listed,bundle:listed&&rows.length>1,platform:rows.length>0&&rows.every(_canWithdrawStock),purchase:rows.length>0,
+    joblot:rows.length>0&&rows.every(function(i){return _canAddToJobLot(i);}),
+    withdraw:rows.some(_canWithdrawStock),dispose:rows.some(function(i){return _canScrap(i)&&!_activeJobLotMembership(i.id);}),
+    delete:rows.length>0&&rows.every(function(i){return !_activeJobLotMembership(i.id)&&!_itemHasGroupedSale(i);})};
+}
+function _stockSelectionToolbarHTML(){
+  return '<div class="stock-selection-heading">'
+    +'<button class="sel-check" onclick="selectAllStockVisible()"><span class="sel-check-box"></span><span data-stock-selection-count>Select all</span></button>'
+    +'<button class="sel-exit" onclick="toggleStockSelection()">× Done</button></div>'
+    +'<div class="stock-selection-actions">'
+    +'<button class="bulk-ctrl is-sold" data-stock-action="sold" disabled onclick="stockBulkAction(\'sold\',window.__stockItems||[])">'+icon('sold',14)+' Mark Sold</button>'
+    +'<button class="bulk-ctrl" data-stock-action="bundle" disabled onclick="openBundleSaleModal()">'+icon('sold',14)+' Bundle sale</button>'
+    +'<select aria-label="Change platform for selected stock" class="bulk-ctrl bulk-plat-sel" data-stock-action="platform" data-source="stock" disabled><option value="">Platform</option>'+Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){return '<option value="'+p.id+'">'+p.short+'</option>';}).join('')+'</select>'
+    +'<button class="bulk-ctrl" data-stock-action="joblot" disabled onclick="openCreateJobLotFromSelection()">'+icon('joblot',14)+' Job Lot</button>'
+    +'<button class="bulk-ctrl" data-stock-action="withdraw" disabled onclick="stockBulkAction(\'withdraw\',window.__stockItems||[])">'+icon('withdraw',14)+' Withdraw</button>'
+    +'<button class="bulk-ctrl" data-stock-action="dispose" disabled onclick="openStockBulkDispose()">'+icon('dispose',14)+' Dispose</button>'
+    +(typeof openPurchaseLink==='function'?'<button class="bulk-ctrl" data-stock-action="purchase" disabled onclick="openPurchaseLink()">Link purchase</button>':'')
+    +'<button class="bulk-ctrl is-danger" data-stock-action="delete" disabled onclick="stockBulkAction(\'delete\',window.__stockItems||[])">'+icon('trash',14)+' Delete</button></div>';
+}
+function _refreshStockSelection(){
+  if(!STOCK_SELECTION_MODE)return;
+  const page=document.getElementById('p-stock');if(!page)return;
+  page.querySelectorAll('[data-stock-item]').forEach(function(row){
+    const selected=STOCK_SELECTED.has(row.dataset.stockItem);
+    row.classList.toggle('selected',selected);
+    const input=row.querySelector('input[type="checkbox"]');if(input)input.checked=selected;
+  });
+  const caps=_stockSelectionCapabilities();
+  page.querySelectorAll('[data-stock-action]').forEach(function(control){control.disabled=!caps[control.dataset.stockAction];});
+  const visible=window.__stockItems||[],all=visible.length>0&&visible.every(function(i){return STOCK_SELECTED.has(i.id);});
+  const box=page.querySelector('.sel-check-box');if(box){box.classList.toggle('all',all);box.classList.toggle('some',!all&&STOCK_SELECTED.size>0);box.textContent=all?'✓':STOCK_SELECTED.size?'−':'';}
+  const count=page.querySelector('[data-stock-selection-count]');if(count)count.textContent=STOCK_SELECTED.size?STOCK_SELECTED.size+' selected':'Select all';
+  _paintSelBar('stock');
+}
+
 function toggleStockSelection(){
   STOCK_SELECTION_MODE=!STOCK_SELECTION_MODE;
   if(!STOCK_SELECTION_MODE)STOCK_SELECTED.clear();
@@ -16369,8 +16493,9 @@ function toggleStockSelection(){
 }
 
 function toggleStockSelect(id){
+  if(!STOCK_SELECTION_MODE)return;
   if(STOCK_SELECTED.has(id)){STOCK_SELECTED.delete(id);}else{STOCK_SELECTED.add(id);}
-  renderStock();
+  _refreshStockSelection();
 }
 
 function selectAllStockVisible(){
@@ -16385,7 +16510,7 @@ function selectAllStock(items){
   const allSel=items.length>0&&items.every(i=>STOCK_SELECTED.has(i.id));
   if(allSel){items.forEach(i=>STOCK_SELECTED.delete(i.id));}
   else{items.forEach(i=>STOCK_SELECTED.add(i.id));}
-  renderStock();
+  _refreshStockSelection();
 }
 
 async function openStockBulkDispose(){
@@ -16452,6 +16577,7 @@ async function stockBulkAction(action,items){
   const selected=[...STOCK_SELECTED];
   const protectedIds=selected.filter(function(id){return !!_activeJobLotMembership(id);});
   const actionable=selected.filter(function(id){return !_activeJobLotMembership(id);});
+  if(action==='withdraw')return withdrawSelectedStock();
   if(action==='sold'){
     const today=new Date().toISOString().split('T')[0];let changed=0,relistedSkipped=0,invalidSkipped=0;
     actionable.forEach(function(id){
@@ -17470,7 +17596,7 @@ function renderStockRow(m,i){
     .replace(/onchange="toggleSelect\(/g,'onchange="toggleStockSelect(')
     .replace(/onclick="toggleSelect\(/g,'onclick="toggleStockSelect(');
   SELECTION_MODE=_sm;SELECTED_ITEMS=_si;
-  return html;
+  return html.replace('<div ', '<div data-stock-item="'+esc(i.id)+'" ');
 }
 
 // ─── SELECTION / IN-LIST SEARCH TOTALS (v2.21.18) ─────────────────────────
@@ -17572,7 +17698,7 @@ function _paintSelBar(ctx){
   let entries=null,mode=null,pageId;
   if(ctx==='stock'){ pageId='p-stock';
     const all=window.__stockItems||[];
-    if(STOCK_SELECTION_MODE&&STOCK_SELECTED.size>0){entries=all.filter(function(i){return STOCK_SELECTED.has(i.id);});mode='selected';}
+    if(STOCK_SELECTION_MODE){entries=[...STOCK_SELECTED].map(function(id){const r=_findItemRecordById(id);return r&&r.item;}).filter(Boolean);mode='selected';}
     else if(STOCK_SEARCH){entries=all;mode='filtered';}
   } else { pageId='p-monthly';
     const all=window.__monthItems||[];
@@ -17583,7 +17709,7 @@ function _paintSelBar(ctx){
   // animation (pageFade), which makes it the containing block for this
   // position:fixed bar and clips it below the fold / misaligns it on desktop.
   let bar=document.getElementById('sel-totals-bar');
-  if(!entries||!entries.length){ if(bar)bar.remove(); document.body.classList.remove('rt-selbar-on'); return; }
+  if(!entries||(!entries.length&&!(ctx==='stock'&&mode==='selected'))){ if(bar)bar.remove(); document.body.classList.remove('rt-selbar-on'); return; }
   const html=_selTotalsBarInner(_selectionTotals(entries),ctx,mode);
   if(!bar){ bar=document.createElement('div'); bar.id='sel-totals-bar'; bar.className='sel-totals-bar'; document.body.appendChild(bar); }
   bar.innerHTML=html;
@@ -17599,6 +17725,7 @@ function _liveStockSearch(q){
   window.__stockItems=shown;
   el.innerHTML=shown.length?shown.map(function(i){return renderStockRow(i.month,i);}).join(''):('<div class="inlist-empty">No stock matches \u201c'+esc(q)+'\u201d</div>');
   const cnt=document.getElementById('stock-search-count'); if(cnt)cnt.textContent=q?(shown.length+' of '+base.length):'';
+  _refreshStockSelection();
   _paintSelBar('stock');
 }
 function _liveMonthSearch(q){
@@ -17902,9 +18029,6 @@ function _renderStockCore(){
   const supportingKpis=kpiCards.filter((_,n)=>n!==primaryKpi);
   const kpiHTML=supportingKpis[0]+'<div class="rt-overview-side">'+kpiCards[primaryKpi]+supportingKpis.slice(1).join('')+'</div>';
 
-  const _stockSelectedRows=items.filter(function(i){return STOCK_SELECTED.has(i.id);});
-  const _stockCanBulkSell=_stockSelectedRows.length>0&&_stockSelectedRows.every(function(i){return i.state==='listed'&&!i.isReturned&&!i.dateSold&&!i.resaleSalePrice&&!i.scrappedAt;});
-  const _stockCanJobLot=_stockSelectedRows.length>0&&_stockSelectedRows.every(function(i){return _canAddToJobLot(i);});
 
   const html=`
     <div class="page-header">
@@ -18051,29 +18175,8 @@ function _renderStockCore(){
             <select aria-label="Sort stock" class="sort-select" onchange="setStockSort(this.value)">${sortHTML}</select>
           </div>`;
       })():''}
-      <div class="list-toolbar">
-        ${STOCK_SELECTION_MODE?`
-          <button class="sel-check" onclick="${STOCK_SELECTED.size===items.length?'STOCK_SELECTED.clear();renderStock()':'selectAllStockVisible()'}">
-            <span class="sel-check-box ${STOCK_SELECTED.size===items.length?'all':STOCK_SELECTED.size>0?'some':''}">
-              ${STOCK_SELECTED.size===items.length?'\u2713':STOCK_SELECTED.size>0?'\u2212':''}
-            </span>
-            <span style="color:${STOCK_SELECTED.size>0?'var(--text)':'var(--text-secondary)'}">
-              ${STOCK_SELECTED.size>0?STOCK_SELECTED.size+' selected':'Select all'}
-            </span>
-          </button>
-          ${STOCK_SELECTED.size>0?`
-            ${_stockCanBulkSell?`<button class="bulk-ctrl is-sold" onclick="stockBulkAction('sold',window.__stockItems||[])">${icon('sold',14)} Mark Sold</button>
-            ${_stockSelectedRows.length>1?`<button class="bulk-ctrl" style="background:var(--accent);color:#000;font-weight:700;" onclick="openBundleSaleModal()">${icon('sold',14)} Bundle sale</button>`:''}
-            <select class="bulk-ctrl bulk-plat-sel" data-source="stock"><option value="">Platform</option>${Object.values(PLATFORMS).filter(p=>p.live).map(p=>`<option value="${p.id}">${p.short}</option>`).join('')}</select>`:''}
-            <button class="bulk-ctrl" onclick="openPurchaseLink()">Link purchase</button>
-            ${_stockCanJobLot?`<button class="bulk-ctrl" style="color:var(--purple)" onclick="openCreateJobLotFromSelection()">${icon('joblot',14)} Job Lot</button>`:''}
-            <button class="bulk-ctrl" style="color:var(--warn)" onclick="openStockBulkDispose()">${icon('dispose',14)} Dispose</button>
-            <button class="bulk-ctrl is-danger" onclick="stockBulkAction('delete',window.__stockItems||[])">${icon('trash',14)} Delete</button>
-          `:''}
-          <button class="sel-exit" onclick="toggleStockSelection()">\u2715 Done</button>
-        `:`
-          <button class="select-toggle" onclick="toggleStockSelection()">Select</button>
-        `}
+      <div class="list-toolbar${STOCK_SELECTION_MODE?' stock-selection-toolbar':''}">
+        ${STOCK_SELECTION_MODE?_stockSelectionToolbarHTML():`<button class="select-toggle" onclick="toggleStockSelection()">Select</button>`}
       </div>
       </div>
       ${visibleLots.length?`<div class="sl" style="margin-top:14px">${icon('joblot',13)} Job Lots</div><div class="item-table" style="margin-bottom:14px">${visibleLots.map(function(l){return renderJobLotCard(l);}).join('')}</div>`:''}
@@ -18086,6 +18189,7 @@ function _renderStockCore(){
   const ageBar=stockPage.querySelector('.age-bar-wrap');
   const stateFilters=stockPage.querySelector('.stock-state-seg');
   if(ageBar&&stateFilters)stateFilters.after(ageBar);
+  _refreshStockSelection();
   _paintSelBar('stock');
 }
 
@@ -22308,7 +22412,7 @@ function confirmDupeItem(m,id){
   if(!item)return;
   showConfirm(
     'Duplicate item',
-    '"'+esc(item.item)+'" will be copied as a new active listing.',
+    '"'+esc(item.item)+'" will be copied as a new '+(_itemLifecycleState(item)==='sourced'?'unlisted stock item':'active listing')+'.',
     {okLabel:'Duplicate',danger:false,icon:'info'}
   ).then(function(ok){if(ok)duplicateItem(m,id);});
 }
@@ -22319,13 +22423,14 @@ function duplicateItem(m,id,context){
   copy.id=_newId('dup');
   copy.purchaseGroupId=null;copy.purchaseGroupName=null;
   copy.gid='R-'+String(getNextGID()).padStart(4,'0');
-  copy.dateListed=new Date().toISOString().split('T')[0];
+  const copyUnlisted=_itemLifecycleState(item)==='sourced';
+  copy.dateListed=copyUnlisted?null:new Date().toISOString().split('T')[0];
   // v2.09.2 — Force a clean "active listing" state. Previously only dateSold /
   // grossProfit / isReturned were cleared, so duplicating a sold-then-relisted
   // item left resaleSalePrice / resaleDateSold intact — the Account page's
   // sold-filter (i.state==='sold' || !!i.resaleSalePrice) then treated the copy
   // as a sale even though the Stock Room showed it correctly as listed.
-  copy.state='listed';
+  copy.state=copyUnlisted?'sourced':'listed';
   copy.dateSold=null;copy.grossProfit=null;copy.isReturned=false;
   copy.resaleSalePrice=null;copy.resaleDateSold=null;copy.resaleGrossProfit=null;
   // v2.19.40 — a clone starts as a fresh Sale 1, so it must not inherit the
@@ -22338,36 +22443,35 @@ function duplicateItem(m,id,context){
   // the ORIGINAL's relist. Clear it, then stamp a fresh sale-1 fee: a
   // duplicate is a new listing and eBay bills it as one.
   copy.resaleListingFee=0;
-  _stampListingFee(copy);
+  copy.listingFee=0;
+  if(!copyUnlisted)_stampListingFee(copy);
+  copy.salePlatform=null;
+  copy.resaleShippingCost=null;copy.resalePostage=null;
+  copy.resalePackagingCost=null;copy.resalePromoPercent=null;
+  copy.refreshHistory=[];copy._lastRelistAt=null;copy._lastRefreshAt=null;
+  copy.accountPaidAmount=null;
+  delete copy.supplierRefund;delete copy.supplierRefundDate;
+  delete copy.purchaseId;delete copy.purchaseAllocationId;
+  // Child records must have their own IDs, never overwrite the source parts.
+  copy.parts=(copy.parts||[]).map(function(p){return Object.assign({},p,{id:_newId('part')});});
   copy.accountSettled=false; // new item = new debt to the partner
   delete copy.bundleId;delete copy.bundleRef;delete copy.bundleTotal;
   delete copy.resaleBundleId;delete copy.resaleBundleRef;delete copy.resaleBundleTotal;
   copy.returnHistory=[];delete copy.returnData;
   delete copy.scrappedAt;delete copy.scrapReason;delete copy.scrapNote; // v2.21.36 — a clone is a fresh live listing, never born scrapped
-  const stripSuffix=function(name){
-    const m2=(name||'').match(/^(.+?) - (\d+)$/);
-    return m2?m2[1]:(name||'');
-  };
-  const rootId=item.parentId||item.id;
-  const rootItem=(DB[m]||[]).find(x=>x.id===rootId);
-  const baseName=item.baseName||(rootItem&&rootItem.baseName)||stripSuffix((rootItem&&rootItem.item)||item.item);
-  let maxSeq=1;
-  (DB[m]||[]).forEach(function(x){
-    const belongsToRoot=x.id===rootId||x.parentId===rootId;
-    if(!belongsToRoot)return;
-    const seq=(typeof x.copySeq==='number'&&x.copySeq>0)
-      ?x.copySeq
-      :(x.id===rootId?1:(function(){
-        const match=(x.item||'').match(new RegExp('^'+baseName.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+' - (\\d+)$'));
-        return match?parseInt(match[1],10):1;
-      })());
-    if(seq>maxSeq)maxSeq=seq;
-  });
-  const nextNum=maxSeq+1;
-  copy.parentId=rootId;
+  const name=String(item.item||'Untitled item').trim();
+  const suffix=name.match(/^(.+?) - (\d+)$/);
+  const baseName=suffix?suffix[1]:name;
+  let maxSeq=suffix?Math.max(1,Number(suffix[2])||1):1;
+  const folded=baseName.toLocaleLowerCase('en-GB');
+  allDBKeys().forEach(function(k){(DB[k]||[]).forEach(function(x){
+    const existing=String(x.item||'').trim(),match=existing.match(/^(.+?) - (\d+)$/);
+    if(match&&match[1].toLocaleLowerCase('en-GB')===folded)maxSeq=Math.max(maxSeq,Number(match[2])||1);
+  });});
+  copy.parentId=item.parentId||item.id;
   copy.baseName=baseName;
-  copy.copySeq=nextNum;
-  copy.item=baseName+' - '+nextNum;
+  copy.copySeq=maxSeq+1;
+  copy.item=baseName+' - '+copy.copySeq;
   if(!Array.isArray(DB[m])) DB[m]=[];
   DB[m].push(copy);saveDB();
   toast('Duplicated');
@@ -22376,6 +22480,8 @@ function duplicateItem(m,id,context){
     return;
   }
   SELECTED_MONTH=m;MONTH_SORT='date-sold';MONTH_FILTER='all';
+  STOCK_STATE_FILTER=copyUnlisted?'sourced':'listed';
+  STOCK_SOURCED_FILTER='all';STOCK_FILTER='all';STOCK_SEARCH='';
   // v2.09.1 — Duplicate is a fresh active listing. Back should return to Stock
   // Room (where the new item now lives), not the Sales/Monthly page — even when
   // the source item was sold and the user came from Sales.
