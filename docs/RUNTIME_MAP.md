@@ -1,5 +1,7 @@
 # Runtime ownership
 
+**15 October partner settlement parity:** fixed-cost amounts entered through legacy item controls are now recognised for advance payment from both partner-account payment surfaces. `payment-allocations-v2.js` remains the single eligibility/allocation owner; staging keeps its own Supabase binding and monitor runtime unchanged. Cache build: `20261015-partner-fixed-upfront-staging`.
+
 **8 October continuity:** [Session renewal, durable expiry and recovery](features/monitors/CONTINUITY_2026-10-08.md).
 The existing session adapter/connection/automatic worker own renewal. The shared
 `monitor_public_due` predicate governs cron, claims and session reads. Cache build:
