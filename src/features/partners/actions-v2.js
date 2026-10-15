@@ -13,7 +13,6 @@
 
   var searchByAccount=Object.create(null);
   var activeAccountId=null;
-  var paymentDraft=null;
   var enhanceQueued=false;
 
   function accountById(id){
@@ -67,31 +66,12 @@
     try{return !!_acctSelectMode;}catch(_){return false;}
   }
 
-  function debtFor(item){
-    if(!item||item.accountSettled===true)return 0;
-    try{
-      if(typeof _accountItemDebt==='function'){
-        var debt=_accountItemDebt(item);
-        return debt==null?0:Math.max(0,Number(debt)||0);
-      }
-    }catch(_){}
-    try{
-      if(typeof _accountItemOwed==='function'){
-        var owed=_accountItemOwed(item);
-        return owed==null?0:Math.max(0,Number(owed)||0);
-      }
-    }catch(_){}
-    return 0;
-  }
-
   function selectedSummary(acct){
-    var selected=selectedIdSet();
-    var picked=[];
-    accountItems(acct.id).forEach(function(entry){
-      if(selected.has(entry.item.id))picked.push(entry);
-    });
-    var payable=picked.filter(function(entry){return debtFor(entry.item)>0;});
-    var total=roundMoney(payable.reduce(function(sum,entry){return sum+debtFor(entry.item);},0));
+    var selected=selectedIdSet(),picked=accountItems(acct.id).filter(function(entry){return selected.has(entry.item.id);});
+    var eligible=typeof window.__rtPartnerPaymentCandidates==='function'?window.__rtPartnerPaymentCandidates(acct.id):[];
+    var byId=new Map(eligible.filter(function(r){return r.unpaid;}).map(function(r){return [String(r.item.id),r];}));
+    var payable=picked.map(function(entry){return byId.get(String(entry.item.id));}).filter(Boolean);
+    var total=roundMoney(payable.reduce(function(sum,entry){return sum+entry.remaining;},0));
     return {picked:picked,payable:payable,total:total};
   }
 
@@ -252,7 +232,7 @@
       <div class="rt-partner-v2-selection-copy">\
         <div class="rt-partner-v2-selection-count">'+selectedCount+' selected</div>\
         <div class="rt-partner-v2-selection-total">'+money(summary.total)+' to pay</div>\
-        <div class="rt-partner-v2-selection-sub">'+(payableCount===selectedCount?payableCount+' unpaid item'+(payableCount===1?'':'s'):payableCount+' of '+selectedCount+' selected item'+(selectedCount===1?'':'s')+' unpaid')+'</div>\
+        <div class="rt-partner-v2-selection-sub">'+(payableCount===selectedCount?payableCount+' unpaid item'+(payableCount===1?'':'s'):payableCount+' of '+selectedCount+' selected item'+(selectedCount===1?'':'s')+' payable')+'</div>\
       </div>\
       <button type="button" class="btn btn-secondary rt-partner-v2-select-all">Select all</button>\
       '+secondaryAction+'\
@@ -299,97 +279,11 @@
   }
 
   function openGroupedPayment(acct){
-    var summary=selectedSummary(acct);
-    if(!summary.payable.length){
-      try{toast('No unpaid items selected','error');}catch(_){}
-      return;
+    if(typeof window.__rtPartnerOpenPayment!=='function'){
+      try{toast('Payment controls are still loading. Please try again.','error');}catch(_){}return;
     }
-    paymentDraft={accountId:acct.id,itemIds:summary.payable.map(function(entry){return entry.item.id;})};
-    var today=new Date().toISOString().slice(0,10);
-    var rows=summary.payable.map(function(entry){
-      return '<div class="metric-inline"><div style="min-width:0;flex:1;"><div class="metric-k" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+htmlEscape(entry.item.item||'Item')+'</div></div><strong>'+money(debtFor(entry.item))+'</strong></div>';
-    }).join('');
-    var body='\
-      <div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">This records one payment to '+htmlEscape(acct.name||'partner')+' and one cashflow outflow.</div>\
-      <div class="panel-card" style="margin-bottom:14px;">'+rows+'<div class="pnl-row total"><span>Total payment</span><strong>'+money(summary.total)+'</strong></div></div>\
-      <div class="fg"><label>Date paid</label><input type="date" id="rt-partner-paid-date" value="'+today+'"></div>\
-      <div class="fg"><label>Note / reference (optional)</label><input type="text" id="rt-partner-paid-note" placeholder="e.g. bank transfer ref" autocomplete="off"></div>\
-      <button type="button" class="btn btn-primary" style="width:100%;margin-top:6px" onclick="_rtPartnerConfirmPaid()">Mark '+summary.payable.length+' item'+(summary.payable.length===1?'':'s')+' as paid · '+money(summary.total)+'</button>';
-    try{openPanel('Mark as paid · '+htmlEscape(acct.name||'Partner'),body);}catch(err){
-      console.warn('[RETRADE] partner payment panel failed',err);
-      paymentDraft=null;
-    }
+    window.__rtPartnerOpenPayment(acct.id,Array.from(selectedIdSet()));
   }
-
-  window._rtPartnerConfirmPaid=function(){
-    var draft=paymentDraft;
-    if(!draft)return;
-    var acct=accountById(draft.accountId);
-    if(!acct)return;
-    var wanted=new Set(draft.itemIds||[]);
-    var payable=accountItems(acct.id).filter(function(entry){return wanted.has(entry.item.id)&&debtFor(entry.item)>0;});
-    if(!payable.length){
-      paymentDraft=null;
-      try{if(typeof closePanel==='function')closePanel();}catch(_){}
-      try{toast('Nothing left to pay');}catch(_){}
-      try{_renderAccountPage(acct);}catch(_){}
-      return;
-    }
-
-    var allocations=[];
-    var total=0;
-    var gross=0;
-    payable.forEach(function(entry){
-      var amount=roundMoney(debtFor(entry.item));
-      if(amount<=0)return;
-      total=roundMoney(total+amount);
-      try{if(typeof calcGrossProfit==='function')gross+=Number(calcGrossProfit(entry.item))||0;}catch(_){}
-      allocations.push({id:entry.item.id,month:entry.month,amount:amount,name:entry.item.item||''});
-    });
-    if(!allocations.length)return;
-
-    allocations.forEach(function(a){
-      var entry=payable.find(function(x){return x.item.id===a.id;});
-      if(!entry)return;
-      var item=entry.item;
-      item.accountSettled=true;
-      var itemType='supplier';
-      try{if(typeof _itemAccountType==='function')itemType=_itemAccountType(item)||itemType;}catch(_){}
-      if(itemType!=='supplier'){
-        // Lock the exact paid share as the historical amount. This mirrors the
-        // previous settlement builder without asking the user to re-allocate it.
-        item.accountPaidAmount=a.amount;
-        item.accountSplitPercent=null;
-      }
-    });
-
-    if(!Array.isArray(acct.settlements))acct.settlements=[];
-    var dateEl=document.getElementById('rt-partner-paid-date');
-    var noteEl=document.getElementById('rt-partner-paid-note');
-    var date=(dateEl&&dateEl.value)||new Date().toISOString().slice(0,10);
-    var note=String(noteEl&&noteEl.value||'').trim();
-    var isSupplier=String(acct.accountType||'supplier')==='supplier';
-    var tx={
-      id:'stl_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),
-      date:date,
-      createdAt:new Date().toISOString(),
-      paid:true,
-      kind:isSupplier?'supplier':String(acct.accountType||'consignment'),
-      partnerAmount:roundMoney(total),
-      yourAmount:isSupplier?0:roundMoney(gross-total),
-      grossProfit:isSupplier?null:roundMoney(gross),
-      note:note||null,
-      items:allocations
-    };
-    acct.settlements.unshift(tx);
-
-    paymentDraft=null;
-    try{saveDB();}catch(err){console.error('[RETRADE] partner grouped payment save failed',err);}
-    try{if(typeof closePanel==='function')closePanel();}catch(_){}
-    try{toast('Paid '+money(total)+' · '+allocations.length+' item'+(allocations.length===1?'':'s'));}catch(_){}
-    try{_acctSelected.clear();_acctSelectMode=false;}catch(_){}
-    try{_renderAccountPage(acct);}catch(_){}
-  };
 
   // Any legacy caller of "bulk settle" now gets the exact grouped payment path,
   // so there is no remaining route from selection mode into Allocate & settle.
