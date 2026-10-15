@@ -13,7 +13,7 @@
   if(window.__rtPartnerArrangementsV2Ready)return;
   window.__rtPartnerArrangementsV2Ready=true;
 
-  function num(v){v=Number(v);return isFinite(v)?v:null;}
+  function num(v){if(v==null||String(v).trim()==='')return null;v=Number(v);return isFinite(v)?v:null;}
   function model(v){return v==='fixed_cost'||v==='profit_share'?v:null;}
   function timing(v){return v==='upfront'||v==='on_sale'?v:null;}
   function acctById(id){try{return (_accounts||[]).find(function(a){return a&&String(a.id)===String(id);})||null;}catch(_){return null;}}
@@ -36,6 +36,15 @@
     if(!i)return accountModel(a);
     var direct=model(i.arrangementModelOverride)||model(i.arrangement_model_override);
     if(direct)return direct;
+
+    // Older item/bulk controls stored a fixed agreement only in accountPaidAmount.
+    // Recognise it on never-sold stock, not a historical paid profit share.
+    var fixed=num(i.accountPaidAmount!=null?i.accountPaidAmount:i.account_paid_amount);
+    var hasHistory=i.accountSettled===true||i.account_settled===true||i.isReturned||i.is_returned||
+      i.scrappedAt||i.scrapped_at||i.dateSold||i.date_sold||i.resaleDateSold||i.resale_date_sold||
+      i.resaleSalePrice||i.resale_sale_price||i.state==='sold'||
+      (Array.isArray(i.returnHistory)&&i.returnHistory.length>0);
+    if(!hasHistory&&fixed!=null&&fixed>=0&&i.accountSplitPercent==null&&i.account_split_percent==null)return 'fixed_cost';
 
     var am=accountModel(a);
     if(hasCanonicalAccountModel(a)){
@@ -67,7 +76,7 @@
     var vals=[i.partnerAgreedAmount,i.partner_agreed_amount,i.accountPaidAmount,i.account_paid_amount,i.costPrice,i.cost_price];
     for(var x=0;x<vals.length;x++){
       var n=num(vals[x]);
-      if(n!=null&&n>=0&&(n>0||x<2))return Math.round(n*100)/100;
+      if(n!=null&&n>=0&&(n>0||x<4))return Math.round(n*100)/100;
     }
     return 0;
   }
@@ -201,7 +210,7 @@
         if(a){
           a.arrangementModel=selected;
           a.paymentTiming=selected==='profit_share'?'on_sale':(((document.getElementById('acc-terms')||{}).value)||'upfront');
-          a.paymentTerms=selected==='profit_share'?'on_sale':a.paymentTiming;
+          a.paymentTerms=a.arrangementModel==='profit_share'?'on_sale':a.paymentTiming;
           if(previous===selected){a.__rtPreserveLegacyType=true;a.__rtLegacyAccountType=legacy;}
         }
         var result=baseEdit.apply(this,arguments);
@@ -212,6 +221,42 @@
       submitEditAccount.__rtArrangementV2=true;
     }
   }catch(e){console.warn('[RETRADE] arrangement form patch skipped',e);}
+
+  // Older split forms still write legacy fields. Add canonical terms before the
+  // original save, leaving its type, settled-state and navigation rules intact.
+  function field(id){var el=document.getElementById(id);return {el:el,raw:String(el&&el.value||'').trim()};}
+  function terms(pctId,paidId){
+    var pct=field(pctId),paid=field(paidId),fixed=paid.raw!=='';
+    if(!fixed&&pct.raw==='')return null;
+    var value=num(fixed?paid.raw:pct.raw);
+    if(value==null){try{toast('Enter a valid amount or percentage','error');}catch(_){}return false;}
+    value=fixed?Math.round(Math.max(0,value)*100)/100:Math.max(0,Math.min(100,value));
+    (fixed?paid.el:pct.el).value=String(value);
+    return {fixed:fixed,value:value};
+  }
+  function setTerms(i,t){i.partnerAgreedAmount=t.fixed?t.value:null;i.arrangementModelOverride=t.fixed?'fixed_cost':'profit_share';}
+  function selectedItems(fn){
+    if(typeof _acctSelected==='undefined')return;
+    (typeof allDBKeys==='function'?allDBKeys():[]).forEach(function(k){(DB[k]||[]).forEach(function(i){if(i&&_acctSelected.has(i.id))fn(i);});});
+  }
+  try{
+    if(typeof _acctBulkSplitConfirm==='function'){
+      var baseBulkSplit=_acctBulkSplitConfirm;
+      _acctBulkSplitConfirm=function(){var t=terms('bulk-split-pct','bulk-split-paid');if(t===false)return;if(t)selectedItems(function(i){setTerms(i,t);});return baseBulkSplit.apply(this,arguments);};
+    }
+    if(typeof submitItemSplit==='function'){
+      var baseItemSplit=submitItemSplit;
+      submitItemSplit=function(month,id){var i=(DB[month]||[]).find(function(x){return x.id===id;});if(!i)return;var t=terms('split-pct','split-paid');if(t===false)return;if(t)setTerms(i,t);return baseItemSplit.apply(this,arguments);};
+    }
+    if(typeof _acctBulkSetCostConfirm==='function'){
+      var baseBulkCost=_acctBulkSetCostConfirm;
+      _acctBulkSetCostConfirm=function(){var f=field('bulk-cost-input');if(f.raw!==''){var cost=num(f.raw);if(cost==null){try{toast('Enter a valid cost','error');}catch(_){}return;}cost=Math.round(Math.max(0,cost)*100)/100;f.el.value=String(cost);selectedItems(function(i){setTerms(i,{fixed:true,value:cost});});}return baseBulkCost.apply(this,arguments);};
+    }
+    if(typeof clearItemSplit==='function'){
+      var baseClearSplit=clearItemSplit;
+      clearItemSplit=function(month,id){var i=(DB[month]||[]).find(function(x){return x.id===id;});if(i){i.partnerAgreedAmount=null;i.arrangementModelOverride=null;}return baseClearSplit.apply(this,arguments);};
+    }
+  }catch(e){console.warn('[RETRADE] canonical item terms patch skipped',e);}
 
   function normalise(){
     try{(_accounts||[]).forEach(function(a){
