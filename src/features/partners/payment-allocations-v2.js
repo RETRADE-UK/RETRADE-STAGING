@@ -33,6 +33,10 @@
   function onSale(a){try{return typeof _accountPaysOnSale==='function'?!!_accountPaysOnSale(a):true;}catch(_){return true;}}
   function debt(a,i){
     var v=null;
+    if(model(a,i)==='fixed_cost'&&typeof _rtPartnerAgreedAmount==='function'){
+      v=_rtPartnerAgreedAmount(i,a);
+      if(v!=null&&isFinite(Number(v)))return Math.max(0,round(v));
+    }
     try{if(typeof _accountItemDebt==='function')v=_accountItemDebt(i);}catch(_){}
     if(v==null){try{if(typeof _accountItemOwed==='function')v=_accountItemOwed(i);}catch(_){} }
     if(v!=null&&isFinite(Number(v)))return Math.max(0,round(v));
@@ -112,7 +116,7 @@
   }
 
   function txUsed(tx){return round((tx&&Array.isArray(tx.items)?tx.items:[]).reduce(function(s,x){return s+Math.max(0,Number(x&&x.amount)||0);},0));}
-  function openExisting(a){var rows=picked(a),total=pickedTotal(a);if(!rows.length)return;draft={accountId:a.id,ids:rows.map(function(r){return r.item.id;}),mode:'existing'};var choices=(a.settlements||[]).map(function(tx){var amt=round(tx&&tx.partnerAmount),used=txUsed(tx);return {tx:tx,amount:amt,free:Math.max(0,round(amt-used))};}).filter(function(x){return x.tx&&x.free>=total-0.009;}).sort(function(x,y){return String(y.tx.date||'').localeCompare(String(x.tx.date||''));});var body='<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Assign '+rows.length+' item'+(rows.length===1?'':'s')+' ('+esc(money(total))+') to an existing payment. Its amount, date and cash transfer will not change.</div>';if(!choices.length)body+='<div class="panel-card" style="padding:12px;font-size:12px;color:var(--text-secondary);">No existing payment has enough unallocated balance. Create a new transaction or select fewer items.</div>';else choices.forEach(function(x){body+='<button type="button" class="rt-payalloc2-choice" onclick="_rtPayAllocAssignExisting(\''+esc(x.tx.id)+'\')"><strong>'+esc(x.tx.date||'Undated')+' · '+esc(money(x.amount))+' · '+(x.tx.paid===true?'Paid':'Unpaid')+'</strong><span>'+esc(money(x.free))+' unallocated'+(x.tx.note?' · '+esc(x.tx.note):'')+'</span></button>';});try{openPanel('Assign to existing payment',body);}catch(_){} }
+  function openExisting(a){var rows=picked(a),total=pickedTotal(a);if(!rows.length)return;draft={accountId:a.id,ids:rows.map(function(r){return r.item.id;}),mode:'existing',snapshot:snapshot(a,rows)};var choices=(a.settlements||[]).map(function(tx){var amt=round(tx&&tx.partnerAmount),used=txUsed(tx);return {tx:tx,amount:amt,free:Math.max(0,round(amt-used))};}).filter(function(x){return x.tx&&x.free>=total-0.009;}).sort(function(x,y){return String(y.tx.date||'').localeCompare(String(x.tx.date||''));});var body='<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Assign '+rows.length+' item'+(rows.length===1?'':'s')+' ('+esc(money(total))+') to an existing payment. Its amount, date and cash transfer will not change.</div>';if(!choices.length)body+='<div class="panel-card" style="padding:12px;font-size:12px;color:var(--text-secondary);">No existing payment has enough unallocated balance. Create a new transaction or select fewer items.</div>';else choices.forEach(function(x){body+='<button type="button" class="rt-payalloc2-choice" onclick="_rtPayAllocAssignExisting(\''+esc(x.tx.id)+'\')"><strong>'+esc(x.tx.date||'Undated')+' · '+esc(money(x.amount))+' · '+(x.tx.paid===true?'Paid':'Unpaid')+'</strong><span>'+esc(money(x.free))+' unallocated'+(x.tx.note?' · '+esc(x.tx.note):'')+'</span></button>';});try{openPanel('Assign to existing payment',body);}catch(_){} }
 
   function closePaymentModal(){
     var ov=document.getElementById('rt-payalloc-modal-backdrop');
@@ -137,7 +141,7 @@
     var rows=picked(a);if(!rows.length)return;var legacy=rows.filter(function(r){return r.legacy;}),unpaid=rows.filter(function(r){return r.unpaid;});if(legacy.length&&unpaid.length){try{toast('Select legacy settled items or unpaid items separately','error');}catch(_){}return;}
     // Eligibility belongs to each candidate, not the whole bank payment.
     // Fixed upfront costs and earned shares can share one set of allocations.
-    var total=pickedTotal(a),reconstruct=legacy.length>0,plan=reconstruct?{credit:0,net:total}:creditPlan(a,total,today());draft={accountId:a.id,ids:rows.map(function(r){return r.item.id;}),mode:'new',reconstruct:reconstruct};
+    var total=pickedTotal(a),reconstruct=legacy.length>0,plan=reconstruct?{credit:0,net:total}:creditPlan(a,total,today());draft={accountId:a.id,ids:rows.map(function(r){return r.item.id;}),mode:'new',reconstruct:reconstruct,snapshot:snapshot(a,rows)};
     var list=rows.map(function(r){return '<div class="rt-payalloc2-panel-row"><span>'+esc(r.item.item||'Item')+'</span><strong>'+esc(money(r.remaining))+'</strong></div>';}).join('');
     var intro=reconstruct?'This rebuilds one historical payment from items the old system marked settled but never linked to a transaction. The dated payment will also restore the matching historical cashflow outflow.':'This records one payment transaction. Item liabilities are allocated at their gross amount; any account credit reduces only the actual bank payment.';
     var creditHtml=!reconstruct&&plan.credit>0?'<label class="rt-payalloc-credit"><input type="checkbox" id="payalloc-apply-credit" checked><span><strong>Apply account credit · −'+esc(money(plan.credit))+'</strong><span>Gross liability '+esc(money(total))+' → expected bank payment '+esc(money(plan.net))+'. This credit is non-cash and will be linked to this payment.</span></span></label>':'';
@@ -147,10 +151,31 @@
     if(btn)btn.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();window._rtPayAllocCreate();});
   }
 
-  function liveDraft(){if(!draft)return {a:null,rows:[]};var a=acct(draft.accountId);if(!a)return {a:null,rows:[]};var map=Object.create(null);candidates(a).forEach(function(r){map[String(r.item.id)]=r;});return {a:a,rows:(draft.ids||[]).map(function(id){return map[String(id)]||null;}).filter(Boolean)};}
+  // Both selection surfaces use this same eligibility/allocation owner.
+  window.__rtPartnerPaymentCandidates=function(accountId){var a=acct(accountId);return a?candidates(a):[];};
+  window.__rtPartnerOpenPayment=function(accountId,ids){
+    var a=acct(accountId);if(!a)return false;
+    var wanted=new Set((ids||[]).map(String));
+    var rows=candidates(a).filter(function(r){return r.unpaid&&wanted.has(String(r.item.id));});
+    if(!rows.length){try{toast('No unpaid fixed costs or completed sales selected','error');}catch(_){}return false;}
+    selected[String(a.id)]=new Set(rows.map(function(r){return r.item.id;}));
+    includeUnsold[String(a.id)]=true;
+    draft=null;openNew(a);if(draft)draft.fromAccountSelection=true;return !!draft;
+  };
+  function snapshot(a,rows){return JSON.stringify(rows.map(function(r){return [String(r.item.id),r.month,r.owed,r.remaining,r.legacy,r.unpaid,model(a,r.item),sold(r.item),r.item.state,r.item.isReturned,r.item.scrappedAt,typeof _itemAccountType==='function'?_itemAccountType(r.item):r.item.accountType];}));}
+  function liveDraft(){
+    if(!draft)return {a:null,rows:[]};var a=acct(draft.accountId);if(!a)return {a:null,rows:[]};
+    var map=Object.create(null);candidates(a).forEach(function(r){map[String(r.item.id)]=r;});
+    var rows=(draft.ids||[]).map(function(id){return map[String(id)]||null;}).filter(Boolean);
+    if(snapshot(a,rows)!==draft.snapshot){
+      try{toast('Selected items or amounts changed. Review the payment again.','error');}catch(_){}
+      return {a:a,rows:[]};
+    }
+    return {a:a,rows:rows};
+  }
   function markIfFullyPaid(a,i){var owed=debt(a,i),paid=allocated(a,i.id,true);if(owed>0&&paid>=owed-0.009)i.accountSettled=true;}
   async function persistDB(){try{var result=saveDB();if(result&&typeof result.then==='function')await result;return true;}catch(e){console.warn('[RETRADE] payment allocation save failed',e);throw e;}}
-  function finish(a,msg){selected[String(a.id)]=new Set();draft=null;try{closePaymentModal();}catch(_){}try{closePanel();}catch(_){}try{toast(msg);}catch(_){}try{_renderAccountPage(a);}catch(_){} }
+  function finish(a,msg){selected[String(a.id)]=new Set();if(draft&&draft.fromAccountSelection){try{_acctSelected.clear();_acctSelectMode=false;}catch(_){}}draft=null;try{closePaymentModal();}catch(_){}try{closePanel();}catch(_){}try{toast(msg);}catch(_){}try{_renderAccountPage(a);}catch(_){} }
 
   window._rtPayAllocAssignExisting=async function(txId){var d=liveDraft(),a=d.a,rows=d.rows;if(!a||!rows.length)return;var tx=(a.settlements||[]).find(function(x){return x&&String(x.id)===String(txId);});if(!tx)return;var total=round(rows.reduce(function(s,r){return s+r.remaining;},0)),free=Math.max(0,round((Number(tx.partnerAmount)||0)-txUsed(tx)));if(free<total-0.009){try{toast('That payment no longer has enough unallocated balance','error');}catch(_){}return;}if(!Array.isArray(tx.items))tx.items=[];var prev=rows.map(function(r){return {item:r.item,settled:!!r.item.accountSettled};});rows.forEach(function(r){tx.items.push({id:r.item.id,itemId:r.item.id,name:r.item.item||'',kind:typeof _itemAccountType==='function'?_itemAccountType(r.item):String(r.item.accountType||a.accountType||'supplier'),amount:round(r.remaining)});markIfFullyPaid(a,r.item);});tx.updatedAt=new Date().toISOString();tx.allocationRepairedAt=tx.updatedAt;try{await persistDB();finish(a,'Assigned '+rows.length+' item'+(rows.length===1?'':'s')+' to '+money(tx.partnerAmount||0)+' payment');}catch(_){tx.items.splice(Math.max(0,tx.items.length-rows.length),rows.length);prev.forEach(function(x){x.item.accountSettled=x.settled;});try{toast('Could not save payment allocation','error');}catch(__){}}};
 
