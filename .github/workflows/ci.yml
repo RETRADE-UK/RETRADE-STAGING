@@ -25,6 +25,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium webkit
+      - run: node tests/dashboard-fortnight-browser.cjs --webkit
       - run: node tests/account-cost-payout-browser.cjs --webkit
       - run: node tests/staging-auth-browser.cjs --webkit
       - run: node tests/bulk-list-browser.cjs --webkit

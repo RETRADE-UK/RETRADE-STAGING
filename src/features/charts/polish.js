@@ -280,7 +280,11 @@
       else svgEl.insertBefore(axis,svgEl.firstChild);
     }
 
-    var barW=clamp(mobile?11:13,bandW*.56,mobile?36:48),profitW=Math.max(7,barW*.60);
+    var fortnight=opts.drawKey==='14d'&&n===14;
+    // Fourteen daily slots: keep a visible gap even on narrow phones, and
+    // cap desktop bars so sparse sales never become oversized blocks.
+    var barW=fortnight?Math.min(mobile?28:38,bandW*.62):clamp(mobile?11:13,bandW*.56,mobile?36:48);
+    var profitW=fortnight?barW*.58:Math.max(7,barW*.60);
     Array.prototype.forEach.call(svgEl.querySelectorAll('.rt-chart-primary-bar:not(.rt-chart-profit-bar)'),function(rect){
       var i=parseBarIndex(rect);if(i<0||i>=n)return;
       rect.setAttribute('x',(sx(i)-barW/2).toFixed(1));rect.setAttribute('width',barW.toFixed(1));
@@ -306,7 +310,32 @@
     var skip=Math.max(1,Math.ceil(n/Math.max(1,opts.maxXLabels||n))),labelIndices=[];
     for(var li=0;li<n;li++)if(li%skip===0||li===n-1)labelIndices.push(li);
     var xTexts=Array.prototype.slice.call(svgEl.querySelectorAll('text[text-anchor="middle"]'));
-    xTexts.forEach(function(t,k){var i=labelIndices[k];if(i!==undefined)t.setAttribute('x',sx(i).toFixed(1));});
+    if(fortnight&&xTexts.length){
+      // Evenly distribute readable dates, retaining both ends of the range.
+      // Every day still has a full-width hit target and its own tooltip.
+      var labelWidth=Math.max.apply(Math,labels.map(function(label){return String(label).length*fontSize*.65+14;}));
+      var labelCount=Math.min(n,Math.max(2,Math.floor(innerW/labelWidth)));
+      var template=xTexts[0].cloneNode(false);
+      xTexts.forEach(function(t){t.remove();});
+      // Rounded day indices can produce shorter gaps than the average.
+      // Measure the real type, reducing density until every label has room.
+      while(labelCount>=2){
+        var dateNodes=[];
+        for(var k=0;k<labelCount;k++){
+          var i=Math.round(k*(n-1)/(labelCount-1)),t=template.cloneNode(false);
+          t.setAttribute('class','rt-fortnight-date');
+          t.setAttribute('x',sx(i).toFixed(1));
+          t.setAttribute('text-anchor',k===0?'start':k===labelCount-1?'end':'middle');
+          t.textContent=labels[i];svgEl.appendChild(t);dateNodes.push(t);
+        }
+        var boxes=dateNodes.map(function(t){return t.getBBox();});
+        var fits=boxes.every(function(b,k){return b.x>=0&&b.x+b.width<=W&&(!k||b.x>=boxes[k-1].x+boxes[k-1].width+8);});
+        if(fits||labelCount===2)break;
+        dateNodes.forEach(function(t){t.remove();});labelCount--;
+      }
+    }else{
+      xTexts.forEach(function(t,k){var i=labelIndices[k];if(i!==undefined)t.setAttribute('x',sx(i).toFixed(1));});
+    }
 
     addForecastTreatment(svgEl,revData,profitData,forecast,sy,fontSize,pad,W);
     var firstHit=svgEl.querySelector('.rt-chart-col');
@@ -314,7 +343,7 @@
 
     svgEl.setAttribute('preserveAspectRatio','xMidYMid meet');
     svgEl.setAttribute('role','img');
-    svgEl.setAttribute('aria-label','Gross revenue and gross profit bars with refund trend and current-period forecast');
+    svgEl.setAttribute('aria-label',fortnight?'Last 14 days including today: daily gross revenue and gross profit bars with refunds':'Gross revenue and gross profit bars with refund trend and current-period forecast');
 
     var scrubPad={t:pad.t,r:pad.r+bandW/2,b:pad.b,l:pad.l+bandW/2};
     _setupChartScrub(svgEl,{

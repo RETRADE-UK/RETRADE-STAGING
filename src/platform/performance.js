@@ -87,7 +87,7 @@
   // v1.5.37 — quietly pre-build common Dashboard sale-event ranges while idle
   // so later period taps hit the short render path instead of rebuilding ranges.
   var _dashboardWarmStarted=false;
-  var _dashboardWarmPeriods=['30d','60d','90d','current_fy','prev_fy'];
+  var _dashboardWarmPeriods=['14d','30d','60d','90d','current_fy','prev_fy'];
   function _warmDashboardRanges(){
     if(_dashboardWarmStarted)return;
     try{if(typeof _dbLoading!=='undefined'&&_dbLoading){setTimeout(_warmDashboardRanges,320);return;}}catch(_){}
