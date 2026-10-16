@@ -5288,22 +5288,32 @@ function _ipRefreshDetails(m,id){
 function _ipHasRecordedPayment(i){
   return !!i.accountSettled||(_accounts||[]).some(function(a){return (a.settlements||[]).some(function(t){return t.paid===true&&(t.items||[]).some(function(x){return String(x.id||x.itemId)===String(i.id);});});});
 }
+function _setItemFixedCost(i,value){
+  const amount=+Math.max(0,Number(value)||0).toFixed(2);
+  i.costPrice=amount;i.accountPaidAmount=amount;i.partnerAgreedAmount=amount;
+  i.accountSplitPercent=null;i.arrangementModelOverride='fixed_cost';
+}
+function _setItemPurchaseCost(i,value){
+  if(i.accountId&&_ipHasRecordedPayment(i))return;
+  if(_fixedAccountAmount(i)!=null)_setItemFixedCost(i,value);
+  else i.costPrice=+Math.max(0,Number(value)||0).toFixed(2);
+}
 function _ipCostEditorHTML(m,i){
   const a=(_accounts||[]).find(function(x){return x.id===i.accountId;}),type=i.accountId?_itemAccountType(i):'own';
   const locked=_ipHasRecordedPayment(i),supplier=type==='supplier',hasShare=!!i.accountId&&!supplier;
-  const fixed=i.accountPaidAmount!=null,percent=i.accountSplitPercent!=null?i.accountSplitPercent:(a&&a.defaultSplitPercent!=null?a.defaultSplitPercent:0);
+  const agreed=_fixedAccountAmount(i),fixed=agreed!=null||i.accountPaidAmount!=null,percent=i.accountSplitPercent!=null?i.accountSplitPercent:(a&&a.defaultSplitPercent!=null?a.defaultSplitPercent:0);
   const disabled=locked?' disabled':'';
   let h='<section class="ip-cost-card" id="ip-costs"><div class="ip-card-heading"><h2>Cost &amp; profit</h2></div>'
     +'<details class="ip-owner-details"><summary>'+esc(a?a.name:'Own stock')+' · change owner</summary><label class="ip-control" for="ip-partner">Stock owner / partner<select id="ip-partner" onchange="ipAssignAccount(\''+m+'\',\''+i.id+'\',this.value)"'+disabled+'>'+_accountSelectOptionsHTML(i.accountId||null)+'</select></label></details>'
     +'<form class="ip-cost-form" oninput="ipPreviewCosts(\''+m+'\',\''+i.id+'\')" onsubmit="return ipSaveCosts(event,\''+m+'\',\''+i.id+'\')">'
-    +'<label class="ip-control" for="ip-buy-cost"'+(type==='consignment'&&!Number(i.costPrice)?' hidden':'')+'>'+(supplier?'Item cost · supplier payout (£)':type==='consignment'?'Recorded upfront cost (£)':type==='hybrid'?'Upfront item cost (£)':'Item cost (£)')
-    +'<input id="ip-buy-cost" type="number" inputmode="decimal" min="0" step="0.01" required value="'+(Number(i.costPrice)||0)+'"'+(type==='consignment'||(locked&&supplier)?' readonly':'')+'></label>';
+    +'<label class="ip-control" for="ip-buy-cost"'+(hasShare&&(fixed||type==='consignment'&&!Number(i.costPrice))?' hidden':'')+'>'+(supplier?'Item cost / account payout (£)':type==='consignment'?'Recorded upfront cost (£)':type==='hybrid'?'Upfront item cost (£)':'Item cost (£)')
+    +'<input id="ip-buy-cost" type="number" inputmode="decimal" min="0" step="0.01" required value="'+(agreed!=null?agreed:(Number(i.costPrice)||0))+'"'+(type==='consignment'||(locked&&supplier)?' readonly':'')+'></label>';
   if(hasShare){
     h+='<label class="ip-control" for="ip-partner-method">Partner agreement<select id="ip-partner-method" onchange="ipCostMethodChanged()"'+disabled+'><option value="percent"'+(!fixed?' selected':'')+'>Profit share</option><option value="fixed"'+(fixed?' selected':'')+'>Fixed cost</option></select></label>'
       +'<label class="ip-control" id="ip-percent-wrap" for="ip-partner-percent"'+(fixed?' hidden':'')+'>Partner share (%)<input id="ip-partner-percent" type="number" inputmode="decimal" min="0" max="100" step="0.01" value="'+percent+'"'+disabled+'></label>'
-      +'<label class="ip-control" id="ip-fixed-wrap" for="ip-partner-fixed"'+(!fixed?' hidden':'')+'>Item cost · partner payout (£)<input id="ip-partner-fixed" type="number" inputmode="decimal" min="0" step="0.01" value="'+(fixed?Number(i.accountPaidAmount):0)+'"'+disabled+'></label>';
+      +'<label class="ip-control" id="ip-fixed-wrap" for="ip-partner-fixed"'+(!fixed?' hidden':'')+'>Item cost / account payout (£)<input id="ip-partner-fixed" type="number" inputmode="decimal" min="0" step="0.01" value="'+(agreed!=null?agreed:(fixed?Number(i.accountPaidAmount):0))+'"'+disabled+'></label>';
   }
-  h+='<p class="ip-form-note" id="ip-cost-preview" aria-live="polite">'+(hasShare?'Your retained profit is after item costs and the partner agreement.':'Cost includes the purchase amount; parts are shown in the breakdown.')+'</p>';
+  h+='<p class="ip-form-note" id="ip-cost-preview" aria-live="polite">'+(i.accountId&&fixed?'One amount for the item cost and account payout, deducted once. Parts and selling costs are separate.':hasShare?'Your retained profit is after item costs and the partner agreement.':'Cost includes the purchase amount; parts are shown in the breakdown.')+'</p>';
   if(locked)h+='<p class="ip-form-note">A payment is recorded. Partner terms are locked here; review corrections in <button type="button" class="ip-text-button" onclick="openAccountPage(\''+esc(i.accountId)+'\')">Accounts</button>.</p>';
   h+='<div class="ip-cost-footer"><span id="ip-cost-save-status" role="status"></span><button class="btn btn-primary" type="submit">Save costs</button></div></form></section>';
   return h;
@@ -5312,22 +5322,34 @@ function ipCostMethodChanged(){
   const fixed=document.getElementById('ip-partner-method').value==='fixed';
   document.getElementById('ip-percent-wrap').hidden=fixed;
   document.getElementById('ip-fixed-wrap').hidden=!fixed;
+  const buy=document.getElementById('ip-buy-cost');
+  if(fixed){document.getElementById('ip-partner-fixed').value=buy.value;buy.closest('label').hidden=true;}
+  else{buy.value='0';buy.closest('label').hidden=buy.readOnly;}
+}
+function _ipApplyCostDraft(i){
+  if(_ipHasRecordedPayment(i))return;
+  const cost=document.getElementById('ip-buy-cost'),method=document.getElementById('ip-partner-method');
+  if(i.accountId&&(!method||method.value==='fixed')){
+    _setItemFixedCost(i,method?document.getElementById('ip-partner-fixed').value:cost.value);
+    cost.value=String(i.costPrice);
+  }else{
+    i.costPrice=Number(cost.value);
+    if(method){i.accountPaidAmount=null;i.partnerAgreedAmount=null;i.arrangementModelOverride='profit_share';i.accountSplitPercent=Number(document.getElementById('ip-partner-percent').value);}
+  }
 }
 function ipPreviewCosts(m,id){
   const original=(DB[m]||[]).find(function(i){return i.id===id;});if(!original)return;
-  const i=Object.assign({},original),type=i.accountId?_itemAccountType(i):'own',locked=_ipHasRecordedPayment(i);
-  const cost=document.getElementById('ip-buy-cost'),method=document.getElementById('ip-partner-method');
+  const i=Object.assign({},original),cost=document.getElementById('ip-buy-cost'),method=document.getElementById('ip-partner-method');
   if(!cost.checkValidity())return;
-  if(type!=='consignment'&&!(locked&&type==='supplier'))i.costPrice=Number(cost.value);
-  if(method&&!locked){
-    const fixed=method.value==='fixed',el=document.getElementById(fixed?'ip-partner-fixed':'ip-partner-percent');
+  if(method&&!_ipHasRecordedPayment(i)){
+    const el=document.getElementById(method.value==='fixed'?'ip-partner-fixed':'ip-partner-percent');
     if(!el.checkValidity()||el.value==='')return;
-    i.accountPaidAmount=fixed?Number(el.value):null;i.accountSplitPercent=fixed?null:Number(el.value);
   }
+  _ipApplyCostDraft(i);
   const expected=!i.scrappedAt&&(!!i.isReturned||(!i.dateSold&&!i.resaleSalePrice));
-  const profit=expected?calcEstProfit(i):calcNetProfit(i);
+  const profit=expected?_estPotentialNet(i):calcNetProfit(i);
   const partner=expected?_estimatedPartnerCutFromProfit(i,calcEstGrossProfit(i)):(_accountItemOwed(i)||0);
-  const total=(Number(i.costPrice)||0)+(i.parts||[]).reduce(function(s,p){return s+(Number(p.cost)||0);},0)+partner;
+  const total=_itemAcquisitionCost(i)+calcPartsCost(i)+partner;
   const profitToken=document.querySelector('#p-item .ip-profit-token .ip-token-val'),costToken=document.querySelector('#p-item .ip-cost-token .ip-token-val');
   if(profitToken){profitToken.textContent=profit==null?'—':fmt(profit);profitToken.parentElement.classList.toggle('pos',profit!=null&&profit>=0);profitToken.parentElement.classList.toggle('neg',profit!=null&&profit<0);}
   if(costToken)costToken.textContent=fmt(total);
@@ -5337,30 +5359,12 @@ function ipSaveCosts(event,m,id){
   event.preventDefault();
   const i=(DB[m]||[]).find(function(x){return x.id===id;});if(!i)return false;
   const costEl=document.getElementById('ip-buy-cost'),method=document.getElementById('ip-partner-method');
-  const cost=Number(costEl.value),type=i.accountId?_itemAccountType(i):'own',locked=_ipHasRecordedPayment(i);
-  if(costEl.value===''||!isFinite(cost)||cost<0)return false;
-  let agreement=null,fixed=false;
-  if(method&&!locked){
-    fixed=method.value==='fixed';
-    const el=document.getElementById(fixed?'ip-partner-fixed':'ip-partner-percent');agreement=Number(el.value);
-    if(el.value===''||!isFinite(agreement)||agreement<0||(!fixed&&agreement>100)){el.reportValidity();return false;}
+  if(costEl.value===''||!costEl.checkValidity())return false;
+  if(method&&!_ipHasRecordedPayment(i)){
+    const el=document.getElementById(method.value==='fixed'?'ip-partner-fixed':'ip-partner-percent');
+    if(el.value===''||!el.checkValidity()){el.reportValidity();return false;}
   }
-  // Read-only acquisition values may belong to a historical arrangement.
-  // Assignment owns any explicit conversion; saving terms must preserve them.
-  if(type!=='consignment'&&!(locked&&type==='supplier'))i.costPrice=+cost.toFixed(2);
-  if(i.accountId&&!locked){
-    if(type==='supplier'){
-      // Supplier costs already enter P&L through costPrice. Keep the agreed
-      // amount consistent without introducing a second partner deduction.
-      i.accountPaidAmount=i.costPrice;i.accountSplitPercent=null;
-      i.partnerAgreedAmount=i.costPrice;i.arrangementModelOverride='fixed_cost';
-    }else{
-      i.accountPaidAmount=fixed?+agreement.toFixed(2):null;
-      i.accountSplitPercent=fixed?null:+agreement.toFixed(2);
-      i.partnerAgreedAmount=fixed?i.accountPaidAmount:null;
-      i.arrangementModelOverride=fixed?'fixed_cost':'profit_share';
-    }
-  }
+  _ipApplyCostDraft(i);
   if(i.dateSold||i.isReturned||i.resaleSalePrice)i.grossProfit=calcGrossProfit(i);
   saveDB();_ipRefreshDetails(m,id);
   const status=document.getElementById('ip-cost-save-status');if(status)status.textContent='Costs saved';
@@ -6093,6 +6097,7 @@ function openTokenEdit(m,id,field,_alreadyAsync){
     if(save){
       const v=parseFloat(inp.value)||0;
       if(field==='promoPercent'){i.promoPercent=+(v/100).toFixed(4);}
+      else if(field==='costPrice'){_setItemPurchaseCost(i,v);}
       else{i[field]=+v.toFixed(2);}
       if(i.dateSold||i.isReturned||i.resaleSalePrice)i.grossProfit=calcGrossProfit(i);
       saveDB();
@@ -6209,7 +6214,7 @@ function _renderStockItemPage(m,i){
   const id=i.id;
   const ageDays=_daysInStock(i);
   const partsCost=calcPartsCost(i);
-  const totalCapital=(i.costPrice||0)+partsCost;
+  const totalCapital=(_fixedAccountAmount(i)!=null?_fixedAccountAmount(i):(i.costPrice||0))+partsCost;
   const ageStr=ageDays===null?'unknown':ageDays+' day'+(ageDays===1?'':'s');
   const back=`<button class="btn btn-secondary" onclick="exitItemPage()" style="margin-bottom:10px;font-size:13px">\u2190 Back</button>`;
   const photo=i.photo
@@ -6223,7 +6228,7 @@ function _renderStockItemPage(m,i){
       +`</div>`
     :'';
   const capitalToken=partsCost>0
-    ?`<div class="ip-token locked" style="grid-column:span 2;"><div class="ip-token-label">Total Capital</div><div class="ip-token-val">${fmt(totalCapital)}</div><div class="ip-token-sub">Buy ${fmt(i.costPrice||0)} + parts ${fmt(partsCost)}</div></div>`
+    ?`<div class="ip-token locked" style="grid-column:span 2;"><div class="ip-token-label">Total Capital</div><div class="ip-token-val">${fmt(totalCapital)}</div><div class="ip-token-sub">Buy ${fmt(_fixedAccountAmount(i)!=null?_fixedAccountAmount(i):(i.costPrice||0))} + parts ${fmt(partsCost)}</div></div>`
     :'';
   const html=`
     <div style="max-width:560px;margin:0 auto;padding:18px 16px 80px;">
@@ -6240,7 +6245,7 @@ function _renderStockItemPage(m,i){
           onpointerdown="tokenPointerDown('${m}','${id}','costPrice')"
           onclick="openTokenEdit('${m}','${id}','costPrice')">
           <div class="ip-token-label">Buy Price</div>
-          <div class="ip-token-val">${fmt(i.costPrice||0)}</div>
+          <div class="ip-token-val">${fmt(_fixedAccountAmount(i)!=null?_fixedAccountAmount(i):(i.costPrice||0))}</div>
           <div class="ip-token-sub">\u270f\ufe0f Tap to edit</div>
         </div>
         <div class="ip-token locked">
@@ -6335,7 +6340,7 @@ function _estPotentialGross(i){
   if(est<=0)return null;
   const bpf=calcPlatformBPF(i,est,0,_itemPlatform(i));
   const promo=est*_avgPromoRate()*1.20;
-  return +(est-bpf-promo-(i.costPrice||0)-calcPartsCost(i)-_medianFulfilmentDrag()).toFixed(2);
+  return +(est-bpf-promo-_itemAcquisitionCost(i)-calcPartsCost(i)-_medianFulfilmentDrag()).toFixed(2);
 }
 function _estPotentialNet(i){
   const gross=_estPotentialGross(i);
@@ -6573,7 +6578,7 @@ function _renderItemPageInner(m,id){
   if(_showPostage)pb+=_editMoneyRow('Shipping cost (you pay)','rcpt-s1-shipping-input',m,id,_rcptShipping,'var(--red)','−'); // v2.19.36 — editable per sale
   if(_showPostage&&_rcptPackaging>0)pb+=rcp('Packaging','−'+fmt(_rcptPackaging),'var(--red)');
   if(_rcptPromo)pb+=rcp((_plat==='ebay'?'Promo fee ('+((_rcptPromo*100).toFixed(0))+'% +VAT)':'Boost fee ('+((_rcptPromo*100).toFixed(0))+'%)'),'−'+fmt(_origPromoBeforeCredits),'var(--red)');
-  pb+=rcp('Item cost','−'+fmt(i.costPrice||0),'var(--red)');
+  if(_itemAcquisitionCost(i)||!_fixedAccountAmount(i))pb+=rcp('Item cost','−'+fmt(_itemAcquisitionCost(i)),'var(--red)');
   if(partsCost>0){
     const pts=i.parts||[];
     if(pts.length===1){pb+=rcp(esc(pts[0].description),'−'+fmt(partsCost),'var(--red)');}
@@ -6599,7 +6604,7 @@ function _renderItemPageInner(m,id){
         const _retCredits=_refundCreditsForEntry(i,r);
         if(_retCredits.platformCredit>0&&_showFee)pb+=rcp('Platform fee credit','+'+fmt(_retCredits.platformCredit),'var(--green)',true);
         if(_retCredits.promoCredit>0)pb+=rcp('Advertising fee credit','+'+fmt(_retCredits.promoCredit),'var(--green)',true);
-        const _restored=(Number(i.costPrice)||0)+partsCost;
+        const _restored=_itemAcquisitionCost(i)+partsCost;
         if(_restored>0)pb+=rcp('Stock cost restored','+'+fmt(_restored),'var(--green)',true);
       }
       pb+='<div class="ip-receipt-row"><span style="flex:1;color:var(--text-secondary)">Return postage</span>'
@@ -6738,7 +6743,7 @@ function _renderItemPageInner(m,id){
     const rlGrossInc=rlSalePrice-rlBPF;
     const rlPromo=_calcPromoFee(_itemPlatform(i),rlSalePrice,rlPostage,i.promoPercent||0);
     const rlRev=rlSalePrice+rlPostage-rlBPF;
-    const rlItemCost=Math.max(0,Number(i.costPrice)||0);
+    const rlItemCost=Math.max(0,_itemAcquisitionCost(i));
     const rlPartsCost=Math.max(0,Number(calcPartsCost(i))||0);
     const rlStockBasis=rlItemCost+rlPartsCost;
     const rlCost=rlShipping+rlPackaging+rlPromo+rlStockBasis;
@@ -6892,7 +6897,7 @@ function _renderItemPageInner(m,id){
 
   html+='<button type="button" class="ip-token ip-cost-token" onclick="document.getElementById(\'ip-costs\').scrollIntoView({block:\'center\'});document.querySelector(\'#ip-costs .ip-control:not([hidden]) input\')?.focus({preventScroll:true})">';
   const displayedPartnerCost=!i.scrappedAt&&(!!i.isReturned||(!i.dateSold&&!i.resaleSalePrice))?_estimatedPartnerCutFromProfit(i,calcEstGrossProfit(i)):(_accountItemOwed(i)||0);
-  html+='<div class="ip-token-label">Item cost'+(displayedPartnerCost&&i.accountPaidAmount==null?' + partner share':'')+'</div><div class="ip-token-val">'+fmt((Number(i.costPrice)||0)+partsCost+displayedPartnerCost)+'</div>';
+  html+='<div class="ip-token-label">Item cost'+(displayedPartnerCost&&i.accountPaidAmount==null?' + partner share':'')+'</div><div class="ip-token-val">'+fmt(_itemAcquisitionCost(i)+partsCost+displayedPartnerCost)+'</div>';
   html+='<div class="ip-token-sub">'+(displayedPartnerCost?'Includes payout '+fmt(displayedPartnerCost)+' · ':'Purchase + parts · ')+'edit costs</div></button>';
 
   // Promo %
@@ -9547,6 +9552,7 @@ function _accountItemOwed(i){
   // without one), so a write-site guard cannot hold the line. Settlement
   // tracking is _accountItemDebt()'s job and is deliberately separate.
   if(effType==='supplier')return null;
+  const fixed=_fixedAccountAmount(i);if(fixed!=null)return fixed;
   if(i.accountPaidAmount!=null)return +Number(i.accountPaidAmount).toFixed(2);
   if(i.accountSplitPercent==null)return null;
   const profit=calcGrossProfit(i);
@@ -9558,6 +9564,7 @@ function _accountItemOwed(i){
 // non-null even on unsold supplier items — you owe a supplier at purchase, not
 // sale. For consignment/hybrid this is the same as _accountItemOwed().
 function _accountItemDebt(i){
+  const fixed=_fixedAccountAmount(i);if(fixed!=null)return fixed;
   const effType=_itemAccountType(i);
   if(effType==='supplier'){
     if(i.accountPaidAmount!=null)return +Number(i.accountPaidAmount).toFixed(2);
@@ -9646,7 +9653,7 @@ function _accountStats(accountId){
     // For consignment/hybrid the "owed" comes out of profit — subtract from
     // yourShare. For supplier, cost is already deducted inside calcGrossProfit,
     // so don't double-count it.
-    if(_itemAccountType(i)!=='supplier')partnerProfitCut+=owed;
+    if(_itemAccountType(i)!=='supplier')partnerProfitCut+=(_accountItemOwed(i)||0);
   });
   const yourShare=grossProfit-partnerProfitCut;
 
@@ -9665,7 +9672,9 @@ function _accountStats(accountId){
     const effType=_itemAccountType(i);
     let partner=0;
     if(effType!=='supplier'){
-      if(i.accountPaidAmount!=null){
+      if(_fixedAccountAmount(i)!=null){
+        partner=_fixedAccountAmount(i);
+      }else if(i.accountPaidAmount!=null){
         partner=Math.max(0,Number(i.accountPaidAmount)||0);
       }else{
         const pct=i.accountSplitPercent!=null
@@ -10227,7 +10236,7 @@ function _acctBulkSetCostConfirm(){
       const item=(DB[k]||[]).find(function(i){return i.id===id;});
       if(!item)return;
       item.costPrice=cost;
-      item.accountPaidAmount=null;   // let costPrice drive owed for suppliers
+      item.accountPaidAmount=cost; // same fixed cost / payout
       if(item.accountSettled===undefined)item.accountSettled=false;
       n++;
     });
@@ -10768,7 +10777,7 @@ function submitItemSplit(month,itemId){
   const typeOverride=document.getElementById('item-type-override').value||'';
   item.accountType=typeOverride||null;
   // If overriding to consignment on a previously costed item, auto-zero.
-  if(typeOverride==='consignment'&&item.costPrice>0){
+  if(paidRaw===''&&typeOverride==='consignment'&&item.costPrice>0){
     item.costPrice=0;
     toast('costPrice set to £0 for consignment item');
   }
@@ -11632,12 +11641,14 @@ function _assignItemAccountCore(item,accountId){
   if(item.accountType==='consignment'&&(Number(item.costPrice)||0)>0){item.costPrice=0;zeroed=true;}
   return {account:a,zeroed:zeroed};
 }
-function _accountPickerCostMode(accountId,costInputId){
+function _accountPickerCostMode(accountId,costInputId,item){
   const a=accountId?(_accounts||[]).find(function(x){return x.id===accountId;}):null;
   const cost=document.getElementById(costInputId);if(!cost)return;
-  const isConsign=!!(a&&((a.accountType||'supplier')==='consignment'));
+  const fixed=item?_fixedAccountAmount(item)!=null:!!(a&&typeof _rtArrangementForAccount==='function'&&_rtArrangementForAccount(a)==='fixed_cost');
+  const isConsign=!!(a&&!fixed&&((a.accountType||'supplier')==='consignment'));
+  if(item&&fixed)cost.value=String(_fixedAccountAmount(item));
   if(isConsign){cost.value='0';cost.readOnly=true;cost.title='Consignment stock uses £0 acquisition cost';}
-  else{cost.readOnly=false;cost.title='';}
+  else{cost.readOnly=!!(item&&_ipHasRecordedPayment(item));cost.title=fixed?'Item cost and account payout are the same amount':'';}
   if(costInputId==='qa-cost'&&typeof updateBPFPreview==='function')updateBPFPreview();
 }
 function _saveExistingItemAccount(m,id,accountId,origin){
@@ -11849,7 +11860,7 @@ function submitListFromSourced(m, srcId){
   srcItem.category=(document.getElementById('qa-category').value||srcItem.category||autoCategory(rawName));
   srcItem.location=document.getElementById('qa-location').value||srcItem.location||'';
   srcItem.notes=(document.getElementById('qa-notes')?.value||'').trim()||srcItem.notes||'';
-  srcItem.costPrice=+rawCost.toFixed(2);
+  _setItemPurchaseCost(srcItem,rawCost);
   srcItem.salePrice=+_qaSalePrice.toFixed(2);
   srcItem.postage=postage; srcItem.shippingCost=shippingCost; srcItem.packagingCost=packagingCost;
   srcItem._postageMode=_postageMode; srcItem._sdRateIdx=_sdRateIdx; srcItem._sdBuyerPays=_sdBuyerPays;
@@ -12080,7 +12091,7 @@ function openStockQuickAdd(accountId){
 
 function _sqaIsConsignment(){
   const a=_quickAddAccount(_quickAddAccountId);
-  return !!(a&&((a.accountType||'supplier')==='consignment'));
+  return !!(a&&((a.accountType||'supplier')==='consignment')&&!(typeof _rtArrangementForAccount==='function'&&_rtArrangementForAccount(a)==='fixed_cost'));
 }
 // Re-applies the consignment £0 lock and labels the field as locked, so a
 // read-only input never looks like an editable one the keyboard ignores.
@@ -21994,7 +22005,7 @@ function editItem(m,id){
     <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveEdit('${m}','${id}')">Save Changes</button>
   `;
   openPanel('Edit Item',html);
-  _accountPickerCostMode(item.accountId||null,'edit-cost');
+  _accountPickerCostMode(item.accountId||null,'edit-cost',item);
   const _editPolicySel=document.getElementById('edit-shipping-policy');
   if(_editPolicySel)_populateShippingPolicySelect(_editPolicySel);
 }
@@ -22023,9 +22034,10 @@ function saveEdit(m,id){
   item.category=document.getElementById('edit-category').value;
   item.location=document.getElementById('edit-location').value;
   item.dateListed=document.getElementById('edit-date').value;
-  item.costPrice=parseFloat(document.getElementById('edit-cost').value)||0;
+  const editCost=Number(document.getElementById('edit-cost').value);
   const _editAcct=document.getElementById('edit-account');
-  if(_editAcct)_assignItemAccountCore(item,_editAcct.value||null);
+  if(_editAcct&&(_editAcct.value||null)!==(item.accountId||null))_assignItemAccountCore(item,_editAcct.value||null);
+  _setItemPurchaseCost(item,editCost);
   item.salePrice=parseFloat(document.getElementById('edit-price').value)||0;
   // Delivery mode + fields
   const editMode=document.getElementById('edit-postage-mode')?.value||'simple';
@@ -22095,7 +22107,7 @@ function _editStockItem(m,item){
     <button class="btn btn-primary" style="width:100%;margin-top:14px" onclick="_saveStockEdit('${m}','${item.id}')">Save</button>
   `;
   openPanel('Edit Unlisted Item',html);
-  _accountPickerCostMode(item.accountId||null,'edit-stock-cost');
+  _accountPickerCostMode(item.accountId||null,'edit-stock-cost',item);
   (function(){const t=document.getElementById('edit-stock-title');if(t)t.focus();})();
   setTimeout(function(){const t=document.getElementById('edit-stock-title');if(t&&document.activeElement!==t)t.focus();},50);
 }
@@ -22112,9 +22124,9 @@ function _saveStockEdit(m,id){
   if(!details)return;
   item.category=details.category;item.location=details.location;
   item.item=(document.getElementById('edit-stock-title').value||'').trim()||'Untitled stock item';
-  item.costPrice=+cost.toFixed(2);
   const _stockAcct=document.getElementById('edit-stock-account');
-  if(_stockAcct)_assignItemAccountCore(item,_stockAcct.value||null);
+  if(_stockAcct&&(_stockAcct.value||null)!==(item.accountId||null))_assignItemAccountCore(item,_stockAcct.value||null);
+  _setItemPurchaseCost(item,cost);
   const _estEl=document.getElementById('edit-stock-est');
   if(_estEl){
     const _estVal=_estEl.value.trim();
@@ -25662,7 +25674,7 @@ window.addEventListener('load', function(){
 
       if(fCost){
         var c=parseFloat(fCost.value);
-        if(isFinite(c))item.costPrice=Math.max(0,c);
+        if(isFinite(c))_setItemPurchaseCost(item,c);
       }
 
       if(fPrice){
