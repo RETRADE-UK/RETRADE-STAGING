@@ -14403,7 +14403,7 @@ function renderSummary(){
     const top=sold.slice(0,6);
     const _topFlipsHidden=Math.max(0,sold.length-6);
     const addDays=function(ds,n){const d=new Date(ds);d.setDate(d.getDate()+n);return d.toISOString().split('T')[0];}
-    const fmtShort=function(ds){const d=new Date(ds);return (d.getMonth()+1)+'/'+d.getDate();}
+    const fmtShort=function(ds){const d=new Date(ds);return SUMMARY_PERIOD==='14d'?d.toLocaleDateString('en-GB',{day:'numeric',month:'short'}):(d.getMonth()+1)+'/'+d.getDate();}
     const isDaily=SUMMARY_PERIOD==='7d';
     // v2.21.13 — the trend INCLUDES today again so it agrees with the KPI
     // totals (which count today); the current incomplete day/period is rendered

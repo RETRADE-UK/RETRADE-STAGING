@@ -16,7 +16,7 @@ const engine=process.argv.includes('--webkit')?webkit:chromium;
     _accounts=[];DB={'OCT-26':[],trips:[],expenses:[]};
     for(let i=-1;i<=14;i++){
      if(i===4)continue; // one real zero-sales day must retain its slot
-     const day=dateAdd('2026-10-03',i),price=20+Math.max(0,i),cost=i===7?70:10;
+     const day=new Date(Date.UTC(2026,9,3+i)).toISOString().slice(0,10),price=20+Math.max(0,i),cost=i===7?70:10;
      DB['OCT-26'].push({id:'fortnight-'+i,item:'Synthetic daily sale '+i,state:'sold',category:'Other',dateSourced:day,dateListed:day,dateSold:day,salePrice:price,costPrice:cost,postage:0,shippingCost:0,packagingCost:0,promoPercent:0,listingFee:0,salePlatform:'fb',defaultPlatform:'fb',returnHistory:[],parts:[]});
     }
     renderSummary();
