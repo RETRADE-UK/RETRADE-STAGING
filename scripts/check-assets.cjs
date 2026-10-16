@@ -20,7 +20,7 @@ const tracked=execFileSync('git',['ls-files'],{cwd:root,encoding:'utf8'}).split(
 for(const file of tracked)assert(!/(^|\/)(\.env($|\.)|retrade-(backup|export).*\.json$|.*\.backup\.json$)/.test(file)&&file!=='archive/legacy-site/data.json',`Local data tracked: ${file}`);
 const cname=fs.readFileSync(path.join(root,'CNAME'),'utf8').trim();
 if(assets.environment==='staging'){
- assert.equal(cname,'test.retrade-uk.com');assert.deepEqual(assets.bindings,['src/platform/staging-binding.js']);assert(assets.deferred.includes('src/platform/staging-auth.js'));
+ assert.equal(cname,'test.retrade-uk.com');assert.deepEqual(assets.bindings,['src/platform/staging-binding.js']);assert(assets.critical.includes('src/platform/staging-auth.js'));
  const binding=fs.readFileSync(path.join(root,assets.bindings[0]),'utf8');assert(binding.includes('https://dvnrxmdejxfuazmpnudj.supabase.co'));
 }else{assert.equal(assets.environment,'production');assert.equal(cname,'retrade-uk.com');assert.equal(assets.bindings.length,0);assert(!scripts.some(s=>/staging|gesture|interaction-system/.test(s)));}
 console.log(`Asset/syntax/isolation checks passed: ${scripts.length} scripts, ${shipped.length} deployable files (${assets.environment})`);

@@ -42,7 +42,7 @@ _hydrateUserSettings=async()=>{};_startRealtimeSync=async()=>{};_stopRealtimeSyn
 saveDB=()=>{};_readSyncClockRevision=async()=>{};_refreshCloudOnResume=async()=>false;
 `;
 
-async function open(browser, { signedIn = false, mobile = false, reduced = false, slowCore = false, failedCore = false, failedBinding = false, slowData = false, slowFeatures = false, items = 24, timezoneId } = {}) {
+async function open(browser, { signedIn = false, mobile = false, reduced = false, slowCore = false, failedCore = false, failedBinding = false, slowData = false, slowFeatures = false, items = 24, timezoneId, authMock = mockAuth } = {}) {
   const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1000 }, isMobile: mobile, hasTouch: mobile, reducedMotion: reduced ? 'reduce' : 'no-preference', serviceWorkers: 'block',timezoneId });
   const page = await context.newPage();
   const errors = [];
@@ -50,7 +50,7 @@ async function open(browser, { signedIn = false, mobile = false, reduced = false
   page.on('pageerror', e => errors.push(e.message));
   await context.route('**/*', async route => {
     const url = new URL(route.request().url());
-    if (url.pathname.includes('/supabase-js@')) return route.fulfill({ contentType: 'text/javascript', body: `(${mockAuth.toString()})(${JSON.stringify(signedIn ? session : null)});` });
+    if (url.pathname.includes('/supabase-js@')) return route.fulfill({ contentType: 'text/javascript', body: `(${authMock.toString()})(${JSON.stringify(signedIn ? session : null)});` });
     if (url.origin !== 'http://retrade.test') return route.abort();
     if (url.pathname === '/') return route.fulfill({ contentType: 'text/html', body: fs.readFileSync(path.join(root, 'index.html'), 'utf8').replace(/ integrity="[^"]*"/g, '') });
     if(failedBinding&&url.pathname==='/src/platform/staging-binding.js')return route.abort();
