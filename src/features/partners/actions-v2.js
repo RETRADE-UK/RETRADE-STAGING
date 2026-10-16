@@ -1,4 +1,4 @@
-/* RETRADE partner actions v1.4.66
+/* RETRADE partner actions v1.4.67
  * Partner-account interaction layer for the live app.
  *
  * Goals:
@@ -67,12 +67,16 @@
   }
 
   function selectedSummary(acct){
-    var selected=selectedIdSet(),picked=accountItems(acct.id).filter(function(entry){return selected.has(entry.item.id);});
+    var selected=selectedIdSet(),ids=Array.from(selected).map(String),idSet=new Set(ids),picked=accountItems(acct.id).filter(function(entry){return idSet.has(String(entry.item.id));});
+    if(typeof window.__rtPartnerPaymentSelectionState==='function'){
+      var state=window.__rtPartnerPaymentSelectionState(acct.id,ids)||{};
+      return {picked:picked,payable:state.payable||[],needsTerms:state.needsTerms||[],otherCount:Number(state.otherCount)||0,total:roundMoney(state.total)};
+    }
     var eligible=typeof window.__rtPartnerPaymentCandidates==='function'?window.__rtPartnerPaymentCandidates(acct.id):[];
     var byId=new Map(eligible.filter(function(r){return r.unpaid;}).map(function(r){return [String(r.item.id),r];}));
     var payable=picked.map(function(entry){return byId.get(String(entry.item.id));}).filter(Boolean);
     var total=roundMoney(payable.reduce(function(sum,entry){return sum+entry.remaining;},0));
-    return {picked:picked,payable:payable,total:total};
+    return {picked:picked,payable:payable,needsTerms:[],otherCount:Math.max(0,picked.length-payable.length),total:total};
   }
 
   function hideLegacyPartnerControls(page){
@@ -222,21 +226,25 @@
 
     var selectedCount=summary.picked.length;
     var payableCount=summary.payable.length;
-    var actionLabel=payableCount?'Mark as paid · '+money(summary.total):'Mark as paid';
+    var needsTermsCount=(summary.needsTerms||[]).length;
+    var actionLabel=needsTermsCount?('Set payout · '+needsTermsCount):(payableCount?'Mark as paid · '+money(summary.total):'Mark as paid');
     var type=String(acct.accountType||'supplier');
     var secondaryAction=type==='supplier'
       ? '<button type="button" class="btn btn-secondary rt-partner-v2-terms">Set cost</button>'
       : '<button type="button" class="btn btn-secondary rt-partner-v2-terms">Set split</button>';
 
+    var statusLine=needsTermsCount
+      ? payableCount+' ready · '+needsTermsCount+' need payout'+(summary.otherCount?' · '+summary.otherCount+' not payable':'')
+      : (payableCount===selectedCount?payableCount+' unpaid item'+(payableCount===1?'':'s'):payableCount+' of '+selectedCount+' selected item'+(selectedCount===1?'':'s')+' payable'+(summary.otherCount?' · '+summary.otherCount+' not payable':''));
     bar.innerHTML='\
       <div class="rt-partner-v2-selection-copy">\
         <div class="rt-partner-v2-selection-count">'+selectedCount+' selected</div>\
-        <div class="rt-partner-v2-selection-total">'+money(summary.total)+' to pay</div>\
-        <div class="rt-partner-v2-selection-sub">'+(payableCount===selectedCount?payableCount+' unpaid item'+(payableCount===1?'':'s'):payableCount+' of '+selectedCount+' selected item'+(selectedCount===1?'':'s')+' payable')+'</div>\
+        <div class="rt-partner-v2-selection-total">'+money(summary.total)+(needsTermsCount?' ready to pay':' to pay')+'</div>\
+        <div class="rt-partner-v2-selection-sub">'+statusLine+'</div>\
       </div>\
       <button type="button" class="btn btn-secondary rt-partner-v2-select-all">Select all</button>\
       '+secondaryAction+'\
-      <button type="button" class="btn btn-primary rt-partner-v2-pay"'+(payableCount?'':' disabled')+'>'+htmlEscape(actionLabel)+'</button>';
+      <button type="button" class="btn btn-primary rt-partner-v2-pay"'+((payableCount||needsTermsCount)?'':' disabled')+'>'+htmlEscape(actionLabel)+'</button>';
     toolbar.insertAdjacentElement('afterend',bar);
 
     bar.querySelector('.rt-partner-v2-select-all').addEventListener('click',function(){
@@ -250,6 +258,7 @@
       }catch(err){console.warn('[RETRADE] partner bulk terms failed',err);}
     });
     bar.querySelector('.rt-partner-v2-pay').addEventListener('click',function(){
+      if(needsTermsCount&&typeof window.__rtPartnerPrepareTerms==='function'){window.__rtPartnerPrepareTerms(acct.id,Array.from(selectedIdSet()));return;}
       if(!payableCount)return;
       openGroupedPayment(acct);
     });
@@ -282,7 +291,12 @@
     if(typeof window.__rtPartnerOpenPayment!=='function'){
       try{toast('Payment controls are still loading. Please try again.','error');}catch(_){}return;
     }
-    window.__rtPartnerOpenPayment(acct.id,Array.from(selectedIdSet()));
+    var ids=Array.from(selectedIdSet());
+    if(typeof window.__rtPartnerPaymentSelectionState==='function'){
+      var state=window.__rtPartnerPaymentSelectionState(acct.id,ids);
+      if(state&&state.needsTerms&&state.needsTerms.length&&typeof window.__rtPartnerPrepareTerms==='function'){window.__rtPartnerPrepareTerms(acct.id,ids);return;}
+    }
+    window.__rtPartnerOpenPayment(acct.id,ids);
   }
 
   // Any legacy caller of "bulk settle" now gets the exact grouped payment path,
