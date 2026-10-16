@@ -11969,11 +11969,24 @@ function submitQuickAdd(){
 }
 
 // Patch A — Stock Quick Add (pre-listing flow)
-// Minimal fields: cost (required), title, photo, notes, dateSourced.
-// Stock items have state='stock' and no salePrice / platform / fees yet.
+// Cost, category and location are required; title, estimate, photo and notes stay optional.
+// Stock items have state='sourced' and no salePrice / platform / fees yet.
 // They contribute to inventory cost (capital tied up) but not to revenue or
 // profit KPIs — financial calc functions short-circuit cleanly when salePrice
 // is absent (see calcGrossProfit, calcItemRevenue, calcROI).
+// Shared by unlisted creation, purchase lines and the bulk listing review.
+function _stockDetailsFieldsHTML(prefix,item){
+  item=item||{};
+  return '<div class="fg"><label for="'+prefix+'-category">Category *</label><select id="'+prefix+'-category" required><option value="">Choose category…</option>'
+    +ITEM_CATEGORIES.map(function(c){return '<option value="'+esc(c)+'"'+(c===item.category?' selected':'')+'>'+esc(c)+'</option>';}).join('')
+    +'</select></div><div class="fg"><label for="'+prefix+'-location">Location *</label><input id="'+prefix+'-location" type="text" required value="'+esc(item.location||'')+'" placeholder="e.g. Box A, Shelf 2"></div>';
+}
+function _requiredStockDetails(prefix){
+  const cat=document.getElementById(prefix+'-category'),loc=document.getElementById(prefix+'-location');
+  if(!cat||!ITEM_CATEGORIES.includes(cat.value)){toast('Choose a category','error');if(cat)cat.focus();return null;}
+  if(!loc||!loc.value.trim()){toast('Enter a stock location','error');if(loc)loc.focus();return null;}
+  return {category:cat.value,location:loc.value.trim()};
+}
 let _sqaSessionCount=0;
 function openStockQuickAdd(accountId){
   _quickAddAccountId=accountId||null;
@@ -11992,6 +12005,7 @@ function openStockQuickAdd(accountId){
       <label>Title <span style="color:var(--text-secondary);font-weight:400;font-size:11px;">(optional)</span></label>
       <input type="text" id="sqa-title" placeholder="e.g. Camera, Lego set" autocomplete="off">
     </div>
+    ${_stockDetailsFieldsHTML('sqa')}
     <div class="cost-pair-row" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
       <div class="fg" style="margin-bottom:0">
         <label>Cost <span id="sqa-cost-star" style="color:var(--red);font-weight:600">*</span></label>
@@ -12107,6 +12121,8 @@ async function submitStockQuickAdd(closeAfter){
     return;
   }
   const _estSaleRaw=parseFloat(estSaleEl?.value);
+  const stockDetails=_requiredStockDetails('sqa');
+  if(!stockDetails)return;
   const _estSalePrice=isFinite(_estSaleRaw)&&_estSaleRaw>0 ? +_estSaleRaw.toFixed(2) : null;
   const _date=(dateEl?.value)||new Date().toISOString().split('T')[0];
   const m=monthKeyFromDate(_date);
@@ -12131,6 +12147,8 @@ async function submitStockQuickAdd(closeAfter){
     item:(titleEl?.value||'').trim()||'Untitled stock item',
     costPrice:+cost.toFixed(2),
     estSalePrice:_estSalePrice,
+    category:stockDetails.category,
+    location:stockDetails.location,
     notes:(notesEl?.value||'').trim(),
     // Defaults so legacy code paths (filter, render, return-history) don't crash
     parts:[],
@@ -12161,7 +12179,7 @@ async function submitStockQuickAdd(closeAfter){
   // Reset form in-place: clear fields, show saved banner + chain buttons, focus title.
   // No panel close/reopen — keyboard stays up, user just fills next item.
   const _savedName=(document.getElementById('sqa-title')?.value||'').trim()||'Item';
-  // Clear inputs for next item
+  // Keep category/location/date for quick entry of a batch; clear item-specific inputs.
   const _keepDate=document.getElementById('sqa-date')?.value||'';
   ['sqa-cost','sqa-est-sale','sqa-title','sqa-notes','sqa-part-desc','sqa-part-cost'].forEach(function(id){
     const el=document.getElementById(id);
@@ -16339,13 +16357,16 @@ function _bulkActionButton(ctx,action,label,ico,extra){
 }
 function _bulkSelectionToolbarHTML(ctx){
   const stock=ctx==='stock',onHand=stock&&['sourced','returned'].includes(STOCK_STATE_FILTER);
-  const primary=onHand
+  const unlisted=stock&&STOCK_STATE_FILTER==='sourced';
+  const primary=unlisted
+    ?_bulkActionButton(ctx,'list','List items','list')+_bulkActionButton(ctx,'duplicate','Duplicate to stock','dupe')
+    :onHand
     ?_bulkActionButton(ctx,'duplicate','Duplicate to stock','dupe')+_bulkActionButton(ctx,'joblot','Create Job Lot','joblot')
     :stock
     ?_bulkActionButton(ctx,'sold','Mark sold','sold','is-sold')+_bulkActionButton(ctx,'withdraw','Unlist','withdraw')
     :_bulkActionButton(ctx,'undo','Undo sales','revert')+_bulkActionButton(ctx,'duplicate','Duplicate to stock','dupe');
   const more=stock
-    ?(onHand?'':'<select aria-label="Change platform for selected stock" class="bulk-ctrl bulk-plat-sel" data-stock-action="platform" data-source="stock" disabled><option value="">🏪 Platform</option>'+Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){return '<option value="'+p.id+'">'+p.short+'</option>';}).join('')+'</select>'
+    ?(unlisted?_bulkActionButton(ctx,'joblot','Create Job Lot','joblot'):'')+(onHand?'':_bulkActionButton(ctx,'list','List items','list')+'<select aria-label="Change platform for selected stock" class="bulk-ctrl bulk-plat-sel" data-stock-action="platform" data-source="stock" disabled><option value="">🏪 Platform</option>'+Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){return '<option value="'+p.id+'">'+p.short+'</option>';}).join('')+'</select>'
       +_bulkActionButton(ctx,'bundle','Bundle sale','sold')+_bulkActionButton(ctx,'joblot','Create Job Lot','joblot'))
       +(typeof openPurchaseLink==='function'?_bulkActionButton(ctx,'purchase','Link purchase','expense'):'')
       +(onHand?'':_bulkActionButton(ctx,'duplicate','Duplicate to stock','dupe'))
@@ -16456,6 +16477,7 @@ async function runSelectionAction(ctx,action){
   try{
     if(action==='duplicate')return await _duplicateSelectedStock(ctx);
     if(ctx==='month'){if(action==='undo')return await _undoSelectedSales();return;}
+    if(action==='list')return openStockBulkList();
     if(action==='withdraw')return await withdrawSelectedStock();
     if(action==='sold'){
       const rows=_selectedBulkRecords('stock');if(!rows.length||!_stockSelectionCapabilities().sold)return;
@@ -16570,10 +16592,124 @@ function toggleStockGroup(key){
   el.classList.toggle('collapsed',collapsed);
 }
 
+function _bulkListReason(i){
+  if(!i||!_lifecycleCan(i,'list'))return 'Only unlisted stock can be listed here.';
+  if(_activeJobLotMembership(i.id)||_itemHasGroupedSale(i))return 'Manage this item from its Job Lot or order.';
+  if(_itemHasPriorFullReturn(i)||(i.returnHistory||[]).length)return 'Use the item’s individual relisting flow to keep its return history.';
+  return '';
+}
+function openStockBulkList(){
+  const selected=_selectedBulkRecords('stock');
+  const rows=selected.filter(function(r){return !_bulkListReason(r.item);});
+  if(!rows.length){toast(selected.length?_bulkListReason(selected[0].item):'Select unlisted stock to list','error');return;}
+  const reviewed=rows.map(function(r){return {id:r.item.id,before:JSON.stringify(r.item),month:r.month};});
+  const skipped=selected.filter(function(r){return _bulkListReason(r.item);});
+  const platforms=function(value){return Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){return '<option value="'+p.id+'"'+(p.id===value?' selected':'')+'>'+esc(p.label)+'</option>';}).join('');};
+  const field=function(label,id,value,extra){return '<div class="fg"><label for="'+id+'">'+label+'</label><input id="'+id+'" value="'+esc(String(value==null?'':value))+'" '+(extra||'type="text"')+'></div>';};
+  const money='type="number" min="0" step="0.01" inputmode="decimal" required';
+  const percent='type="number" min="0" max="100" step="0.1" inputmode="decimal" required';
+  const body=rows.map(function(r,n){
+    const i=r.item,p='bulk-list-'+n,price=Number(i.estSalePrice)>0?i.estSalePrice:Number(i.salePrice)>0?i.salePrice:'';
+    const platform=PLATFORMS[i.defaultPlatform]&&PLATFORMS[i.defaultPlatform].live?i.defaultPlatform:DEFAULT_PLATFORM;
+    const mode=i._postageMode||(platform==='ebay'?'simple':'custom');
+    const needsDetails=!ITEM_CATEGORIES.includes(i.category)||!String(i.location||'').trim()||!i._postageMode||!i.item||i.item==='Untitled stock item';
+    return '<section class="bulk-list-item" data-bulk-list-row="'+n+'"><h3>'+esc(i.item||'Unnamed stock')+'</h3><p class="fg-hint">'+esc(i.gid||'')+' · Cost '+fmt(i.costPrice||0)+'</p>'
+      +'<div class="bulk-list-grid">'+field('Selling price (£) *',p+'-price',price,money.replace('min="0"','min="0.01"'))+field('Promotion % *',p+'-promo',+(Number(i.promoPercent||0)*100).toFixed(1),percent)+'</div>'
+      +'<details'+(needsDetails?' open':'')+'><summary>Listing details &amp; delivery</summary>'
+      +field('Item title *',p+'-title',i.item==='Untitled stock item'?'':i.item,'type="text" required')
+      +_stockDetailsFieldsHTML(p,i)
+      +'<div class="fg"><label for="'+p+'-platform">Platform</label><select id="'+p+'-platform">'+platforms(platform)+'</select></div>'
+      +'<div class="fg"><label for="'+p+'-mode">Delivery</label><select id="'+p+'-mode"><option value="simple"'+(mode==='simple'?' selected':'')+'>eBay Simple Delivery</option><option value="custom"'+(mode!=='simple'?' selected':'')+'>Custom / collection</option></select></div>'
+      +'<div data-simple><div class="fg"><label for="'+p+'-rate">Parcel size</label><select id="'+p+'-rate">'+_sdOptionsFor(price,Number.isInteger(i._sdRateIdx)?i._sdRateIdx:1)+'</select></div>'
+      +'<label class="bulk-list-check"><input id="'+p+'-free" type="checkbox"'+(i._sdBuyerPays===false?' checked':'')+'> Free postage for buyer</label></div>'
+      +'<div data-custom class="bulk-list-grid">'+field('Your shipping (£)',p+'-shipping',i.shippingCost||0,money)+field('Buyer postage (£)',p+'-postage',i.postage||0,money)+'</div>'
+      +field('Packaging (£)',p+'-packaging',i.packagingCost||0,money)
+      +'</details><p class="bulk-list-delivery fg-hint" data-delivery-summary></p><p class="bulk-list-error" data-row-error role="alert"></p></section>';
+  }).join('');
+  openPanel('List '+rows.length+' item'+(rows.length===1?'':'s'),'<form id="bulk-list-form" novalidate><p class="fg-hint">Review each listing before confirming. This updates RETRADE; it does not publish adverts to a marketplace.</p>'
+    +(skipped.length?'<details class="bulk-list-skipped"><summary>'+skipped.length+' selected item'+(skipped.length===1?'':'s')+' will stay unchanged</summary><ul>'+skipped.map(function(r){return '<li>'+esc(r.item.item)+': '+esc(_bulkListReason(r.item))+'</li>';}).join('')+'</ul></details>':'')
+    +field('Date listed *','bulk-list-date',_todayISO(),'type="date" required')
+    +'<details class="bulk-list-shared"><summary>Apply the same settings to all</summary><div class="fg"><label for="bulk-list-platform-all">Platform</label><select id="bulk-list-platform-all"><option value="">Keep each item’s platform</option>'+platforms('')+'</select></div>'
+    +field('Promotion %','bulk-list-promo-all','','type="number" min="0" max="100" step="0.1" inputmode="decimal" placeholder="Keep each item’s percentage"')
+    +'<button type="button" class="btn btn-secondary" id="bulk-list-apply">Apply to all items</button></details>'
+    +body+'<p id="bulk-list-error" class="bulk-list-error" role="alert"></p><div class="bulk-list-footer"><span id="bulk-list-total" aria-live="polite"></span><div><button type="button" class="btn btn-secondary" id="bulk-list-cancel">Cancel</button><button type="submit" class="btn btn-primary" id="bulk-list-save">List '+rows.length+' item'+(rows.length===1?'':'s')+'</button></div></div></form>');
+  const form=document.getElementById('bulk-list-form');
+  const get=function(n,key){return form.querySelector('#bulk-list-'+n+'-'+key);};
+  function refresh(){
+    let total=0;
+    rows.forEach(function(r,n){
+      const root=form.querySelector('[data-bulk-list-row="'+n+'"]'),platform=get(n,'platform').value,mode=get(n,'mode'),simple=platform==='ebay'&&mode.value==='simple';
+      mode.querySelector('[value="simple"]').disabled=platform!=='ebay';
+      if(platform!=='ebay')mode.value='custom';
+      mode.disabled=platform==='vinted';
+      root.querySelector('[data-simple]').hidden=!simple;
+      root.querySelector('[data-custom]').hidden=simple||platform==='vinted';
+      const price=Number(get(n,'price').value)||0,idx=Number(get(n,'rate').value);
+      get(n,'rate').innerHTML=_sdOptionsFor(price,idx);
+      const shipping=simple?_sdRateFor(idx,price):Number(get(n,'shipping').value)||0;
+      const postage=simple?(get(n,'free').checked?0:shipping):Number(get(n,'postage').value)||0;
+      root.querySelector('[data-delivery-summary]').textContent=PLATFORMS[platform].short+' · '+(platform==='vinted'?'Buyer pays delivery through Vinted':(simple?'Simple Delivery':'Custom / collection')+' · shipping '+fmt(shipping)+' · buyer pays '+fmt(postage));
+      total+=price;
+    });
+    form.querySelector('#bulk-list-total').textContent=rows.length+' items · '+fmt(total)+' total asking price';
+  }
+  form.addEventListener('input',refresh);form.addEventListener('change',refresh);
+  form.querySelector('#bulk-list-apply').onclick=function(){
+    const promo=form.querySelector('#bulk-list-promo-all'),platform=form.querySelector('#bulk-list-platform-all').value;
+    if(promo.value!==''&&!promo.checkValidity()){promo.reportValidity();return;}
+    rows.forEach(function(r,n){if(promo.value!=='')get(n,'promo').value=promo.value;if(platform)get(n,'platform').value=platform;});refresh();
+  };
+  form.querySelector('#bulk-list-cancel').onclick=function(){closePanel();};
+  let saving=false;
+  form.onsubmit=async function(event){
+    event.preventDefault();if(saving)return;
+    const error=form.querySelector('#bulk-list-error'),dateField=form.querySelector('#bulk-list-date'),date=dateField.value;
+    error.textContent='';
+    if(!date||!dateField.checkValidity()){error.textContent='Choose a valid listing date.';dateField.focus();return;}
+    let firstInvalid=null;
+    const updates=rows.map(function(r,n){
+      const root=form.querySelector('[data-bulk-list-row="'+n+'"]'),bad=[];
+      const required=['title','price','promo','category','location','packaging'];
+      const platform=get(n,'platform').value,mode=get(n,'mode').value;
+      if(platform!=='vinted'&&mode==='custom')required.push('shipping','postage');
+      required.forEach(function(key){const el=get(n,key);if(!el.value.trim()||!el.checkValidity()||(key==='category'&&!ITEM_CATEGORIES.includes(el.value)))bad.push(el);});
+      if(bad.length){root.querySelector('details').open=true;root.querySelector('[data-row-error]').textContent='Complete the highlighted fields. Price must be above £0; promotion must be 0–100%.';if(!firstInvalid)firstInvalid=bad[0];}
+      else root.querySelector('[data-row-error]').textContent='';
+      required.forEach(function(key){get(n,key).setAttribute('aria-invalid',bad.includes(get(n,key))?'true':'false');});
+      const price=Number(get(n,'price').value),idx=Number(get(n,'rate').value),simple=platform==='ebay'&&mode==='simple';
+      const shipping=platform==='vinted'?0:simple?_sdRateFor(idx,price):Number(get(n,'shipping').value);
+      return {item:get(n,'title').value.trim(),category:get(n,'category').value,location:get(n,'location').value.trim(),salePrice:price,promoPercent:Number(get(n,'promo').value)/100,
+        defaultPlatform:platform,_postageMode:simple?'simple':'custom',_sdRateIdx:idx,_sdBuyerPays:simple&&!get(n,'free').checked,
+        shippingCost:shipping,postage:platform==='vinted'?0:simple?(get(n,'free').checked?0:shipping):Number(get(n,'postage').value),packagingCost:Number(get(n,'packaging').value)};
+    });
+    if(firstInvalid){error.textContent='Check the marked item details before listing.';firstInvalid.focus();return;}
+    if(rows.some(function(r,n){return r.item.dateSourced&&date<r.item.dateSourced;})){error.textContent='The listing date cannot be before an item’s source date.';dateField.focus();return;}
+    const fresh=reviewed.map(function(x){return _findItemRecordById(x.id);});
+    if(fresh.some(function(r,n){return !r||r.month!==reviewed[n].month||JSON.stringify(r.item)!==reviewed[n].before||_bulkListReason(r.item);})){error.textContent='A selected item changed while this review was open. Close and reopen List items to review the latest details.';return;}
+    saving=true;form.querySelector('#bulk-list-save').disabled=true;form.querySelector('#bulk-list-cancel').disabled=true;
+    const newMonth=monthKeyFromDate(date);
+    fresh.forEach(function(r,n){
+      // Retain identity, acquisition, parts, partner terms/payments and purchase/run links.
+      Object.assign(r.item,updates[n],{state:'listed',dateListed:date,dateSold:null,grossProfit:null,isReturned:false});
+      _stampListingFee(r.item);_autoTagToActiveRun(r.item);
+      if(r.month!==newMonth){DB[r.month]=DB[r.month].filter(function(i){return i.id!==r.item.id;});if(!Array.isArray(DB[newMonth]))DB[newMonth]=[];DB[newMonth].push(r.item);}
+      STOCK_SELECTED.delete(r.item.id);
+    });
+    try{
+      await saveDB();
+      if(document.getElementById('bulk-list-form')===form)closePanel();
+      STOCK_SELECTION_MODE=STOCK_SELECTED.size>0;
+      if(!STOCK_SELECTION_MODE){STOCK_STATE_FILTER='listed';STOCK_FILTER='all';STOCK_SEARCH='';}
+      renderStock();toast(rows.length+' item'+(rows.length===1?'':'s')+' listed in RETRADE');
+    }catch(e){error.textContent='The listing changes are pending. Check sync status before continuing; do not list these items again.';console.error('[bulk listing save]',e);}
+  };
+  refresh();get(0,'price').focus();
+}
+
 function _stockSelectionCapabilities(){
   const rows=[...STOCK_SELECTED].map(function(id){const r=_findItemRecordById(id);return r&&r.item;}).filter(Boolean);
   const listed=rows.length>0&&rows.every(function(i){return _canWithdrawStock(i)&&!_itemHasPriorFullReturn(i);});
-  return {sold:listed,bundle:listed&&rows.length>1,platform:rows.length>0&&rows.every(_canWithdrawStock),purchase:rows.length>0,duplicate:rows.length>0,
+  return {list:rows.some(function(i){return !_bulkListReason(i);}),sold:listed,bundle:listed&&rows.length>1,platform:rows.length>0&&rows.every(_canWithdrawStock),purchase:rows.length>0,duplicate:rows.length>0,
     joblot:rows.length>0&&rows.every(function(i){return _canAddToJobLot(i);}),
     withdraw:rows.some(_canWithdrawStock)};
 }
@@ -16589,7 +16725,7 @@ function _refreshStockSelection(){
     const input=row.querySelector('input[type="checkbox"]');if(input)input.checked=selected;
   });
   const caps=_stockSelectionCapabilities();
-  page.querySelectorAll('[data-stock-action]').forEach(function(control){control.disabled=_selectionActionPending||!caps[control.dataset.stockAction];});
+  page.querySelectorAll('[data-stock-action]').forEach(function(control){control.disabled=_selectionActionPending||!caps[control.dataset.stockAction];if(control.dataset.stockAction==='list')control.title=caps.list?'Review selected unlisted items':'Select unlisted items without return or grouped-order history';});
   const visible=window.__stockItems||[],all=visible.length>0&&visible.every(function(i){return STOCK_SELECTED.has(i.id);});
   const check=page.querySelector('.sel-check');if(check)check.setAttribute('aria-checked',all?'true':STOCK_SELECTED.size?'mixed':'false');
   const box=page.querySelector('.sel-check-box');if(box){box.classList.toggle('all',all);box.classList.toggle('some',!all&&STOCK_SELECTED.size>0);box.textContent=all?'✓':STOCK_SELECTED.size?'−':'';}
@@ -21963,6 +22099,9 @@ function _saveStockEdit(m,id){
     toast('Cost must be 0 or more','error');
     return;
   }
+  const details=_requiredStockDetails('edit-stock');
+  if(!details)return;
+  item.category=details.category;item.location=details.location;
   item.item=(document.getElementById('edit-stock-title').value||'').trim()||'Untitled stock item';
   item.costPrice=+cost.toFixed(2);
   const _stockAcct=document.getElementById('edit-stock-account');

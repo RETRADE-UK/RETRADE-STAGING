@@ -28,6 +28,7 @@ jobs:
       - run: node tests/auth-autofill-browser.cjs --webkit
       - run: node tests/dashboard-chart-browser.cjs --webkit
       - run: node tests/bulk-selection-browser.cjs --webkit
+      - run: node tests/bulk-list-browser.cjs --webkit
       - run: node tests/partner-fixed-upfront-browser.cjs --webkit
       - run: npm test
 
