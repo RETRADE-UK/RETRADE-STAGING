@@ -310,7 +310,6 @@
     var rows=candidates(a).filter(function(r){return r.unpaid&&wanted.has(String(r.item.id));});
     if(!rows.length){try{toast('No unpaid fixed costs or completed sales selected','error');}catch(_){}return false;}
     selected[String(a.id)]=new Set(rows.map(function(r){return r.item.id;}));
-    includeUnsold[String(a.id)]=true;
     draft=null;openNew(a);if(draft)draft.fromAccountSelection=true;return !!draft;
   };
   function snapshot(a,rows){return JSON.stringify(rows.map(function(r){return [String(r.item.id),r.month,r.owed,r.remaining,r.legacy,r.unpaid,model(a,r.item),sold(r.item),r.item.state,r.item.isReturned,r.item.scrappedAt,typeof _itemAccountType==='function'?_itemAccountType(r.item):r.item.accountType];}));}
