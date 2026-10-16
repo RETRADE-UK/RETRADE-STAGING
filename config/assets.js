@@ -11,6 +11,7 @@ globalThis.RT_ASSETS = Object.freeze({
   "core": "src/core/application.js",
   "launch": "src/platform/launch.js",
   "critical": [
+    "src/platform/staging-auth.js",
     "src/platform/performance.js",
     "src/platform/navigation.js",
     "src/platform/lifecycle.js",
@@ -21,7 +22,6 @@ globalThis.RT_ASSETS = Object.freeze({
     "src/platform/interface-motion.js"
   ],
   "deferred": [
-    "src/platform/staging-auth.js",
     "src/features/purchases/groups.js",
     "src/features/bundles/orders.js",
     "src/features/bundles/panel.js",

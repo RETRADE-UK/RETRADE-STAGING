@@ -678,6 +678,19 @@ layout; no schema, auth, monitoring or live-environment changes.
 Generation: `20261016-bulk-list-stock-staging`. Synthetic coverage is in
 `tests/bulk-list-browser.cjs` and purchase tests; CI runs Chromium and WebKit.
 
+### 16 October 2026 — populated staging test access
+
+Staging auth now loads with critical startup assets so the signed-out entry is
+available before deferred features. Its overlay observer reinstalls the entry
+when core restores credential forms after sign-out. The existing normal auth
+handoff remains authoritative. Short auth cards scroll internally.
+
+New anonymous test accounts receive the rolling synthetic database fixture;
+existing accounts retain their data. See [test account handover](STAGING_TEST_ACCOUNT.md)
+for the staging-only migration, counts, access and verification. No production
+binding, auth provider settings, RLS policies or core accounting changes.
+Cache generation: `20261016-populated-test-account-staging`.
+
 ### 16 October 2026 — yearly Sales forecast readout
 
 The shared core scrubber now presents actual-to-date and month-end forecast
