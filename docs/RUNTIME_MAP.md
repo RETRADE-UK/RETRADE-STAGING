@@ -658,3 +658,24 @@ The native Platform picker in the bulk action menu uses the same left inset
 as the other action icons and labels. Its single caret stays at the right edge.
 The existing picker behaviour is unchanged. Static cache generation:
 `20261014-platform-menu-alignment` (staging adds `-staging`).
+
+
+### 16 October 2026 — bulk listing review (staging only)
+
+Core owns the List items action, per-item review and existing sourced → listed
+transition. Unlisted exposes List items / Duplicate; All stock has List items in
+More. Return-history and grouped items require their existing individual flows.
+The review validates every included item before mutation, rechecks current records
+and Job Lot membership, then saves the batch once through the existing durable
+writer. It retains acquisition, parts, identity, purchase/run links and partner
+terms/payments. Cloud delivery remains per item, not a new server transaction.
+
+Category/location are required in quick-add and purchase creation; same-session
+quick-add retains both for the next item. Legacy stock can complete missing data
+in the listing review. Price and promotion remain per item, with optional shared
+platform/promotion controls. Delivery uses the existing rate helpers and listing
+fee stamp. No marketplace adverts are published. Workspaces CSS owns the review
+layout; no schema, auth, monitoring or live-environment changes.
+
+Generation: `20261016-bulk-list-stock-staging`. Synthetic coverage is in
+`tests/bulk-list-browser.cjs` and purchase tests; CI runs Chromium and WebKit.

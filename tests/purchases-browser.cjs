@@ -15,6 +15,9 @@ const {open,settled}=require('./startup-browser.cjs');
   await page.locator('#purchase-cost-1').fill('60');await page.locator('#purchase-save').click();assert.match(await page.locator('#purchase-error').innerText(),/exactly/);
   assert.equal(await page.evaluate(()=>DB['SEP-26'].length),0);
   await page.locator('#purchase-cost-2').fill('37.25');await page.locator('#purchase-save').click();
+  assert.match(await page.locator('#purchase-error').innerText(),/category and location/);
+  for(const n of [1,2]){await page.locator('#purchase-'+n+'-category').selectOption('Digital Cameras & Lenses');await page.locator('#purchase-'+n+'-location').fill('Shelf '+n);}
+  await page.locator('#purchase-save').click();
   assert.equal(await page.locator('.purchase-member').count(),2);
   const result=await page.evaluate(()=>{
    const rows=DB['SEP-26'];const ev=_cashEventsAll().filter(e=>e.type==='stock_purchase');
