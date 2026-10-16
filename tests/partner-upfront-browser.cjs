@@ -15,11 +15,10 @@ try{for(const mobile of [true,false]){const {page,context,errors}=await open(bro
  await page.waitForSelector('.rt-payalloc2');await page.waitForTimeout(250);
  if(await page.locator('.rt-payalloc2').evaluate(e=>e.classList.contains('closed')))await page.locator('.rt-payalloc2-head').click();
  assert.equal(await page.locator('[data-payalloc-id="listed"]').count(),0);
- await page.locator('.payalloc-unsold').check();
+ await page.locator('[data-payalloc-scope="all"]').click();
  assert.equal(await page.locator('[data-payalloc-id]').count(),3);
- assert.equal(await page.locator('[data-unsettled-stock=share]').count(),1,'Unsold profit share remains visible with explanation');
- assert((await page.locator('[data-unsettled-stock=share]').innerText()).includes('Profit share needs a sale'));
- assert((await page.locator('.rt-payalloc2').innerText()).includes('Listed stock · fixed cost'));
+ assert.equal(await page.locator('[data-payalloc-needs-terms=share]').count(),0,'Unsold profit share is not outstanding before sale');
+ assert((await page.locator('.rt-payalloc2').innerText()).includes('Listed stock · fixed payout'));
  assert.equal(await page.evaluate(()=>_buildTaxCashSummary('2026-04-06','2027-04-05','').cashGoodsPaid),40,'Only previously paid partner stock is deductible before payment');
  await page.locator('[data-payalloc-id="listed"]').check();await page.locator('[data-payalloc-id="unlisted"]').check();
  await page.locator('.payalloc-new').click();await page.locator('#payalloc-create-btn').click();
@@ -55,7 +54,7 @@ try{for(const mobile of [true,false]){const {page,context,errors}=await open(bro
    openAccountPage('mixed');
  },mixed);
  if(await page.locator('.rt-payalloc2').evaluate(e=>e.classList.contains('closed')))await page.locator('.rt-payalloc2-head').click();
- await page.locator('.payalloc-unsold').check();
+ await page.locator('[data-payalloc-scope="all"]').click();
  await page.locator('.payalloc-all').click();
  assert.equal(await page.locator('[data-payalloc-id]:checked').count(),4);
  await page.locator('.payalloc-new').click();
