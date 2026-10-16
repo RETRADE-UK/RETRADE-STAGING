@@ -469,3 +469,7 @@
 .bulk-list-footer>div{display:flex;gap:8px}
 .bulk-list-footer .btn-primary{flex:1;justify-content:center}
 .purchase-line .fg{min-width:0}
+
+/* The staging test-account entry adds height; keep every auth control reachable
+   on short phones and with the keyboard open. */
+#auth-overlay form{max-height:calc(100dvh - 48px);overflow-y:auto;overscroll-behavior:contain;}
