@@ -5293,55 +5293,82 @@ function _setItemFixedCost(i,value){
   i.costPrice=amount;i.accountPaidAmount=amount;i.partnerAgreedAmount=amount;
   i.accountSplitPercent=null;i.arrangementModelOverride='fixed_cost';
 }
+function _itemPaymentAllocation(i){
+  const a=(_accounts||[]).find(function(a){return a.id===i.accountId;});
+  let paid=0,recorded=false;
+  ((a&&a.settlements)||[]).forEach(function(t){(t.items||[]).forEach(function(x){
+    if(String(x.id||x.itemId)!==String(i.id))return;
+    recorded=true;if(t.paid===true)paid+=Math.max(0,Number(x.amount)||0);
+  });});
+  return recorded?+paid.toFixed(2):null;
+}
+function _reconcileItemTermsPayment(i){
+  const paid=_itemPaymentAllocation(i);if(paid==null)return;
+  const owed=_accountItemDebt(i);
+  i.accountSettled=owed!=null?paid>=Math.max(0,owed)-0.009:!!(i.isReturned&&paid>0);
+}
 function _setItemPurchaseCost(i,value){
-  if(i.accountId&&_ipHasRecordedPayment(i))return;
   if(_fixedAccountAmount(i)!=null)_setItemFixedCost(i,value);
+  else if(i.accountId&&i.arrangementModelOverride==='profit_share')i.costPrice=0;
   else i.costPrice=+Math.max(0,Number(value)||0).toFixed(2);
+  if(i.accountId)_reconcileItemTermsPayment(i);
 }
 function _ipCostEditorHTML(m,i){
-  const a=(_accounts||[]).find(function(x){return x.id===i.accountId;}),type=i.accountId?_itemAccountType(i):'own';
-  const locked=_ipHasRecordedPayment(i),supplier=type==='supplier',hasShare=!!i.accountId&&!supplier;
-  const agreed=_fixedAccountAmount(i),fixed=agreed!=null||i.accountPaidAmount!=null,percent=i.accountSplitPercent!=null?i.accountSplitPercent:(a&&a.defaultSplitPercent!=null?a.defaultSplitPercent:0);
-  const disabled=locked?' disabled':'';
+  const a=(_accounts||[]).find(function(x){return x.id===i.accountId;});
+  const recorded=_ipHasRecordedPayment(i),hasPartner=!!i.accountId;
+  const agreed=_fixedAccountAmount(i),fixed=agreed!=null,share=hasPartner&&!fixed;
+  const percent=i.accountSplitPercent!=null?i.accountSplitPercent:(a&&a.defaultSplitPercent!=null?a.defaultSplitPercent:0);
   let h='<section class="ip-cost-card" id="ip-costs"><div class="ip-card-heading"><h2>Cost &amp; profit</h2></div>'
-    +'<details class="ip-owner-details"><summary>'+esc(a?a.name:'Own stock')+' · change owner</summary><label class="ip-control" for="ip-partner">Stock owner / partner<select id="ip-partner" onchange="ipAssignAccount(\''+m+'\',\''+i.id+'\',this.value)"'+disabled+'>'+_accountSelectOptionsHTML(i.accountId||null)+'</select></label></details>'
+    +'<details class="ip-owner-details"><summary>'+esc(a?a.name:'Own stock')+' · change owner</summary><label class="ip-control" for="ip-partner">Stock owner / partner<select id="ip-partner" onchange="ipAssignAccount(\''+m+'\',\''+i.id+'\',this.value)"'+(recorded?' disabled':'')+'>'+_accountSelectOptionsHTML(i.accountId||null)+'</select></label></details>'
     +'<form class="ip-cost-form" oninput="ipPreviewCosts(\''+m+'\',\''+i.id+'\')" onsubmit="return ipSaveCosts(event,\''+m+'\',\''+i.id+'\')">'
-    +'<label class="ip-control" for="ip-buy-cost"'+(hasShare&&(fixed||type==='consignment'&&!Number(i.costPrice))?' hidden':'')+'>'+(supplier?'Item cost / account payout (£)':type==='consignment'?'Recorded upfront cost (£)':type==='hybrid'?'Upfront item cost (£)':'Item cost (£)')
-    +'<input id="ip-buy-cost" type="number" inputmode="decimal" min="0" step="0.01" required value="'+(agreed!=null?agreed:(Number(i.costPrice)||0))+'"'+(type==='consignment'||(locked&&supplier)?' readonly':'')+'></label>';
-  if(hasShare){
-    h+='<label class="ip-control" for="ip-partner-method">Partner agreement<select id="ip-partner-method" onchange="ipCostMethodChanged()"'+disabled+'><option value="percent"'+(!fixed?' selected':'')+'>Profit share</option><option value="fixed"'+(fixed?' selected':'')+'>Fixed cost</option></select></label>'
-      +'<label class="ip-control" id="ip-percent-wrap" for="ip-partner-percent"'+(fixed?' hidden':'')+'>Partner share (%)<input id="ip-partner-percent" type="number" inputmode="decimal" min="0" max="100" step="0.01" value="'+percent+'"'+disabled+'></label>'
-      +'<label class="ip-control" id="ip-fixed-wrap" for="ip-partner-fixed"'+(!fixed?' hidden':'')+'>Item cost / account payout (£)<input id="ip-partner-fixed" type="number" inputmode="decimal" min="0" step="0.01" value="'+(agreed!=null?agreed:(fixed?Number(i.accountPaidAmount):0))+'"'+disabled+'></label>';
+    +'<label class="ip-control ip-item-cost" for="ip-buy-cost">Item cost (£)'
+    +'<input id="ip-buy-cost" type="number" inputmode="decimal" min="0" step="0.01" required oninput="ipSyncCostFields(\'cost\')" value="'+(fixed?agreed:share?0:(Number(i.costPrice)||0))+'"'+(share?' readonly':'')+' aria-describedby="ip-cost-help"></label>'
+    +'<p class="ip-form-note" id="ip-cost-help">'+(share?'Profit share uses £0 item cost. Set the partner percentage in the terms below.':hasPartner?'Linked to the fixed amount in this item’s terms. Counted once.':'Your purchase amount. Parts are shown separately in the breakdown.')+'</p>';
+  if(hasPartner){
+    h+='<fieldset class="ip-item-terms"><legend>Terms for this item</legend><p class="ip-form-note">Changes apply to this item only.</p>'
+      +'<label class="ip-control" for="ip-partner-method">Agreement<select id="ip-partner-method" onchange="ipCostMethodChanged()"><option value="percent"'+(!fixed?' selected':'')+'>Profit share</option><option value="fixed"'+(fixed?' selected':'')+'>Fixed cost</option></select></label>'
+      +'<label class="ip-control" id="ip-percent-wrap" for="ip-partner-percent"'+(fixed?' hidden':'')+'>Partner share (%)<input id="ip-partner-percent" type="number" inputmode="decimal" min="0" max="100" step="0.01" required value="'+percent+'"'+(fixed?' disabled':'')+'></label>'
+      +'<label class="ip-control" id="ip-fixed-wrap" for="ip-partner-fixed"'+(!fixed?' hidden':'')+'>Fixed amount (£)<input id="ip-partner-fixed" type="number" inputmode="decimal" min="0" step="0.01" required oninput="ipSyncCostFields(\'terms\')" value="'+(fixed?agreed:0)+'"'+(!fixed?' disabled':'')+'></label></fieldset>';
   }
-  h+='<p class="ip-form-note" id="ip-cost-preview" aria-live="polite">'+(i.accountId&&fixed?'One amount for the item cost and account payout, deducted once. Parts and selling costs are separate.':hasShare?'Your retained profit is after item costs and the partner agreement.':'Cost includes the purchase amount; parts are shown in the breakdown.')+'</p>';
-  if(locked)h+='<p class="ip-form-note">A payment is recorded. Partner terms are locked here; review corrections in <button type="button" class="ip-text-button" onclick="openAccountPage(\''+esc(i.accountId)+'\')">Accounts</button>.</p>';
-  h+='<div class="ip-cost-footer"><span id="ip-cost-save-status" role="status"></span><button class="btn btn-primary" type="submit">Save costs</button></div></form></section>';
+  h+='<p class="ip-form-note" id="ip-cost-preview" aria-live="polite">Parts and selling costs are separate.</p>';
+  if(recorded)h+='<p class="ip-form-note">Recorded payment transactions stay unchanged. Manage payments in Accounts.</p>';
+  h+='<div class="ip-cost-footer"><span id="ip-cost-save-status" role="status"></span><button class="btn btn-primary" type="submit">Save costs &amp; terms</button></div></form></section>';
   return h;
+}
+function ipSyncCostFields(source){
+  const method=document.getElementById('ip-partner-method');if(!method)return;
+  const buy=document.getElementById('ip-buy-cost'),terms=document.getElementById('ip-partner-fixed');
+  if(method.value==='fixed'){
+    if(source==='cost')terms.value=buy.value;else buy.value=terms.value;
+  }else buy.value='0';
 }
 function ipCostMethodChanged(){
   const fixed=document.getElementById('ip-partner-method').value==='fixed';
   document.getElementById('ip-percent-wrap').hidden=fixed;
   document.getElementById('ip-fixed-wrap').hidden=!fixed;
-  const buy=document.getElementById('ip-buy-cost');
-  if(fixed){document.getElementById('ip-partner-fixed').value=buy.value;buy.closest('label').hidden=true;}
-  else{buy.value='0';buy.closest('label').hidden=buy.readOnly;}
+  document.getElementById('ip-partner-percent').disabled=fixed;
+  document.getElementById('ip-partner-fixed').disabled=!fixed;
+  document.getElementById('ip-buy-cost').readOnly=!fixed;
+  ipSyncCostFields('terms');
+  document.getElementById('ip-cost-help').textContent=fixed?'Linked to the fixed amount in this item’s terms. Counted once.':'Profit share uses £0 item cost. Set the partner percentage in the terms below.';
+  document.querySelector('#ip-costs form').dispatchEvent(new Event('input',{bubbles:true}));
 }
 function _ipApplyCostDraft(i){
-  if(_ipHasRecordedPayment(i))return;
   const cost=document.getElementById('ip-buy-cost'),method=document.getElementById('ip-partner-method');
-  if(i.accountId&&(!method||method.value==='fixed')){
-    _setItemFixedCost(i,method?document.getElementById('ip-partner-fixed').value:cost.value);
-    cost.value=String(i.costPrice);
-  }else{
-    i.costPrice=Number(cost.value);
-    if(method){i.accountPaidAmount=null;i.partnerAgreedAmount=null;i.arrangementModelOverride='profit_share';i.accountSplitPercent=Number(document.getElementById('ip-partner-percent').value);}
-  }
+  if(i.accountId&&method&&method.value==='fixed'){
+    _setItemFixedCost(i,document.getElementById('ip-partner-fixed').value);
+  }else if(i.accountId&&method){
+    i.costPrice=0;i.accountPaidAmount=null;i.partnerAgreedAmount=null;
+    i.arrangementModelOverride='profit_share';i.accountType='consignment';
+    i.accountSplitPercent=Number(document.getElementById('ip-partner-percent').value);
+  }else i.costPrice=+Number(cost.value).toFixed(2);
 }
+
 function ipPreviewCosts(m,id){
   const original=(DB[m]||[]).find(function(i){return i.id===id;});if(!original)return;
   const i=Object.assign({},original),cost=document.getElementById('ip-buy-cost'),method=document.getElementById('ip-partner-method');
   if(!cost.checkValidity())return;
-  if(method&&!_ipHasRecordedPayment(i)){
+  if(method){
     const el=document.getElementById(method.value==='fixed'?'ip-partner-fixed':'ip-partner-percent');
     if(!el.checkValidity()||el.value==='')return;
   }
@@ -5360,11 +5387,12 @@ function ipSaveCosts(event,m,id){
   const i=(DB[m]||[]).find(function(x){return x.id===id;});if(!i)return false;
   const costEl=document.getElementById('ip-buy-cost'),method=document.getElementById('ip-partner-method');
   if(costEl.value===''||!costEl.checkValidity())return false;
-  if(method&&!_ipHasRecordedPayment(i)){
+  if(method){
     const el=document.getElementById(method.value==='fixed'?'ip-partner-fixed':'ip-partner-percent');
     if(el.value===''||!el.checkValidity()){el.reportValidity();return false;}
   }
   _ipApplyCostDraft(i);
+  if(i.accountId)_reconcileItemTermsPayment(i);
   if(i.dateSold||i.isReturned||i.resaleSalePrice)i.grossProfit=calcGrossProfit(i);
   saveDB();_ipRefreshDetails(m,id);
   const status=document.getElementById('ip-cost-save-status');if(status)status.textContent='Costs saved';
@@ -9646,10 +9674,12 @@ function _accountStats(accountId){
     if(owed===null)return;
     splitItemCount++;
     totalOwed+=owed;
-    if(i.accountSettled)settledOwed+=owed;
-    else {unsettledOwed+=owed;unsettledCount++;
-      if(_accountItemIsSold(i)){unsettledSoldCount++;unsettledSoldOwed+=owed;}
-      else {unsettledUnsoldCount++;unsettledUnsoldOwed+=owed;}}
+    const allocated=_itemPaymentAllocation(i),paid=allocated==null?(i.accountSettled?owed:0):Math.min(owed,allocated);
+    const remaining=+Math.max(0,owed-paid).toFixed(2);
+    settledOwed+=paid;
+    if(remaining>0){unsettledOwed+=remaining;unsettledCount++;
+      if(_accountItemIsSold(i)){unsettledSoldCount++;unsettledSoldOwed+=remaining;}
+      else {unsettledUnsoldCount++;unsettledUnsoldOwed+=remaining;}}
     // For consignment/hybrid the "owed" comes out of profit — subtract from
     // yourShare. For supplier, cost is already deducted inside calcGrossProfit,
     // so don't double-count it.
@@ -11645,10 +11675,10 @@ function _accountPickerCostMode(accountId,costInputId,item){
   const a=accountId?(_accounts||[]).find(function(x){return x.id===accountId;}):null;
   const cost=document.getElementById(costInputId);if(!cost)return;
   const fixed=item?_fixedAccountAmount(item)!=null:!!(a&&typeof _rtArrangementForAccount==='function'&&_rtArrangementForAccount(a)==='fixed_cost');
-  const isConsign=!!(a&&!fixed&&((a.accountType||'supplier')==='consignment'));
+  const isConsign=!!(a&&!fixed&&(item&&item.arrangementModelOverride==='profit_share'||(a.accountType||'supplier')==='consignment'));
   if(item&&fixed)cost.value=String(_fixedAccountAmount(item));
   if(isConsign){cost.value='0';cost.readOnly=true;cost.title='Consignment stock uses £0 acquisition cost';}
-  else{cost.readOnly=!!(item&&_ipHasRecordedPayment(item));cost.title=fixed?'Item cost and account payout are the same amount':'';}
+  else{cost.readOnly=false;cost.title=fixed?'Item cost and account payout are the same amount':'';}
   if(costInputId==='qa-cost'&&typeof updateBPFPreview==='function')updateBPFPreview();
 }
 function _saveExistingItemAccount(m,id,accountId,origin){
