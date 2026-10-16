@@ -25,6 +25,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium webkit
+      - run: node tests/bulk-list-browser.cjs --webkit
       - run: node tests/auth-autofill-browser.cjs --webkit
       - run: node tests/dashboard-chart-browser.cjs --webkit
       - run: node tests/bulk-selection-browser.cjs --webkit

@@ -447,3 +447,25 @@
 /* Legible credential fields avoid iOS focus zoom without affecting workspace inputs. */
 #auth-overlay form input{font-size:16px!important;}
 #auth-overlay form{margin:0;}
+
+/* Bulk listing review: one vertical card per item, usable on narrow phones. */
+#bulk-list-form .fg-hint{line-height:1.5;color:var(--text-secondary)}
+#bulk-list-form details>summary{cursor:pointer;font-weight:600;padding:10px 0;min-height:44px}
+#bulk-list-form details[open]>summary{margin-bottom:8px}
+.bulk-list-item{padding:16px 0;border-top:1px solid var(--border);min-width:0}
+.bulk-list-item h3{margin:0 0 4px;font-size:15px;overflow-wrap:anywhere}
+.bulk-list-item p{margin:6px 0 12px}
+.bulk-list-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+#bulk-list-form [hidden]{display:none!important}
+#bulk-list-form input,#bulk-list-form select{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+.bulk-list-check{display:flex;align-items:center;gap:8px;margin:8px 0 16px;min-height:40px}
+#bulk-list-form .bulk-list-check input{width:18px;height:18px;flex:none}
+.bulk-list-shared,.bulk-list-skipped{margin-bottom:16px;padding:0 12px 10px;background:var(--surface2);border-radius:10px}
+.bulk-list-error{color:var(--red);font-size:13px;line-height:1.5}
+.bulk-list-error:empty{display:none}
+#bulk-list-form [aria-invalid=true]{border-color:var(--red)}
+.bulk-list-footer{position:sticky;bottom:-1px;background:var(--surface);padding:14px 0 8px;border-top:1px solid var(--border);z-index:1}
+.bulk-list-footer>span{display:block;font-size:13px;margin-bottom:10px}
+.bulk-list-footer>div{display:flex;gap:8px}
+.bulk-list-footer .btn-primary{flex:1;justify-content:center}
+.purchase-line .fg{min-width:0}
