@@ -16598,11 +16598,16 @@ function _bulkListReason(i){
   if(_itemHasPriorFullReturn(i)||(i.returnHistory||[]).length)return 'Use the item’s individual relisting flow to keep its return history.';
   return '';
 }
+function _bulkListSnapshot(item){
+  // The legacy maintenance pass can initialise an empty refresh history while
+  // the review is open. Treat that as the same record; real history still fences.
+  return JSON.stringify(Object.assign({},item,{refreshHistory:item.refreshHistory||[]}));
+}
 function openStockBulkList(){
   const selected=_selectedBulkRecords('stock');
   const rows=selected.filter(function(r){return !_bulkListReason(r.item);});
   if(!rows.length){toast(selected.length?_bulkListReason(selected[0].item):'Select unlisted stock to list','error');return;}
-  const reviewed=rows.map(function(r){return {id:r.item.id,before:JSON.stringify(r.item),month:r.month};});
+  const reviewed=rows.map(function(r){return {id:r.item.id,before:_bulkListSnapshot(r.item),month:r.month};});
   const skipped=selected.filter(function(r){return _bulkListReason(r.item);});
   const platforms=function(value){return Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){return '<option value="'+p.id+'"'+(p.id===value?' selected':'')+'>'+esc(p.label)+'</option>';}).join('');};
   const field=function(label,id,value,extra){return '<div class="fg"><label for="'+id+'">'+label+'</label><input id="'+id+'" value="'+esc(String(value==null?'':value))+'" '+(extra||'type="text"')+'></div>';};
@@ -16685,7 +16690,7 @@ function openStockBulkList(){
     if(firstInvalid){error.textContent='Check the marked item details before listing.';firstInvalid.focus();return;}
     if(rows.some(function(r,n){return r.item.dateSourced&&date<r.item.dateSourced;})){error.textContent='The listing date cannot be before an item’s source date.';dateField.focus();return;}
     const fresh=reviewed.map(function(x){return _findItemRecordById(x.id);});
-    if(fresh.some(function(r,n){return !r||r.month!==reviewed[n].month||JSON.stringify(r.item)!==reviewed[n].before||_bulkListReason(r.item);})){error.textContent='A selected item changed while this review was open. Close and reopen List items to review the latest details.';return;}
+    if(fresh.some(function(r,n){return !r||r.month!==reviewed[n].month||_bulkListSnapshot(r.item)!==reviewed[n].before||_bulkListReason(r.item);})){error.textContent='A selected item changed while this review was open. Close and reopen List items to review the latest details.';return;}
     saving=true;form.querySelector('#bulk-list-save').disabled=true;form.querySelector('#bulk-list-cancel').disabled=true;
     const newMonth=monthKeyFromDate(date);
     fresh.forEach(function(r,n){

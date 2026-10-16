@@ -5,7 +5,7 @@ const {open,settled}=require('./startup-browser.cjs');
 const isWebkit=process.argv.includes('--webkit');
 async function seed(page){
  await page.evaluate(()=>{
-  const make=(id,extra={})=>Object.assign({id,gid:'R-'+id,item:'Camera '+id,state:'sourced',dateSourced:'2026-09-20',dateListed:null,dateSold:null,costPrice:20,estSalePrice:90,salePrice:0,promoPercent:.02,category:'Digital Cameras & Lenses',location:'Shelf A',parts:[{id:'part-'+id,description:'Battery',cost:5,date:'2026-09-21'}],returnHistory:[],defaultPlatform:'ebay',notes:'Keep me',photo:'photo-path',purchaseGroupId:'purchase-1',sourcingRunId:'run-1'},extra);
+  const make=(id,extra={})=>Object.assign({id,gid:'R-'+id,item:'Camera '+id,state:'sourced',dateSourced:'2026-09-20',dateListed:null,dateSold:null,costPrice:20,estSalePrice:90,salePrice:0,promoPercent:.02,category:'Digital Cameras & Lenses',location:'Shelf A',parts:[{id:'part-'+id,description:'Battery',cost:5,date:'2026-09-21'}],returnHistory:[],refreshHistory:[],defaultPlatform:'ebay',notes:'Keep me',photo:'photo-path',purchaseGroupId:'purchase-1',sourcingRunId:'run-1'},extra);
   DB={'SEP-26':[make('a',{accountId:'partner',accountSettled:true,accountPaidAmount:20}),make('b',{category:'',location:'',estSalePrice:null,defaultPlatform:'ebay_biz',salePlatform:'fb',soldOnPlatform:'fb',_postageMode:'custom',postage:4,shippingCost:3,packagingCost:.5}),make('returned',{returnHistory:[{id:'return-1',type:'full_seller',saleNo:1,refundAmount:80}]}),make('listed',{state:'listed',dateListed:'2026-09-25',salePrice:100})],trips:[],expenses:[]};
   _accounts=[];_activeSourcingRun=null;_jobLots=[];_jobLotItems=[];_sourcingRuns=[];_saleReconciliations=[];
   STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;STOCK_SORT='cost-desc';STOCK_STATE_FILTER='sourced';STOCK_FILTER='all';STOCK_SOURCED_FILTER='all';STOCK_SEARCH='';
@@ -26,6 +26,8 @@ async function select(page){
  const browser=await (isWebkit?webkit:chromium).launch({headless:true,...(!isWebkit&&process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{}),args:isWebkit?[]:['--no-sandbox']});
  try{for(const width of [320,390,1440]){
   const {page,context,errors}=await open(browser,{signedIn:true,mobile:width<600});await settled(page);await page.setViewportSize({width,height:900});await seed(page);
+  assert(await page.evaluate(()=>_bulkListSnapshot({id:'legacy'})===_bulkListSnapshot({id:'legacy',refreshHistory:[]})),'Empty legacy history initialisation is not a user edit');
+  assert(await page.evaluate(()=>_bulkListSnapshot({id:'legacy'})!==_bulkListSnapshot({id:'legacy',refreshHistory:[{date:'2026-10-01',cost:5}]})),'Real history changes still cancel a review');
   const original=await page.evaluate(()=>JSON.stringify(DB));
   await select(page);
   assert.equal(await page.locator('[data-bulk-list-row]').count(),2,'Returned-history item is excluded');
