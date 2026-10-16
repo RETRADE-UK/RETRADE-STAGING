@@ -40,7 +40,8 @@ async function select(page){
   await page.locator('#bulk-list-0-promo').fill('101');await page.locator('#bulk-list-save').click();assert.equal(await page.evaluate(()=>JSON.stringify(DB)),original);
   await page.locator('.bulk-list-shared summary').click();await page.locator('#bulk-list-promo-all').fill('3.5');await page.locator('#bulk-list-apply').click();
   assert.equal(await page.locator('#bulk-list-0-promo').inputValue(),'3.5');assert.equal(await page.locator('#bulk-list-1-promo').inputValue(),'3.5');
-  await page.locator('#bulk-list-0-price').fill('120');await page.locator('#bulk-list-0-rate').selectOption('0');
+  await page.locator('#bulk-list-0-price').fill('120');
+  await page.locator('[data-bulk-list-row="0"] details').evaluate(el=>el.open=true);await page.locator('#bulk-list-0-rate').selectOption('0');
   assert.match(await page.locator('[data-bulk-list-row="0"] [data-delivery-summary]').innerText(),/£3.42/);
   await page.locator('#bulk-list-date').fill('2026-09-01');await page.locator('#bulk-list-save').click();assert.match(await page.locator('#bulk-list-error').innerText(),/source date/);
   await page.locator('#bulk-list-date').fill('2026-10-16');

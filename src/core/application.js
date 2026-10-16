@@ -16612,7 +16612,7 @@ function openStockBulkList(){
     const i=r.item,p='bulk-list-'+n,price=Number(i.estSalePrice)>0?i.estSalePrice:Number(i.salePrice)>0?i.salePrice:'';
     const platform=PLATFORMS[i.defaultPlatform]&&PLATFORMS[i.defaultPlatform].live?i.defaultPlatform:DEFAULT_PLATFORM;
     const mode=i._postageMode||(platform==='ebay'?'simple':'custom');
-    const needsDetails=!ITEM_CATEGORIES.includes(i.category)||!String(i.location||'').trim()||!i._postageMode||!i.item||i.item==='Untitled stock item';
+    const needsDetails=!ITEM_CATEGORIES.includes(i.category)||!String(i.location||'').trim()||!i.item||i.item==='Untitled stock item';
     return '<section class="bulk-list-item" data-bulk-list-row="'+n+'"><h3>'+esc(i.item||'Unnamed stock')+'</h3><p class="fg-hint">'+esc(i.gid||'')+' · Cost '+fmt(i.costPrice||0)+'</p>'
       +'<div class="bulk-list-grid">'+field('Selling price (£) *',p+'-price',price,money.replace('min="0"','min="0.01"'))+field('Promotion % *',p+'-promo',+(Number(i.promoPercent||0)*100).toFixed(1),percent)+'</div>'
       +'<details'+(needsDetails?' open':'')+'><summary>Listing details &amp; delivery</summary>'
@@ -16648,7 +16648,7 @@ function openStockBulkList(){
       get(n,'rate').innerHTML=_sdOptionsFor(price,idx);
       const shipping=simple?_sdRateFor(idx,price):Number(get(n,'shipping').value)||0;
       const postage=simple?(get(n,'free').checked?0:shipping):Number(get(n,'postage').value)||0;
-      root.querySelector('[data-delivery-summary]').textContent=PLATFORMS[platform].short+' · '+(platform==='vinted'?'Buyer pays delivery through Vinted':(simple?'Simple Delivery':'Custom / collection')+' · shipping '+fmt(shipping)+' · buyer pays '+fmt(postage));
+      root.querySelector('[data-delivery-summary]').textContent=PLATFORMS[platform].short+' · '+(platform==='vinted'?'Buyer pays delivery through Vinted':(simple?'Simple Delivery · '+(SIMPLE_DELIVERY_RATES[idx]||SIMPLE_DELIVERY_RATES[1]).label:'Custom / collection')+' · shipping '+fmt(shipping)+' · buyer pays '+fmt(postage));
       total+=price;
     });
     form.querySelector('#bulk-list-total').textContent=rows.length+' items · '+fmt(total)+' total asking price';
