@@ -1,5 +1,7 @@
 # Runtime ownership
 
+**16 October partner outstanding UX:** partner payments now separate Sold outstanding from All stock outstanding. Sold fixed-cost items with no agreed payout remain selectable and lead to payout setup rather than a disabled row. `payment-allocations-v2.js` remains the transaction/eligibility owner and `account-ui-v4.js` owns the sold/all-stock account-position breakdown. Staging binding, auth helpers and monitor runtime are unchanged. Cache build: `20261016-partner-outstanding-clarity-staging`.
+
 **15 October partner settlement parity:** fixed-cost amounts entered through legacy item controls are now recognised for advance payment from both partner-account payment surfaces. `payment-allocations-v2.js` remains the single eligibility/allocation owner; staging keeps its own Supabase binding and monitor runtime unchanged. Cache build: `20261015-partner-fixed-upfront-staging`.
 
 **8 October continuity:** [Session renewal, durable expiry and recovery](features/monitors/CONTINUITY_2026-10-08.md).
