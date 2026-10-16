@@ -35,6 +35,10 @@
 .rt #p-item .ip-cost-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px;}
 .rt #p-item .ip-control{display:flex;flex-direction:column;gap:8px;font-size:12px;font-weight:600;color:var(--text-secondary);}
 .rt #p-item .ip-cost-form>.ip-control{justify-content:flex-end;}
+.rt #p-item .ip-item-cost{grid-column:1/-1;}
+.rt #p-item .ip-item-terms{grid-column:1/-1;min-width:0;margin:0;padding:14px;border:1px solid var(--border);border-radius:12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
+.rt #p-item .ip-item-terms legend{padding:0 5px;font-size:13px;font-weight:700;color:var(--text);}
+.rt #p-item .ip-item-terms>.ip-control{justify-content:flex-end;}
 .rt #p-item .ip-control[hidden]{display:none;}
 .rt #p-item .ip-control select,.rt #p-item .ip-control input{width:100%;min-width:0;height:46px;padding:10px 12px;background-color:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:9px;font:inherit;font-size:16px;}
 .rt #p-item .ip-control select{padding-right:30px;}
@@ -112,4 +116,4 @@
   .rt #p-item .ip-postage-mode-btn{flex:1;}
   .rt #p-item .ip-section-parts input{font-size:16px!important;min-height:44px;}
 }
-@media(max-width:360px){.rt #p-item .ip-cost-form{grid-template-columns:minmax(0,1fr);}}
+@media(max-width:360px){.rt #p-item .ip-cost-form,.rt #p-item .ip-item-terms{grid-template-columns:minmax(0,1fr);}}

@@ -723,3 +723,22 @@ mobile/desktop and Chromium/WebKit: existing duplicate values, zero, field sync,
 edit/reload, advance payment, later sale, return/resale, historical profit shares,
 hybrid percentage arrangements and narrow layouts. Static generation:
 `20261016-account-cost-payout` (staging adds `-staging`).
+
+
+### 16 October 2026 — editable item terms
+
+Core's item cost form now exposes a per-item agreement selector for every account
+item, independent of its account default. Fixed cost and the terms amount are both
+editable and synchronise immediately. Profit share shows a read-only £0 item cost;
+saving explicitly sets the item to consignment mechanics and persists its override
+and percentage. Merely viewing historical hybrid items does not migrate data.
+
+Terms remain editable after payment; account ownership stays protected. Existing
+transaction allocations and dates are unchanged. Allocated payments determine the
+remaining liability after a terms edit, and cash-basis tax uses the recorded
+allocation kind even if the item's agreement changes. No schema migration.
+
+The account-cost-payout and item browser tests cover both edit directions, model
+switches, persistence, independent item/account defaults, payment preservation,
+outstanding balances and small-screen controls. Generation:
+`20261016-item-terms-linked-cost` (staging adds `-staging`).

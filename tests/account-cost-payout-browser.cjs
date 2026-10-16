@@ -29,7 +29,9 @@ const engine=process.argv.includes('--webkit')?'webkit':'chromium';
    assert.equal(await page.evaluate(()=>{const resolver=window._rtArrangementForItem;try{window._rtArrangementForItem=undefined;return calcNetProfit(costFixture({state:'sold',dateSold:'2026-10-10'}));}finally{window._rtArrangementForItem=resolver;}}),65,'First render is correct before partner presentation loads');
    assert.equal(await page.locator('.ip-cost-token .ip-token-val').innerText(),'£35.00');
    assert.equal(await page.locator('#ip-partner-fixed').inputValue(),'30');
-   assert.equal(await page.locator('#ip-buy-cost').isVisible(),false,'Only one fixed amount is editable');
+   assert.equal(await page.locator('#ip-buy-cost').isEditable(),true,'Fixed cost remains editable beside the terms card');
+   await page.locator('#ip-buy-cost').fill('35');
+   assert.equal(await page.locator('#ip-partner-fixed').inputValue(),'35','Cost edits immediately update the terms amount');
    await page.locator('#ip-partner-fixed').fill('40');
    assert.equal(await page.locator('#ip-buy-cost').inputValue(),'40','Shared cost is filled immediately');
    assert.equal(await page.locator('.ip-cost-token .ip-token-val').innerText(),'£45.00');
@@ -89,7 +91,55 @@ const engine=process.argv.includes('--webkit')?'webkit':'chromium';
    await page.evaluate(()=>submitStockQuickAdd());
    assert.deepEqual(await page.evaluate(()=>{const i=allItems().find(i=>i.item==='New linked stock');return i&&[i.costPrice,i.accountPaidAmount,i.partnerAgreedAmount,i.arrangementModelOverride];}),[15.25,15.25,15.25,'fixed_cost']);
    await page.evaluate(()=>{closePanel();openItemPage('OCT-26','one');});
-   assert(await page.locator('#ip-partner-fixed').isDisabled(),'Existing payments lock terms');
+   assert(await page.locator('#ip-partner-fixed').isEditable(),'Recorded payments do not lock item terms');
+
+   // Every account type supports independent item terms; round trips preserve overrides.
+   for(const accountType of ['supplier','consignment']){
+    await page.evaluate(type=>{
+     _accounts[0].accountType=type;
+     DB['OCT-26']=[costFixture({accountType:type}),costFixture({id:'other',accountType:type})];
+     _accounts[0].settlements=[];openItemPage('OCT-26','one');
+    },accountType);
+    const defaults=await page.evaluate(()=>JSON.stringify([_accounts,DB['OCT-26'][1]]));
+    await page.locator('#ip-partner-method').selectOption('percent');
+    assert.equal(await page.locator('#ip-buy-cost').inputValue(),'0');
+    assert.equal(await page.locator('#ip-buy-cost').isEditable(),false,'Profit share locks item cost at zero');
+    await page.locator('#ip-partner-percent').fill('40');
+    await page.locator('.ip-cost-form button[type=submit]').click();
+    assert.deepEqual(await page.evaluate(()=>{const i=DB['OCT-26'][0],j=_rowToItem(_itemToRow(i,'OCT-26'));j.parts=i.parts;return [j.costPrice,j.accountPaidAmount,j.partnerAgreedAmount,j.accountSplitPercent,j.arrangementModelOverride,j.accountType,calcEstProfit(j)];}),[0,null,null,40,'profit_share','consignment',57]);
+    assert.equal(await page.locator('#ip-partner-method').inputValue(),'percent');
+    assert.equal(await page.locator('#ip-buy-cost').isEditable(),false);
+    await page.evaluate(()=>_setItemPurchaseCost(DB['OCT-26'][0],99));
+    assert.equal(await page.evaluate(()=>DB['OCT-26'][0].costPrice),0,'General edits cannot introduce a profit-share cost');
+    await page.locator('#ip-partner-method').selectOption('fixed');
+    await page.locator('#ip-buy-cost').fill('20');
+    assert.equal(await page.locator('#ip-partner-fixed').inputValue(),'20');
+    await page.locator('.ip-cost-form button[type=submit]').click();
+    assert.deepEqual(await page.evaluate(()=>{const i=DB['OCT-26'][0];return [i.costPrice,i.partnerAgreedAmount,i.accountPaidAmount,i.accountSplitPercent,calcEstProfit(i)];}),[20,20,20,null,75]);
+    assert.equal(await page.evaluate(()=>JSON.stringify([_accounts,DB['OCT-26'][1]])),defaults,'Other items and account defaults are untouched');
+   }
+   // A paid supplier item can change terms without losing or rewriting its actual payment.
+   await page.evaluate(()=>{
+    _accounts[0].accountType='supplier';
+    _accounts[0].settlements=[{id:'paid-terms',date:'2026-10-08',paid:true,kind:'supplier',partnerAmount:30,items:[{id:'one',kind:'supplier',amount:30}]}];
+    DB['OCT-26']=[costFixture({accountType:'supplier',dateSold:'2026-10-10',state:'sold',accountSettled:true})];
+    openItemPage('OCT-26','one');
+   });
+   const payment=await page.evaluate(()=>JSON.stringify(_accounts[0].settlements));
+   await page.locator('#ip-partner-method').selectOption('percent');
+   await page.locator('#ip-partner-percent').fill('50');
+   await page.locator('.ip-cost-form button[type=submit]').click();
+   assert.deepEqual(await page.evaluate(()=>{
+    const i=DB['OCT-26'][0],tax=_buildTaxCashSummary('2026-04-06','2027-04-05',''),rows=__rtPartnerPaymentCandidates('fixed');
+    return [i.costPrice,calcNetProfit(i),i.accountSettled,rows[0]?.remaining,rows[0]?.legacy,_accountStats('fixed').unsettledOwed,_cashUnpaidSoldLiabilities().total,tax.cashGoodsPaid+tax.cashPartnerPaid,_cashEventsAll().filter(e=>e.direction==='out').reduce((s,e)=>s+e.amount,0)];
+   }),[0,47.5,false,17.5,false,17.5,17.5,35,35]);
+   assert.equal(await page.evaluate(()=>JSON.stringify(_accounts[0].settlements)),payment);
+   await page.locator('#ip-partner-method').selectOption('fixed');
+   await page.locator('#ip-partner-fixed').fill('40');
+   await page.locator('.ip-cost-form button[type=submit]').click();
+   assert.deepEqual(await page.evaluate(()=>[calcNetProfit(DB['OCT-26'][0]),__rtPartnerPaymentCandidates('fixed')[0]?.remaining]),[55,10]);
+   assert.equal(await page.evaluate(()=>JSON.stringify(_accounts[0].settlements)),payment);
+
    for(const width of [320,390,1440]){
     await page.setViewportSize({width,height:900});
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'No overflow at '+width);

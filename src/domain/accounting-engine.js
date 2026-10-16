@@ -156,16 +156,20 @@ function _cashUnpaidSoldLiabilities(){
   let supplier=0,partner=0,count=0;
   (typeof allDBKeys==='function'?allDBKeys():[]).forEach(function(k){
     (DB[k]||[]).forEach(function(i){
-      if(!i||!i.accountId||i.accountSettled===true||i.scrappedAt)return;
+      if(!i||!i.accountId||i.scrappedAt)return;
+      const allocated=_itemPaymentAllocation(i);
+      if(allocated==null&&i.accountSettled===true)return;
       if((i.item||'').trim().toUpperCase()==='MONTH END')return;
       if(typeof _accountItemIsSold==='function'&&!_accountItemIsSold(i))return;
       const typ=(typeof _itemAccountType==='function')?_itemAccountType(i):'supplier';
       if(typ==='supplier'){
         const debt=(typeof _accountItemDebt==='function')?_accountItemDebt(i):(_itemAcquisitionCost(i));
-        if(debt!=null&&Number(debt)>0){supplier+=Number(debt)||0;count++;}
+        const remaining=Math.max(0,(Number(debt)||0)-(allocated||0));
+        if(remaining>0){supplier+=remaining;count++;}
       }else{
         const owed=(typeof _accountItemOwed==='function')?_accountItemOwed(i):null;
-        if(owed!=null&&Number(owed)>0){partner+=Number(owed)||0;count++;}
+        const remaining=Math.max(0,(Number(owed)||0)-(allocated||0));
+        if(remaining>0){partner+=remaining;count++;}
       }
     });
   });
@@ -1106,9 +1110,9 @@ function _taxCashStockAndPartner(from,to){
       });
       // A transaction is authoritative even if the item's settled flag is stale.
       // Partial payments keep their individual dates; never charge the full cost twice.
-      if(payments.length){
-        payments.forEach(function(p){if(p.tx.paid===true&&inR(p.tx.date))supplierStockPaid+=p.amount;});
-      }else if(i.accountSettled===true){
+      // Allocations are counted below by their recorded kind, even after
+      // this item changes from a fixed cost to profit share.
+      if(!payments.length&&i.accountSettled===true){
         acquisition=i.accountPaidAmount!=null?Number(i.accountPaidAmount)||0:_itemAcquisitionCost(i);
         payDate=sourceDate;
         if(acquisition>0&&inR(payDate))assumptions.push({itemId:i.id,amount:acquisition,reason:'Settled supplier purchase uses its source date; no payment allocation is recorded.'});
@@ -1129,7 +1133,9 @@ function _taxCashStockAndPartner(from,to){
         partnerPaid+=allocs.reduce(function(sum,x){
           if(!x)return sum;
           const kind=x.kind||tx.kind||acct.accountType||'supplier';
-          return sum+(kind!=='supplier'?Math.max(0,Number(x.amount)||0):0);
+          const amount=Math.max(0,Number(x.amount)||0);
+          if(kind==='supplier'){supplierStockPaid+=amount;return sum;}
+          return sum+amount;
         },0);
       }else{
         const kind=tx.kind||acct.accountType||'supplier';
