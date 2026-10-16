@@ -14189,16 +14189,20 @@ function _setupChartScrub(svgEl,ctx){
     }
     scrubG.style.display='';
     const showForecast=forecast&&idx===forecast.index;
+    // Sales plots the projected endpoint; keep achieved values separate in the card.
+    const actualR=showForecast&&Number.isFinite(forecast.actualRev)?forecast.actualRev:r;
+    const actualP=showForecast&&Number.isFinite(forecast.actualProfit)?forecast.actualProfit:p;
     tip.innerHTML=
       '<div class="tip-period">'+esc(labels[idx])+(showForecast?' · Actual so far':'')+'</div>'
-      +'<div class="tip-row"><span class="tip-dot" style="background:'+primaryColor+'"></span>'+primaryLabel+' <strong>'+fmtMoneyTip(r)+'</strong></div>'
-      +'<div class="tip-row"><span class="tip-dot" style="background:'+secondaryColor+'"></span>'+secondaryLabel+' <strong>'+fmtMoneyTip(p)+'</strong></div>'
+      +'<div class="tip-row"><span class="tip-dot" style="background:'+primaryColor+'"></span>'+primaryLabel+' <strong>'+fmtMoneyTip(actualR)+'</strong></div>'
+      +'<div class="tip-row"><span class="tip-dot" style="background:'+secondaryColor+'"></span>'+secondaryLabel+' <strong>'+fmtMoneyTip(actualP)+'</strong></div>'
       +(extraTooltipData?'<div class="tip-row"><span class="tip-dot" style="background:'+extraTooltipColor+'"></span>'+extraTooltipLabel+' <strong>'+fmtMoneyTip(extraTooltipData[idx]||0)+'</strong></div>':'')
       +(tertiaryData&&tv!==0?'<div class="tip-row"><span class="tip-dot" style="background:'+tertiaryColor+'"></span>'+tertiaryLabel+(tertiaryCounts&&Number(tertiaryCounts[idx])>0?' ('+Number(tertiaryCounts[idx])+')':'')+' <strong>−'+fmtMoneyTip(tv)+'</strong></div>':'');
     if(showForecast){
       tip.innerHTML+='<div class="tip-forecast"><div class="tip-period">Forecast · month end</div>'
         +'<div class="tip-row"><span class="tip-dot tip-dot--forecast" style="color:'+primaryColor+'"></span><span>'+esc(primaryLabel)+'</span><strong>'+fmtMoneyTip(forecast.rev)+'</strong></div>'
-        +'<div class="tip-row"><span class="tip-dot tip-dot--forecast" style="color:'+secondaryColor+'"></span><span>'+esc(secondaryLabel)+'</span><strong>'+fmtMoneyTip(forecast.profit)+'</strong></div></div>';
+        +'<div class="tip-row"><span class="tip-dot tip-dot--forecast" style="color:'+secondaryColor+'"></span><span>'+esc(secondaryLabel)+'</span><strong>'+fmtMoneyTip(forecast.profit)+'</strong></div>'
+        +(forecast.note?'<div class="tip-note">'+esc(forecast.note)+'</div>':'')+'</div>';
     }
     tip.style.display='block';
     const rect=svgEl.getBoundingClientRect();

@@ -678,6 +678,17 @@ layout; no schema, auth, monitoring or live-environment changes.
 Generation: `20261016-bulk-list-stock-staging`. Synthetic coverage is in
 `tests/bulk-list-browser.cjs` and purchase tests; CI runs Chromium and WebKit.
 
+### 16 October 2026 — yearly Sales forecast readout
+
+The shared core scrubber now presents actual-to-date and month-end forecast
+together for Sales, using the same contained card as Home. Sales retains its
+projected endpoint geometry and existing forecast model; achieved values and
+refunds remain separate from projections. The likely revenue range is inside
+the card. Chart finalization and Sales sequencing no longer install competing
+forecast bubbles or native hover titles. Dashes, endpoint timing and touch
+scrubbing keep their existing owners. No accounting or persistence changes.
+Cache generation: `20261016-sales-forecast-readout` (staging adds `-staging`).
+
 ### 16 October 2026 — one fixed account cost / payout
 
 The accounting engine resolves the canonical fixed agreement before calculating
