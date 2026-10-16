@@ -256,13 +256,13 @@
   function termsHTML(accountId){
     var a=accountById(accountId);
     if(!a)return '';
-    var type=a.accountType||'supplier';
+    var type=typeof _rtArrangementForAccount==='function'?(_rtArrangementForAccount(a)==='fixed_cost'?'supplier':'consignment'):(a.accountType||'supplier');
     if(type==='supplier'){
       return '<div class="rt-partner-terms" id="rt-partner-terms" data-account-id="'+html(a.id)+'" data-account-type="supplier">'
         +'<div class="rt-partner-terms-title">Partner terms for this item</div>'
-        +'<div class="rt-partner-term-row"><label style="font-size:11px;color:var(--text-secondary);">Amount owed override (£) <span style="font-weight:400;">optional</span></label>'
+        +'<div class="rt-partner-term-row"><label style="font-size:11px;color:var(--text-secondary);">Account payout (£) · included in item cost</label>'
         +'<input type="number" id="rt-partner-fixed" min="0" step="0.01" inputmode="decimal" placeholder="Uses item buy price by default"></div>'
-        +'<div class="rt-partner-term-hint">Leave blank to use the item buy price as the supplier amount owed.</div>'
+        +'<div class="rt-partner-term-hint">Item cost and payout are the same amount. Editing either updates both; it is deducted once.</div>'
         +'<input type="hidden" id="rt-partner-mode" value="fixed">'
         +'</div>';
     }
@@ -292,9 +292,23 @@
     });
   };
 
+  function syncFixedInputs(source){
+    var terms=document.getElementById('rt-partner-terms'),mode=document.getElementById('rt-partner-mode');
+    if(!terms||!mode||mode.value!=='fixed')return;
+    var cost=document.getElementById('qa-cost')||document.getElementById('sqa-cost'),fixed=document.getElementById('rt-partner-fixed');
+    if(!cost||!fixed)return;
+    cost.readOnly=false;cost.title='Item cost and account payout are the same amount';
+    if(source===fixed)cost.value=fixed.value;
+    else fixed.value=cost.value;
+  }
+  document.addEventListener('input',function(e){if(['qa-cost','sqa-cost','rt-partner-fixed'].indexOf(e.target.id)>=0)syncFixedInputs(e.target);});
+  // Initialise after a form is inserted; never write data while rendering it.
+  try{var host=document.getElementById('panel-content');if(host)new MutationObserver(function(){syncFixedInputs();}).observe(host,{childList:true,subtree:true});}catch(_){}
+
   function renderTermsIntoPicker(accountId){
     var slot=document.getElementById('rt-qa-partner-terms-slot');
     if(slot)slot.innerHTML=termsHTML(accountId);
+    syncFixedInputs();
   }
 
   if(typeof _quickAddPartnerPickerHTML==='function'){
@@ -328,20 +342,21 @@
   if(typeof _applyQuickAddAccount==='function'){
     var baseApplyQuickAddAccount=_applyQuickAddAccount;
     _applyQuickAddAccount=function(item,accountId){
+      var costInput=document.getElementById('qa-cost')||document.getElementById('sqa-cost');
+      var enteredCost=costInput?Number(costInput.value):(Number(item&&item.costPrice)||0);
       item=baseApplyQuickAddAccount.apply(this,arguments)||item;
       var a=accountById(accountId);
       if(!item||!a)return item;
       var terms=document.getElementById('rt-partner-terms');
       if(!terms||terms.getAttribute('data-account-id')!==String(a.id))return item;
-      var type=a.accountType||'supplier';
+      var type=typeof _rtArrangementForAccount==='function'?(_rtArrangementForAccount(a)==='fixed_cost'?'supplier':'consignment'):(a.accountType||'supplier');
       var fixedEl=document.getElementById('rt-partner-fixed');
       var fixedRaw=fixedEl?(fixedEl.value||'').trim():'';
       var fixed=fixedRaw===''?null:Number(fixedRaw);
 
       if(type==='supplier'){
         item.accountSplitPercent=null;
-        if(fixed!==null&&isFinite(fixed)&&fixed>=0)item.accountPaidAmount=+fixed.toFixed(2);
-        else item.accountPaidAmount=null;
+        _setItemFixedCost(item,fixed!==null&&isFinite(fixed)&&fixed>=0?fixed:enteredCost);
         return item;
       }
 
@@ -349,7 +364,7 @@
       var mode=modeEl&&modeEl.value==='fixed'?'fixed':'percent';
       if(mode==='fixed'){
         item.accountSplitPercent=null;
-        item.accountPaidAmount=(fixed!==null&&isFinite(fixed)&&fixed>=0)?+fixed.toFixed(2):null;
+        _setItemFixedCost(item,(fixed!==null&&isFinite(fixed)&&fixed>=0)?fixed:enteredCost);
       }else{
         item.accountPaidAmount=null;
         var splitEl=document.getElementById('rt-partner-split');

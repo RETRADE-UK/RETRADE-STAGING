@@ -234,7 +234,11 @@
     (fixed?paid.el:pct.el).value=String(value);
     return {fixed:fixed,value:value};
   }
-  function setTerms(i,t){i.partnerAgreedAmount=t.fixed?t.value:null;i.arrangementModelOverride=t.fixed?'fixed_cost':'profit_share';}
+  function setTerms(i,t){
+    if(t.fixed){_setItemFixedCost(i,t.value);return;}
+    if(_fixedAccountAmount(i)!=null&&_itemAccountType(i)!=='supplier')i.costPrice=0;
+    i.partnerAgreedAmount=null;i.arrangementModelOverride='profit_share';
+  }
   function selectedItems(fn){
     if(typeof _acctSelected==='undefined')return;
     (typeof allDBKeys==='function'?allDBKeys():[]).forEach(function(k){(DB[k]||[]).forEach(function(i){if(i&&_acctSelected.has(i.id))fn(i);});});
@@ -326,8 +330,8 @@
         box.querySelectorAll('[data-mode="percent"],#rt-partner-percent-wrap').forEach(function(el){el.remove();});
         var f=box.querySelector('[data-mode="fixed"]');if(f){f.textContent='Fixed amount';f.classList.add('on');f.setAttribute('aria-pressed','true');}
         var fw=box.querySelector('#rt-partner-fixed-wrap');if(fw)fw.style.display='grid';
-        var l=fw?fw.querySelector('label'):box.querySelector('label');if(l)l.innerHTML='Agreed amount (£) <span style="font-weight:400;">optional override</span>';
-        var h2=box.querySelector('.rt-partner-term-hint');if(h2)h2.textContent='Leave blank to use the item buy price or existing agreed amount.';
+        var l=fw?fw.querySelector('label'):box.querySelector('label');if(l)l.textContent='Account payout (£) · included in item cost';
+        var h2=box.querySelector('.rt-partner-term-hint');if(h2)h2.textContent='Item cost and payout are the same amount. Editing either updates both; it is deducted once.';
       }
     });
   }

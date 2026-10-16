@@ -34,6 +34,7 @@
 .rt #p-item .ip-cost-card{padding:20px;scroll-margin-top:100px;}
 .rt #p-item .ip-cost-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px;}
 .rt #p-item .ip-control{display:flex;flex-direction:column;gap:8px;font-size:12px;font-weight:600;color:var(--text-secondary);}
+.rt #p-item .ip-cost-form>.ip-control{justify-content:flex-end;}
 .rt #p-item .ip-control[hidden]{display:none;}
 .rt #p-item .ip-control select,.rt #p-item .ip-control input{width:100%;min-width:0;height:46px;padding:10px 12px;background-color:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:9px;font:inherit;font-size:16px;}
 .rt #p-item .ip-control select{padding-right:30px;}

@@ -677,3 +677,25 @@ layout; no schema, auth, monitoring or live-environment changes.
 
 Generation: `20261016-bulk-list-stock-staging`. Synthetic coverage is in
 `tests/bulk-list-browser.cjs` and purchase tests; CI runs Chromium and WebKit.
+
+### 16 October 2026 — one fixed account cost / payout
+
+The accounting engine resolves the canonical fixed agreement before calculating
+acquisition cost. Supplier arrangements deduct it as acquisition; legacy partner
+arrangements deduct it as their existing partner payout. A mirrored costPrice is
+never a second expense. Legacy settlement kinds and payment history stay intact;
+percentage agreements retain their genuine upfront cost and profit share. Existing
+fixed records benefit on read, without a bulk data rewrite or migration.
+
+Core owns the shared fixed-amount writer and the single amount in the item cost
+form. Add-stock/list inputs synchronise cost and payout in item-adjustments.js;
+arrangements-v2.js uses the same writer for individual and bulk account terms.
+General item edits preserve existing account terms/payment status when the owner
+has not changed. Stock forecasts, sale/return breakdowns, cash and tax calculations
+use the same deduplication. Payment allocations remain authoritative for cash.
+
+The account-cost-payout browser regression uses isolated synthetic records across
+mobile/desktop and Chromium/WebKit: existing duplicate values, zero, field sync,
+edit/reload, advance payment, later sale, return/resale, historical profit shares,
+hybrid percentage arrangements and narrow layouts. Static generation:
+`20261016-account-cost-payout` (staging adds `-staging`).

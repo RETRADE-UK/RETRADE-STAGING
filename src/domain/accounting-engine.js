@@ -1,3 +1,24 @@
+// Fixed account cost and payout describe one agreement. Keep the legacy
+// settlement kind, but never deduct its mirrored buy price a second time.
+function _fixedAccountAmount(i){
+  if(!i||!i.accountId)return null;
+  if(typeof _rtArrangementForItem==='function')return _rtArrangementForItem(i)==='fixed_cost'?_rtPartnerAgreedAmount(i):null;
+  // Dashboard can render before the deferred partner UI. Resolve explicit
+  // stored agreements immediately; loading presentation must not change P&L.
+  const a=typeof _accounts!=='undefined'?(_accounts||[]).find(function(a){return a.id===i.accountId;}):null;
+  const override=i.arrangementModelOverride||i.arrangement_model_override;
+  const fixed=override==='fixed_cost'||(!override&&((a&&a.arrangementModel==='fixed_cost'&&i.accountSplitPercent==null)||i.partnerAgreedAmount!=null));
+  if(!fixed)return null;
+  const values=[i.partnerAgreedAmount,i.partner_agreed_amount,i.accountPaidAmount,i.account_paid_amount,i.costPrice];
+  for(const value of values){if(value!=null&&String(value).trim()!==''&&isFinite(Number(value))&&Number(value)>=0)return +Number(value).toFixed(2);}
+  return 0;
+}
+function _itemAcquisitionCost(i){
+  const fixed=_fixedAccountAmount(i);
+  if(fixed!=null)return _itemAccountType(i)==='supplier'?fixed:0;
+  return Number(i&&i.costPrice)||0;
+}
+
 /*
  * RETRADE ACCOUNTING ENGINE
  * Step 3 modularisation — financial calculation logic only.
@@ -123,7 +144,7 @@ function _cashStockTied(){
       if(acquisitionPaid){
         const acquisition=(typ==='supplier'&&i.accountPaidAmount!=null)
           ? (Number(i.accountPaidAmount)||0)
-          : (Number(i.costPrice)||0);
+          : _itemAcquisitionCost(i);
         c += acquisition;
       }
     });
@@ -140,7 +161,7 @@ function _cashUnpaidSoldLiabilities(){
       if(typeof _accountItemIsSold==='function'&&!_accountItemIsSold(i))return;
       const typ=(typeof _itemAccountType==='function')?_itemAccountType(i):'supplier';
       if(typ==='supplier'){
-        const debt=(typeof _accountItemDebt==='function')?_accountItemDebt(i):((Number(i.costPrice)||0));
+        const debt=(typeof _accountItemDebt==='function')?_accountItemDebt(i):(_itemAcquisitionCost(i));
         if(debt!=null&&Number(debt)>0){supplier+=Number(debt)||0;count++;}
       }else{
         const owed=(typeof _accountItemOwed==='function')?_accountItemOwed(i):null;
@@ -165,7 +186,7 @@ function _cashRemovedItemNet(i){
   if(acquisitionPaid){
     paidCost += (typ==='supplier'&&i.accountPaidAmount!=null)
       ? (Number(i.accountPaidAmount)||0)
-      : (Number(i.costPrice)||0);
+      : _itemAcquisitionCost(i);
   }
   const recovered=(i.scrapReason==='supplier_return')?Math.max(0,Number(i.supplierRefund)||0):0;
   // Positive = cash permanently lost; negative = more cash recovered than paid.
@@ -200,7 +221,7 @@ function _cashEventsAll(){
     const typ=i.accountId&&typeof _itemAccountType==='function'?_itemAccountType(i):'own';
     const sourced=i.dateSourced||i.dateListed||null;
     // Acquisition cash: own stock and hybrid upfront component are paid when sourced.
-    if((!i.accountId||typ==='hybrid')&&Number(i.costPrice)>0)push({id:'stock:'+i.id,date:sourced,type:'stock_purchase',direction:'out',amount:i.costPrice,description:'Stock sourced · '+(i.item||'Item'),source:'item',itemId:i.id,purchaseGroupId:i.purchaseGroupId||null,purchaseGroupName:i.purchaseGroupName||null});
+    if((!i.accountId||typ==='hybrid')&&_itemAcquisitionCost(i)>0)push({id:'stock:'+i.id,date:sourced,type:'stock_purchase',direction:'out',amount:_itemAcquisitionCost(i),description:'Stock sourced · '+(i.item||'Item'),source:'item',itemId:i.id,purchaseGroupId:i.purchaseGroupId||null,purchaseGroupName:i.purchaseGroupName||null});
     (i.parts||[]).forEach(function(p,idx){if(Number(p.cost)>0)push({id:'part:'+i.id+':'+(p.id||idx),date:p.date||sourced,type:'part_purchase',direction:'out',amount:p.cost,description:'Part / repair · '+(p.description||p.desc||i.item||'Item'),source:'item',itemId:i.id});});
     // Original insertion fee occurs when first listed.
     if(Number(i.listingFee)>0)push({id:'listing:'+i.id,date:i.dateListed||sourced,type:'listing_fee',direction:'out',amount:i.listingFee,description:'Listing fee · '+(i.item||'Item'),source:'item',itemId:i.id});
@@ -792,7 +813,7 @@ function _unsoldStockCostInRange(from,to){
       const dSrc=i.dateSourced||i.dateListed||null;
       if(!inR(dSrc))return;
       const parts=calcPartsCost(i);
-      const itemCost=(i.costPrice||0)+parts;
+      const itemCost=_itemAcquisitionCost(i)+parts;
       cost+=itemCost; count++;
       items.push({item:i,month:k,dateSourced:dSrc,cost:+itemCost.toFixed(2)});
     });
@@ -810,7 +831,7 @@ function _saleBreakdown(ev){
     // A full return physically restores the inventory basis. This is an
     // accounting COGS credit, not a cash inflow; Cashflow handles only refund,
     // fee-credit and return-postage movements.
-    const itemCost=isFull?-(Number(i.costPrice)||0):0;
+    const itemCost=isFull?-_itemAcquisitionCost(i):0;
     const parts=isFull?-calcPartsCost(i):0;
     const totalCosts=+(impact.refund+impact.postage-impact.platformCredit-impact.promoCredit+itemCost+parts).toFixed(2);
     return{saleNo:'Sale '+Math.max(1,Number(r.saleNo)||1)+' return',platform:(PLATFORMS[cr.platformId]&&PLATFORMS[cr.platformId].short)||cr.platformId,
@@ -829,7 +850,7 @@ function _saleBreakdown(ev){
   const promoPct=Math.max(0,Number(cyc.promoPercent)||0);
   const bpf=calcPlatformBPF(i,salePrice,cyc.postage||0,cyc.platformId);
   const promoFee=_calcPromoFee(cyc.platformId,salePrice,cyc.postage||0,promoPct);
-  const itemCost=Math.max(0,Number(i.costPrice)||0),parts=Math.max(0,calcPartsCost(i));
+  const itemCost=Math.max(0,_itemAcquisitionCost(i)),parts=Math.max(0,calcPartsCost(i));
   const listingFee=Math.max(0,Number(cyc.listingFee)||0);
   // Partner economic cost belongs to one sale cycle only. If the current sale
   // survives, attach it there. If the partner was already paid before a full
@@ -960,7 +981,7 @@ function _buildPnLSummary(from,to,label){
   let archiveLoss=0,archiveCount=0;
   allItems().forEach(function(i){
     if(i&&i.scrappedAt&&i.scrappedAt>=from&&i.scrappedAt<=to){
-      const loss=(typeof _cashRemovedItemNet==='function')?_cashRemovedItemNet(i):Math.max(0,(Number(i.costPrice)||0)+calcPartsCost(i)-(Number(i.supplierRefund)||0));
+      const loss=(typeof _cashRemovedItemNet==='function')?_cashRemovedItemNet(i):Math.max(0,_itemAcquisitionCost(i)+calcPartsCost(i)-(Number(i.supplierRefund)||0));
       if(loss>0){archiveLoss+=loss;archiveCount++;}
     }
   });
@@ -1088,12 +1109,12 @@ function _taxCashStockAndPartner(from,to){
       if(payments.length){
         payments.forEach(function(p){if(p.tx.paid===true&&inR(p.tx.date))supplierStockPaid+=p.amount;});
       }else if(i.accountSettled===true){
-        acquisition=i.accountPaidAmount!=null?Number(i.accountPaidAmount)||0:Number(i.costPrice)||0;
+        acquisition=i.accountPaidAmount!=null?Number(i.accountPaidAmount)||0:_itemAcquisitionCost(i);
         payDate=sourceDate;
         if(acquisition>0&&inR(payDate))assumptions.push({itemId:i.id,amount:acquisition,reason:'Settled supplier purchase uses its source date; no payment allocation is recorded.'});
       }
     } else { // hybrid: upfront stock cost is paid when acquired; later split is settlement-based
-      acquisition=Number(i.costPrice)||0; payDate=sourceDate;
+      acquisition=_itemAcquisitionCost(i); payDate=sourceDate;
     }
     if(acquisition>0&&inR(payDate)){
       if(typ==='supplier')supplierStockPaid+=acquisition;else ownStockPaid+=acquisition;
@@ -1676,7 +1697,7 @@ function calcGrossProfit(i){
   // (shipping/pkg/promo/return/fees/listing) count. Resold items keep the cost (consumed by
   // the resale, v2.21.16). Display-only — calcGrossProfit does NOT feed SA103.
   const _backInStock=!!i.isReturned&&(i.returnHistory||[]).some(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
-  const cost=(_backInStock?0:(i.costPrice||0))+(_sellerPaysShipping?_s1Shipping:0)+(_sellerPaysShipping?_s1Packaging:0)+promoCost+returnCost+(_backInStock?0:partsCost)+listingFee;
+  const cost=(_backInStock?0:_itemAcquisitionCost(i))+(_sellerPaysShipping?_s1Shipping:0)+(_sellerPaysShipping?_s1Packaging:0)+promoCost+returnCost+(_backInStock?0:partsCost)+listingFee;
   let profit=rev-cost;
   // Second sale (resold after return)
   if(i.resaleSalePrice){
@@ -1728,12 +1749,14 @@ function calcNetProfit(i){
 
 
 function calcCOGSOnly(i){
-  return +((i.costPrice||0)+calcPartsCost(i)).toFixed(2);
+  return +(_itemAcquisitionCost(i)+calcPartsCost(i)).toFixed(2);
 }
 
 function _estimatedPartnerCutFromProfit(i,profit){
-  if(i==null||profit==null)return 0;
+  if(i==null)return 0;
   if(_itemAccountType(i)==='supplier')return 0;
+  const fixed=_fixedAccountAmount(i);if(fixed!=null)return fixed;
+  if(profit==null)return 0;
   if(i.accountPaidAmount!=null)return +Math.max(0,Number(i.accountPaidAmount)||0).toFixed(2);
   let pct=i.accountSplitPercent;
   if(pct==null&&i.accountId){
@@ -1773,7 +1796,7 @@ function calcEstGrossProfit(i){
     // A full return restores buy cost + parts to stock, so calcGrossProfit(base)
     // correctly does NOT realise them as a loss while the unit is back in hand.
     // The hypothetical next successful sale consumes that stock basis once as COGS.
-    const stockBasis=Math.max(0,Number(i.costPrice)||0)+Math.max(0,Number(calcPartsCost(i))||0);
+    const stockBasis=Math.max(0,_itemAcquisitionCost(i))+Math.max(0,Number(calcPartsCost(i))||0);
     // Any relist insertion fee already recorded on the return event is already
     // contained in calcGrossProfit(base), so never deduct it twice here.
     const nextCycle=ask+sellerPostage-bpf-promo-fulfilment-stockBasis;
@@ -1799,7 +1822,7 @@ function calcROI(i){
   // eBay fees (BPF) and promo fees are deductions from revenue, not investments —
   // they do not belong in the denominator. This keeps ROI honest:
   //   e.g. £15 cost → £39 net profit = 260% ROI (not 135%).
-  let totalInvested=(i.costPrice||0)+(i.shippingCost||0)+(i.packagingCost||0)+calcPartsCost(i);
+  let totalInvested=(_fixedAccountAmount(i)!=null?_fixedAccountAmount(i):_itemAcquisitionCost(i))+(i.shippingCost||0)+(i.packagingCost||0)+calcPartsCost(i);
   // For resold items: add resale shipping/packaging (real outlay on the second go).
   if(i.resaleSalePrice){
     totalInvested+=(i.resaleShippingCost||0)+(i.resalePackagingCost||0);
