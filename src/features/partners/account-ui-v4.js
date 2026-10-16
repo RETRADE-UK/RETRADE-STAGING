@@ -88,8 +88,12 @@
   }
   function setOutstandingCard(card,acct,paid){
     if(!card)return;var info=outstandingInfo(acct),value=card.querySelector('.rt-partner-summary-v3-value'),sub=card.querySelector('.rt-partner-summary-v3-sub'),label=card.querySelector('.rt-partner-summary-v3-label');
-    if(label)setText(label,'Partner outstanding');card.setAttribute('data-kind','outstanding');
-    if(value){value.classList.add('rt-partner-outstanding-value');value.innerHTML='<div class="rt-partner-outstanding-breakdown"><div class="rt-partner-outstanding-part"><span>Sold outstanding</span><strong>'+money(info.sold)+'</strong></div><div class="rt-partner-outstanding-part"><span>All stock</span><strong>'+money(info.all)+'</strong></div></div>';}
+    if(label)setText(label,'Partner outstanding');if(card.getAttribute('data-kind')!=='outstanding')card.setAttribute('data-kind','outstanding');
+    if(value){
+      value.classList.add('rt-partner-outstanding-value');
+      var next='<div class="rt-partner-outstanding-breakdown"><div class="rt-partner-outstanding-part"><span>Sold outstanding</span><strong>'+money(info.sold)+'</strong></div><div class="rt-partner-outstanding-part"><span>All stock</span><strong>'+money(info.all)+'</strong></div></div>';
+      if(value.innerHTML!==next)value.innerHTML=next;
+    }
     var notes=[];if(info.soldNeeds)notes.push(info.soldNeeds+' sold payout'+(info.soldNeeds===1?'':'s')+' not set');var stockMissing=Math.max(0,info.allNeeds-info.soldNeeds);if(stockMissing)notes.push(stockMissing+' stock payout'+(stockMissing===1?'':'s')+' not set');if(!notes.length&&info.allCount)notes.push(info.soldCount+' sold · '+info.allCount+' all-stock item'+(info.allCount===1?'':'s'));if(!info.allCount&&!notes.length)notes.push('Nothing currently outstanding');if(paid&&paid.value>0)notes.push(money(paid.value)+' paid');setText(sub,notes.join(' · '));
   }
 
