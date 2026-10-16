@@ -45,8 +45,12 @@ const engine=process.argv.includes('--webkit')?'webkit':'chromium';
    await page.locator('#edit-stock-cost').fill('25');await page.locator('button[onclick="_saveStockEdit(\'OCT-26\',\'one\')"]').click();
    assert.deepEqual(await page.evaluate(()=>{const i=DB['OCT-26'][0];return [i.costPrice,i.partnerAgreedAmount,i.accountPaidAmount,i.arrangementModelOverride];}),[25,25,25,'fixed_cost']);
    // Set payout from the account and set cost in bulk use that same value.
-   await page.evaluate(()=>{_acctSelected=new Set(['one']);_acctBulkSetCost();});
+   await page.evaluate(()=>openAccountPage('fixed'));
+   await page.waitForFunction(()=>_acctCurrentAcct()?.id==='fixed');
+   await page.evaluate(()=>{_acctToggleSelectMode();_acctToggleSelect('one');_acctBulkSetCost();});
    await page.locator('#bulk-cost-input').fill('30');await page.locator('button[onclick="_acctBulkSetCostConfirm()"]').click();
+   // Wait for the observable save result; keep all three amount assertions.
+   await page.waitForFunction(()=>!document.getElementById('slide-panel').classList.contains('on')&&DB['OCT-26'][0].costPrice===30);
    assert.deepEqual(await page.evaluate(()=>{const i=DB['OCT-26'][0];return [i.costPrice,i.partnerAgreedAmount,i.accountPaidAmount];}),[30,30,30]);
    // Payment before sale is one outflow; selling later creates no new payout.
    await page.evaluate(()=>{openAccountPage('fixed');__rtPartnerOpenPayment('fixed',['one']);});
