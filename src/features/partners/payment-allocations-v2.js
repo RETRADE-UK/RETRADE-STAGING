@@ -287,7 +287,7 @@
       var before=values.map(function(x){var i=x.r.item;return {i:i,partnerAgreedAmount:i.partnerAgreedAmount,arrangementModelOverride:i.arrangementModelOverride,accountPaidAmount:i.accountPaidAmount,accountSplitPercent:i.accountSplitPercent};});
       values.forEach(function(x){var i=x.r.item;i.partnerAgreedAmount=x.value;i.arrangementModelOverride='fixed_cost';i.accountPaidAmount=x.value;i.accountSplitPercent=null;});
       btn.disabled=true;btn.textContent='Saving…';
-      try{await persistDB();closePaymentModal();render(a);try{toast('Payout'+(values.length===1?'':'s')+' saved · ready to pay');}catch(_){}}
+      try{await persistDB();closePaymentModal();try{if(typeof _renderAccountPage==='function')_renderAccountPage(a);else render(a);}catch(_){render(a);}try{toast('Payout'+(values.length===1?'':'s')+' saved · ready to pay');}catch(_){}}
       catch(err){before.forEach(function(x){x.i.partnerAgreedAmount=x.partnerAgreedAmount;x.i.arrangementModelOverride=x.arrangementModelOverride;x.i.accountPaidAmount=x.accountPaidAmount;x.i.accountSplitPercent=x.accountSplitPercent;});btn.disabled=false;btn.textContent='Save payout'+(rows.length===1?'':'s');try{toast('Could not save payout amount','error');}catch(_){}}
     });
   }
