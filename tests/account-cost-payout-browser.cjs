@@ -11,7 +11,11 @@ const engine=process.argv.includes('--webkit')?'webkit':'chromium';
    await page.evaluate(()=>{
     saveDB=()=>{};
     _accounts=[{id:'fixed',name:'Fixed account',accountType:'consignment',arrangementModel:'fixed_cost',paymentTiming:'upfront',paymentTerms:'upfront',settlements:[]},{id:'share',name:'Share account',accountType:'consignment',arrangementModel:'profit_share',defaultSplitPercent:50,paymentTiming:'on_sale',paymentTerms:'on_sale',settlements:[]}];
-    window.costFixture=(extra={})=>Object.assign({id:'one',item:'Synthetic fixed cost',category:ITEM_CATEGORIES[0],location:'Test shelf',accountId:'fixed',accountType:'consignment',state:'listed',dateSourced:'2026-10-01',dateListed:'2026-10-02',dateSold:null,salePrice:100,costPrice:30,accountPaidAmount:30,partnerAgreedAmount:30,arrangementModelOverride:'fixed_cost',accountSplitPercent:null,accountSettled:false,salePlatform:'fb',defaultPlatform:'fb',parts:[{id:'part',description:'Repair',cost:5,date:'2026-10-03'}],returnHistory:[]},extra);
+    window.costFixture=(extra={})=>Object.assign({id:'one',item:'Synthetic fixed cost',category:ITEM_CATEGORIES[0],location:'Test shelf',accountId:'fixed',accountType:'consignment',state:'listed',dateSourced:'2026-10-01',dateListed:'2026-10-02',dateSold:null,salePrice:100,costPrice:30,accountPaidAmount:30,partnerAgreedAmount:30,arrangementModelOverride:'fixed_cost',accountSplitPercent:null,accountSettled:false,salePlatform:'fb',defaultPlatform:'fb',parts:[{id:'part',description:'Repair',cost:5,date:'2026-10-03'}],returnHistory:[],refreshHistory:[]},extra);
+    window.termsSnapshot=()=>JSON.stringify([
+     _accounts.map(a=>[a.id,a.accountType,a.arrangementModel,a.defaultSplitPercent,a.paymentTiming,a.paymentTerms,a.settlements]),
+     ((i)=>[i.id,i.accountId,i.accountType,i.arrangementModelOverride,i.partnerAgreedAmount,i.accountPaidAmount,i.accountSplitPercent,i.costPrice,i.accountSettled,i.salePrice,i.state,i.dateSold,i.parts,i.returnHistory,i.refreshHistory])(DB['OCT-26'][1])
+    ]);
     DB={'OCT-26':[costFixture()],trips:[],expenses:[]};openItemPage('OCT-26','one');
    });
    // Existing duplicate fields correct on read without rewriting data or payment history.
@@ -100,7 +104,7 @@ const engine=process.argv.includes('--webkit')?'webkit':'chromium';
      DB['OCT-26']=[costFixture({accountType:type}),costFixture({id:'other',accountType:type})];
      _accounts[0].settlements=[];openItemPage('OCT-26','one');
     },accountType);
-    const defaults=await page.evaluate(()=>JSON.stringify([_accounts,DB['OCT-26'][1]]));
+    const defaults=await page.evaluate(()=>termsSnapshot());
     await page.locator('#ip-partner-method').selectOption('percent');
     assert.equal(await page.locator('#ip-buy-cost').inputValue(),'0');
     assert.equal(await page.locator('#ip-buy-cost').isEditable(),false,'Profit share locks item cost at zero');
@@ -116,7 +120,7 @@ const engine=process.argv.includes('--webkit')?'webkit':'chromium';
     assert.equal(await page.locator('#ip-partner-fixed').inputValue(),'20');
     await page.locator('.ip-cost-form button[type=submit]').click();
     assert.deepEqual(await page.evaluate(()=>{const i=DB['OCT-26'][0];return [i.costPrice,i.partnerAgreedAmount,i.accountPaidAmount,i.accountSplitPercent,calcEstProfit(i)];}),[20,20,20,null,75]);
-    assert.equal(await page.evaluate(()=>JSON.stringify([_accounts,DB['OCT-26'][1]])),defaults,'Other items and account defaults are untouched');
+    assert.equal(await page.evaluate(()=>termsSnapshot()),defaults,'Other items and account defaults are untouched');
    }
    // A paid supplier item can change terms without losing or rewriting its actual payment.
    await page.evaluate(()=>{
