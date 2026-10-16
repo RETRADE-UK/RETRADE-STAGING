@@ -10,7 +10,7 @@ async function seed(page){
   _accounts=[];_jobLots=[];_jobLotItems=[];_sourcingRuns=[];_saleReconciliations=[];
   STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;STOCK_STATE_FILTER='sourced';STOCK_FILTER='all';STOCK_SOURCED_FILTER='all';STOCK_SEARCH='';
   window.__bulkSaves=0;saveDB=async()=>{window.__bulkSaves++;};
-  goToTab('stock');renderStock();
+  goToTab('stock',null,{stockState:'sourced'});renderStock();
  });
  await page.waitForFunction(()=>!document.querySelector('#p-stock').hasAttribute('aria-busy'));
 }
