@@ -34,7 +34,6 @@
     if(name){try{var m=(_accounts||[]).filter(function(a){var n=String(a&&a.name||'').trim().toLowerCase();return n&&(name===n||name.indexOf(n)!==-1||n.indexOf(name)!==-1);});if(m.length===1)return m[0];}catch(_){} }
     return null;
   }
-  function accountItems(id){var out=[];try{(typeof allDBKeys==='function'?allDBKeys():[]).forEach(function(month){((DB&&DB[month])||[]).forEach(function(i){if(i&&String(i.accountId)===String(id))out.push(i);});});}catch(_){}return out;}
 
   function installStyles(){
     if(document.getElementById('rt-partner-account-v4-style'))return;
@@ -54,23 +53,12 @@
     });
   }
 
-  function itemState(i){return String(i&&i.state||'').toLowerCase();}
-  function partsCost(i){try{if(typeof calcPartsCost==='function')return Number(calcPartsCost(i))||0;}catch(_){}return (Array.isArray(i&&i.parts)?i.parts:[]).reduce(function(s,p){return s+(Number(p&&p.cost)||0);},0);}
-  function accountTypeFor(i,a){try{if(typeof _itemAccountType==='function')return String(_itemAccountType(i)||'').toLowerCase();}catch(_){}return String((i&&i.accountType)||(a&&a.accountType)||'supplier').toLowerCase();}
-  function positiveFirst(){for(var i=0;i<arguments.length;i++){var n=Number(arguments[i]);if(isFinite(n)&&n>0)return n;}return 0;}
   function potentialInfo(acct){
-    var total=0,priced=0,listed=0,unlisted=0;
-    accountItems(acct.id).forEach(function(item){
-      if(!item||item.scrappedAt||item.scrapped_at)return;
-      var state=itemState(item),price=state==='listed'?positiveFirst(item.salePrice,item.estSalePrice):state==='sourced'?positiveFirst(item.estSalePrice):0;if(!(price>0))return;
-      var revenue=price+(Number(item.postage)||0),shipping=Math.max(0,Number(item.shippingCost)||0),packaging=Math.max(0,Number(item.packagingCost)||0),listingFee=Math.max(0,Number(item.listingFee)||0),promoPct=Math.max(0,Number(item.promoPercent)||0);if(promoPct>1)promoPct/=100;
-      var parts=partsCost(item),type=accountTypeFor(item,acct),fixed=item.accountPaidAmount!=null&&item.accountPaidAmount!==''?Math.max(0,Number(item.accountPaidAmount)||0):null,purchase=type==='supplier'?(fixed!=null?fixed:Math.max(0,Number(item.costPrice)||0)):Math.max(0,Number(item.costPrice)||0),pool=revenue-purchase-shipping-packaging-listingFee-(price*promoPct)-parts,retrade=pool;
-      if(type!=='supplier'){var partner=0;if(fixed!=null)partner=fixed;else{var pct=item.accountSplitPercent!=null?Number(item.accountSplitPercent):Number(acct.defaultSplitPercent);if(isFinite(pct))partner=Math.max(0,pool)*Math.max(0,Math.min(100,pct))/100;}retrade=pool-partner;}
-      total+=Math.max(0,retrade);priced++;if(state==='listed')listed++;else unlisted++;
-    });
-    if(!priced)return {value:null,note:'No priced unsold items available for a reliable estimate'};
+    var stats=typeof _accountStats==='function'?_accountStats(acct.id):null;
+    var listed=Number(stats&&stats.forecastListedCount)||0,unlisted=Number(stats&&stats.forecastUnlistedCount)||0;
+    if(!listed&&!unlisted)return {value:null,note:'No priced unsold items available for a reliable estimate'};
     var note=listed&&unlisted?'Estimated RETRADE profit from '+listed+' listed + '+unlisted+' estimated unlisted item'+(unlisted===1?'':'s'):listed?'Estimated RETRADE profit from '+listed+' listed item'+(listed===1?'':'s')+' at current asking price'+(listed===1?'':'s'):'Estimated RETRADE profit from '+unlisted+' estimated unlisted item'+(unlisted===1?'':'s');
-    return {value:roundMoney(total),note:note};
+    return {value:roundMoney(stats.forecastYourShare),note:note};
   }
   function paidInfo(acct){var v=0,c=0;try{(acct.settlements||[]).forEach(function(tx){if(tx&&tx.paid===true){v+=Number(tx.partnerAmount)||0;c++;}});}catch(_){}return {value:roundMoney(v),count:c};}
   function findCard(summary,label,kind){var cards=summary.querySelectorAll('.rt-partner-summary-v3-card'),want=String(label||'').toLowerCase();for(var i=0;i<cards.length;i++){var l=text(cards[i].querySelector('.rt-partner-summary-v3-label')).toLowerCase();if((kind&&cards[i].getAttribute('data-kind')===kind)||l===want)return cards[i];}return null;}
