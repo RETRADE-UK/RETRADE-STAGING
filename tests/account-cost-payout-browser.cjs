@@ -10,7 +10,7 @@ const engine=process.argv.includes('--webkit')?'webkit':'chromium';
    const {page,context,errors}=await open(browser,{signedIn:true,mobile});await settled(page);
    await page.evaluate(()=>{
     saveDB=()=>{};
-    _accounts=[{id:'fixed',name:'Fixed account',accountType:'consignment',arrangementModel:'fixed_cost',paymentTiming:'upfront',settlements:[]},{id:'share',name:'Share account',accountType:'consignment',arrangementModel:'profit_share',defaultSplitPercent:50,settlements:[]}];
+    _accounts=[{id:'fixed',name:'Fixed account',accountType:'consignment',arrangementModel:'fixed_cost',paymentTiming:'upfront',paymentTerms:'upfront',settlements:[]},{id:'share',name:'Share account',accountType:'consignment',arrangementModel:'profit_share',defaultSplitPercent:50,paymentTiming:'on_sale',paymentTerms:'on_sale',settlements:[]}];
     window.costFixture=(extra={})=>Object.assign({id:'one',item:'Synthetic fixed cost',category:ITEM_CATEGORIES[0],location:'Test shelf',accountId:'fixed',accountType:'consignment',state:'listed',dateSourced:'2026-10-01',dateListed:'2026-10-02',dateSold:null,salePrice:100,costPrice:30,accountPaidAmount:30,partnerAgreedAmount:30,arrangementModelOverride:'fixed_cost',accountSplitPercent:null,accountSettled:false,salePlatform:'fb',defaultPlatform:'fb',parts:[{id:'part',description:'Repair',cost:5,date:'2026-10-03'}],returnHistory:[]},extra);
     DB={'OCT-26':[costFixture()],trips:[],expenses:[]};openItemPage('OCT-26','one');
    });
