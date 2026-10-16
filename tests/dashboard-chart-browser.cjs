@@ -69,7 +69,7 @@ const {open,settled}=require('./startup-browser.cjs');
    await svg.scrollIntoViewIfNeeded();
    await column.hover();
    // Tooltip is parent-owned and can precede the SVG after a resize.
-   const values=()=>page.evaluate(id=>{
+   const values=(id=svgId)=>page.evaluate(id=>{
     const svg=document.getElementById(id),tip=svg.parentElement.querySelector('.rt-chart-scrub-tip');
     const r=svg.getBoundingClientRect(),t=tip.getBoundingClientRect();
     const fc=tip.querySelector('.tip-forecast');
@@ -79,8 +79,8 @@ const {open,settled}=require('./startup-browser.cjs');
       const b=el.getBoundingClientRect();if(t.left<b.left-1||t.right>b.right+1||t.top<b.top-1||t.bottom>b.bottom+1)clipping.push(el.className);
      }
     }
-    return {visible:getComputedStyle(tip).display!=='none',text:tip.textContent,actual:Array.from(tip.children).filter(el=>el.classList.contains('tip-row')).map(el=>el.querySelector('strong').textContent),forecast:fc?Array.from(fc.querySelectorAll('strong'),el=>el.textContent):[],contained:t.left>=r.left&&t.right<=r.right&&t.top>=r.top&&t.bottom<=r.bottom,clipping,textFits:textBoxes.every(b=>b.left>=t.left&&b.right<=t.right),oldLabels:svg.querySelectorAll('.rt-dashboard-hover-forecast,.rt-chart-forecast-label,.rt-chart-col title').length};
-   },svgId);
+    return {visible:getComputedStyle(tip).display!=='none',text:tip.textContent,actual:Array.from(tip.children).filter(el=>el.classList.contains('tip-row')).map(el=>el.querySelector('strong').textContent),forecast:fc?Array.from(fc.querySelectorAll('strong'),el=>el.textContent):[],bounds:{plot:{x:r.x,y:r.y,w:r.width,h:r.height},tip:{x:t.x,y:t.y,w:t.width,h:t.height}},contained:t.left>=r.left&&t.right<=r.right&&t.top>=r.top&&t.bottom<=r.bottom,clipping,textFits:textBoxes.every(b=>b.left>=t.left&&b.right<=t.right),oldLabels:svg.querySelectorAll('.rt-dashboard-hover-forecast,.rt-chart-forecast-label,.rt-chart-col title,.rt-sales-hover-forecast,.rt-sales-forecast-label,.rt-sales-range-label,.rt-sales-forecast-layer title').length};
+   },id);
    let readout=await values();
    assert(readout.visible,'One readout is visible at '+width);
    assert.deepEqual(readout.actual,['£2,611','£397','−£20']);
@@ -110,8 +110,52 @@ const {open,settled}=require('./startup-browser.cjs');
    },svgId);
    await svg.locator('.rt-chart-col').last().hover();
    assert.deepEqual((await values()).forecast,[],'Period changes cannot retain a stale forecast');
+   // Yearly Sales uses the same readout, with actual values separate from its projected markers.
+   await page.clock.setFixedTime(new Date('2026-10-16T12:00:00Z'));
+   await page.evaluate(()=>{goToTab('monthly');MONTHLY_VIEW='grid';MONTHLY_PERIOD='fy:2026';renderMonthlyPage();});
+   const sales=page.locator('#monthly-profitability-svg');
+   await page.waitForFunction(()=>document.querySelector('#monthly-profitability-svg .rt-chart-col')&&!document.querySelector('#p-monthly').hasAttribute('aria-busy'));
+   await page.waitForTimeout(250);
+   const drawSales=async(partial=true,actualRev=2611,actualProfit=397)=>page.evaluate(({partial,actualRev,actualProfit})=>{
+    const svg=document.getElementById('monthly-profitability-svg'),box=svg.getBoundingClientRect();
+    const opts={W:Math.max(320,Math.round(box.width)),H:Math.max(200,Math.round(box.height)),pad:{t:18,r:16,b:44,l:60},fontSize:13,yTicks:4,primaryLabel:'Net Revenue',secondaryLabel:'Net Profit',primaryColor:'var(--state-listed)',secondaryColor:'var(--profit)',extraTooltipData:[450,700,900,480],extraTooltipLabel:'Gross Profit',tertiaryData:[0,0,0,20],tertiaryCounts:[0,0,0,1],tertiaryLabel:'Refunds',tertiaryColor:'var(--red)',partialLast:partial,drawKey:'sales-hover-'+partial+'-'+actualRev+'-'+actualProfit};
+    const saved=getSaleEventsInRange;
+    try{getSaleEventsInRange=()=>[];_renderChartInto(svg,['Jul','Aug','Sep','Oct'],[1900,2200,3600,actualRev],[300,600,800,actualProfit],[],opts);}finally{getSaleEventsInRange=saved;}
+   },{partial,actualRev,actualProfit});
+   await drawSales();await sales.scrollIntoViewIfNeeded();
+   const salesColumn=sales.locator('.rt-chart-col').last();await salesColumn.hover();
+   let salesReadout=await values('monthly-profitability-svg');
+   if(process.env.CHART_CAPTURE_DIR)await page.screenshot({path:process.env.CHART_CAPTURE_DIR+'/sales-forecast-'+width+'.png'});
+   assert(salesReadout.visible);
+   assert.deepEqual(salesReadout.actual,['£2,611','£397','£480','−£20'],'Sales card shows actuals, not projected values labelled as actuals');
+   // Mid-month fallback: prior weighted revenue 2850 / profit 650, live pace weighted at .39.
+   assert.deepEqual(salesReadout.forecast,['£3,775','£706']);
+   assert(salesReadout.text.includes('Actual so far')&&salesReadout.text.includes('Forecast · month end')&&salesReadout.text.includes('Likely revenue'));
+   assert(salesReadout.contained&&salesReadout.textFits,'Sales readout fits at '+width+': '+JSON.stringify(salesReadout));
+   assert.deepEqual(salesReadout.clipping,[]);
+   assert.equal(salesReadout.oldLabels,0);
+   assert.equal(await page.locator('#p-monthly .rt-sales-forecast-popover').count(),0,'No second forecast card');
+   assert(await sales.evaluate(el=>['rev','prof'].every((key,i)=>Math.abs(Number(el.querySelector('.rt-scrub-'+key).getAttribute('cy'))-Number(el.querySelectorAll('.rt-sales-forecast-ring')[i].getAttribute('cy')))<.2)),'Scrub markers remain on the projected endpoints');
+   await sales.locator('.rt-chart-col').nth(1).hover();
+   assert.deepEqual((await values('monthly-profitability-svg')).forecast,[],'Sales history is actual-only');
+   if(mobile){
+    const box=await salesColumn.boundingBox();
+    const event={pointerType:'touch',pointerId:9,clientX:box.x+box.width/2,clientY:box.y+box.height/2,buttons:1};
+    await salesColumn.dispatchEvent('pointerdown',event);
+    assert.deepEqual((await values('monthly-profitability-svg')).forecast,['£3,775','£706'],'Sales press/hold includes both projections immediately');
+    await page.clock.setFixedTime(new Date('2026-10-16T12:00:00.300Z'));
+    await salesColumn.dispatchEvent('pointerup',{...event,buttons:0});
+    assert(await sales.evaluate(el=>el.__wasScrub()),'Holding Sales chart must not drill');
+   }
+   await drawSales(false);await sales.locator('.rt-chart-col').last().hover();
+   assert.deepEqual((await values('monthly-profitability-svg')).forecast,[],'Completed periods cannot retain a stale Sales forecast');
+   assert.equal(await sales.locator('.rt-sales-forecast-ring').count(),0);
+   await drawSales(true,0,0);await sales.locator('.rt-chart-col').last().hover();
+   assert.deepEqual((await values('monthly-profitability-svg')).actual.slice(0,2),['£0','£0'],'Zero actuals must not fall back to forecast values');
+   assert.equal(await page.locator('#p-monthly .rt-chart-scrub-tip').count(),1,'Rerenders reuse one card');
+   console.log('PASS combined Home and Sales forecast readout '+width+'px');
    assert.deepEqual(errors,[]);await context.close();
   }
-  console.log('PASS dashboard scales and unified forecast readout: seven widths, complete amounts, containment, touch and period changes');
+  console.log('PASS dashboard scales and unified Home/Sales forecast readouts: seven widths, complete amounts, containment, touch and period changes');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

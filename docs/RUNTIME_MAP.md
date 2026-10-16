@@ -690,3 +690,14 @@ existing accounts retain their data. See [test account handover](STAGING_TEST_AC
 for the staging-only migration, counts, access and verification. No production
 binding, auth provider settings, RLS policies or core accounting changes.
 Cache generation: `20261016-populated-test-account-staging`.
+
+### 16 October 2026 — yearly Sales forecast readout
+
+The shared core scrubber now presents actual-to-date and month-end forecast
+together for Sales, using the same contained card as Home. Sales retains its
+projected endpoint geometry and existing forecast model; achieved values and
+refunds remain separate from projections. The likely revenue range is inside
+the card. Chart finalization and Sales sequencing no longer install competing
+forecast bubbles or native hover titles. Dashes, endpoint timing and touch
+scrubbing keep their existing owners. No accounting or persistence changes.
+Cache generation: `20261016-sales-forecast-readout` (staging adds `-staging`).

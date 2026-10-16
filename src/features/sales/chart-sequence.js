@@ -7,7 +7,7 @@
  * - all three history series draw on one shared timeline
  * - point markers appear only after the drawing line reaches their month
  * - current-month forecast follows as a synchronized dash-by-dash second act
- * - forecast hover/touch value stays readable above chart interaction layers
+ * - the shared chart scrubber owns the combined actual/forecast readout
  * - incidental data refreshes settle in place instead of replaying the show
  * - no perpetual requestAnimationFrame loop; browser-owned WAAPI handles paths
  * - reduced-motion settles the finished chart immediately
@@ -113,15 +113,10 @@
 #p-monthly #monthly-profitability-svg.rt-sales-sequence.rt-sales-endpoint-stage .rt-sales-forecast-ring,#p-monthly #monthly-profitability-svg.rt-sales-sequence.rt-sales-endpoint-stage .rt-sales-forecast-label,#p-monthly #monthly-profitability-svg.rt-sales-sequence.rt-sales-endpoint-stage .rt-sales-range-label{opacity:1!important;visibility:visible!important;transform:scale(1)!important;transition:opacity '+ENDPOINT_MS+'ms ease-out,transform '+ENDPOINT_MS+'ms '+EASE+'!important}\
 #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-so-far{opacity:0!important;transition:none!important}\
 #p-monthly #monthly-profitability-svg.rt-sales-sequence.rt-sales-forecast-stage .rt-chart-so-far{opacity:.72!important;transition:opacity 130ms ease-out!important}\
-/* Forecast value sits in an HTML layer above SVG scrub/data labels, so it cannot be covered at Sep. */\
-#p-monthly .monthly-profitability-card .rt-sales-forecast-popover{position:absolute;z-index:45;display:inline-flex;align-items:center;justify-content:center;max-width:calc(100% - 28px);padding:7px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-1,#fff);color:var(--text-secondary);box-shadow:0 8px 24px rgba(15,23,42,.13);font-family:var(--font-body);font-size:11px;font-weight:650;line-height:1.15;letter-spacing:.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;opacity:0;visibility:hidden;transform:translateY(-3px);transition:opacity 120ms ease-out,transform 120ms '+EASE+',visibility 120ms}\
-#p-monthly .monthly-profitability-card .rt-sales-forecast-popover.is-visible{opacity:1;visibility:visible;transform:translateY(0)}\
-@media(max-width:600px){#p-monthly .monthly-profitability-card .rt-sales-forecast-popover{font-size:10.5px;padding:6px 9px;max-width:calc(100% - 20px)}}\
 @media(prefers-reduced-motion:reduce){\
  #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-endpoint-point{opacity:1!important;visibility:visible!important;transition:none!important}\
  #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-history-point,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-dash,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-actual-dot,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-forecast-ring,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-forecast-label,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-sales-range-label,#p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-dot{opacity:1!important;visibility:visible!important;transform:none!important;transition:none!important}\
  #p-monthly #monthly-profitability-svg.rt-sales-sequence .rt-chart-partial-group{visibility:visible!important}\
- #p-monthly .monthly-profitability-card .rt-sales-forecast-popover{transition:none}\
 }\
 ';
     document.head.appendChild(s);
@@ -286,97 +281,6 @@
     return groups;
   }
 
-  function svgPointX(svg,clientX){
-    var rect;try{rect=svg.getBoundingClientRect();}catch(_){rect=null;}
-    if(!rect||!rect.width)return NaN;
-    var vb=svg.viewBox&&svg.viewBox.baseVal;
-    var vx=vb&&vb.width?vb.x:0,vw=vb&&vb.width?vb.width:(parseFloat(svg.getAttribute('width'))||rect.width);
-    return vx+((clientX-rect.left)/rect.width)*vw;
-  }
-  function installForecastPopover(svg){
-    if(!svg||!svg.isConnected)return;
-    var card=svg.closest('.monthly-profitability-card')||svg.parentElement;
-    if(!card)return;
-
-    if(card.__rtSalesForecastOverlayCleanup){try{card.__rtSalesForecastOverlayCleanup();}catch(_){}card.__rtSalesForecastOverlayCleanup=null;}
-
-    var oldBubble=svg.querySelector('.rt-sales-hover-forecast');
-    var text=oldBubble&&oldBubble.querySelector('text');
-    var label=text?String(text.textContent||'').trim():'';
-    var rings=Array.prototype.slice.call(svg.querySelectorAll('.rt-sales-forecast-ring'));
-    if(!label&&rings.length){
-      var title=rings[0].querySelector('title');
-      if(title)label=String(title.textContent||'').trim();
-    }
-    if(!label||!rings.length)return;
-
-    if(svg.__rtForecastHoverCleanup){try{svg.__rtForecastHoverCleanup();}catch(_){}svg.__rtForecastHoverCleanup=null;}
-    if(oldBubble)oldBubble.remove();
-
-    var x=parseFloat(rings[0].getAttribute('cx'));
-    if(!isFinite(x))return;
-    var pop=document.createElement('div');
-    pop.className='rt-sales-forecast-popover';
-    pop.setAttribute('role','status');
-    pop.setAttribute('aria-live','polite');
-    pop.textContent=label;
-    card.appendChild(pop);
-
-    var hideTimer=0,ro=null;
-    function position(){
-      if(!pop.isConnected||!svg.isConnected||!card.isConnected)return;
-      var cr=card.getBoundingClientRect(),sr=svg.getBoundingClientRect();
-      var top=Math.max(10,sr.top-cr.top+8);
-      var right=Math.max(10,cr.right-sr.right+10);
-      pop.style.top=Math.round(top)+'px';
-      pop.style.right=Math.round(right)+'px';
-    }
-    function threshold(){
-      var vb=svg.viewBox&&svg.viewBox.baseVal;
-      var w=vb&&vb.width?vb.width:(parseFloat(svg.getAttribute('width'))||600);
-      return Math.max(34,Math.min(60,w*.085));
-    }
-    function near(clientX){var px=svgPointX(svg,clientX);return isFinite(px)&&Math.abs(px-x)<=threshold();}
-    function clearHide(){if(hideTimer){clearTimeout(hideTimer);hideTimer=0;}}
-    function show(autoHide){
-      clearHide();position();pop.classList.add('is-visible');
-      if(autoHide)hideTimer=setTimeout(function(){hideTimer=0;pop.classList.remove('is-visible');},1800);
-    }
-    function hide(){clearHide();pop.classList.remove('is-visible');}
-    function onMove(e){
-      if(!e||e.pointerType!=='mouse'||!isFinite(e.clientX))return;
-      if(near(e.clientX))show(false);else hide();
-    }
-    function onDownCapture(e){
-      if(!e||!isFinite(e.clientX)||!near(e.clientX))return;
-      /* Touch/pen already owns the full-chart scrub interaction. Keep this small
-         forecast popover as a desktop hover affordance so mobile never receives
-         two competing overlays for the same September point. */
-      if(e.pointerType==='mouse')show(false);
-    }
-    function onLeave(e){if(!e||e.pointerType==='mouse')hide();}
-    function onResize(){position();}
-
-    svg.addEventListener('pointermove',onMove,{passive:true});
-    svg.addEventListener('pointerleave',onLeave,{passive:true});
-    card.addEventListener('pointerdown',onDownCapture,true);
-    window.addEventListener('resize',onResize,{passive:true});
-    if(typeof ResizeObserver==='function'){
-      try{ro=new ResizeObserver(onResize);ro.observe(card);ro.observe(svg);}catch(_){ro=null;}
-    }
-    requestAnimationFrame(position);
-
-    card.__rtSalesForecastOverlayCleanup=function(){
-      clearHide();
-      svg.removeEventListener('pointermove',onMove);
-      svg.removeEventListener('pointerleave',onLeave);
-      card.removeEventListener('pointerdown',onDownCapture,true);
-      window.removeEventListener('resize',onResize);
-      if(ro){try{ro.disconnect();}catch(_){}ro=null;}
-      if(pop&&pop.parentNode)pop.parentNode.removeChild(pop);
-    };
-  }
-
   function run(svg,key){
     if(!svg||!svg.isConnected)return;
     cancelPendingBoot();
@@ -384,7 +288,6 @@
     var session=active={id:++serial,key:key,cancelled:false,timers:[],animations:[]};
     lastAnimatedKey=key;
     var state=prepare(svg);
-    installForecastPopover(svg);
     if(reduced()||!visible(svg)){settle(svg);return;}
 
     var points=Math.max(1,state.historyColumns.length);
@@ -428,7 +331,6 @@
   function arm(svg,key){
     if(!svg||!svg.isConnected)return;
     cancelPendingBoot();
-    installForecastPopover(svg);
     if(key===lastAnimatedKey){cancel(active);settle(svg);return;}
     prepare(svg);
     if(reduced()){settle(svg);lastAnimatedKey=key;return;}
