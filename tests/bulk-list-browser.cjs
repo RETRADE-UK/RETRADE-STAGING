@@ -48,7 +48,8 @@ async function select(page){
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'No document overflow at '+width);
   assert(await page.locator('#bulk-list-form').evaluate(form=>[...form.querySelectorAll('input,select,button')].filter(el=>el.getClientRects().length).every(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+1;})),'Inputs fit at '+width);
   if(process.env.RETRADE_CAPTURE)await page.screenshot({path:process.env.RETRADE_CAPTURE+'/bulk-list-'+width+'.png'});
-  await page.locator('#bulk-list-save').click();await page.waitForFunction(()=>window.__bulkSaves===1);
+  await page.locator('#bulk-list-save').click();
+  const saved=await page.evaluate(()=>({saves:window.__bulkSaves,error:document.getElementById('bulk-list-error')?.textContent,rows:[...document.querySelectorAll('[data-row-error]')].map(el=>el.textContent),invalid:[...document.querySelectorAll('[aria-invalid=true]')].map(el=>({id:el.id,value:el.value,message:el.validationMessage})),states:allDBKeys().flatMap(m=>DB[m]||[]).map(i=>({id:i.id,state:i.state}))}));assert.equal(saved.saves,1,JSON.stringify({saved,errors}));
   const result=await page.evaluate(()=>({a:_findItemRecordById('a'),b:_findItemRecordById('b'),skipped:DB['SEP-26'].map(i=>({id:i.id,state:i.state})),selected:[...STOCK_SELECTED]}));
   assert.equal(result.a.month,'OCT-26');assert.equal(result.b.month,'OCT-26');
   assert.equal(result.a.item.state,'listed');assert.equal(result.a.item.salePrice,120);assert.equal(result.a.item.promoPercent,.035);assert.equal(result.a.item.shippingCost,3.42);assert.equal(result.a.item.postage,3.42);assert.equal(result.a.item._sdRateIdx,0);
