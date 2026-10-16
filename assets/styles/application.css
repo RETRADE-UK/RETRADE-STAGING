@@ -2949,11 +2949,12 @@ svg.cat-donut-draw circle.donut-seg-last{
   display:inline-block;flex:none;
 }
 
-/* One contained dashboard readout: actuals and forecast cannot cover each other. */
+/* One contained chart readout: actuals and forecast cannot cover each other. */
 .rt .rt-chart-scrub-tip--contained{box-sizing:border-box;min-width:0;width:max-content;white-space:normal;}
 .rt .rt-chart-scrub-tip--contained .tip-row{flex-wrap:wrap;column-gap:6px;}
 .rt .rt-chart-scrub-tip--contained .tip-row strong{white-space:nowrap;}
 .rt .rt-chart-scrub-tip .tip-forecast{margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
+.rt .rt-chart-scrub-tip .tip-note{max-width:220px;margin-top:6px;font-size:10px;line-height:1.4;color:var(--text-tertiary);}
 .rt .rt-chart-scrub-tip .tip-dot--forecast{background:transparent;border:1px dashed currentColor;box-sizing:border-box;}
 
 /* ── 3-up KPI row below the hero ── */

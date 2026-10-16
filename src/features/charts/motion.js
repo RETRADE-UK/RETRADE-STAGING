@@ -346,27 +346,14 @@
     layer.appendChild(svgCircle(x,g.sy(fc.rev),4.4,'var(--surface-1)','var(--state-listed)','rt-sales-forecast-ring'));
     layer.appendChild(svgCircle(x,g.sy(fc.profit),4.0,'var(--surface-1)','var(--profit)','rt-sales-forecast-ring'));
 
-    var y=Math.max(opts.pad.t+opts.fontSize,g.sy(fc.rev)-10),anchor=x>g.W-opts.pad.r-92?'end':'end';
-    var t=document.createElementNS(NS,'text');t.setAttribute('class','rt-sales-forecast-label');t.setAttribute('x',(x-5).toFixed(1));t.setAttribute('y',y.toFixed(1));t.setAttribute('text-anchor',anchor);t.setAttribute('font-size',Math.max(10,Math.round(opts.fontSize*.9)));t.textContent='Forecast '+compactMoney(fc.rev)+' · '+compactMoney(fc.actualRev)+' actual';layer.appendChild(t);
-    if(g.W>=560){
-      var r=document.createElementNS(NS,'text');r.setAttribute('class','rt-sales-range-label');r.setAttribute('x',(x-5).toFixed(1));r.setAttribute('y',(y+14).toFixed(1));r.setAttribute('text-anchor','end');r.setAttribute('font-size',Math.max(9,Math.round(opts.fontSize*.78)));
-      r.textContent='Likely '+compactMoney(fc.revLow)+'–'+compactMoney(fc.revHigh)+' · '+fc.confidence;layer.appendChild(r);
-    }
-    var title=document.createElementNS(NS,'title');
-    title.textContent='Current month: Net Revenue '+money(fc.actualRev,2)+' achieved; '+money(fc.rev,2)+' forecast; likely '+money(fc.revLow,2)+' to '+money(fc.revHigh,2)+' ('+fc.confidence+' confidence). Net Profit '+money(fc.actualProfit,2)+' achieved; '+money(fc.profit,2)+' forecast. Model: '+fc.method+'.';
-    layer.appendChild(title);
     svgEl.insertBefore(layer,before||null);
     svgEl.setAttribute('aria-label','Monthly net revenue and net profit with current-month forecast and confidence range');
 
     if(typeof _setupChartScrub==='function'){
       try{
-        var scrubLabels=labels.slice();
-        if(scrubLabels.length)scrubLabels[scrubLabels.length-1]=String(scrubLabels[scrubLabels.length-1]||'')+' · forecast';
-        /* The final plotted point is the projected month-end point. Scrubbing the
-           current month must therefore use forecast geometry too; previously the
-           indicator jumped down to the achieved value while the hollow endpoint
-           stayed above it, which made the interaction look detached from the mark. */
-        _setupChartScrub(svgEl,{W:g.W,pad:g.pad,innerW:g.innerW,n:labels.length,sx:g.sx,sy:g.sy,revData:forecastRev,profitData:forecastProfit,labels:scrubLabels,primaryColor:opts.primaryColor||'var(--state-listed)',secondaryColor:opts.secondaryColor||'var(--profit)',primaryLabel:opts.primaryLabel||'Net Revenue',secondaryLabel:opts.secondaryLabel||'Net Profit',tertiaryData:Array.isArray(opts.tertiaryData)?opts.tertiaryData:null,tertiaryColor:opts.tertiaryColor||'var(--red)',tertiaryLabel:opts.tertiaryLabel||'Refunds',tertiaryCounts:Array.isArray(opts.tertiaryCounts)?opts.tertiaryCounts:null,tertiaryEvents:!!opts.tertiaryEvents,tertiaryEventY:NaN,extraTooltipData:Array.isArray(opts.extraTooltipData)?opts.extraTooltipData:null,extraTooltipLabel:opts.extraTooltipLabel||'Gross Profit',extraTooltipColor:opts.extraTooltipColor||'var(--text-secondary)'});
+        // Keep the scrub markers on the projected endpoints, while the shared
+        // card presents actuals and the forecast together, just like Home.
+        _setupChartScrub(svgEl,{W:g.W,pad:g.pad,innerW:g.innerW,n:labels.length,sx:g.sx,sy:g.sy,revData:forecastRev,profitData:forecastProfit,labels:labels,containTooltip:true,forecast:{index:last,rev:fc.rev,profit:fc.profit,actualRev:fc.actualRev,actualProfit:fc.actualProfit,note:'Likely revenue '+compactMoney(fc.revLow)+'–'+compactMoney(fc.revHigh)+' · '+fc.confidence},primaryColor:opts.primaryColor||'var(--state-listed)',secondaryColor:opts.secondaryColor||'var(--profit)',primaryLabel:opts.primaryLabel||'Net Revenue',secondaryLabel:opts.secondaryLabel||'Net Profit',tertiaryData:Array.isArray(opts.tertiaryData)?opts.tertiaryData:null,tertiaryColor:opts.tertiaryColor||'var(--red)',tertiaryLabel:opts.tertiaryLabel||'Refunds',tertiaryCounts:Array.isArray(opts.tertiaryCounts)?opts.tertiaryCounts:null,tertiaryEvents:!!opts.tertiaryEvents,tertiaryEventY:NaN,extraTooltipData:Array.isArray(opts.extraTooltipData)?opts.extraTooltipData:null,extraTooltipLabel:opts.extraTooltipLabel||'Gross Profit',extraTooltipColor:opts.extraTooltipColor||'var(--text-secondary)'});
       }catch(_){}
     }
   }
