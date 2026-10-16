@@ -16690,7 +16690,7 @@ function openStockBulkList(){
     const newMonth=monthKeyFromDate(date);
     fresh.forEach(function(r,n){
       // Retain identity, acquisition, parts, partner terms/payments and purchase/run links.
-      Object.assign(r.item,updates[n],{state:'listed',dateListed:date,dateSold:null,grossProfit:null,isReturned:false});
+      Object.assign(r.item,updates[n],{state:'listed',dateListed:date,dateSold:null,salePlatform:null,soldOnPlatform:null,grossProfit:null,isReturned:false});
       _stampListingFee(r.item);_autoTagToActiveRun(r.item);
       if(r.month!==newMonth){DB[r.month]=DB[r.month].filter(function(i){return i.id!==r.item.id;});if(!Array.isArray(DB[newMonth]))DB[newMonth]=[];DB[newMonth].push(r.item);}
       STOCK_SELECTED.delete(r.item.id);
@@ -22069,15 +22069,15 @@ function _editStockItem(m,item){
       <input type="text" id="edit-stock-source" value="${esc(item.source||'')}" placeholder="e.g. Car boot, eBay">
     </div>
     <div class="fg">
-      <label>Category</label>
-      <select id="edit-stock-category" style="width:100%;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;">
+      <label for="edit-stock-category">Category *</label>
+      <select required id="edit-stock-category" style="width:100%;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;">
         <option value="">— Pick category —</option>
         ${catOpts}
       </select>
     </div>
     <div class="fg">
-      <label>Location</label>
-      <input type="text" id="edit-stock-location" value="${esc(item.location||'')}" placeholder="e.g. Box A, Shelf 2">
+      <label for="edit-stock-location">Location *</label>
+      <input type="text" required id="edit-stock-location" value="${esc(item.location||'')}" placeholder="e.g. Box A, Shelf 2">
     </div>
     <div class="fg">
       <label>Notes</label>

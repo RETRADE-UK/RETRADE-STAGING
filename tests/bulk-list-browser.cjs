@@ -6,9 +6,9 @@ const isWebkit=process.argv.includes('--webkit');
 async function seed(page){
  await page.evaluate(()=>{
   const make=(id,extra={})=>Object.assign({id,gid:'R-'+id,item:'Camera '+id,state:'sourced',dateSourced:'2026-09-20',dateListed:null,dateSold:null,costPrice:20,estSalePrice:90,salePrice:0,promoPercent:.02,category:'Digital Cameras & Lenses',location:'Shelf A',parts:[{id:'part-'+id,description:'Battery',cost:5,date:'2026-09-21'}],returnHistory:[],defaultPlatform:'ebay',notes:'Keep me',photo:'photo-path',purchaseGroupId:'purchase-1',sourcingRunId:'run-1'},extra);
-  DB={'SEP-26':[make('a',{accountId:'partner',accountSettled:true,accountPaidAmount:20}),make('b',{category:'',location:'',estSalePrice:null,defaultPlatform:'ebay_biz',_postageMode:'custom',postage:4,shippingCost:3,packagingCost:.5}),make('returned',{returnHistory:[{id:'return-1',type:'full_seller',saleNo:1,refundAmount:80}]}),make('listed',{state:'listed',dateListed:'2026-09-25',salePrice:100})],trips:[],expenses:[]};
-  _accounts=[];_jobLots=[];_jobLotItems=[];_sourcingRuns=[];_saleReconciliations=[];
-  STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;STOCK_STATE_FILTER='sourced';STOCK_FILTER='all';STOCK_SOURCED_FILTER='all';STOCK_SEARCH='';
+  DB={'SEP-26':[make('a',{accountId:'partner',accountSettled:true,accountPaidAmount:20}),make('b',{category:'',location:'',estSalePrice:null,defaultPlatform:'ebay_biz',salePlatform:'fb',soldOnPlatform:'fb',_postageMode:'custom',postage:4,shippingCost:3,packagingCost:.5}),make('returned',{returnHistory:[{id:'return-1',type:'full_seller',saleNo:1,refundAmount:80}]}),make('listed',{state:'listed',dateListed:'2026-09-25',salePrice:100})],trips:[],expenses:[]};
+  _accounts=[];_activeSourcingRun=null;_jobLots=[];_jobLotItems=[];_sourcingRuns=[];_saleReconciliations=[];
+  STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;STOCK_SORT='cost-desc';STOCK_STATE_FILTER='sourced';STOCK_FILTER='all';STOCK_SOURCED_FILTER='all';STOCK_SEARCH='';
   window.__bulkSaves=0;saveDB=async()=>{window.__bulkSaves++;};
   goToTab('stock',null,{stockState:'sourced'});renderStock();
  });
