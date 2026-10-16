@@ -348,6 +348,7 @@ function _periodDateRange(period){
   const todayStr=today.toISOString().split('T')[0];
   const daysAgo=function(n){const d=new Date(today);d.setDate(d.getDate()-n);return d.toISOString().split('T')[0];}
   if(period==='7d')  return{from:daysAgo(6),  to:todayStr};
+  if(period==='14d') return{from:daysAgo(13), to:todayStr};
   if(period==='30d') return{from:daysAgo(29), to:todayStr};
   if(period==='60d') return{from:daysAgo(59), to:todayStr};
   if(period==='90d') return{from:daysAgo(89), to:todayStr};
@@ -480,7 +481,7 @@ function getSummaryDateRange(){ return _periodDateRange(SUMMARY_PERIOD); }
 function _prevPeriodKey(period){
   // Rolling windows: compare to the window of equal length immediately before.
   // FY: compare to previous FY. All-time: no comparison.
-  const map={ '7d':'_prev7d', '30d':'_prev30d', '60d':'_prev60d', '90d':'_prev90d',
+  const map={ '7d':'_prev7d', '14d':'_prev14d', '30d':'_prev30d', '60d':'_prev60d', '90d':'_prev90d',
               'current_fy':'prev_fy', 'prev_fy':null, 'all':null };
   return map[period||'current_fy'];
 }
@@ -492,7 +493,7 @@ function _prevPeriodRange(period){
     const n=parseInt(m[1],10);
     const today=new Date();
     const daysAgo=function(x){const d=new Date(today);d.setDate(d.getDate()-x);return d.toISOString().split('T')[0];};
-    return { from:daysAgo(n*2), to:daysAgo(n+1) };  // the window before the current one
+    return { from:daysAgo(n*2-1), to:daysAgo(n) };  // the window before the current one
   }
   return _periodDateRange(period);
 }

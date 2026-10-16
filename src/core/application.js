@@ -13092,7 +13092,7 @@ function showListedInPeriodItems(){
   const sold=items.filter(i=>(i.dateSold||i.resaleSalePrice)&&!i.isReturned).length;
   const active=items.filter(i=>!i.dateSold&&!i.isReturned&&!i.resaleSalePrice&&!i.scrappedAt).length;
   const returned=items.filter(i=>i.isReturned).length;
-  const periodLabel={'7d':'Last 7 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
+  const periodLabel={'7d':'Last 7 days','14d':'Last 14 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
   const summary='<div style="margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap">'
     +'<div style="flex:1;min-width:80px;background:var(--surface2);border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--accent)">'+items.length+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">Total listed</div></div>'
     +'<div style="flex:1;min-width:80px;background:var(--surface2);border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:700;color:var(--green)">'+sold+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px">Sold</div></div>'
@@ -13152,7 +13152,7 @@ function showAvgSaleBreakdown(){
   if(!items.length){openPanel('Average Sale Price','<div style="padding:30px;text-align:center;color:var(--muted)">No sales in this period.</div>');return;}
   const prices=items.map(function(i){return Number(i._salePrice)||0;});
   const avg=prices.reduce(function(s,v){return s+v;},0)/prices.length;
-  const periodLabel={'7d':'Last 7 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
+  const periodLabel={'7d':'Last 7 days','14d':'Last 14 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
   const sorted=items.slice().sort(function(a,b){return (Number(b._salePrice)||0)-(Number(a._salePrice)||0);});
   const header=`<div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">
     <div style="display:flex;align-items:center;gap:12px">
@@ -13181,7 +13181,7 @@ function showAvgBuyBreakdown(){
   if(!items.length){openPanel('Average Buy Price','<div style="padding:30px;text-align:center;color:var(--muted)">No sales in this period.</div>');return;}
   const costs=items.map(function(i){return Number(i.costPrice)||0;});
   const avg=costs.reduce(function(s,v){return s+v;},0)/costs.length;
-  const periodLabel={'7d':'Last 7 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
+  const periodLabel={'7d':'Last 7 days','14d':'Last 14 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
   const sorted=items.slice().sort(function(a,b){return (Number(b.costPrice)||0)-(Number(a.costPrice)||0);});
   const header=`<div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">
     <div style="display:flex;align-items:center;gap:12px">
@@ -13217,7 +13217,7 @@ function showAvgProfitBreakdown(){
   // dedicated drill-down where they are dated to the day they happened.
   const profits=items.map(function(i){return Number(i._profit)||0;});
   const avg=profits.reduce(function(s,v){return s+v;},0)/profits.length;
-  const periodLabel={'7d':'Last 7 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
+  const periodLabel={'7d':'Last 7 days','14d':'Last 14 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
   const sorted=items.slice().sort(function(a,b){return (Number(b._profit)||0)-(Number(a._profit)||0);});
   const header=`<div style="margin-bottom:16px;background:var(--surface2);border-radius:10px;padding:14px">
     <div style="display:flex;align-items:center;gap:12px">
@@ -13405,7 +13405,7 @@ function openDashboardStock(filter){
 
 function showAvgDaysBreakdown(){
   const items=_snapshotSoldItems().filter(function(i){return i._days!==null&&i._days!==undefined&&Number.isFinite(Number(i._days));});
-  const periodLabel={'7d':'Last 7 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
+  const periodLabel={'7d':'Last 7 days','14d':'Last 14 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
   if(!items.length){openPanel('Avg Days to Sell','<div style="padding:30px;text-align:center;color:var(--muted)">No sale transactions with listing dates in this period.</div>');return;}
   const avg=Math.round(items.reduce(function(s,i){return s+Number(i._days);},0)/items.length);
   const sorted=items.slice().sort(function(a,b){return Number(a._days)-Number(b._days);});
@@ -13428,7 +13428,7 @@ function showAvgDaysBreakdown(){
 function showSellThroughBreakdown(){
   const range=_periodDateRange(SUMMARY_PERIOD),today=new Date().toISOString().split('T')[0];
   const inRange=function(d){return !!d&&(!range.from||d>=range.from)&&(!range.to||d<=range.to);};
-  const periodLabel={'7d':'Last 7 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
+  const periodLabel={'7d':'Last 7 days','14d':'Last 14 days','30d':'Last 30 days','60d':'Last 60 days','90d':'Last 90 days','current_fy':'Current FY','prev_fy':'Previous FY'}[SUMMARY_PERIOD]||SUMMARY_PERIOD;
   const is7d=SUMMARY_PERIOD==='7d',title=is7d?'Fast-Mover Rate':'Sell-Through Rate';
   const sales=_snapshotSoldItems();
   const active=[];
@@ -14329,7 +14329,7 @@ function renderSummary(){
     const isFY=SUMMARY_PERIOD==='current_fy'||SUMMARY_PERIOD==='prev_fy';
     const range={from:tf.from,to:tf.to};
     const periods=[
-      {key:'7d',label:'Last 7 days'},{key:'30d',label:'Last 30 days'},{key:'60d',label:'Last 60 days'},{key:'90d',label:'Last 90 days'},
+      {key:'7d',label:'Last 7 days'},{key:'14d',label:'Last 14 days'},{key:'30d',label:'Last 30 days'},{key:'60d',label:'Last 60 days'},{key:'90d',label:'Last 90 days'},
       {key:'current_fy',label:'Current FY'},{key:'prev_fy',label:'Previous FY'}
     ];
     // Empty-account onboarding belongs on Home rather than in a blocking wizard.
@@ -14436,7 +14436,7 @@ function renderSummary(){
     } else {
       const buckets=[]; let cur=range.from;
       const _summarySpanDays=Math.max(1,Math.round((Date.parse(range.to)-Date.parse(range.from))/86400000)+1);
-      if(_summarySpanDays<=10){
+      if(_summarySpanDays<=14){
         while(cur<=range.to){buckets.push({from:cur,to:cur,label:fmtShort(cur)});cur=addDays(cur,1);}
       } else {
         let bucketDays=_summarySpanDays<=65?7:(_summarySpanDays<=100?14:30);
