@@ -723,3 +723,26 @@ mobile/desktop and Chromium/WebKit: existing duplicate values, zero, field sync,
 edit/reload, advance payment, later sale, return/resale, historical profit shares,
 hybrid percentage arrangements and narrow layouts. Static generation:
 `20261016-account-cost-payout` (staging adds `-staging`).
+
+### 16 October 2026 — account potential and legacy status reconciliation
+
+Core owns account inventory grouping through _accountStockGroups, shared by the
+account rows and summary. Completed sales cannot enter remaining potential even
+when an older record still has a listed label. The existing on-load state repair
+now resolves listed/sourced labels against completed sale and active-return
+evidence. Relisted stock and disposed-item history are preserved. Repairs use the
+existing pre-migration snapshot and conflict-aware writer; no direct database
+rewrite or schema migration is required.
+
+The potential card reads forecastYourShare and priced listed/unlisted counts from
+_accountStats. Its separate hand-written profit formula is removed. Listed items
+retain the accounting engine's fees, costs, returns and partner deductions;
+unlisted estimates use the existing item forecast policy. Unpriced items are
+excluded from the estimate, and loss-making stock is not silently clamped to zero.
+Job Lot allocation keeps its existing owner.
+
+Synthetic unit and desktop/mobile Chromium/WebKit regressions cover six active
+listings plus five legacy sold records, idempotent status repair and row roundtrip,
+returns, resale, disposal, unlisted estimates, real platform fees, fixed partner
+amounts and negative profit. Generation: 20261016-account-potential-state
+(staging adds -staging).

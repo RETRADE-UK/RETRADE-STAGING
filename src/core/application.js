@@ -237,7 +237,7 @@ function _migrateItemStates(){
       // these correctly as listed (its filter ignores state), but the account
       // page and other state-driven UIs read the wrong badge. Correct here.
       // Same pattern for state='returned' without an isReturned/return record.
-      if(i.state==='sold' && !i.dateSold && !i.resaleSalePrice && !i.isReturned){
+      if(i.state==='sold' && !i.dateSold && !i.resaleSalePrice && !i.resaleDateSold && !i.isReturned){
         i.state='listed';
         reconciled++;
       } else if(i.state==='returned' && !i.isReturned){
@@ -249,13 +249,20 @@ function _migrateItemStates(){
           reconciled++;
         }
       }
+      // A valid-looking legacy label must not override a completed sale or
+      // an active return. Relisted returns have cleared sale fields, so remain
+      // listed; disposed items retain their existing audit state.
+      if((i.state==='listed'||i.state==='sourced')&&!i.scrappedAt){
+        const resolved=_itemLifecycleState(i);
+        if(resolved==='sold'||resolved==='returned'){i.state=resolved;reconciled++;}
+      }
       if(!i.dateSourced){
         i.dateSourced = i.dateListed || i.dateSold || null;
         if(i.dateSourced) touchedSourced++;
       }
     });
   });
-  if(reconciled>0)console.info('[RETRADE] v2.09.4 state reconcile: fixed '+reconciled+' ghost-sold/returned item'+(reconciled!==1?'s':''));
+  if(reconciled>0)console.info('[RETRADE] v2.09.4 state reconcile: fixed '+reconciled+' inconsistent item'+(reconciled!==1?'s':''));
   return reconciled;
 }
 
@@ -9620,6 +9627,15 @@ function _jobLotMemberPotentialShare(item,lot){
   return +(Number(p)*_jobLotMemberWeightShare(item,lot)).toFixed(2);
 }
 
+// The account rows and forecast must use the same active inventory.
+function _accountStockGroups(items){
+  const active=items.filter(function(i){return !_accountItemIsSold(i)&&!i.scrappedAt&&(!i.isReturned||!!_activeJobLotMembership(i.id));});
+  const returned=items.filter(function(i){return i.isReturned&&!i.scrappedAt&&!i.resaleSalePrice&&!_activeJobLotMembership(i.id);});
+  const listedStock=active.filter(function(i){const l=_activeJobLotForItem(i.id);return l?l.status==='listed':_itemLifecycleState(i)==='listed';});
+  const unlistedStock=active.filter(function(i){const l=_activeJobLotForItem(i.id);return l?l.status==='building':_itemLifecycleState(i)==='sourced';});
+  return {active:active,returned:returned,listedStock:listedStock,unlistedStock:unlistedStock};
+}
+
 function _accountStats(accountId){
   const _acctForTerms=_accounts.find(function(a){return a.id===accountId;});
   const _paysOnSale=_accountPaysOnSale(_acctForTerms);
@@ -9627,10 +9643,7 @@ function _accountStats(accountId){
   const sold=items.filter(_accountItemIsSold);
   // Active Job Lot membership resolves a returned/listed/unlisted child into the
   // lot's operational state without changing the child's historical flags.
-  const active=items.filter(function(i){return !_accountItemIsSold(i)&&!i.scrappedAt&&(!i.isReturned||!!_activeJobLotMembership(i.id));});
-  const returned=items.filter(function(i){return i.isReturned&&!i.scrappedAt&&!i.resaleSalePrice&&!_activeJobLotMembership(i.id);});
-  const listedStock=active.filter(function(i){const l=_activeJobLotForItem(i.id);return l?l.status==='listed':i.state==='listed';});
-  const unlistedStock=active.filter(function(i){const l=_activeJobLotForItem(i.id);return l?l.status==='building':i.state==='sourced';});
+  const {active,returned,listedStock,unlistedStock}=_accountStockGroups(items);
   const stockOnHand=active.concat(returned);
   const _stockCost=function(i){
     const mem=_activeJobLotMembership(i.id);
@@ -9662,10 +9675,17 @@ function _accountStats(accountId){
   // are agreements over profit, so the forecast must use the same economics as
   // realised account settlement.
   let forecastProfitPool=0,forecastPartnerShare=0,forecastYourShare=0;
+  let forecastListedCount=0,forecastUnlistedCount=0;
+  const listedIds=new Set(listedStock.map(function(i){return i.id;}));
+  const unlistedIds=new Set(unlistedStock.map(function(i){return i.id;}));
   active.forEach(function(i){
+    if(!listedIds.has(i.id)&&!unlistedIds.has(i.id))return;
     const lot=_activeJobLotForItem(i.id);
-    const est=lot?_jobLotMemberPotentialShare(i,lot):calcEstGrossProfit(i);
-    if(est==null)return;
+    const est=lot?_jobLotMemberPotentialShare(i,lot)
+      :unlistedIds.has(i.id)?_estPotentialGross(Object.assign({},i,{salePrice:0}))
+      :calcEstGrossProfit(i);
+    if(est==null||!isFinite(Number(est)))return;
+    if(listedIds.has(i.id))forecastListedCount++;else forecastUnlistedCount++;
     const estNum=Number(est)||0;
     forecastProfitPool+=estNum;
 
@@ -9707,6 +9727,7 @@ function _accountStats(accountId){
     stockCost:+stockOnHand.reduce(function(s,i){return s+_stockCost(i);},0).toFixed(2),
     activeStockValue:+listedStock.reduce(function(s,i){const lot=_activeJobLotForItem(i.id);return s+(lot?_jobLotMemberAskingShare(i,lot):(i.salePrice||0));},0).toFixed(2),
     forecastStockValue:+forecastStockValue.toFixed(2),
+    forecastListedCount,forecastUnlistedCount,
     forecastProfitPool:+forecastProfitPool.toFixed(2),
     forecastPartnerShare:+forecastPartnerShare.toFixed(2),
     forecastYourShare:+forecastYourShare.toFixed(2),
@@ -10349,13 +10370,7 @@ function _renderAccountPage(acct){
       const db=(b.resaleSalePrice?b.resaleDateSold:b.dateSold)||'';
       return db.localeCompare(da);
     });
-  const active=items.filter(function(i){return !_accountItemIsSold(i)&&!i.scrappedAt&&(!i.isReturned||!!_activeJobLotMembership(i.id));});
-  const returned=items.filter(function(i){return i.isReturned&&!i.scrappedAt&&!i.resaleSalePrice&&!_activeJobLotMembership(i.id);});
-  // v1.01 fix — referenced below for the listed/unlisted stock rows but only defined
-  // in the KPI-summary helper's scope; the merge dropped them here, crashing the whole
-  // Partner page with "listedStock is not defined". Same logic as _accountStats.
-  const listedStock=active.filter(function(i){const l=_activeJobLotForItem(i.id);return l?l.status==='listed':i.state==='listed';});
-  const unlistedStock=active.filter(function(i){const l=_activeJobLotForItem(i.id);return l?l.status==='building':i.state==='sourced';});
+  const {active,returned,listedStock,unlistedStock}=_accountStockGroups(items);
 
   const mc=function(label,val,sub,valCol){
     // Keep semantic value colour (green/red/--warn); omit when neutral.
@@ -22233,7 +22248,7 @@ function _itemLifecycleState(i){
   if(!i)return 'missing';
   if(i.scrappedAt)return 'disposed';
   if(i.isReturned)return 'returned';
-  if(i.resaleSalePrice||i.dateSold)return 'sold';
+  if(i.resaleSalePrice||i.resaleDateSold||i.dateSold)return 'sold';
   if(i.state==='sourced')return 'sourced';
   return 'listed';
 }
