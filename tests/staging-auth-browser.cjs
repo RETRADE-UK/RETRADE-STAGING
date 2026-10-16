@@ -43,7 +43,7 @@ function stagingAuthMock(){
    await page.getByRole('button',{name:'Forgot password?',exact:true}).click();
    assert(await page.locator('#staging-dev-btn').isDisabled());
    await page.getByRole('button',{name:'Back to sign in',exact:true}).click();
-   await page.evaluate(()=>{const b=document.getElementById('staging-dev-btn');b.click();b.click();});
+   assert(await page.evaluate(()=>{const b=document.getElementById('staging-dev-btn');b.click();b.click();return document.getElementById('auth-btn').disabled&&document.getElementById('auth-email').disabled;}),'Opening a test account fences competing credential submissions');
    await page.waitForFunction(()=>document.getElementById('auth-overlay').style.display==='none');
    await settled(page);
    const first=await page.evaluate(()=>({id:_currentUserId,calls:window.__anonymousCalls,passwords:window.__passwordCalls,meta:window.__anonymousOptions.options.data,count:allDBKeys().reduce((n,k)=>n+(DB[k]||[]).length,0),url:window.__fixtureClientUrl}));

@@ -18,6 +18,9 @@
   function refreshButton(){
     var btn=document.getElementById('staging-dev-btn');
     if(!btn)return;
+    // Prevent a password submission racing the anonymous session request.
+    var form=btn.form;
+    if(form)form.querySelectorAll('input,button,select,textarea').forEach(function(control){control.disabled=opening||form.inert;});
     btn.disabled=opening||!!btn.closest('[inert]');
     btn.textContent=opening?'Opening test account…':label;
     btn.setAttribute('aria-busy',String(opening));
@@ -52,7 +55,7 @@
       await window.__rtAuthHandoff(session);
     }catch(err){
       var raw=String((err&&err.message)||err||'');
-      showError(/anonymous|provider.*disabled|not enabled/i.test(raw)
+      showError(/anonymous.*(?:disabled|not enabled)|provider.*disabled|not enabled/i.test(raw)
         ? 'Test accounts are unavailable because anonymous sign-in is disabled on staging.'
         : 'Could not open the test account. '+(raw||'Please try again.'));
     }finally{opening=false;refreshButton();}
