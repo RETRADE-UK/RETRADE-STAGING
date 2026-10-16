@@ -317,12 +317,21 @@
       var labelCount=Math.min(n,Math.max(2,Math.floor(innerW/labelWidth)));
       var template=xTexts[0].cloneNode(false);
       xTexts.forEach(function(t){t.remove();});
-      for(var k=0;k<labelCount;k++){
-        var i=Math.round(k*(n-1)/(labelCount-1)),t=template.cloneNode(false);
-        t.setAttribute('class','rt-fortnight-date');
-        t.setAttribute('x',sx(i).toFixed(1));
-        t.setAttribute('text-anchor',k===0?'start':k===labelCount-1?'end':'middle');
-        t.textContent=labels[i];svgEl.appendChild(t);
+      // Rounded day indices can produce shorter gaps than the average.
+      // Measure the real type, reducing density until every label has room.
+      while(labelCount>=2){
+        var dateNodes=[];
+        for(var k=0;k<labelCount;k++){
+          var i=Math.round(k*(n-1)/(labelCount-1)),t=template.cloneNode(false);
+          t.setAttribute('class','rt-fortnight-date');
+          t.setAttribute('x',sx(i).toFixed(1));
+          t.setAttribute('text-anchor',k===0?'start':k===labelCount-1?'end':'middle');
+          t.textContent=labels[i];svgEl.appendChild(t);dateNodes.push(t);
+        }
+        var boxes=dateNodes.map(function(t){return t.getBBox();});
+        var fits=boxes.every(function(b,k){return b.x>=0&&b.x+b.width<=W&&(!k||b.x>=boxes[k-1].x+boxes[k-1].width+8);});
+        if(fits||labelCount===2)break;
+        dateNodes.forEach(function(t){t.remove();});labelCount--;
       }
     }else{
       xTexts.forEach(function(t,k){var i=labelIndices[k];if(i!==undefined)t.setAttribute('x',sx(i).toFixed(1));});
