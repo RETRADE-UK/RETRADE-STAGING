@@ -1,4 +1,4 @@
-/* RETRADE partner payment allocations v2 — v1.5.20
+/* RETRADE partner payment allocations v2 — v1.5.22
  *
  * Transaction-first account payment workflow.
  * - Every account gets a collapsible Unsettled items section above payment history.
@@ -18,7 +18,7 @@
   var activeAccountId=null;
   var selected=Object.create(null);
   var collapsed=Object.create(null);
-  var includeUnsold=Object.create(null);
+  var scopeByAccount=Object.create(null);
   var draft=null;
   var renderQueued=false;
 
@@ -67,6 +67,73 @@
     out.sort(function(a,b){if(a.legacy!==b.legacy)return a.legacy?-1:1;var ad=a.item.dateSold||a.item.resaleDateSold||a.item.dateListed||'',bd=b.item.dateSold||b.item.resaleDateSold||b.item.dateListed||'';return String(bd).localeCompare(String(ad))||String(a.item.item||'').localeCompare(String(b.item.item||''));});
     return out;
   }
+
+  function hasFixedTerms(i){
+    if(!i)return false;
+    if(i.partnerAgreedAmount!=null||i.partner_agreed_amount!=null||i.accountPaidAmount!=null||i.account_paid_amount!=null)return true;
+    return (Number(i.costPrice)||Number(i.cost_price)||0)>0;
+  }
+  function hasShareTerms(i){
+    if(!i)return false;
+    if(i.partnerAgreedAmount!=null||i.partner_agreed_amount!=null||i.accountPaidAmount!=null||i.account_paid_amount!=null)return true;
+    return i.accountSplitPercent!=null||i.account_split_percent!=null;
+  }
+  function needsTerms(a,i){
+    if(!i||i.accountSettled===true||i.scrappedAt||i.isReturned)return false;
+    if(model(a,i)==='fixed_cost')return !hasFixedTerms(i);
+    return sold(i)&&!hasShareTerms(i);
+  }
+  function cashOutstanding(a,i){
+    var owed=debt(a,i),paid=allocated(a,i.id,true);
+    return Math.max(0,round(owed-paid));
+  }
+  function outstandingRows(a,scope){
+    scope=scope==='all'?'all':'sold';
+    var cmap=Object.create(null);
+    candidates(a).forEach(function(r){cmap[String(r.item.id)]=r;});
+    var out=[];
+    itemsFor(a.id).forEach(function(e){
+      var i=e.item;if(!i||i.scrappedAt||i.isReturned)return;
+      var isSold=sold(i);if(scope==='sold'&&!isSold)return;
+      var cand=cmap[String(i.id)];
+      if(cand){
+        out.push({kind:'payable',item:i,month:e.month,candidate:cand,isSold:isSold,amount:cand.remaining,outstanding:i.accountSettled?0:cashOutstanding(a,i)});
+        return;
+      }
+      if(i.accountSettled===true)return;
+      var owed=debt(a,i),cash=cashOutstanding(a,i),allAllocated=allocated(a,i.id,false),paid=allocated(a,i.id,true),pending=Math.max(0,round(allAllocated-paid));
+      if(owed>0.009&&cash>0.009&&pending>0.009&&Math.max(0,round(owed-allAllocated))<=0.009){
+        out.push({kind:'assigned',item:i,month:e.month,isSold:isSold,amount:cash,outstanding:cash});
+        return;
+      }
+      if(needsTerms(a,i)&&(isSold||(scope==='all'&&model(a,i)==='fixed_cost'))){
+        out.push({kind:'terms',item:i,month:e.month,isSold:isSold,amount:null,outstanding:0});
+      }
+    });
+    out.sort(function(x,y){
+      if(x.isSold!==y.isSold)return x.isSold?-1:1;
+      var xd=x.item.dateSold||x.item.resaleDateSold||x.item.dateListed||x.item.dateSourced||'',yd=y.item.dateSold||y.item.resaleDateSold||y.item.dateListed||y.item.dateSourced||'';
+      return String(yd).localeCompare(String(xd))||String(x.item.item||'').localeCompare(String(y.item.item||''));
+    });
+    return out;
+  }
+  function outstandingSummary(a){
+    function one(scope){
+      var rows=outstandingRows(a,scope),amount=0,terms=0,assigned=0,payable=0;
+      rows.forEach(function(r){
+        if(r.kind==='terms'){terms++;return;}
+        if(r.kind==='assigned'){amount+=r.outstanding;assigned++;return;}
+        if(r.kind==='payable'){
+          if(!r.candidate.legacy)amount+=r.outstanding;
+          payable++;
+        }
+      });
+      return {amount:round(amount),terms:terms,assigned:assigned,payable:payable,count:rows.length};
+    }
+    var soldInfo=one('sold'),allInfo=one('all');
+    return {soldAmount:soldInfo.amount,allAmount:allInfo.amount,soldNeedsTerms:soldInfo.terms,allNeedsTerms:allInfo.terms,soldCount:soldInfo.count,allCount:allInfo.count,soldPayable:soldInfo.payable,allPayable:allInfo.payable,soldAssigned:soldInfo.assigned,allAssigned:allInfo.assigned};
+  }
+
   function setFor(a){var k=String(a.id);if(!selected[k])selected[k]=new Set();return selected[k];}
   function picked(a){var map=Object.create(null);candidates(a).forEach(function(r){map[String(r.item.id)]=r;});return Array.from(setFor(a)).map(function(id){return map[String(id)]||null;}).filter(Boolean);}
   function pickedTotal(a){return round(picked(a).reduce(function(s,r){return s+r.remaining;},0));}
@@ -75,48 +142,89 @@
   function css(){if(document.getElementById('rt-payalloc-v2-style'))return;var s=document.createElement('style');s.id='rt-payalloc-v2-style';s.textContent='\
     .rt-payalloc2{margin:0 0 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden}.rt-payalloc2-head{width:100%;border:0;background:transparent;color:var(--text);display:flex;align-items:center;gap:10px;padding:13px 14px;text-align:left;cursor:pointer}.rt-payalloc2-main{flex:1;min-width:0}.rt-payalloc2-title{font-size:13px;font-weight:800}.rt-payalloc2-sub{font-size:10.5px;color:var(--text-secondary);margin-top:2px;line-height:1.35}.rt-payalloc2-count{font-size:11px;font-weight:800;background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:3px 7px}.rt-payalloc2-chevron{color:var(--muted);transition:transform .16s ease}.rt-payalloc2.closed .rt-payalloc2-chevron{transform:rotate(-90deg)}.rt-payalloc2.closed .rt-payalloc2-body{display:none}.rt-payalloc2-body{border-top:1px solid var(--border)}.rt-payalloc2-row{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)}.rt-payalloc2-row input{width:18px;height:18px}.rt-payalloc2-name{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rt-payalloc2-meta{font-size:10.5px;margin-top:2px;color:var(--text-secondary)}.rt-payalloc2-legacy{color:var(--accent)}.rt-payalloc2-unpaid{color:var(--red)}.rt-payalloc2-amt{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}.rt-payalloc2-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 12px;background:var(--surface2);border-top:1px solid var(--border)}.rt-payalloc2-summary{flex:1 1 160px;font-size:11px;color:var(--text-secondary)}.rt-payalloc2-summary strong{display:block;font-size:13px;color:var(--text)}.rt-payalloc2-actions .btn{font-size:11.5px;padding:7px 10px}.rt-payalloc2-empty{padding:12px 14px;font-size:11px;color:var(--text-secondary)}.rt-payalloc2-choice{display:block;width:100%;text-align:left;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);padding:10px 11px;margin:0 0 8px;cursor:pointer}.rt-payalloc2-choice strong{display:block;font-size:12px}.rt-payalloc2-choice span{display:block;font-size:10.5px;color:var(--text-secondary);margin-top:3px}.rt-payalloc2-panel-row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);font-size:12px}.rt-payalloc-credit{display:flex;align-items:flex-start;gap:9px;padding:10px 11px;margin:0 0 13px;border:1px solid var(--border);border-radius:10px;background:var(--surface2)}.rt-payalloc-credit input{width:18px;height:18px;margin-top:2px}.rt-payalloc-credit strong{display:block;font-size:12px;color:var(--green)}.rt-payalloc-credit span{display:block;font-size:10.5px;color:var(--text-secondary);line-height:1.4;margin-top:2px}.rt-payalloc-modal-backdrop{position:fixed;inset:0;z-index:15500;background:rgba(4,9,18,.68);display:flex;align-items:center;justify-content:center;padding:18px}.rt-payalloc-modal{width:min(620px,100%);max-height:min(820px,calc(100dvh - 36px));overflow:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border);border-radius:16px;background:var(--surface);box-shadow:0 24px 70px rgba(0,0,0,.44)}.rt-payalloc-modal-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 17px;border-bottom:1px solid var(--border);background:var(--surface);font-size:15px;font-weight:850}.rt-payalloc-modal-close{width:36px;height:36px;border:0;border-radius:9px;background:var(--surface2);color:var(--text);font-size:22px;line-height:1;cursor:pointer;touch-action:manipulation}.rt-payalloc-modal-body{padding:16px 17px 20px}.rt-payalloc-modal input,.rt-payalloc-modal button{touch-action:manipulation}.rt-payalloc-modal input[type="text"],.rt-payalloc-modal input[type="date"]{font-size:16px!important}.rt-payalloc-modal #payalloc-create-btn{min-height:48px}@media(max-width:560px){.rt-payalloc-modal-backdrop{align-items:flex-end;padding:0}.rt-payalloc-modal{width:100%;max-height:92dvh;border-radius:18px 18px 0 0;border-bottom:0;padding-bottom:env(safe-area-inset-bottom,0px)}.rt-payalloc-modal-body{padding:14px 16px 22px}}@media(max-width:560px){.rt-payalloc2-row{grid-template-columns:26px minmax(0,1fr) auto;padding:10px 11px}.rt-payalloc2-actions .btn{flex:1 1 130px;min-height:38px}}';document.head.appendChild(s);}
 
+  function outstandingCss(){if(document.getElementById('rt-payalloc-v22-style'))return;var s=document.createElement('style');s.id='rt-payalloc-v22-style';s.textContent='\
+    .rt-payalloc2-scopes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:10px 12px;background:var(--surface2);border-bottom:1px solid var(--border)}.rt-payalloc2-scope{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;padding:10px 11px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);text-align:left;cursor:pointer}.rt-payalloc2-scope.active{border-color:var(--accent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent)}.rt-payalloc2-scope span{font-size:10.5px;font-weight:750;color:var(--text-secondary)}.rt-payalloc2-scope strong{font-size:17px;font-weight:850;color:var(--text);font-variant-numeric:tabular-nums}.rt-payalloc2-scope.active strong{color:var(--accent)}.rt-payalloc2-scope small{font-size:9.5px;line-height:1.25;color:var(--muted)}.rt-payalloc2-missing{color:var(--warn,#e0a72f)!important}.rt-payalloc2-needs-terms .btn{font-size:10.5px;padding:6px 9px;white-space:nowrap}.rt-payalloc2-payout-row{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:12px;align-items:center;padding:10px 11px;border-bottom:1px solid var(--border)}.rt-payalloc2-payout-row:last-child{border-bottom:0}.rt-payalloc2-payout-row strong{display:block;font-size:12px}.rt-payalloc2-payout-row small{display:block;font-size:10px;color:var(--text-secondary);margin-top:2px}.rt-payalloc2-payout-row label{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:750}.rt-payalloc2-payout-row input{width:100%;min-width:0;font-size:16px!important}@media(max-width:560px){.rt-payalloc2-scopes{padding:9px 10px;gap:7px}.rt-payalloc2-scope{padding:9px}.rt-payalloc2-scope strong{font-size:15px}.rt-payalloc2-scope small{font-size:9px}.rt-payalloc2-needs-terms{grid-template-columns:26px minmax(0,1fr) auto}.rt-payalloc2-payout-row{grid-template-columns:minmax(0,1fr) 104px}}';document.head.appendChild(s);}
+
   function fromPage(page){var a=acct(activeAccountId);if(a)return a;var tag=page&&page.querySelector('[data-account-id]');if(tag){a=acct(tag.getAttribute('data-account-id'));if(a)return a;}var h=page&&page.querySelector('.page-title,h1,h2,h3'),t=String(h&&h.textContent||'').trim().toLowerCase();if(t){try{var m=(_accounts||[]).filter(function(x){var n=String(x&&x.name||'').trim().toLowerCase();return n&&(t===n||t.indexOf(n)!==-1);});if(m.length===1)return m[0];}catch(_){}}return null;}
   function paymentHistory(page){var groups=Array.prototype.slice.call(page.querySelectorAll('.account-group'));for(var i=0;i<groups.length;i++){var t=String((groups[i].querySelector('.account-group-title')||{}).textContent||'').trim().toLowerCase();if(/(settlement|payment).*(history)|history.*(settlement|payment)/.test(t))return groups[i];}var cards=Array.prototype.slice.call(page.querySelectorAll('.panel-card,.card,section'));for(var j=0;j<cards.length;j++){var h=cards[j].querySelector('.sl,.section-title,h2,h3,h4'),x=String(h&&h.textContent||'').trim().toLowerCase();if(/(settlement|payment).*(history)|history.*(settlement|payment)/.test(x))return cards[j];}return null;}
   function point(page){var hist=paymentHistory(page);if(hist)return {p:hist.parentNode,b:hist};var groups=Array.prototype.slice.call(page.querySelectorAll('.account-group'));if(groups.length){var last=groups[groups.length-1];return {p:last.parentNode,b:last.nextSibling};}return {p:page,b:null};}
 
   function render(a){
-    var page=document.getElementById('p-item');if(!page||!page.classList.contains('on')||!a||String(page.dataset.rtAccountId)!==String(a.id))return;activeAccountId=a.id;css();var old=page.querySelector('.rt-payalloc2');if(old)old.remove();
-    var k=String(a.id);if(!Object.prototype.hasOwnProperty.call(includeUnsold,k))includeUnsold[k]=!onSale(a);
-    var rows=candidates(a).filter(function(r){return includeUnsold[k]||sold(r.item)||r.legacy;}),set=setFor(a);Array.from(set).forEach(function(id){if(!rows.some(function(r){return String(r.item.id)===String(id);}))set.delete(id);});
-    // Keep unpayable stock visible with a reason; only known liabilities enter
-    // selection and payment creation. Never invent a share before an item sells.
-    var blocked=itemsFor(a.id).filter(function(e){
-      var i=e.item;if(i.accountSettled||i.scrappedAt||i.isReturned||(!includeUnsold[k]&&!sold(i)))return false;
-      if(rows.some(function(r){return String(r.item.id)===String(i.id);}))return false;
-      var owed=debt(a,i),paid=allocated(a,i.id,true);
-      return !(owed>0.009&&paid>=owed-0.009);
-    });
-    var legacyN=rows.filter(function(r){return r.legacy;}).length,total=round(rows.reduce(function(s,r){return s+r.remaining;},0)),isClosed=collapsed[k]!==false;
-    var rowHtml=rows.length?rows.map(function(r){var checked=set.has(r.item.id)?' checked':'';var date=r.item.dateSold||r.item.resaleDateSold||'';var status=r.legacy?'Legacy settled · payment not assigned':'Needs payment transaction';return '<label class="rt-payalloc2-row"><input type="checkbox" data-payalloc-id="'+esc(r.item.id)+'"'+checked+'><div><div class="rt-payalloc2-name">'+esc(r.item.item||'Untitled item')+'</div><div class="rt-payalloc2-meta '+(r.legacy?'rt-payalloc2-legacy':'rt-payalloc2-unpaid')+'">'+esc(status)+(date?' · sold '+esc(date):'')+'</div></div><div class="rt-payalloc2-amt">'+esc(money(r.remaining))+'</div></label>';}).join(''):'<div class="rt-payalloc2-empty">All payable items are assigned to payment transactions.</div>';
-    if(blocked.length){
-      if(!rows.length)rowHtml='';
-      rowHtml+=blocked.map(function(e){
-        var i=e.item,reason=allocated(a,i.id,false)>allocated(a,i.id,true)?'Assigned to an unpaid payment':model(a,i)==='profit_share'&&!sold(i)?'Profit share needs a sale. Set a fixed payout to pay upfront.':'Set an agreed item cost to record a payment.';
-        return '<div class="rt-payalloc2-row" data-unsettled-stock="'+esc(i.id)+'"><input type="checkbox" disabled aria-label="Payment unavailable"><div><div class="rt-payalloc2-name">'+esc(i.item||'Untitled item')+'</div><div class="rt-payalloc2-meta">'+esc(reason)+'</div></div><button type="button" class="btn btn-secondary" data-payalloc-edit="'+esc(i.id)+'">View item</button></div>';
-      }).join('');
-    }
-    var box=document.createElement('div');box.className='rt-payalloc2'+(isClosed?' closed':'');box.innerHTML='<button type="button" class="rt-payalloc2-head" aria-expanded="'+(isClosed?'false':'true')+'"><div class="rt-payalloc2-main"><div class="rt-payalloc2-title">Unsettled items</div><div class="rt-payalloc2-sub">Items that still need assigning to a payment transaction'+(legacyN?' · '+legacyN+' legacy settled item'+(legacyN===1?'':'s')+' need reconstructing':'')+'</div></div><span class="rt-payalloc2-count">'+(rows.length+blocked.length)+'</span><span class="rt-payalloc2-chevron">⌄</span></button><div class="rt-payalloc2-body">'+rowHtml+'<div class="rt-payalloc2-actions"><div class="rt-payalloc2-summary"></div><button type="button" class="btn btn-secondary payalloc-all">Select all</button><button type="button" class="btn btn-secondary payalloc-existing">Assign to payment</button><button type="button" class="btn btn-primary payalloc-new">New transaction</button></div></div>';
-    var pt=point(page);if(pt.b)pt.p.insertBefore(box,pt.b);else pt.p.appendChild(box);
-    var filter=document.createElement('label');filter.className='rt-payalloc2-row';
-    filter.innerHTML='<input type="checkbox" class="payalloc-unsold"'+(includeUnsold[k]?' checked':'')+'><div><div class="rt-payalloc2-name">Include unsold stock</div><div class="rt-payalloc2-meta">Pay agreed fixed costs upfront, including listed and unlisted stock. Profit shares need a completed sale.</div></div>';
-    box.querySelector('.rt-payalloc2-body').prepend(filter);
-    box.querySelectorAll('[data-payalloc-edit]').forEach(function(btn){btn.addEventListener('click',function(){var e=blocked.find(function(r){return String(r.item.id)===btn.getAttribute('data-payalloc-edit');});if(e&&typeof openAccountItemPage==='function')openAccountItemPage(e.month,e.item.id,a.id);});});
-    filter.querySelector('input').addEventListener('change',function(ev){includeUnsold[k]=ev.target.checked;render(a);});
-    box.querySelectorAll('[data-payalloc-id]').forEach(function(cb){var r=rows.find(function(x){return String(x.item.id)===cb.getAttribute('data-payalloc-id');});if(r&&!sold(r.item)&&!r.legacy){var meta=cb.closest('label').querySelector('.rt-payalloc2-meta');meta.textContent=(r.item.state==='sourced'?'Unlisted stock':'Listed stock')+' · fixed cost · available to pay upfront';}});
-    function refresh(){var ps=picked(a),sum=pickedTotal(a),plan=creditPlan(a,sum,today()),copy=box.querySelector('.rt-payalloc2-summary');copy.innerHTML=ps.length?'<strong>'+ps.length+' selected · '+esc(money(sum))+' gross</strong>'+(plan.credit>0?'Account credit '+esc(money(plan.credit))+' · bank payment '+esc(money(plan.net)):'One transaction will hold these item allocations.'):'<strong>'+rows.length+' payable · '+esc(money(total))+'</strong>'+(blocked.length?blocked.length+' other unsettled item'+(blocked.length===1?'':'s')+'. ':'')+(rows.length?'Select items that were paid together.':'Nothing needs assigning.');var dis=!ps.length;box.querySelector('.payalloc-existing').disabled=dis;box.querySelector('.payalloc-new').disabled=dis;box.querySelector('.payalloc-all').disabled=!rows.length;box.querySelector('.payalloc-new').textContent=ps.length&&plan.credit>0?'New payment · '+money(plan.net):'New transaction';}
-    box.querySelector('.rt-payalloc2-head').addEventListener('click',function(){collapsed[k]=!box.classList.contains('closed');box.classList.toggle('closed');box.querySelector('.rt-payalloc2-head').setAttribute('aria-expanded',box.classList.contains('closed')?'false':'true');});
-    box.querySelectorAll('[data-payalloc-id]').forEach(function(cb){cb.addEventListener('change',function(){var id=cb.getAttribute('data-payalloc-id');if(cb.checked)set.add(id);else set.delete(id);refresh();});});
-    box.querySelector('.payalloc-all').addEventListener('click',function(){var all=rows.length&&rows.every(function(r){return set.has(r.item.id);});rows.forEach(function(r){if(all)set.delete(r.item.id);else set.add(r.item.id);});render(a);});
-    box.querySelector('.payalloc-existing').addEventListener('click',function(){openExisting(a);});box.querySelector('.payalloc-new').addEventListener('click',function(){openNew(a);});refresh();
-  }
+    var page=document.getElementById('p-item');if(!page||!page.classList.contains('on')||!a||String(page.dataset.rtAccountId)!==String(a.id))return;
+    activeAccountId=a.id;css();outstandingCss();var old=page.querySelector('.rt-payalloc2');if(old)old.remove();
+    var k=String(a.id),scope=scopeByAccount[k]==='all'?'all':'sold',rows=outstandingRows(a,scope),set=setFor(a),summary=outstandingSummary(a);
+    var visibleSelectable=rows.filter(function(r){return r.kind==='payable'||r.kind==='terms';});
+    var visibleIds=new Set(visibleSelectable.map(function(r){return String(r.item.id);}));
+    Array.from(set).forEach(function(id){if(!visibleIds.has(String(id)))set.delete(id);});
+    var legacyN=rows.filter(function(r){return r.kind==='payable'&&r.candidate.legacy;}).length,isClosed=collapsed[k]!==false;
 
+    function rowStatus(r){
+      var i=r.item,date=i.dateSold||i.resaleDateSold||'',prefix=r.isSold?('Sold'+(date?' '+date:'')):(i.state==='listed'?'Listed stock':'Unlisted stock');
+      if(r.kind==='terms')return prefix+' · payout not set';
+      if(r.kind==='assigned')return prefix+' · assigned to an unpaid payment';
+      if(r.candidate.legacy)return 'Legacy paid · payment record not assigned';
+      return r.isSold?prefix+' · payment outstanding':prefix+' · fixed payout · available to pay early';
+    }
+    var rowHtml=rows.length?rows.map(function(r){
+      var id=String(r.item.id),name=esc(r.item.item||'Untitled item'),status=esc(rowStatus(r));
+      if(r.kind==='payable'){
+        return '<label class="rt-payalloc2-row"><input type="checkbox" data-payalloc-id="'+esc(id)+'"'+(set.has(r.item.id)||set.has(id)?' checked':'')+'><div><div class="rt-payalloc2-name">'+name+'</div><div class="rt-payalloc2-meta '+(r.candidate.legacy?'rt-payalloc2-legacy':'rt-payalloc2-unpaid')+'">'+status+'</div></div><div class="rt-payalloc2-amt">'+esc(money(r.amount))+'</div></label>';
+      }
+      if(r.kind==='terms'){
+        var action=model(a,r.item)==='fixed_cost'?'Set payout':'Set split';
+        return '<div class="rt-payalloc2-row rt-payalloc2-needs-terms" data-payalloc-needs-terms="'+esc(id)+'"><input type="checkbox" data-payalloc-term-id="'+esc(id)+'"'+(set.has(r.item.id)||set.has(id)?' checked':'')+' aria-label="Select '+name+'"><div><div class="rt-payalloc2-name">'+name+'</div><div class="rt-payalloc2-meta rt-payalloc2-missing">'+status+'</div></div><button type="button" class="btn btn-secondary" data-payalloc-edit="'+esc(id)+'">'+action+'</button></div>';
+      }
+      return '<div class="rt-payalloc2-row" data-payalloc-assigned="'+esc(id)+'"><input type="checkbox" disabled aria-label="Already assigned"><div><div class="rt-payalloc2-name">'+name+'</div><div class="rt-payalloc2-meta">'+status+'</div></div><div class="rt-payalloc2-amt">'+esc(money(r.amount))+'</div></div>';
+    }).join(''):'<div class="rt-payalloc2-empty">'+(scope==='sold'?'No sold items are waiting for payment.':'No known stock liabilities are waiting for payment.')+'</div>';
+
+    var soldMeta=summary.soldCount+' item'+(summary.soldCount===1?'':'s')+(summary.soldNeedsTerms?' · '+summary.soldNeedsTerms+' need payout':'');
+    var allMeta=summary.allCount+' item'+(summary.allCount===1?'':'s')+(summary.allNeedsTerms?' · '+summary.allNeedsTerms+' need payout':'');
+    var scopes='<div class="rt-payalloc2-scopes" role="group" aria-label="Outstanding scope">'
+      +'<button type="button" class="rt-payalloc2-scope'+(scope==='sold'?' active':'')+'" data-payalloc-scope="sold"><span>Sold outstanding</span><strong>'+esc(money(summary.soldAmount))+'</strong><small>'+esc(soldMeta)+'</small></button>'
+      +'<button type="button" class="rt-payalloc2-scope'+(scope==='all'?' active':'')+'" data-payalloc-scope="all"><span>All stock outstanding</span><strong>'+esc(money(summary.allAmount))+'</strong><small>'+esc(allMeta)+'</small></button>'
+      +'</div>';
+    var box=document.createElement('div');box.className='rt-payalloc2'+(isClosed?' closed':'');
+    box.innerHTML='<button type="button" class="rt-payalloc2-head" aria-expanded="'+(isClosed?'false':'true')+'"><div class="rt-payalloc2-main"><div class="rt-payalloc2-title">Outstanding payments</div><div class="rt-payalloc2-sub">'+(scope==='sold'?'Sold items that still need paying or a payout amount.':'All known unpaid stock commitments, including unsold fixed payouts.')+(legacyN?' · '+legacyN+' legacy paid item'+(legacyN===1?'':'s')+' need a payment record':'')+'</div></div><span class="rt-payalloc2-count">'+rows.length+'</span><span class="rt-payalloc2-chevron">⌄</span></button><div class="rt-payalloc2-body">'+scopes+rowHtml+'<div class="rt-payalloc2-actions"><div class="rt-payalloc2-summary"></div><button type="button" class="btn btn-secondary payalloc-all">Select all</button><button type="button" class="btn btn-secondary payalloc-terms" hidden>Set payout</button><button type="button" class="btn btn-secondary payalloc-existing">Assign to payment</button><button type="button" class="btn btn-primary payalloc-new">New transaction</button></div></div>';
+    var pt=point(page);if(pt.b)pt.p.insertBefore(box,pt.b);else pt.p.appendChild(box);
+
+    box.querySelectorAll('[data-payalloc-scope]').forEach(function(btn){btn.addEventListener('click',function(){
+      var next=btn.getAttribute('data-payalloc-scope')==='all'?'all':'sold';if(scopeByAccount[k]===next)return;scopeByAccount[k]=next;set.clear();render(a);
+    });});
+    box.querySelectorAll('[data-payalloc-edit]').forEach(function(btn){btn.addEventListener('click',function(ev){
+      ev.preventDefault();ev.stopPropagation();var id=btn.getAttribute('data-payalloc-edit'),r=rows.find(function(x){return String(x.item.id)===String(id);});if(r)prepareTerms(a,[r]);
+    });});
+
+    function selection(){
+      var map=Object.create(null);rows.forEach(function(r){map[String(r.item.id)]=r;});
+      var chosen=Array.from(set).map(function(id){return map[String(id)]||null;}).filter(Boolean);
+      var payable=chosen.filter(function(r){return r.kind==='payable';}),terms=chosen.filter(function(r){return r.kind==='terms';});
+      return {chosen:chosen,payable:payable,terms:terms,total:round(payable.reduce(function(s,r){return s+r.candidate.remaining;},0))};
+    }
+    function refresh(){
+      var state=selection(),plan=creditPlan(a,state.total,today()),copy=box.querySelector('.rt-payalloc2-summary'),scopeAmount=scope==='sold'?summary.soldAmount:summary.allAmount,scopeTerms=scope==='sold'?summary.soldNeedsTerms:summary.allNeedsTerms;
+      if(state.chosen.length){
+        copy.innerHTML='<strong>'+state.chosen.length+' selected · '+esc(money(state.total))+' ready</strong>'+(state.terms.length?state.terms.length+' selected item'+(state.terms.length===1?' needs':'s need')+' a payout before payment.':(plan.credit>0?'Account credit '+esc(money(plan.credit))+' · bank payment '+esc(money(plan.net)):'Ready to record one payment transaction.'));
+      }else{
+        copy.innerHTML='<strong>'+esc(money(scopeAmount))+' '+(scope==='sold'?'sold':'all-stock')+' outstanding</strong>'+(scopeTerms?scopeTerms+' item'+(scopeTerms===1?' needs':'s need')+' a payout amount.':'Select items that were paid together.');
+      }
+      var termBtn=box.querySelector('.payalloc-terms');termBtn.hidden=!state.terms.length;termBtn.textContent=state.terms.length?('Set '+state.terms.length+' payout'+(state.terms.length===1?'':'s')):'Set payout';
+      var blocked=state.terms.length>0||state.payable.length===0;box.querySelector('.payalloc-existing').disabled=blocked;box.querySelector('.payalloc-new').disabled=blocked;
+      box.querySelector('.payalloc-all').disabled=!visibleSelectable.length;
+      box.querySelector('.payalloc-new').textContent=!blocked&&plan.credit>0?'New payment · '+money(plan.net):'New transaction';
+    }
+    box.querySelector('.rt-payalloc2-head').addEventListener('click',function(){collapsed[k]=!box.classList.contains('closed');box.classList.toggle('closed');box.querySelector('.rt-payalloc2-head').setAttribute('aria-expanded',box.classList.contains('closed')?'false':'true');});
+    box.querySelectorAll('[data-payalloc-id],[data-payalloc-term-id]').forEach(function(cb){cb.addEventListener('change',function(){var id=cb.getAttribute('data-payalloc-id')||cb.getAttribute('data-payalloc-term-id');if(cb.checked)set.add(id);else set.delete(id);refresh();});});
+    box.querySelector('.payalloc-all').addEventListener('click',function(){
+      var all=visibleSelectable.length&&visibleSelectable.every(function(r){return set.has(r.item.id)||set.has(String(r.item.id));});
+      visibleSelectable.forEach(function(r){if(all){set.delete(r.item.id);set.delete(String(r.item.id));}else set.add(String(r.item.id));});render(a);
+    });
+    box.querySelector('.payalloc-terms').addEventListener('click',function(){var st=selection();if(st.terms.length)prepareTerms(a,st.terms);});
+    box.querySelector('.payalloc-existing').addEventListener('click',function(){var st=selection();if(st.terms.length){prepareTerms(a,st.terms);return;}openExisting(a);});
+    box.querySelector('.payalloc-new').addEventListener('click',function(){var st=selection();if(st.terms.length){prepareTerms(a,st.terms);return;}openNew(a);});
+    refresh();
+  }
   function txUsed(tx){return round((tx&&Array.isArray(tx.items)?tx.items:[]).reduce(function(s,x){return s+Math.max(0,Number(x&&x.amount)||0);},0));}
-  function openExisting(a){var rows=picked(a),total=pickedTotal(a);if(!rows.length)return;draft={accountId:a.id,ids:rows.map(function(r){return r.item.id;}),mode:'existing',snapshot:snapshot(a,rows)};var choices=(a.settlements||[]).map(function(tx){var amt=round(tx&&tx.partnerAmount),used=txUsed(tx);return {tx:tx,amount:amt,free:Math.max(0,round(amt-used))};}).filter(function(x){return x.tx&&x.free>=total-0.009;}).sort(function(x,y){return String(y.tx.date||'').localeCompare(String(x.tx.date||''));});var body='<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Assign '+rows.length+' item'+(rows.length===1?'':'s')+' ('+esc(money(total))+') to an existing payment. Its amount, date and cash transfer will not change.</div>';if(!choices.length)body+='<div class="panel-card" style="padding:12px;font-size:12px;color:var(--text-secondary);">No existing payment has enough unallocated balance. Create a new transaction or select fewer items.</div>';else choices.forEach(function(x){body+='<button type="button" class="rt-payalloc2-choice" onclick="_rtPayAllocAssignExisting(\''+esc(x.tx.id)+'\')"><strong>'+esc(x.tx.date||'Undated')+' · '+esc(money(x.amount))+' · '+(x.tx.paid===true?'Paid':'Unpaid')+'</strong><span>'+esc(money(x.free))+' unallocated'+(x.tx.note?' · '+esc(x.tx.note):'')+'</span></button>';});try{openPanel('Assign to existing payment',body);}catch(_){} }
+  function openExisting(a){var need=selectedNeedsTerms(a);if(need.length){prepareTerms(a,need);return;}var rows=picked(a),total=pickedTotal(a);if(!rows.length)return;draft={accountId:a.id,ids:rows.map(function(r){return r.item.id;}),mode:'existing',snapshot:snapshot(a,rows)};var choices=(a.settlements||[]).map(function(tx){var amt=round(tx&&tx.partnerAmount),used=txUsed(tx);return {tx:tx,amount:amt,free:Math.max(0,round(amt-used))};}).filter(function(x){return x.tx&&x.free>=total-0.009;}).sort(function(x,y){return String(y.tx.date||'').localeCompare(String(x.tx.date||''));});var body='<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Assign '+rows.length+' item'+(rows.length===1?'':'s')+' ('+esc(money(total))+') to an existing payment. Its amount, date and cash transfer will not change.</div>';if(!choices.length)body+='<div class="panel-card" style="padding:12px;font-size:12px;color:var(--text-secondary);">No existing payment has enough unallocated balance. Create a new transaction or select fewer items.</div>';else choices.forEach(function(x){body+='<button type="button" class="rt-payalloc2-choice" onclick="_rtPayAllocAssignExisting(\''+esc(x.tx.id)+'\')"><strong>'+esc(x.tx.date||'Undated')+' · '+esc(money(x.amount))+' · '+(x.tx.paid===true?'Paid':'Unpaid')+'</strong><span>'+esc(money(x.free))+' unallocated'+(x.tx.note?' · '+esc(x.tx.note):'')+'</span></button>';});try{openPanel('Assign to existing payment',body);}catch(_){} }
 
   function closePaymentModal(){
     var ov=document.getElementById('rt-payalloc-modal-backdrop');
@@ -138,6 +246,7 @@
   }
 
   function openNew(a){
+    var need=selectedNeedsTerms(a);if(need.length){prepareTerms(a,need);return;}
     var rows=picked(a);if(!rows.length)return;var legacy=rows.filter(function(r){return r.legacy;}),unpaid=rows.filter(function(r){return r.unpaid;});if(legacy.length&&unpaid.length){try{toast('Select legacy settled items or unpaid items separately','error');}catch(_){}return;}
     // Eligibility belongs to each candidate, not the whole bank payment.
     // Fixed upfront costs and earned shares can share one set of allocations.
@@ -151,15 +260,56 @@
     if(btn)btn.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();window._rtPayAllocCreate();});
   }
 
+  function selectedNeedsTerms(a){
+    var map=Object.create(null);outstandingRows(a,'all').forEach(function(r){if(r.kind==='terms')map[String(r.item.id)]=r;});
+    return Array.from(setFor(a)).map(function(id){return map[String(id)]||null;}).filter(Boolean);
+  }
+  function prepareTerms(a,rows){
+    rows=(rows||[]).filter(function(r){return r&&r.kind==='terms';});if(!rows.length)return;
+    var fixed=rows.filter(function(r){return model(a,r.item)==='fixed_cost';});
+    if(fixed.length){openPayoutEditor(a,fixed);return;}
+    var first=rows[0];if(typeof openSetItemSplit==='function'){openSetItemSplit(first.month,first.item.id);return;}
+    try{toast('Open the item and set its partner split before paying','error');}catch(_){}
+  }
+  function openPayoutEditor(a,rows){
+    rows=(rows||[]).filter(Boolean);if(!rows.length)return;
+    var body='<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">Set the agreed fixed payout for the selected item'+(rows.length===1?'':'s')+'. This only sets the liability; it does not record a payment or change the sale/stock state.</div>';
+    body+='<div class="panel-card" style="margin-bottom:14px;">'+rows.map(function(r){
+      var i=r.item,date=i.dateSold||i.resaleDateSold||'',hint=r.isSold?('Sold'+(date?' '+date:'')):(i.state==='listed'?'Listed stock':'Unlisted stock');
+      return '<div class="rt-payalloc2-payout-row"><div><strong>'+esc(i.item||'Item')+'</strong><small>'+esc(hint)+'</small></div><label>£ <input type="number" min="0" step="0.01" inputmode="decimal" data-payalloc-payout="'+esc(i.id)+'" placeholder="0.00"></label></div>';
+    }).join('')+'</div><button type="button" class="btn btn-primary" id="payalloc-save-payouts" style="width:100%;min-height:48px">Save payout'+(rows.length===1?'':'s')+'</button>';
+    openPaymentModal('Set agreed payout'+(rows.length===1?'':'s'),body);
+    var btn=document.getElementById('payalloc-save-payouts');if(!btn)return;
+    btn.addEventListener('click',async function(){
+      var values=[],invalid=false;
+      rows.forEach(function(r){var el=document.querySelector('[data-payalloc-payout="'+CSS.escape(String(r.item.id))+'"]'),raw=String(el&&el.value||'').trim(),n=raw===''?NaN:Number(raw);if(!isFinite(n)||n<0){invalid=true;return;}values.push({r:r,value:round(n)});});
+      if(invalid||values.length!==rows.length){try{toast('Enter an agreed payout for every selected item','error');}catch(_){}return;}
+      var before=values.map(function(x){var i=x.r.item;return {i:i,partnerAgreedAmount:i.partnerAgreedAmount,arrangementModelOverride:i.arrangementModelOverride,accountPaidAmount:i.accountPaidAmount,accountSplitPercent:i.accountSplitPercent};});
+      values.forEach(function(x){var i=x.r.item;i.partnerAgreedAmount=x.value;i.arrangementModelOverride='fixed_cost';i.accountPaidAmount=x.value;i.accountSplitPercent=null;});
+      btn.disabled=true;btn.textContent='Saving…';
+      try{await persistDB();closePaymentModal();try{if(typeof _renderAccountPage==='function')_renderAccountPage(a);else render(a);}catch(_){render(a);}try{toast('Payout'+(values.length===1?'':'s')+' saved · ready to pay');}catch(_){}}
+      catch(err){before.forEach(function(x){x.i.partnerAgreedAmount=x.partnerAgreedAmount;x.i.arrangementModelOverride=x.arrangementModelOverride;x.i.accountPaidAmount=x.accountPaidAmount;x.i.accountSplitPercent=x.accountSplitPercent;});btn.disabled=false;btn.textContent='Save payout'+(rows.length===1?'':'s');try{toast('Could not save payout amount','error');}catch(_){}}
+    });
+  }
+
   // Both selection surfaces use this same eligibility/allocation owner.
   window.__rtPartnerPaymentCandidates=function(accountId){var a=acct(accountId);return a?candidates(a):[];};
+  window.__rtPartnerOutstandingSummary=function(accountId){var a=acct(accountId);return a?outstandingSummary(a):{soldAmount:0,allAmount:0,soldNeedsTerms:0,allNeedsTerms:0,soldCount:0,allCount:0};};
+  window.__rtPartnerPaymentSelectionState=function(accountId,ids){
+    var a=acct(accountId);if(!a)return {payable:[],needsTerms:[],other:[],total:0};
+    var wanted=new Set((ids||[]).map(String)),map=Object.create(null);outstandingRows(a,'all').forEach(function(r){map[String(r.item.id)]=r;});
+    var pickedRows=Array.from(wanted).map(function(id){return map[String(id)]||null;}).filter(Boolean),payable=pickedRows.filter(function(r){return r.kind==='payable'&&r.candidate&&r.candidate.unpaid;}),needs=pickedRows.filter(function(r){return r.kind==='terms';});
+    return {payable:payable,needsTerms:needs,otherCount:Math.max(0,wanted.size-payable.length-needs.length),total:round(payable.reduce(function(s,r){return s+r.candidate.remaining;},0))};
+  };
+  window.__rtPartnerPrepareTerms=function(accountId,ids){var a=acct(accountId);if(!a)return false;var st=window.__rtPartnerPaymentSelectionState(accountId,ids);if(!st.needsTerms.length)return false;prepareTerms(a,st.needsTerms);return true;};
   window.__rtPartnerOpenPayment=function(accountId,ids){
     var a=acct(accountId);if(!a)return false;
+    var state=window.__rtPartnerPaymentSelectionState(accountId,ids);
+    if(state.needsTerms.length){prepareTerms(a,state.needsTerms);return false;}
     var wanted=new Set((ids||[]).map(String));
     var rows=candidates(a).filter(function(r){return r.unpaid&&wanted.has(String(r.item.id));});
     if(!rows.length){try{toast('No unpaid fixed costs or completed sales selected','error');}catch(_){}return false;}
     selected[String(a.id)]=new Set(rows.map(function(r){return r.item.id;}));
-    includeUnsold[String(a.id)]=true;
     draft=null;openNew(a);if(draft)draft.fromAccountSelection=true;return !!draft;
   };
   function snapshot(a,rows){return JSON.stringify(rows.map(function(r){return [String(r.item.id),r.month,r.owed,r.remaining,r.legacy,r.unpaid,model(a,r.item),sold(r.item),r.item.state,r.item.isReturned,r.item.scrappedAt,typeof _itemAccountType==='function'?_itemAccountType(r.item):r.item.accountType];}));}
