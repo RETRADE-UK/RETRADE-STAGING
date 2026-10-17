@@ -1,11 +1,11 @@
-/* RETRADE partner account UI v1.4.91
+/* RETRADE partner account UI v1.4.92
  * Finance-first Partner detail normaliser, scoped to #p-item.
  * No whole-app MutationObserver: account work only runs while account DOM changes.
  */
 (function(){
   'use strict';
-  if(window.__rtPartnerAccountV4_1491)return;
-  window.__rtPartnerAccountV4_1491=true;
+  if(window.__rtPartnerAccountV4_1492)return;
+  window.__rtPartnerAccountV4_1492=true;
 
   var queued=false,observer=null;
   function text(el){return String(el&&el.textContent||'').replace(/\s+/g,' ').trim();}
@@ -39,7 +39,7 @@
   function installStyles(){
     if(document.getElementById('rt-partner-account-v4-style'))return;
     var s=document.createElement('style');s.id='rt-partner-account-v4-style';
-    s.textContent='.rt-partner-v4-navrow{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;width:100%!important;box-sizing:border-box!important;margin:0 0 12px!important}.rt-partner-v4-navrow>.rt-partner-statement-btn{margin:0 0 0 auto!important;flex:0 0 auto!important}.rt-partner-summary-v3.rt-partner-summary-v4{margin:12px 0 16px!important}.rt-partner-summary-v4 .rt-partner-summary-v3-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}.rt-partner-v4-hidden{display:none!important}@media(max-width:760px){.rt-partner-summary-v4 .rt-partner-summary-v3-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}}';
+    s.textContent='.rt-partner-v4-navrow{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;width:100%!important;box-sizing:border-box!important;margin:0 0 12px!important}.rt-partner-v4-navrow>.rt-partner-statement-btn{margin:0 0 0 auto!important;flex:0 0 auto!important}.rt-partner-summary-v3.rt-partner-summary-v4{margin:12px 0 16px!important}.rt-partner-summary-v4 .rt-partner-summary-v3-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}.rt-partner-outstanding-value{white-space:normal!important;overflow:visible!important;text-overflow:clip!important}.rt-partner-outstanding-breakdown{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.rt-partner-outstanding-part{min-width:0}.rt-partner-outstanding-part span{display:block;font-size:9.5px;font-weight:700;color:var(--text-secondary);margin-bottom:3px}.rt-partner-outstanding-part strong{display:block;font-size:18px;line-height:1.05;color:var(--text);white-space:nowrap;font-variant-numeric:tabular-nums}.rt-partner-outstanding-part:first-child strong{color:var(--accent)}.rt-partner-v4-hidden{display:none!important}@media(max-width:760px){.rt-partner-summary-v4 .rt-partner-summary-v3-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}.rt-partner-outstanding-part strong{font-size:17px}}';
     document.head.appendChild(s);
   }
   function ensureTopNav(page){
@@ -73,6 +73,30 @@
     return {value:roundMoney(total),note:note};
   }
   function paidInfo(acct){var v=0,c=0;try{(acct.settlements||[]).forEach(function(tx){if(tx&&tx.paid===true){v+=Number(tx.partnerAmount)||0;c++;}});}catch(_){}return {value:roundMoney(v),count:c};}
+
+  function outstandingInfo(acct){
+    var stats={};try{if(typeof _accountStats==='function')stats=_accountStats(acct.id)||{};}catch(_){}
+    var extra=null;try{if(typeof window.__rtPartnerOutstandingSummary==='function')extra=window.__rtPartnerOutstandingSummary(acct.id);}catch(_){}
+    return {
+      sold:roundMoney(extra&&extra.soldAmount!=null?extra.soldAmount:(Number(stats.unsettledSoldOwed)||0)),
+      all:roundMoney(extra&&extra.allAmount!=null?extra.allAmount:(Number(stats.unsettledOwed)||0)),
+      soldNeeds:Number(extra&&extra.soldNeedsTerms)||0,
+      allNeeds:Number(extra&&extra.allNeedsTerms)||0,
+      soldCount:Number(extra&&extra.soldCount!=null?extra.soldCount:stats.unsettledSoldCount)||0,
+      allCount:Number(extra&&extra.allCount!=null?extra.allCount:stats.unsettledCount)||0
+    };
+  }
+  function setOutstandingCard(card,acct,paid){
+    if(!card)return;var info=outstandingInfo(acct),value=card.querySelector('.rt-partner-summary-v3-value'),sub=card.querySelector('.rt-partner-summary-v3-sub'),label=card.querySelector('.rt-partner-summary-v3-label');
+    if(label)setText(label,'Partner outstanding');if(card.getAttribute('data-kind')!=='outstanding')card.setAttribute('data-kind','outstanding');
+    if(value){
+      value.classList.add('rt-partner-outstanding-value');
+      var next='<div class="rt-partner-outstanding-breakdown"><div class="rt-partner-outstanding-part"><span>Sold outstanding</span><strong>'+money(info.sold)+'</strong></div><div class="rt-partner-outstanding-part"><span>All stock</span><strong>'+money(info.all)+'</strong></div></div>';
+      if(value.innerHTML!==next)value.innerHTML=next;
+    }
+    var notes=[];if(info.soldNeeds)notes.push(info.soldNeeds+' sold payout'+(info.soldNeeds===1?'':'s')+' not set');var stockMissing=Math.max(0,info.allNeeds-info.soldNeeds);if(stockMissing)notes.push(stockMissing+' stock payout'+(stockMissing===1?'':'s')+' not set');if(!notes.length&&info.allCount)notes.push(info.soldCount+' sold · '+info.allCount+' all-stock item'+(info.allCount===1?'':'s'));if(!info.allCount&&!notes.length)notes.push('Nothing currently outstanding');if(paid&&paid.value>0)notes.push(money(paid.value)+' paid');setText(sub,notes.join(' · '));
+  }
+
   function findCard(summary,label,kind){var cards=summary.querySelectorAll('.rt-partner-summary-v3-card'),want=String(label||'').toLowerCase();for(var i=0;i<cards.length;i++){var l=text(cards[i].querySelector('.rt-partner-summary-v3-label')).toLowerCase();if((kind&&cards[i].getAttribute('data-kind')===kind)||l===want)return cards[i];}return null;}
   function ensurePaidCard(summary,acct){
     var grid=summary.querySelector('.rt-partner-summary-v3-grid');if(!grid)return null;var card=findCard(summary,'Paid to partner','paid');
@@ -83,7 +107,7 @@
     var summary=page.querySelector('.rt-partner-summary-v3');if(!summary||!acct)return;summary.classList.add('rt-partner-summary-v4');
     summary.querySelectorAll('.rt-partner-summary-v3-card').forEach(function(card){var label=text(card.querySelector('.rt-partner-summary-v3-label')).toLowerCase(),kind=String(card.getAttribute('data-kind')||'').toLowerCase();if(kind==='stock'||label==='stock on hand')card.remove();});
     var potential=potentialInfo(acct),pc=findCard(summary,'Potential remaining','potential');if(pc){setText(pc.querySelector('.rt-partner-summary-v3-value'),potential.value==null?'—':money(potential.value));setText(pc.querySelector('.rt-partner-summary-v3-sub'),potential.note);pc.setAttribute('data-kind','potential');}
-    var paid=paidInfo(acct),out=findCard(summary,'Partner outstanding','outstanding');if(out){out.setAttribute('data-kind','outstanding');if(paid.value>0){var sub=out.querySelector('.rt-partner-summary-v3-sub'),base=text(sub).replace(/\s*·\s*£[\d,.]+\s+paid$/i,'');setText(sub,base+' · '+money(paid.value)+' paid');}}
+    var paid=paidInfo(acct),out=findCard(summary,'Partner outstanding','outstanding');if(out)setOutstandingCard(out,acct,paid);
     var earned=findCard(summary,'RETRADE earned','earned');if(earned)earned.setAttribute('data-kind','earned');ensurePaidCard(summary,acct);
     var grid=summary.querySelector('.rt-partner-summary-v3-grid');if(grid)grid.setAttribute('data-card-count','4');
   }
@@ -97,6 +121,6 @@
   function schedule(){if(queued)return;queued=true;requestAnimationFrame(function(){requestAnimationFrame(fix);});}
   function start(){schedule();if(observer)return;var page=document.getElementById('p-item');if(page){observer=new MutationObserver(schedule);observer.observe(page,{childList:true,subtree:true});}window.addEventListener('hashchange',schedule);window.addEventListener('popstate',schedule);}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
-  console.info('[RETRADE] v1.4.91 scoped finance-first partner account normaliser loaded');
+  console.info('[RETRADE] v1.4.92 sold/all-stock outstanding account normaliser loaded');
   (window.__rtPartnerRenderFinalizers=window.__rtPartnerRenderFinalizers||[]).push(fix);
 })();
