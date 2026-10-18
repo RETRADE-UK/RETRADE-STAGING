@@ -107,6 +107,13 @@ buyer-search feed. Public Resell Locker material did not expose a usable source 
 No investigated public source establishes Resell Locker's backend identity, supported export,
 or how it maintains source availability. Similar slash commands are not sufficient attribution.
 
+The historical `conn-check.icg-in.com` clue was checked against
+[DuckDuckGo's observed domain data](https://github.com/duckduckgo/tracker-radar/blob/main/domains/US/icg-in.com.json).
+It records `/wsconn` WebSocket requests on eight Vinted sites, including the UK, plus
+`/connectioncheck` and `/netconn`. Ownership is unclassified in that dataset. This shows
+that the connection appears in Vinted page traffic; it does not establish a product feed,
+Resell Locker's backend, or ownership by any listed initiator.
+
 ## Offline code added
 
 `worker/monitors/src/search-link.mjs` is a pure, unused module:
