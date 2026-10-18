@@ -1,7 +1,8 @@
 # Vinted monitor v1.6: search-link investigation
 
 Reviewed 18 October 2026 against staging main `3d32ca1692bf6ce624e86f105a1312b4c7b58f7e`.
-This is an investigation and tested offline preparation. It does not activate a source or complete URL import in the application.
+This is an investigation and tested worker integration behind a server-owned capability gate.
+It does not activate a source or complete URL import in the application.
 
 ## What the four supplied links establish
 
@@ -18,7 +19,7 @@ Category/brand IDs are preserved without relying on an unverified current label 
 | 4 | £201 | £300 |
 
 These leave £50.01–£50.99, £100.01–£100.99 and £200.01–£200.99 outside every band.
-Import preserves these settings. A gap-free alternative needs an explicit user-visible change.
+The parser preserves these settings. A gap-free alternative needs an explicit user-visible change.
 
 The user reports adding whitelist/blacklist terms after pasting the link into Resell Locker.
 This supports two distinct configurations: source search filters from the URL, and later text
@@ -145,32 +146,95 @@ It records `/wsconn` WebSocket requests on eight Vinted sites, including the UK,
 that the connection appears in Vinted page traffic; it does not establish a product feed,
 Resell Locker's backend, or ownership by any listed initiator.
 
-## Offline code added
+## Further source investigation
 
-`worker/monitors/src/search-link.mjs` is a pure, unused module:
+The user's hypothesis is plausible: listing monitoring need not use a personal buying account.
+The pinned [VintedScanner source](https://github.com/drego85/VintedScanner/blob/d2924a310893382f4cd95aba5551324d3a679171/vinted_scanner.py)
+initializes an anonymous website session. Its [README](https://github.com/drego85/VintedScanner/blob/d2924a310893382f4cd95aba5551324d3a679171/README.md)
+documents a September migration to the same catalogue endpoint family as our public adapter.
+This is source-level evidence; current UK live availability is unverified. Anonymous session
+cookies are different from a user's personal refresh token. Our recorded stopped worker was
+already in public mode, so simply removing personal credentials is not a new access fix.
+
+The candidate mappings inferred from the pinned VintedScanner source use
+`attribute_ids[catalog]`, `[brand]`, `[status]`, `[size]`, `[color]` and `[material]`.
+These mappings, including `status` for condition, have not been verified against live UK
+responses. No game-platform mapping was verified.
+The old top-level `catalog_ids`/`brand_ids` representation is now retained only for explicit
+offline comparison. There is no automatic endpoint/schema fallback after a refusal.
+
+A normal-browser observation of the user's first URL was attempted. The browser tool returned
+`Tab 1 is not part of browser session`; no usable page was observed. This is an automation
+failure, not a Vinted HTTP result or evidence that a normal logged-out browser was refused.
+
+### Documented alternative listing source
+
+[Vinotify developer docs](https://vinotify.me/docs/) describe REST event feeds and HTTPS
+webhooks without a personal Vinted login, using a Pro integration token. Pull feeds expose
+IDs/cursors and retained history; push delivery is best effort, so a durable integration
+would need cursor-based catch-up and deduplication. Category-filtered searches such as these
+four links do not qualify for its early-alert mode. Its current UK [pricing](https://vinotify.me/pricing/)
+is £19.99/month or £5.99/week for Pro. Pricing lists 100 searches while developer docs list 50;
+do not hardcode either account entitlement. A Pro trial was not established.
+
+The provider's [terms](https://vinotify.me/terms/) permit documented integrations for internal
+business use; paid redistribution needs a separate agreement. It is independent of Vinted
+and does not guarantee complete or uninterrupted detection. This is a possible integration
+route, not an assertion of Vinted endorsement, proven speed, or Resell Locker attribution.
+No provider account, purchase, token, search or webhook has been created. Live evaluation
+requires a provider account and token; none is currently available in this task.
+
+## Worker code and verification
+
+`worker/monitors/src/search-link.mjs` is a pure parser/serializer used by gated worker paths:
 
 - `parseVintedSearchUrl(rawUrl)`: UK HTTPS catalogue URL, optional text, immutable normalized
   facets, integer-pence boundaries, original URL and canonical website URL.
-- `buildVintedSearchParams(config, pagination)`: candidate API parameter serialization.
-  Facet CSV names follow the public reference implementation and remain unverified against
-  the current provider. No endpoint or transport is selected.
+- `buildVintedSearchParams(config, options)`: candidate catalogue-schema serialization.
+  An explicit `schema: 'legacy'` exists for historical comparison only. Both profiles are
+  fixture-tested; live filter acceptance remains unverified. No transport is selected here.
 - `sourceSearchKey(config)`: all supported non-price source filters; callers must add owner
   scope. This is a grouping key, not a complete query or monitor identity.
 
 Unknown parameters, unsupported image searches, ambiguous singleton values, invalid IDs/prices
 and unsafe destinations fail explicitly rather than silently widening a search.
-Supported additional facets are size, colour, material and video-game platform.
-No production configuration, credentials, notification job or UI behavior changes.
+Supported catalogue facets include size, colour and material. Video-game platform is preserved
+on URL import but explicitly rejected before transport because its current mapping is unknown.
+
+`contracts.mjs`, `recipe-source.mjs`, the adapter, bounded scanner, session diagnostic,
+automatic worker, validation and matcher now carry optional `searchUrl` recipes. Exact URL
+prices are authoritative; incompatible legacy search terms or price overrides are rejected.
+Automatic-worker source queries share only within an owner and identical non-price filters. Models and title
+blacklists remain separate local rules; model selection is optional for URL recipes.
+
+Every network entry requires the server-owned `candidateLinkSearch: true` capability for URL
+mode. Request-body flags cannot enable it. The service supplies no capability, so new URL
+recipes remain unavailable to live users and the automatic worker skips them before renewal
+or transport. UI import and manual-service grouping are not yet integrated. Description-based
+rejection still requires unavailable enrichment and remains disabled at service validation.
+
+Independent review reproduced a cache defect: a condition-restricted monitor could reuse a
+page obtained for an unrestricted monitor without validating condition availability. Both
+fresh and cached pages now undergo the current monitor's checks. A regression covers URL and
+legacy queries and confirms no false successful baseline/seen-ID commit or extra request.
+No production configuration, credentials, notification job or UI behavior changes are activated.
 
 Verification: `node --test tests/monitors/*.test.mjs` on Node 24.14.1:
-**94 passed, 0 failed**, including 11 new URL tests. Tests use synthetic transports;
+**109 passed, 0 failed**. Tests use synthetic transports;
 they establish parsing and regression behavior, not live availability or latency.
 
 PR validation update: GitHub Actions run `39131884248` passed the 94 monitor tests
 and build, then failed the existing 1440px WebKit bulk-list test at
 `tests/bulk-list-browser.cjs:71` because the quick-added item lookup was undefined.
-That file is unchanged from the PR base, and the new parser is not runtime-imported.
-Overall CI is not passing; this draft must not be described as merge-ready.
+At that original PR57 head (`0041dc9`), the browser test was unchanged from the PR base
+and the new parser was not runtime-imported. The current integration does import it.
+Investigation then reproduced a deferred panel-focus race independently: a callback moved
+focus from quick-add's title input to the close button. The focused repair is in PR #58.
+Its deterministic regression fails before the fix and passes at 320/390/1440px in Chromium;
+account-cost/payout Chromium tests also pass. The formerly failing bulk-list and account-cost
+WebKit steps have now passed in PR58 CI. This proves those checks passed with the repair;
+it does not establish that the focus race caused both earlier failures. The complete workflow
+result is tracked on PR58 and must not be inferred from individual passing steps.
 
 ## Remaining integration work and evidence
 
@@ -179,9 +243,9 @@ Overall CI is not passing; this draft must not be described as merge-ready.
    block independent preparation on a screenshot the user cannot currently provide.
 2. Confirm the actual source/export contract and an authorized usable path in the hosting
    environment. Respect the existing blocked state until that is established.
-3. Extend the saved recipe contract and server validation, then manual checks, scheduler,
-   shared-query/cache identity, and URL-import UI together. Make text optional for facet-only
-   searches; do not conflate source keywords with monitor whitelists.
+3. Finish service manual-query grouping and URL-import UI against the tested worker contract.
+   Verify actual category/brand/condition scope before enabling the capability; a 200 response
+   alone does not show filters were honoured. Keep source keywords distinct from whitelists.
 4. Define whitelist/blacklist precedence and missing-description behavior from evidence.
    Keep literal matching safe; regex support needs its own bounded execution design.
    Explain each accepted/rejected/pending listing instead of guessing.

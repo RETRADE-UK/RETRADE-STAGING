@@ -1,6 +1,6 @@
 # Vinted monitors — takeover, 23 September 2026
 
-**18 October v1.6:** [Four-link analysis, offline parser and source-access findings](LINK_INVESTIGATION_2026-10-18.md). Exact URL filters now have offline coverage; application import and live source verification remain outstanding. Scanning is still paused.
+**18 October v1.6:** [Four-link analysis, gated worker integration and source-access findings](LINK_INVESTIGATION_2026-10-18.md). Exact URL filters, current candidate parameters and cache isolation have 109 passing monitor tests. URL recipes remain disabled by default; the service does not enable the candidate capability. UI import, manual-service grouping and live source verification remain outstanding. Scanning is still paused.
 
 **8 October evening:** [Confirmed anti-bot refusal, wider tier window and remaining access dependency](ACCESS_REVIEW_2026-10-08.md). Monitoring is off; no sustained connection or real-listing push is proven.
 

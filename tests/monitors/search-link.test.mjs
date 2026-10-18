@@ -27,9 +27,9 @@ test('all four supplied links preserve filters, no keywords and exact price band
     assert.equal(config.order, 'newest_first');
     const params = buildVintedSearchParams(config);
     assert.equal(params.has('search_text'), false);
-    assert.equal(params.get('catalog_ids'), '3075');
-    assert.equal(params.get('brand_ids'), '217414');
-    assert.equal(params.get('status_ids'), '1,2,3,4,6');
+    assert.equal(params.get('attribute_ids[catalog]'), '3075');
+    assert.equal(params.get('attribute_ids[brand]'), '217414');
+    assert.equal(params.get('attribute_ids[status]'), '1,2,3,4,6');
     assert.equal(params.get('page'), '1');
     assert.equal(params.get('per_page'), '50');
     assert.equal(params.get('price_to'), (expected[i][1] / 100).toFixed(2));
@@ -65,14 +65,40 @@ test('normalized configuration and every facet array are immutable', () => {
   assert.throws(() => { config.searchText = 'changed'; }, TypeError);
 });
 
-test('all supported facets survive canonical links and candidate API parameters', () => {
-  const config = parseVintedSearchUrl(`${base}?catalog%5B%5D=3&catalog[]=1&catalog[]=3&brand_ids[]=2&status_ids[]=6&size_ids[]=4&color_ids[]=5&material_ids[]=7&video_game_platform_ids[]=8`);
+test('mapped catalogue facets survive canonical links and current candidate API parameters', () => {
+  const config = parseVintedSearchUrl(`${base}?catalog%5B%5D=3&catalog[]=1&catalog[]=3&brand_ids[]=2&status_ids[]=6&size_ids[]=4&color_ids[]=5&material_ids[]=7`);
   assert.deepEqual(config.catalogIds, [1, 3]);
   const params = buildVintedSearchParams(config, {page: 2, perPage: 100});
   assert.deepEqual(Object.fromEntries(params), { order: 'newest_first', currency: 'GBP',
-    catalog_ids: '1,3', brand_ids: '2', status_ids: '6', size_ids: '4', color_ids: '5',
-    material_ids: '7', video_game_platform_ids: '8', page: '2', per_page: '100' });
+    'attribute_ids[catalog]': '1,3', 'attribute_ids[brand]': '2', 'attribute_ids[status]': '6',
+    'attribute_ids[size]': '4', 'attribute_ids[color]': '5', 'attribute_ids[material]': '7', page: '2', per_page: '100' });
+  assert.deepEqual(parseVintedSearchUrl(config.canonicalUrl).catalogIds, [1,3]);
+});
+
+test('unmapped game-platform facet survives URL import but current catalogue serialization refuses it', () => {
+  const config = parseVintedSearchUrl(`${base}?video_game_platform_ids[]=8`);
   assert.deepEqual(parseVintedSearchUrl(config.canonicalUrl).videoGamePlatformIds, [8]);
+  assert.throws(() => buildVintedSearchParams(config), /Unsupported catalogue facet/);
+  assert.equal(buildVintedSearchParams(config, {schema:'legacy'}).get('video_game_platform_ids'), '8');
+});
+
+test('explicit legacy and catalogue schemas retain identical four-link scope without mixing parameter names', () => {
+  const mapping = [['catalog_ids','attribute_ids[catalog]'],['brand_ids','attribute_ids[brand]'],['status_ids','attribute_ids[status]']];
+  const expected = [[null,'50.00'],['51.00','100.00'],['101.00','200.00'],['201.00','300.00']];
+  links.forEach((link,index) => {
+    const config=parseVintedSearchUrl(link);
+    const current=buildVintedSearchParams(config,{schema:'catalogue'});
+    const legacy=buildVintedSearchParams(config,{schema:'legacy'});
+    for(const [oldKey,newKey] of mapping){
+      assert.equal(legacy.get(oldKey),current.get(newKey));
+      assert.equal(legacy.has(newKey),false);assert.equal(current.has(oldKey),false);
+      legacy.delete(oldKey);current.delete(newKey);
+    }
+    assert.deepEqual([...legacy],[...current]);
+    assert.deepEqual([current.get('price_from'),current.get('price_to')],expected[index]);
+    assert.equal(current.get('order'),'newest_first');assert.equal(current.get('currency'),'GBP');
+    assert.equal(current.has('search_text'),false);
+  });
 });
 
 test('source key excludes prices/tracking but distinguishes every non-price filter', () => {
@@ -140,5 +166,7 @@ test('builders validate configurations and pagination independently of parsing',
   }
   for (const opts of [{page: 0}, {page: 101}, {page: 1.5}, {perPage: 0}, {perPage: 101}, {perPage: '50'}])
     assert.throws(() => buildVintedSearchParams(config, opts), /pagination/);
+  for (const schema of ['',null,'website','current',true])
+    assert.throws(() => buildVintedSearchParams(config, {schema}), /schema/);
   for (const value of [null, undefined, [], 'url']) assert.throws(() => buildVintedSearchParams(value), TypeError);
 });

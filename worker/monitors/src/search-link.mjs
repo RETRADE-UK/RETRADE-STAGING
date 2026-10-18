@@ -1,14 +1,15 @@
-/** Offline URL analysis only. No requests, credentials, or runtime activation.
- * API facet names follow a public reference implementation, not a verified
- * current provider contract. Validate that contract before connecting transport. */
+/** URL analysis and candidate request serialization. No requests or credentials.
+ * Catalogue facet names follow the September 2026 VintedScanner migration;
+ * legacy names are retained for offline comparison only. Neither reference is
+ * evidence of current UK provider acceptance. Runtime capability stays gated. */
 const FACETS = Object.freeze([
-  ['catalog[]', 'catalogIds', 'catalog_ids'],
-  ['brand_ids[]', 'brandIds', 'brand_ids'],
-  ['status_ids[]', 'statusIds', 'status_ids'],
-  ['size_ids[]', 'sizeIds', 'size_ids'],
-  ['color_ids[]', 'colorIds', 'color_ids'],
-  ['material_ids[]', 'materialIds', 'material_ids'],
-  ['video_game_platform_ids[]', 'videoGamePlatformIds', 'video_game_platform_ids'],
+  ['catalog[]', 'catalogIds', 'catalog_ids', 'attribute_ids[catalog]'],
+  ['brand_ids[]', 'brandIds', 'brand_ids', 'attribute_ids[brand]'],
+  ['status_ids[]', 'statusIds', 'status_ids', 'attribute_ids[status]'],
+  ['size_ids[]', 'sizeIds', 'size_ids', 'attribute_ids[size]'],
+  ['color_ids[]', 'colorIds', 'color_ids', 'attribute_ids[color]'],
+  ['material_ids[]', 'materialIds', 'material_ids', 'attribute_ids[material]'],
+  ['video_game_platform_ids[]', 'videoGamePlatformIds', 'video_game_platform_ids', null],
 ].map(Object.freeze));
 const SINGLETONS = ['search_text', 'price_from', 'price_to', 'currency', 'order'];
 const IGNORED = ['search_id', 'time', 'page'];
@@ -61,14 +62,18 @@ function singleton(params, name) {
   if (new Set(values).size > 1) fail(`Conflicting ${name} values`);
   return values.length ? values[0] : undefined;
 }
-function paramsFor(config, api) {
+function paramsFor(config, schema) {
   const params = new URLSearchParams();
   params.set('order', config.order);
   params.set('currency', config.currency);
   if (config.searchText) params.set('search_text', config.searchText);
-  for (const [web, field, remote] of FACETS) {
-    if (api && config[field].length) params.set(remote, config[field].join(','));
-    else if (!api) for (const id of config[field]) params.append(web, String(id));
+  for (const [web, field, legacy, catalogue] of FACETS) {
+    if (schema === 'website') for (const id of config[field]) params.append(web, String(id));
+    else if (config[field].length) {
+      const remote = schema === 'catalogue' ? catalogue : legacy;
+      if (remote === null) fail(`Unsupported catalogue facet: ${field}`);
+      params.set(remote, config[field].join(','));
+    }
   }
   if (config.minPricePence !== 0) params.set('price_from', (config.minPricePence / 100).toFixed(2));
   if (config.maxPricePence !== null) params.set('price_to', (config.maxPricePence / 100).toFixed(2));
@@ -104,16 +109,18 @@ export function parseVintedSearchUrl(value) {
   for (const [web, field] of FACETS) input[field] = params.getAll(web);
   const config = normalize(input);
   return Object.freeze({ ...config, originalUrl,
-    canonicalUrl: 'https://www.vinted.co.uk/catalog?' + paramsFor(config, false) });
+    canonicalUrl: 'https://www.vinted.co.uk/catalog?' + paramsFor(config, 'website') });
 }
 
-/** Candidate API serialization for offline fixtures; no endpoint is selected.
+/** Candidate catalogue serialization is the default for current source endpoints.
+ * `legacy` is an explicit historical comparison, never an automatic fallback.
  * A successful local test is not evidence the current provider accepts these keys. */
-export function buildVintedSearchParams(input, { page = 1, perPage = 50 } = {}) {
+export function buildVintedSearchParams(input, { page = 1, perPage = 50, schema = 'catalogue' } = {}) {
+  if (!['catalogue', 'legacy'].includes(schema)) fail('Unknown search parameter schema');
   const config = normalize(input);
   if (!Number.isSafeInteger(page) || page < 1 || page > 100
     || !Number.isSafeInteger(perPage) || perPage < 1 || perPage > 100) fail('Invalid pagination');
-  const params = paramsFor(config, true);
+  const params = paramsFor(config, schema);
   params.set('page', String(page));
   params.set('per_page', String(perPage));
   return params;
