@@ -26,6 +26,37 @@ matching in the monitor. The screenshots also expose a separate country filter.
 They do not establish whether the text rules examine title, description or both, nor their
 precedence, phrase boundaries or regex behavior.
 
+### User clarification: thread setup and account actions
+
+On 18 October the user explained the workflow they actually use:
+
+- A Discord command centre creates a new thread under a chat.
+- The thread receives Vinted search URLs and whitelist/blacklist settings.
+- Initial account linking asks for a refresh token and an ID.
+- Home delivery is configured so the user can purchase directly from Discord.
+
+The type of ID was not specified. Do not label it as a Vinted user ID, client ID,
+device ID or Discord application ID without evidence. Thread versus private-channel
+terminology is the user's description, not a verified Discord resource type.
+
+This distinguishes search configuration/alert destinations from the linked account
+and checkout preferences. It strongly suggests an authenticated action session;
+it does not show whether that session also obtains search results or whether the
+provider shares a separate listing source across users. Token entry alone does not
+explain source reliability. Home delivery is a checkout setting, not a search filter.
+
+[Fyndit sessions](https://www.fyndit.app/docs/sessions) document refresh-token account
+linking and account-specific shipping preferences, including home delivery for buying.
+[VintedSeekers getting started](https://inventra.vintedseekers.app/docs/getting-started)
+presents URL monitors before optional account actions and their checkout setup.
+These corroborate the architecture as a known design, not Resell Locker attribution.
+
+For RETRADE, retain separate models for account sessions, monitor groups/destinations,
+URL searches and local matching rules, and checkout preferences. A successful account
+connection must not imply successful catalogue scanning. Each capability needs its
+own status and verification. Bot identity is a useful optional attribution lead,
+not a prerequisite for preparing the independent monitor configuration.
+
 Changing a catalogue URL still requires obtaining results. A URL is useful search configuration,
 not evidence of a push subscription, a special permission or a solution to an access refusal.
 The changing `time` values are not demonstrated listing cursors. In the offline normalization,
@@ -135,10 +166,17 @@ Verification: `node --test tests/monitors/*.test.mjs` on Node 24.14.1:
 **94 passed, 0 failed**, including 11 new URL tests. Tests use synthetic transports;
 they establish parsing and regression behavior, not live availability or latency.
 
+PR validation update: GitHub Actions run `39131884248` passed the 94 monitor tests
+and build, then failed the existing 1440px WebKit bulk-list test at
+`tests/bulk-list-browser.cjs:71` because the quick-added item lookup was undefined.
+That file is unchanged from the PR base, and the new parser is not runtime-imported.
+Overall CI is not passing; this draft must not be described as merge-ready.
+
 ## Remaining integration work and evidence
 
-1. Identify the actual Resell Locker application from its bot profile/about panel or command
-   help. Bot name and application ID are enough; no token is required.
+1. Use available provider/command evidence to investigate the source contract. If the actual
+   Resell Locker application name becomes available, use it to narrow attribution; do not
+   block independent preparation on a screenshot the user cannot currently provide.
 2. Confirm the actual source/export contract and an authorized usable path in the hosting
    environment. Respect the existing blocked state until that is established.
 3. Extend the saved recipe contract and server validation, then manual checks, scheduler,
