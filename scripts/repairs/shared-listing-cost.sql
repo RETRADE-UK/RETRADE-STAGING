@@ -3,6 +3,8 @@
 -- Values are deliberately guarded; this is NOT a general backfill.
 -- No schema/auth changes. Existing revision/sync triggers remain enabled.
 -- Original fee and canonical cost are retained in each item's audit metadata.
+-- The legacy client JSON.parses this JSONB column, so preserve its JSON-string
+-- representation (the same format sent by _itemToRow).
 do $$
 declare
   owner_id uuid := current_setting('retrade.repair_user')::uuid;
@@ -14,7 +16,7 @@ begin
   if affected_count<>4 then raise exception 'Expected exactly four verified order members'; end if;
   if (select count(*) from public.items where user_id=owner_id and bundle_id=order_id
       and listing_fee=0.09 and partner_agreed_amount=25
-      and coalesce(refresh_history,'[]')::jsonb @> '[{"type":"bundle_listing_fee","repair":"20261023-shared-listing-cost"}]'::jsonb)=4 then
+      and (case when jsonb_typeof(refresh_history)='string' then (refresh_history #>> '{}')::jsonb else coalesce(refresh_history,'[]'::jsonb) end) @> '[{"type":"bundle_listing_fee","repair":"20261023-shared-listing-cost"}]'::jsonb)=4 then
     return; -- Idempotent rerun.
   end if;
   if exists(select 1 from public.items where user_id=owner_id and bundle_id=order_id
@@ -33,10 +35,10 @@ begin
   end if;
   update public.items
     set listing_fee=0.09,partner_agreed_amount=cost_price,
-      refresh_history=jsonb_build_array(jsonb_build_object(
+      refresh_history=to_jsonb(jsonb_build_array(jsonb_build_object(
         'type','bundle_listing_fee','date',date_listed,'bundleId',bundle_id,'saleNo',1,
         'basis','shared','totalFee',0.36,'previousFee',listing_fee,'allocatedFee',0.09,
-        'previousCanonicalAmount',partner_agreed_amount,'repair','20261023-shared-listing-cost'))::text
+        'previousCanonicalAmount',partner_agreed_amount,'repair','20261023-shared-listing-cost'))::text)
     where user_id=owner_id and bundle_id=order_id;
   get diagnostics affected_count = row_count;
   if affected_count<>4 then raise exception 'Unexpected repair count'; end if;
