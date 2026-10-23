@@ -56,13 +56,15 @@ export function matchListing(listing, input) {
   const matchedModels = recipe.models.filter(model => recipe.kind === 'canon'
     ? canon.models.find(m => m.id === model).aliases.some(alias => hasTerm(text, alias)) : hasTerm(text, model));
   matchedModels.push(...recipe.customModels.filter(model => hasTerm(text, model)));
-  if (!matchedModels.length) return result(listing.detailComplete ? 'reject' : 'pending', 'model');
+  const requiresModel = recipe.models.length || recipe.customModels.length;
+  if (requiresModel && !matchedModels.length) return result(listing.detailComplete ? 'reject' : 'pending', 'model');
   const kitAllowance = includesKitLens(title) ? recipe.kitAllowancePence : 0;
-  if (matchedModels.every(model => recipe.modelMaxPricePence[model] !== undefined && listing.itemPricePence > recipe.modelMaxPricePence[model]+kitAllowance)) return result('reject', 'model_price', matchedModels);
+  if (matchedModels.length && matchedModels.every(model => recipe.modelMaxPricePence[model] !== undefined && listing.itemPricePence > recipe.modelMaxPricePence[model]+kitAllowance)) return result('reject', 'model_price', matchedModels);
   if (recipe.conditions.length && !listing.condition) return result(listing.detailComplete ? 'reject' : 'pending', 'missing_condition', matchedModels);
   if (recipe.conditions.length && !recipe.conditions.includes(listing.condition)) return result('reject', 'condition', matchedModels);
   // Restrictive buying rules need a complete description before final acceptance.
   if (recipe.rejectTerms.length && !listing.detailComplete) return result('pending', 'description_required', matchedModels);
   // Pending candidates remain internal until their required evidence is present.
-  return result('match', 'model', [...new Set(matchedModels)]);
+  return result('match', requiresModel ? 'model' : 'source_filters', [...new Set(matchedModels)]);
 }
+

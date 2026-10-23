@@ -7625,7 +7625,11 @@ function openPanel(title,content,pushHistory,_meta){
     lockBodyScroll();
   }
   updatePanelNav();
+  const focusGeneration=panel._panelFocusGeneration=(panel._panelFocusGeneration||0)+1;
   setTimeout(function(){
+    // Forms and user input may already have chosen a field before this callback.
+    // Do not steal that focus, or focus content from a replaced/closed panel.
+    if(panel._panelFocusGeneration!==focusGeneration||!panel.classList.contains('on')||panel.inert||panel.contains(document.activeElement))return;
     const first=panel.querySelector('input:not([disabled]),select:not([disabled]),textarea:not([disabled]),button:not([disabled])');
     (first||panel).focus();
   },0);
