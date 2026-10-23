@@ -6501,7 +6501,9 @@ function _renderItemPageInner(m,id){
     if(rh.type==='relist'){
       if(rh._fromReturn)return;
       timeline.push({date:rh.date||'',badge:'relist',label:'Relisted',detail:'Freshness clock reset',_maint:true,_maintIdx:rhIdx});
-    }else timeline.push({date:rh.date||'',badge:'refresh',label:'Refreshed',detail:'Price nudge / photo update — listing kept',_maint:true,_maintIdx:rhIdx});
+    }else if(rh.type==='bundle_listing_fee'){
+      timeline.push({date:rh.date||'',badge:'listed',label:'Shared listing fee',detail:fmt(rh.allocatedFee||0)+' allocated from '+fmt(rh.totalFee||0)+' total'});
+    }else if(rh.type==='refresh')timeline.push({date:rh.date||'',badge:'refresh',label:'Refreshed',detail:'Price nudge / photo update — listing kept',_maint:true,_maintIdx:rhIdx});
   });
   // Canonical Sale-N timeline. Historical Sale 2/3/4 cycles are reconstructed
   // from immutable return snapshots instead of the reusable live resale slot.
@@ -9582,10 +9584,12 @@ function _accountItemOwed(i){
   if(effType==='supplier')return null;
   const fixed=_fixedAccountAmount(i);if(fixed!=null)return fixed;
   if(i.accountPaidAmount!=null)return +Number(i.accountPaidAmount).toFixed(2);
-  if(i.accountSplitPercent==null)return null;
+  const account=(_accounts||[]).find(function(a){return a.id===i.accountId;});
+  const pct=i.accountSplitPercent!=null?i.accountSplitPercent:(account&&account.defaultSplitPercent);
+  if(pct==null)return null;
   const profit=calcGrossProfit(i);
   if(profit===null)return null;
-  return+(profit*(i.accountSplitPercent/100)).toFixed(2);
+  return+(Math.max(0,profit)*(Math.max(0,Math.min(100,Number(pct)||0))/100)).toFixed(2);
 }
 // Total unpaid partner DEBT for settlement tracking on the account page.
 // Includes supplier cost (which is what you owe for the stock) and returns

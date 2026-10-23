@@ -71,7 +71,7 @@
   }
 
   function breakdown(bid){
-    var its=itemsFor(bid),out={items:its,sale:0,postage:0,receipts:0,fees:0,listing:0,promo:0,shipping:0,packaging:0,cost:0,parts:0,saleLegNet:0,profit:0,date:'',ref:'',platform:''};
+    var its=itemsFor(bid),out={items:its,sale:0,postage:0,receipts:0,fees:0,listing:0,promo:0,shipping:0,packaging:0,cost:0,parts:0,partner:0,saleLegNet:0,profit:0,date:'',ref:'',platform:''};
     its.forEach(function(i){
       var cyc=cycleFor(i,bid);if(!cyc)return;
       out.sale+=num(cyc.price);out.postage+=num(cyc.postage);out.shipping+=num(cyc.shipping);
@@ -79,12 +79,12 @@
       if(!out.platform)out.platform=cyc.platformId||cyc.platform||((num(cyc.saleNo)||1)>=2?i.resalePlatform:(i.soldOnPlatform||i.salePlatform||i.defaultPlatform))||'';
       try{
         var br=typeof _saleBreakdown==='function'?_saleBreakdown(eventForCycle(i,cyc)):null;
-        if(br){out.fees+=num(br.bpf);out.listing+=num(br.listingFee);out.promo+=num(br.promoFee);out.packaging+=num(br.packaging);out.cost+=num(br.itemCost);out.parts+=num(br.parts);out.saleLegNet+=num(br.netProfit);}
+        if(br){out.fees+=num(br.bpf);out.listing+=num(br.listingFee);out.promo+=num(br.promoFee);out.packaging+=num(br.packaging);out.cost+=num(br.itemCost);out.parts+=num(br.parts);out.partner+=num(br.partnerSplit);out.saleLegNet+=num(br.netProfit);}
       }catch(_){}
       out.profit+=memberProfit(i,bid);
     });
     out.sale=+out.sale.toFixed(2);out.postage=+out.postage.toFixed(2);out.receipts=+(out.sale+out.postage).toFixed(2);out.shipping=+out.shipping.toFixed(2);
-    ['fees','listing','promo','packaging','cost','parts','saleLegNet','profit'].forEach(function(k){out[k]=+out[k].toFixed(2);});
+    ['fees','listing','promo','packaging','cost','parts','partner','saleLegNet','profit'].forEach(function(k){out[k]=+out[k].toFixed(2);});
     out.returnImpact=+(out.profit-out.saleLegNet).toFixed(2);out.margin=out.receipts>0?+(out.profit/out.receipts*100).toFixed(1):null;
     return out;
   }
@@ -122,7 +122,7 @@
     }).join('');
     var details=''
       +'<div class="rt-bop-tr"><span>Item sale total</span><strong>'+money(b.sale)+'</strong></div>'
-      +(discount!=null&&discount>0?'<div class="rt-bop-tr"><span>Bundle / multi-buy discount'+(ask>0?' · '+((discount/ask*100).toFixed(1).replace(/\.0$/,''))+'%':'')+'</span><strong style="color:var(--accent)">−'+money(discount)+'</strong></div>':'')
+      +(discount!=null&&discount>0?'<div class="rt-bop-tr"><span>Discount already included'+(ask>0?' · '+((discount/ask*100).toFixed(1).replace(/\.0$/,''))+'%':'')+'</span><strong style="color:var(--accent)">−'+money(discount)+'</strong></div>':'')
       +(b.postage?'<div class="rt-bop-tr"><span>Buyer postage</span><strong style="color:var(--green)">+'+money(b.postage)+'</strong></div>':'')
       +'<div class="rt-bop-tr total"><span>Gross receipts</span><strong>'+money(b.receipts)+'</strong></div>'
       +(b.fees?'<div class="rt-bop-tr"><span>Platform fees</span><strong style="color:var(--red)">−'+money(b.fees)+'</strong></div>':'')
@@ -130,12 +130,13 @@
       +(b.promo?'<div class="rt-bop-tr"><span>Promotion / boost</span><strong style="color:var(--red)">−'+money(b.promo)+'</strong></div>':'')
       +(b.shipping?'<div class="rt-bop-tr"><span>Shipping cost</span><strong style="color:var(--red)">−'+money(b.shipping)+'</strong></div>':'')
       +(b.packaging?'<div class="rt-bop-tr"><span>Packaging</span><strong style="color:var(--red)">−'+money(b.packaging)+'</strong></div>':'')
-      +(b.cost?'<div class="rt-bop-tr"><span>Item cost</span><strong style="color:var(--red)">−'+money(b.cost)+'</strong></div>':'')
+      +(b.cost?'<div class="rt-bop-tr"><span>Item / fixed partner cost</span><strong style="color:var(--red)">−'+money(b.cost)+'</strong></div>':'')
       +(b.parts?'<div class="rt-bop-tr"><span>Parts &amp; expenses</span><strong style="color:var(--red)">−'+money(b.parts)+'</strong></div>':'')
+      +(b.partner?'<div class="rt-bop-tr"><span>Partner share / payout</span><strong style="color:var(--red)">−'+money(b.partner)+'</strong></div>':'')
       +(Math.abs(b.returnImpact)>=0.005?'<div class="rt-bop-tr"><span>Return / refund impact</span><strong style="color:'+(b.returnImpact>=0?'var(--green)':'var(--red)')+'">'+(b.returnImpact>=0?'+':'')+money(b.returnImpact)+'</strong></div>':'')
-      +'<div class="rt-bop-tr total"><span>Combined net P&amp;L</span><strong style="color:'+(b.profit>=0?'var(--green)':'var(--red)')+'">'+(b.profit>=0?'+':'')+money(b.profit)+'</strong></div>';
+      +'<div class="rt-bop-tr total"><span>Your trading profit</span><strong style="color:'+(b.profit>=0?'var(--green)':'var(--red)')+'">'+(b.profit>=0?'+':'')+money(b.profit)+'</strong></div>';
     return '<div class="rt-bop-hero"><div class="rt-bop-eyebrow">One buyer · one transaction</div><div class="rt-bop-total">'+money(b.sale)+'</div><div class="rt-bop-sub">'+html(b.ref||'Grouped sale')+' · sold '+html(b.date||'—')+' · '+html(platformLabel)+(b.postage?' · '+money(b.postage)+' buyer postage':'')+(ask!=null?' · original ask '+money(ask):'')+'</div></div>'
-      +'<div class="rt-bop-kpis"><div class="rt-bop-kpi"><small>Gross receipts</small><strong>'+money(b.receipts)+'</strong></div><div class="rt-bop-kpi"><small>Net P&amp;L</small><strong style="color:'+(b.profit>=0?'var(--green)':'var(--red)')+'">'+(b.profit>=0?'+':'')+money(b.profit)+'</strong></div><div class="rt-bop-kpi"><small>Margin</small><strong>'+(b.margin==null?'—':b.margin.toFixed(1)+'%')+'</strong></div><div class="rt-bop-kpi"><small>Items</small><strong>'+b.items.length+'</strong></div></div>'
+      +'<div class="rt-bop-kpis"><div class="rt-bop-kpi"><small>Gross receipts</small><strong>'+money(b.receipts)+'</strong></div><div class="rt-bop-kpi"><small>Your profit</small><strong style="color:'+(b.profit>=0?'var(--green)':'var(--red)')+'">'+(b.profit>=0?'+':'')+money(b.profit)+'</strong></div><div class="rt-bop-kpi"><small>Margin</small><strong>'+(b.margin==null?'—':b.margin.toFixed(1)+'%')+'</strong></div><div class="rt-bop-kpi"><small>Items</small><strong>'+b.items.length+'</strong></div></div>'
       +'<div class="rt-bop-card"><div class="rt-bop-card-title">Transaction &amp; joined P&amp;L</div>'+details+'</div>'
       +'<div class="rt-bop-card"><div class="rt-bop-card-title">Items in this order</div>'+members+'</div>'
       +'<div class="rt-bop-actions"><button class="btn btn-secondary" onclick="openBundleOrderEdit(\''+quote(bid)+'\')">Edit order / item prices</button><button class="btn btn-secondary" style="color:var(--warn)" onclick="reverseBundleOrder(\''+quote(bid)+'\')">Reverse order</button></div>';

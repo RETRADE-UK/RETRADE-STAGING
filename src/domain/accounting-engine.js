@@ -9,9 +9,18 @@ function _fixedAccountAmount(i){
   const override=i.arrangementModelOverride||i.arrangement_model_override;
   const fixed=override==='fixed_cost'||(!override&&((a&&a.arrangementModel==='fixed_cost'&&i.accountSplitPercent==null)||i.partnerAgreedAmount!=null));
   if(!fixed)return null;
+  if(_legacyFixedZeroConflict(i))return +Number(i.costPrice).toFixed(2);
   const values=[i.partnerAgreedAmount,i.partner_agreed_amount,i.accountPaidAmount,i.account_paid_amount,i.costPrice];
   for(const value of values){if(value!=null&&String(value).trim()!==''&&isFinite(Number(value))&&Number(value)>=0)return +Number(value).toFixed(2);}
   return 0;
+}
+// Early canonical mappers saved a default zero beside a real supplier cost.
+// Explicit item agreements (including deliberate zero) always retain priority.
+function _legacyFixedZeroConflict(i){
+  return !!i&&i.accountSettled!==true&&i.account_settled!==true&&!i.arrangementModelOverride&&!i.arrangement_model_override&&
+    i.accountPaidAmount==null&&i.account_paid_amount==null&&
+    Number(i.partnerAgreedAmount!=null?i.partnerAgreedAmount:i.partner_agreed_amount)===0&&
+    Number(i.costPrice)>0&&_itemAccountType(i)==='supplier';
 }
 function _itemAcquisitionCost(i){
   const fixed=_fixedAccountAmount(i);
@@ -238,7 +247,7 @@ function _cashEventsAll(){
       const cyc=_saleCycleSnapshot(i,n);if(!cyc||!cyc.date)return;
       const gross=+(Math.max(0,Number(cyc.price)||0)+_sellerPostageIncome(cyc.platformId,cyc.postage)).toFixed(2);
       push({id:'sale:'+i.id+':'+n,date:cyc.date,type:'sale_receipt',direction:'in',amount:gross,description:'Sale '+n+' receipt · '+(i.item||'Item'),source:'sale',itemId:i.id,saleNo:n});
-      const fee=calcPlatformBPF(i,cyc.price||0,cyc.postage||0,cyc.platformId);if(fee>0)push({id:'fee:'+i.id+':'+n,date:cyc.date,type:'platform_fee',direction:'out',amount:fee,description:'Platform fee · Sale '+n+' · '+(i.item||'Item'),source:'sale',itemId:i.id,saleNo:n});
+      const fee=calcPlatformBPF(i,cyc.price||0,cyc.postage||0,cyc.platformId,n);if(fee>0)push({id:'fee:'+i.id+':'+n,date:cyc.date,type:'platform_fee',direction:'out',amount:fee,description:'Platform fee · Sale '+n+' · '+(i.item||'Item'),source:'sale',itemId:i.id,saleNo:n});
       const promo=_calcPromoFee(cyc.platformId,cyc.price||0,cyc.postage||0,cyc.promoPercent||0);if(promo>0)push({id:'promo:'+i.id+':'+n,date:cyc.date,type:'promo_fee',direction:'out',amount:promo,description:'Promoted listing · Sale '+n+' · '+(i.item||'Item'),source:'sale',itemId:i.id,saleNo:n});
       if(Number(cyc.shipping)>0)push({id:'ship:'+i.id+':'+n,date:cyc.date,type:'shipping',direction:'out',amount:cyc.shipping,description:'Shipping · Sale '+n+' · '+(i.item||'Item'),source:'sale',itemId:i.id,saleNo:n});
       if(Number(cyc.packaging)>0)push({id:'pkg:'+i.id+':'+n,date:cyc.date,type:'packaging',direction:'out',amount:cyc.packaging,description:'Packaging · Sale '+n+' · '+(i.item||'Item'),source:'sale',itemId:i.id,saleNo:n});
@@ -625,7 +634,7 @@ function _refundCreditsForEntry(i,r){
     if(sellerHandled)promoCredit=_calcPromoFee(platformId,price,post,promoPct)*ratio;
   }else if(platformId==='ebay_biz'){
     if(sellerHandled){
-      const c=_calcEbayBizFeeComponents(price+post,i&&i.category,price);
+      const c=_ebaySaleFeeComponents(i,price,post,saleNo);
       platformCredit=c.eligibleRefundableGross*ratio;
       promoCredit=_calcPromoFee(platformId,price,post,promoPct)*ratio;
     }
@@ -722,6 +731,7 @@ function _saleCycleItemSnapshot(i,cycle){
     packagingCost:cycle.packaging,promoPercent:cycle.promoPercent,listingFee:cycle.listingFee,
     defaultPlatform:cycle.platformId,soldOnPlatform:cycle.platformId,salePlatform:cycle.platformId,
     isReturned:false,state:'sold',returnHistory:[],resaleSalePrice:null,resaleDateSold:null,
+    bundleId:cycle.bundleId,bundleRef:cycle.bundleRef,bundleTotal:cycle.bundleTotal,resaleBundleId:null,
     resalePlatform:null,resalePostage:null,resaleShippingCost:null,resalePackagingCost:null,resalePromoPercent:null,resaleListingFee:0
   });
 }
@@ -826,7 +836,7 @@ function _unsoldStockCostInRange(from,to){
   return{cost:+cost.toFixed(2),count:count,items:items};
 }
 
-function _saleBreakdown(ev){
+function _saleBreakdown(ev,excludePartner){
   const i=ev.item;
   if(ev.isReturnAdjustment){
     const r=ev.returnEntry||{};
@@ -853,7 +863,7 @@ function _saleBreakdown(ev){
   const shipping=Math.max(0,Number(cyc.shipping)||0);
   const packaging=Math.max(0,Number(cyc.packaging)||0);
   const promoPct=Math.max(0,Number(cyc.promoPercent)||0);
-  const bpf=calcPlatformBPF(i,salePrice,cyc.postage||0,cyc.platformId);
+  const bpf=calcPlatformBPF(i,salePrice,cyc.postage||0,cyc.platformId,saleNo);
   const promoFee=_calcPromoFee(cyc.platformId,salePrice,cyc.postage||0,promoPct);
   const itemCost=Math.max(0,_itemAcquisitionCost(i)),parts=Math.max(0,calcPartsCost(i));
   const listingFee=Math.max(0,Number(cyc.listingFee)||0);
@@ -863,7 +873,7 @@ function _saleBreakdown(ev){
   // it disappear or charging it again on every resale.
   let partnerSplit=0,targetPartnerSale=null;
   try{
-    const owed=_accountItemOwed(i);
+    const owed=excludePartner?null:_accountItemOwed(i);
     if(owed!=null&&Number(owed)>0){
       if(!i.isReturned){targetPartnerSale=(i.resaleSalePrice&&i.resaleDateSold)?_currentResaleCycleNo(i):1;}
       else if(i.accountSettled===true){const ns=_saleCycleNumbers(i);targetPartnerSale=ns.length?ns[ns.length-1]:1;}
@@ -1402,12 +1412,35 @@ function _ebayBizRateLabel(category, salePrice, itemPriceOnly){
   return (spec*100).toFixed(1)+'%';
 }
 
-function calcPlatformBPF(item,salePrice,buyerPostage,platformOverride){
+// One checkout has one fixed fee. Variable bands remain per item, even when
+// different categories share an order. Allocate rounded totals in pennies, so
+// item P&L, cash events, refunds and the order panel all reconcile.
+function _ebaySaleFeeComponents(item,price,post,saleNo){
+  const standalone=_calcEbayBizFeeComponents(price+post,item&&item.category,price);
+  if(!item||typeof _bundleItems!=='function')return standalone;
+  const cycle=_saleCycleSnapshot(item,saleNo||((item.resaleSalePrice&&item.resaleDateSold)?_currentResaleCycleNo(item):1));
+  if(!cycle||!cycle.bundleId||cycle.platformId!=='ebay_biz'||Math.abs(cycle.price-price)>0.001||Math.abs(cycle.postage-post)>0.001)return standalone;
+  const members=_bundleItems(cycle.bundleId).map(function(i){return {item:i,cycle:_bundleMemberCycle(i,cycle.bundleId)};})
+    .filter(function(x){return x.cycle&&x.cycle.platformId==='ebay_biz';}).sort(function(a,b){return String(a.item.id).localeCompare(String(b.item.id));});
+  const idx=members.findIndex(function(x){return String(x.item.id)===String(item.id);});
+  const itemTotal=members.reduce(function(s,x){return s+x.cycle.price;},0);
+  if(idx<0||members.length<2||Math.abs(itemTotal-cycle.bundleTotal)>0.005)return standalone;
+  const components=members.map(function(x){return _calcEbayBizFeeComponents(x.cycle.price+x.cycle.postage,x.item.category,x.cycle.price);});
+  const bases=members.map(function(x){return x.cycle.price+x.cycle.postage;});
+  const variable=components.map(function(c){return (c.fvf+c.reg)*1.2;});
+  const refundable=_bundleSplit(+variable.reduce(function(a,b){return a+b;},0).toFixed(2),variable);
+  const totalBase=bases.reduce(function(a,b){return a+b;},0);
+  const fixed=(totalBase>10?0.4:Math.max.apply(null,components.map(function(c){return c.perOrder;})))*1.2;
+  const fixedShares=_bundleSplit(+fixed.toFixed(2),bases);
+  return Object.assign({},standalone,{perOrder:+(fixedShares[idx]/1.2).toFixed(4),eligibleRefundableGross:refundable[idx],total:+(refundable[idx]+fixedShares[idx]).toFixed(2)});
+}
+
+function calcPlatformBPF(item,salePrice,buyerPostage,platformOverride,saleNo){
   const p=platformOverride||_itemPlatform(item);
   const post=buyerPostage||0;
   switch(p){
     case 'ebay':      return calcEbayBPF(salePrice);
-    case 'ebay_biz':  return calcEbayBizBPF(salePrice+post,item.category,salePrice);
+    case 'ebay_biz':  return _ebaySaleFeeComponents(item,salePrice,post,saleNo).total;
     case 'vinted':    return calcVintedBPF(item,salePrice);
     case 'depop':     return calcDepopBPF(item,salePrice,post);
     case 'fb':        return calcFbBPF(item,salePrice);
@@ -1448,7 +1481,7 @@ function _sellerRefundCreditRatio(item,saleNo,salePrice,buyerPostage){
 
 function _netEbayBizFeeAfterRefunds(item,saleNo,salePrice,buyerPostage){
   const total=Math.max(0,Number(salePrice)||0)+Math.max(0,Number(buyerPostage)||0);
-  const c=_calcEbayBizFeeComponents(total,item&&item.category,salePrice);
+  const c=_ebaySaleFeeComponents(item,salePrice,buyerPostage,saleNo);
   const ratio=_sellerRefundCreditRatio(item,saleNo,salePrice,buyerPostage);
   const credit=c.eligibleRefundableGross*ratio;
   return +Math.max(0,c.total-credit).toFixed(2);
@@ -1466,7 +1499,7 @@ function _allRefundRatio(item,saleNo,salePrice,buyerPostage){
 }
 
 function _netPlatformFeeAfterRefunds(item,saleNo,platformId,salePrice,buyerPostage){
-  const original=calcPlatformBPF(item,salePrice,buyerPostage,platformId);
+  const original=calcPlatformBPF(item,salePrice,buyerPostage,platformId,saleNo);
   if(!original)return 0;
   if(platformId==='ebay_biz')return _netEbayBizFeeAfterRefunds(item,saleNo,salePrice,buyerPostage);
   if(platformId==='depop'){
@@ -1572,15 +1605,15 @@ function calcGrossProfit(i){
   // v1.3 — once an item has a real completed sale, realised item P&L is the
   // chronological sum of immutable Sale-N and return events. This removes the
   // old Sale-1/Sale-2 ceiling and stops a later relist from rewriting an older
-  // cycle. _saleBreakdown includes partner share for statement purposes, so add
-  // it back here: calcGrossProfit remains PRE-partner and calcNetProfit owns the
-  // single partner deduction contract.
+  // cycle. Exclude partner share in this calculation: percentage agreements
+  // depend on this margin, so asking for their share here would recurse.
+  // calcNetProfit owns the single partner deduction contract.
   const _actualCycles=(typeof _saleCycleNumbers==='function')?_saleCycleNumbers(i):[];
   if(_actualCycles.length){
     let _actualGross=0;
     _actualCycles.forEach(function(n){
       const cyc=_saleCycleSnapshot(i,n);if(!cyc)return;
-      const b=_saleBreakdown({item:i,sale:String(n),saleDate:cyc.date,salePrice:cyc.price,snapshot:cyc,isReturnAdjustment:false,isReturned:false});
+      const b=_saleBreakdown({item:i,sale:String(n),saleDate:cyc.date,salePrice:cyc.price,snapshot:cyc,isReturnAdjustment:false,isReturned:false},true);
       _actualGross+=(Number(b.netProfit)||0)+(Number(b.partnerSplit)||0);
     });
     (i.returnHistory||[]).forEach(function(r){

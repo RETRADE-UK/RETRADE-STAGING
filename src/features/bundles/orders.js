@@ -56,7 +56,7 @@
   }
 
   function bundleBreakdown(bid){
-    var items=itemsFor(bid), out={items:items,sale:0,postage:0,receipts:0,fees:0,listing:0,promo:0,shipping:0,packaging:0,cost:0,parts:0,saleLegNet:0,profit:0,date:'',ref:'',platform:'',totalField:0};
+    var items=itemsFor(bid), out={items:items,sale:0,postage:0,receipts:0,fees:0,listing:0,promo:0,shipping:0,packaging:0,cost:0,parts:0,partner:0,saleLegNet:0,profit:0,date:'',ref:'',platform:'',totalField:0};
     items.forEach(function(i){
       var cyc=cycleFor(i,bid);if(!cyc)return;
       out.sale+=num(cyc.price);out.postage+=num(cyc.postage);out.shipping+=num(cyc.shipping);
@@ -65,14 +65,42 @@
       try{
         var ev=(typeof _saleEventForCycle==='function')?_saleEventForCycle(i,i._month||((liveRec(i.id)||{}).month),cyc):{item:i,sale:String(cyc.saleNo||1),saleDate:cyc.date||'',snapshot:cyc,isReturnAdjustment:false};
         var br=typeof _saleBreakdown==='function'?_saleBreakdown(ev):null;
-        if(br){out.fees+=num(br.bpf);out.listing+=num(br.listingFee);out.promo+=num(br.promoFee);out.packaging+=num(br.packaging);out.cost+=num(br.itemCost);out.parts+=num(br.parts);out.saleLegNet+=num(br.netProfit);}
+        if(br){out.fees+=num(br.bpf);out.listing+=num(br.listingFee);out.promo+=num(br.promoFee);out.packaging+=num(br.packaging);out.cost+=num(br.itemCost);out.parts+=num(br.parts);out.partner+=num(br.partnerSplit);out.saleLegNet+=num(br.netProfit);}
       }catch(_e){}
       try{out.profit+=typeof _bundleMemberProfit==='function'?num(_bundleMemberProfit(i,bid)):0;}catch(_e2){}
     });
     out.sale=+out.sale.toFixed(2);out.postage=+out.postage.toFixed(2);out.receipts=+(out.sale+out.postage).toFixed(2);out.shipping=+out.shipping.toFixed(2);
-    ['fees','listing','promo','packaging','cost','parts','saleLegNet','profit'].forEach(function(k){out[k]=+out[k].toFixed(2);});
+    ['fees','listing','promo','packaging','cost','parts','partner','saleLegNet','profit'].forEach(function(k){out[k]=+out[k].toFixed(2);});
     out.returnImpact=+(out.profit-out.saleLegNet).toFixed(2);out.margin=out.receipts>0?+(out.profit/out.receipts*100).toFixed(1):null;
     return out;
+  }
+
+  function listingEntry(i,bid){return (i.refreshHistory||[]).slice().reverse().find(function(r){return r.type==='bundle_listing_fee'&&r.bundleId===bid;})||null;}
+  function listingFields(its,bid){
+    var entries=its.map(function(i){return listingEntry(i,bid);}),shared=!!bid&&entries.every(function(r){return r&&r.basis==='shared';});
+    var fees=its.map(function(i){var c=bid?cycleFor(i,bid):null;return c?num(c.listingFee):num((i.returnHistory||[]).some(function(r){return r.type==='full_seller'||r.type==='full_ebay';})?i.resaleListingFee:i.listingFee);});
+    var total=shared?fees.reduce(function(a,b){return a+b;},0):Math.max.apply(null,fees.concat([0]));
+    return '<div class="fg"><label>Marketplace listings</label><select id="bundle-listing-mode" onchange="_rtBundleListingToggle()"><option value="separate"'+(!shared?' selected':'')+'>Separate listings</option><option value="shared"'+(shared?' selected':'')+'>One multi-quantity listing</option></select></div>'
+      +'<div class="fg" id="bundle-listing-total-wrap"'+(!shared?' hidden':'')+'><label>Shared listing / relist fees (£, including VAT)</label><input id="bundle-listing-total" type="number" min="0" step="0.01" value="'+total.toFixed(2)+'"><div style="font-size:11px;color:var(--muted);margin-top:5px">Total attributable to these units, including renewals. Enter 0 for a free listing. This cost is shared equally; the checkout fee is charged once automatically.</div></div>';
+  }
+  window._rtBundleListingToggle=function(){var el=document.getElementById('bundle-listing-total-wrap');if(el)el.hidden=(document.getElementById('bundle-listing-mode')||{}).value!=='shared';};
+  function listingPlan(its,bid){
+    var mode=(document.getElementById('bundle-listing-mode')||{}).value||'separate',raw=(document.getElementById('bundle-listing-total')||{}).value;
+    if(mode==='shared'&&(raw==null||String(raw).trim()===''||!isFinite(Number(raw))||Number(raw)<0)){toast('Enter the total shared listing fee, including VAT.','err');return null;}
+    return {mode:mode,shares:mode==='shared'?_bundleSplit(+Number(raw).toFixed(2),its.map(function(){return 1;})):[],total:mode==='shared'?+Number(raw).toFixed(2):0};
+  }
+  function applyListingPlan(its,bid,plan){
+    its.forEach(function(copy,idx){
+      var i=(liveRec(copy.id)||{}).item||copy,c=cycleFor(i,bid);if(!c)return;
+      var previous=listingEntry(i,bid),key=num(c.saleNo)>=2?'resaleListingFee':'listingFee';
+      if(plan.mode!=='shared'&&!previous)return;
+      var oldFee=previous?num(previous.previousFee):num(c.listingFee);
+      i.refreshHistory=(i.refreshHistory||[]).filter(function(r){return !(r.type==='bundle_listing_fee'&&r.bundleId===bid);});
+      i[key]=plan.mode==='shared'?plan.shares[idx]:oldFee;
+      // A resale fee can also be held on its prior return snapshot.
+      if(num(c.saleNo)>=2){var prior=_priorRelistEntryForSale(i,c.saleNo);if(prior)prior._listingFeeAtRelist=i[key];}
+      if(plan.mode==='shared')i.refreshHistory.push({type:'bundle_listing_fee',date:c.listedDate||c.date,bundleId:bid,saleNo:c.saleNo,basis:'shared',totalFee:plan.total,previousFee:oldFee,allocatedFee:i[key]});
+    });
   }
 
   function saleLogsFor(i,bid){
@@ -202,6 +230,7 @@
       +'<div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin:4px 0 7px">Item sale prices</div><div class="rt-bo-sale-list">'+saleInputRows(items,null,'new')+'</div>'
       +'<div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div class="fg"><label>Sale date</label><input type="date" id="bundle-date" value="'+today+'"></div><div class="fg"><label>Platform</label><select id="bundle-platform">'+Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){return '<option value="'+e(p.id)+'"'+(p.id===firstPlat?' selected':'')+'>'+e(p.label||p.short)+'</option>';}).join('')+'</select></div></div>'
       +'<div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div class="fg"><label>Buyer postage (£)</label><input type="number" id="bundle-buyer-postage" min="0" step="0.01" value="0"></div><div class="fg"><label>Your shipping cost (£)</label><input type="number" id="bundle-shipping" min="0" step="0.01" value="0"></div></div>'
+      +listingFields(items,null)
       +'<div style="font-size:11px;color:var(--muted);line-height:1.5;margin:-2px 0 14px">Each item keeps its own cost and P&amp;L share, but RETRADE records this as one customer order. You can set the exact sale price allocated to every item.</div>'
       +'<button class="btn btn-primary" style="width:100%" onclick="submitBundleSale()">Mark '+items.length+' items sold as one order</button>';
     window._bundleIds=ids;openPanel('Bundle sale',html);
@@ -211,6 +240,7 @@
     var ids=window._bundleIds||[],date=((document.getElementById('bundle-date')||{}).value||'').trim();if(!date){toast('Select a sale date','err');return;}
     var platform=(document.getElementById('bundle-platform')||{}).value||'',inputs=Array.from(document.querySelectorAll('.rt-bo-share')),priceBy={};inputs.forEach(function(x){priceBy[x.dataset.id]=Math.max(0,num(x.value));});
     var live=[];ids.forEach(function(id){var r=liveRec(id);if(r&&_lifecycleCan(r.item,'markSold')&&!_activeJobLotMembership(id))live.push(r.item);});if(live.length!==ids.length||live.length<2){toast('Bundle selection changed. Reopen the bundle sale.','err');return;}
+    var listing=listingPlan(live,null);if(!listing)return;
     var shares=live.map(function(i){return priceBy[i.id];});var total=+shares.reduce(function(s,v){return s+num(v);},0).toFixed(2);if(!(total>0)){toast('Bundle order price must be greater than 0','err');return;}
     var weights=shares.some(function(v){return v>0;})?shares:live.map(function(){return 1;}),buyerPost=Math.max(0,num((document.getElementById('bundle-buyer-postage')||{}).value)),shipping=Math.max(0,num((document.getElementById('bundle-shipping')||{}).value));
     var postShares=_bundleSplit(buyerPost,weights),shipShares=_bundleSplit(shipping,weights),bid=_newId('b'),ref='BDL-'+String(date).replace(/-/g,'').slice(2)+'-'+live.length;
@@ -220,6 +250,8 @@
       else{i.dateSold=date;i.salePrice=shares[idx];i.postage=postShares[idx]||0;i.shippingCost=shipShares[idx]||0;if(platform){i.soldOnPlatform=platform;i.salePlatform=platform;}i.bundleId=bid;i.bundleRef=ref;i.bundleTotal=total;i.isReturned=false;i.state='sold';}
       try{i.grossProfit=calcGrossProfit(i);}catch(_e){}
     });
+    applyListingPlan(live,bid,listing);
+    live.forEach(function(i){i.grossProfit=calcGrossProfit(i);});
     saveDB();window._bundleIds=[];STOCK_SELECTED.clear();STOCK_SELECTION_MODE=false;closePanel();toast('Bundle order sold · '+live.length+' items · '+money(total));if(typeof renderStock==='function')renderStock();setTimeout(function(){openBundlePage(bid);},0);
   };
 
@@ -230,15 +262,19 @@
       +'<div style="font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin:4px 0 7px">Item sale prices</div><div class="rt-bo-sale-list">'+saleInputRows(its,bid,'edit')+'</div>'
       +'<div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div class="fg"><label>Sale date</label><input id="bo-edit-date" type="date" value="'+e(b.date)+'"></div><div class="fg"><label>Platform</label><select id="bo-edit-platform">'+Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){return '<option value="'+e(p.id)+'"'+(p.id===b.platform?' selected':'')+'>'+e(p.label||p.short)+'</option>';}).join('')+'</select></div></div>'
       +'<div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:10px"><div class="fg"><label>Buyer postage total (£)</label><input id="bo-edit-postage" type="number" min="0" step="0.01" value="'+b.postage.toFixed(2)+'"></div><div class="fg"><label>Your shipping total (£)</label><input id="bo-edit-shipping" type="number" min="0" step="0.01" value="'+b.shipping.toFixed(2)+'"></div></div>'
+      +listingFields(its,bid)
       +'<div class="rt-bo-warn">Saving recalculates the joined order and each member P&amp;L together. It cannot be edited here once returns/refunds exist, because those historical snapshots must remain fixed.</div>'
       +'<button class="btn btn-primary" style="width:100%" onclick="saveBundleOrderEdit(\''+q(bid)+'\')">Save bundle order</button>';
     closeBundlePage();openPanel('Edit bundle order',html);
   };
   window.saveBundleOrderEdit=function(bid){
     var check=canEditOrder(bid);if(!check.ok){toast(check.reason,'err');return;}var its=itemsFor(bid),inputs=Array.from(document.querySelectorAll('.rt-bo-share')),by={};inputs.forEach(function(x){by[x.dataset.id]=Math.max(0,num(x.value));});
+    var listing=listingPlan(its,bid);if(!listing)return;
     var prices=its.map(function(i){return by[i.id];}),total=+prices.reduce(function(s,v){return s+num(v);},0).toFixed(2);if(!(total>0)){toast('Order total must be greater than 0','err');return;}
     var date=(document.getElementById('bo-edit-date')||{}).value||'',platform=(document.getElementById('bo-edit-platform')||{}).value||'',buyerPost=Math.max(0,num((document.getElementById('bo-edit-postage')||{}).value)),shipping=Math.max(0,num((document.getElementById('bo-edit-shipping')||{}).value)),weights=prices.some(function(v){return v>0;})?prices:its.map(function(){return 1;}),post=_bundleSplit(buyerPost,weights),ship=_bundleSplit(shipping,weights);
     its.forEach(function(copy,idx){var rec=liveRec(copy.id),cyc=cycleFor(copy,bid);if(!rec||!cyc)return;setCycleValues(rec.item,cyc,{date:date,platform:platform,price:prices[idx],postage:post[idx]||0,shipping:ship[idx]||0,total:total});});
+    applyListingPlan(its,bid,listing);
+    its.forEach(function(i){var r=liveRec(i.id);if(r)r.item.grossProfit=calcGrossProfit(r.item);});
     saveDB();closePanel();toast('Bundle order updated · '+money(total));if(typeof renderMonth==='function')renderMonth();setTimeout(function(){openBundlePage(bid);},0);
   };
 
@@ -262,7 +298,7 @@
     var members=b.items.map(function(i){var cyc=cycleFor(i,bid)||{},p=typeof _bundleMemberProfit==='function'?num(_bundleMemberProfit(i,bid)):0;return '<div class="rt-bo-member"><div class="rt-bo-member-main" onclick="closeBundlePage();openItemPage(\''+q(i._month)+'\',\''+q(i.id)+'\',document.querySelector(\'.page.on\')?document.querySelector(\'.page.on\').id:\'p-monthly\')"><div class="rt-bo-member-name">'+e(i.item||'Item')+'</div><div class="rt-bo-member-meta">Sale '+(num(cyc.saleNo)||1)+' · '+e(cyc.date||'—')+' · allocated '+money(cyc.price)+'</div></div><div class="rt-bo-member-money"><strong>'+money(cyc.price)+'</strong><small style="color:'+(p>=0?'var(--green)':'var(--red)')+'">'+(p>=0?'+':'')+money(p)+'</small></div>'+memberActions(i,bid)+'</div>';}).join('');
     var details=''
       +'<div class="rt-bo-tr"><span>Item sale total</span><strong>'+money(b.sale)+'</strong></div>'
-      +(discount!=null&&discount>0?'<div class="rt-bo-tr"><span>Bundle / multi-buy discount'+(ask>0?' · '+pct(discount/ask*100):'')+'</span><strong style="color:var(--accent)">−'+money(discount)+'</strong></div>':'')
+      +(discount!=null&&discount>0?'<div class="rt-bo-tr"><span>Discount already included'+(ask>0?' · '+pct(discount/ask*100):'')+'</span><strong style="color:var(--accent)">−'+money(discount)+'</strong></div>':'')
       +(b.postage?'<div class="rt-bo-tr"><span>Buyer postage</span><strong style="color:var(--green)">+'+money(b.postage)+'</strong></div>':'')
       +'<div class="rt-bo-tr total"><span>Gross receipts</span><strong>'+money(b.receipts)+'</strong></div>'
       +(b.fees?'<div class="rt-bo-tr"><span>Platform fees</span><strong style="color:var(--red)">−'+money(b.fees)+'</strong></div>':'')
@@ -270,14 +306,15 @@
       +(b.promo?'<div class="rt-bo-tr"><span>Promotion / boost</span><strong style="color:var(--red)">−'+money(b.promo)+'</strong></div>':'')
       +(b.shipping?'<div class="rt-bo-tr"><span>Shipping cost</span><strong style="color:var(--red)">−'+money(b.shipping)+'</strong></div>':'')
       +(b.packaging?'<div class="rt-bo-tr"><span>Packaging</span><strong style="color:var(--red)">−'+money(b.packaging)+'</strong></div>':'')
-      +(b.cost?'<div class="rt-bo-tr"><span>Item cost</span><strong style="color:var(--red)">−'+money(b.cost)+'</strong></div>':'')
+      +(b.cost?'<div class="rt-bo-tr"><span>Item / fixed partner cost</span><strong style="color:var(--red)">−'+money(b.cost)+'</strong></div>':'')
       +(b.parts?'<div class="rt-bo-tr"><span>Parts &amp; expenses</span><strong style="color:var(--red)">−'+money(b.parts)+'</strong></div>':'')
+      +(b.partner?'<div class="rt-bo-tr"><span>Partner share / payout</span><strong style="color:var(--red)">−'+money(b.partner)+'</strong></div>':'')
       +(Math.abs(b.returnImpact)>=0.005?'<div class="rt-bo-tr"><span>Return / refund impact</span><strong style="color:'+(b.returnImpact>=0?'var(--green)':'var(--red)')+'">'+(b.returnImpact>=0?'+':'')+money(b.returnImpact)+'</strong></div>':'')
-      +'<div class="rt-bo-tr total"><span>Combined net P&amp;L</span><strong style="color:'+(b.profit>=0?'var(--green)':'var(--red)')+'">'+(b.profit>=0?'+':'')+money(b.profit)+'</strong></div>';
+      +'<div class="rt-bo-tr total"><span>Your trading profit</span><strong style="color:'+(b.profit>=0?'var(--green)':'var(--red)')+'">'+(b.profit>=0?'+':'')+money(b.profit)+'</strong></div>';
     var page=document.createElement('div');page.id='rt-bundle-page';page.className='rt-bo-page';page.innerHTML=''
       +'<div class="rt-bo-top"><button class="rt-bo-back" onclick="closeBundlePage()" aria-label="Back">‹</button><div class="rt-bo-topmain"><div class="rt-bo-title">Bundle Order</div><div class="rt-bo-ref">'+e(b.ref||'Grouped sale')+' · '+b.items.length+' items</div></div><button class="ddbtn" onclick="openBundleOrderEdit(\''+q(bid)+'\')" title="Edit order">⋮</button></div>'
       +'<div class="rt-bo-content"><div class="rt-bo-hero"><div class="rt-bo-eyebrow">One buyer · one transaction</div><div class="rt-bo-total">'+money(b.sale)+'</div><div class="rt-bo-sub">Sold '+e(b.date||'—')+' · '+e(platformLabel)+(b.postage?' · '+money(b.postage)+' buyer postage':'')+(ask!=null?' · original ask '+money(ask):'')+'</div></div>'
-      +'<div class="rt-bo-kpis"><div class="rt-bo-kpi"><small>Gross receipts</small><strong>'+money(b.receipts)+'</strong></div><div class="rt-bo-kpi"><small>Net P&amp;L</small><strong style="color:'+(b.profit>=0?'var(--green)':'var(--red)')+'">'+(b.profit>=0?'+':'')+money(b.profit)+'</strong></div><div class="rt-bo-kpi"><small>Margin</small><strong>'+(b.margin==null?'—':b.margin.toFixed(1)+'%')+'</strong></div><div class="rt-bo-kpi"><small>Items</small><strong>'+b.items.length+'</strong></div></div>'
+      +'<div class="rt-bo-kpis"><div class="rt-bo-kpi"><small>Gross receipts</small><strong>'+money(b.receipts)+'</strong></div><div class="rt-bo-kpi"><small>Your profit</small><strong style="color:'+(b.profit>=0?'var(--green)':'var(--red)')+'">'+(b.profit>=0?'+':'')+money(b.profit)+'</strong></div><div class="rt-bo-kpi"><small>Margin</small><strong>'+(b.margin==null?'—':b.margin.toFixed(1)+'%')+'</strong></div><div class="rt-bo-kpi"><small>Items</small><strong>'+b.items.length+'</strong></div></div>'
       +'<div class="rt-bo-card"><div class="rt-bo-card-title">Transaction &amp; joined P&amp;L</div>'+details+'</div>'
       +'<div class="rt-bo-card"><div class="rt-bo-card-title">Items in this order</div>'+members+'</div>'
       +(!edit.ok?'<div class="rt-bo-warn"><strong>Order editing locked.</strong> '+e(edit.reason)+'</div>':'')

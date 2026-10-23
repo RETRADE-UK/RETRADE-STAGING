@@ -1,5 +1,38 @@
 # Runtime ownership
 
+## 23 October — shared order fees and partner cost reconciliation
+
+`accounting-engine.js` allocates one eBay Business fixed checkout fee across
+complete bundle members, with per-item category bands and penny-conserving
+variable fees. Sale-cycle snapshots retain the original group for refund credits;
+resales belong to their own checkout. Missing/incomplete groups keep the existing
+standalone estimate. Cash events, item P&L and order totals use this same path.
+
+Supplier stock cost is deducted when recognising sale profit, whether paid yet or
+not. A legacy default canonical zero must not erase a positive supplier cost when
+there is no explicit override, payment or settlement. Explicit zero agreements
+and paid history retain priority. Percentage shares inherit the account rate and
+are calculated from positive pre-share margin without recursive P&L calls.
+The bundle panel itemises fixed partner cost and profit-share payouts separately.
+
+`bundles/orders.js` owns the shared-listing selector and fee allocation. Separate
+listings remain the default; one multi-quantity listing accepts its actual total
+including VAT/renewals, or zero if free. Each item stores its allocated incurred
+cost plus `bundle_listing_fee` audit metadata in `refreshHistory`; edit/reload and
+sale reversal retain those costs. This requires no database schema changes.
+
+`tests/bundle-fees-browser.cjs` covers mobile/desktop creation, edits, reversal,
+persistence, fixed-cost conflicts, account-default shares, dashboard/cash totals,
+fee bands, returns and resales. It runs with the existing external-network-blocked
+browser harness and in Chromium/WebKit CI. A synthetic £180 four-unit order with
+£100 stock cost, £16.14 fees and £0.36 shared listing cost retains £63.50.
+
+`scripts/repairs/shared-listing-cost.sql` is an idempotent, parameterised repair
+for the verified four-unit order only. Its guards reject changed economics or
+returns. Original allocation/cost values remain in audit metadata and normal
+revision/sync triggers remain enabled. Deployment execution is recorded in the PR.
+Cache build: `20261023-bundle-fees-partner-profit` (staging adds `-staging`).
+
 **17 October partner outstanding UX:** partner payments now separate Sold outstanding from All stock outstanding. Sold fixed-cost items with no agreed payout remain selectable and lead to payout setup rather than a disabled row. `payment-allocations-v2.js` remains the transaction/eligibility owner and `account-ui-v4.js` owns the sold/all-stock account-position breakdown. Current item-cost/payout linking, staging binding, auth helpers and monitor runtime are preserved. Cache build: `20261017-partner-outstanding-staging`.
 
 **15 October partner settlement parity:** fixed-cost amounts entered through legacy item controls are now recognised for advance payment from both partner-account payment surfaces. `payment-allocations-v2.js` remains the single eligibility/allocation owner; staging keeps its own Supabase binding and monitor runtime unchanged. Cache build: `20261015-partner-fixed-upfront-staging`.

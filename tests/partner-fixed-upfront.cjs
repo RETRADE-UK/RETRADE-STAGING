@@ -15,7 +15,7 @@ function fixture(){
   _itemToRow:i=>({account_paid_amount:i.accountPaidAmount,account_split_percent:i.accountSplitPercent}),
   _rowToItem:r=>({accountId:'p',state:r.state||'sourced',costPrice:r.cost_price||0,accountPaidAmount:r.account_paid_amount,accountSplitPercent:r.account_split_percent})};
  c.window=c;vm.createContext(c);
- for(const name of ['_fixedAccountAmount','_itemAcquisitionCost','_setItemFixedCost','_itemAccountType','_accountItemIsSold','_accountItemOwed','_accountItemDebt','_accountPaysOnSale','_acctBulkSplitConfirm','_acctBulkSetCostConfirm','submitItemSplit','clearItemSplit'])vm.runInContext(take(name),c);
+ for(const name of ['_legacyFixedZeroConflict','_fixedAccountAmount','_itemAcquisitionCost','_setItemFixedCost','_itemAccountType','_accountItemIsSold','_accountItemOwed','_accountItemDebt','_accountPaysOnSale','_acctBulkSplitConfirm','_acctBulkSetCostConfirm','submitItemSplit','clearItemSplit'])vm.runInContext(take(name),c);
  for(const file of ['arrangements-v2.js','payment-allocations-v2.js'])vm.runInContext(fs.readFileSync(path.join(root,'src/features/partners',file),'utf8'),c);
  c._accounts=[{id:'p',name:'Synthetic partner',accountType:'consignment',arrangementModel:'profit_share',defaultSplitPercent:50,settlements:[]}];
  c.DB={'OCT-26':[],trips:[],expenses:[]};
