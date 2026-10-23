@@ -11,7 +11,9 @@ standalone estimate. Cash events, item P&L and order totals use this same path.
 Supplier stock cost is deducted when recognising sale profit, whether paid yet or
 not. A legacy default canonical zero must not erase a positive supplier cost when
 there is no explicit override, payment or settlement. Explicit zero agreements
-and paid history retain priority. Percentage shares inherit the account rate and
+and paid history retain priority. Settlement freezes the resolved amount before
+marking an item paid; failed saves restore both fields. Percentage shares inherit
+the account rate and
 are calculated from positive pre-share margin without recursive P&L calls.
 The bundle panel itemises fixed partner cost and profit-share payouts separately.
 

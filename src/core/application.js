@@ -9890,6 +9890,7 @@ function _confirmSupplierSettlement(){
       const item=(DB[k]||[]).find(function(i){return i.id===id;});
       if(item&&_itemAccountType(item)==='supplier'&&_accountItemDebt(item)!==null&&!item.accountSettled){
         allocations.push({id:item.id,amount:+(_accountItemDebt(item)||0).toFixed(2),name:item.item||'',kind:'supplier'});
+        if(_legacyFixedZeroConflict(item))item.partnerAgreedAmount=_fixedAccountAmount(item);
         item.accountSettled=true;nSettled++;
       }
     });

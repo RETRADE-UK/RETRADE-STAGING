@@ -16,6 +16,18 @@ const {open,settled}=require('./startup-browser.cjs');
   assert.deepEqual(await page.evaluate(()=>orderNumbers()),{fees:16.14,listing:1.44,cost:100,partner:0,profit:62.42,summary:62.42,cashFee:16.14});
   assert.deepEqual(await page.evaluate(()=>{const i=bundleFixture({arrangementModelOverride:'fixed_cost'});return [_itemAcquisitionCost(i),_accountItemDebt(i)];}),[0,0],'Deliberate zero remains zero');
   assert.equal(await page.evaluate(()=>{const fn=_rtArrangementForItem;try{_rtArrangementForItem=undefined;return _itemAcquisitionCost(bundleFixture());}finally{_rtArrangementForItem=fn;}}),25,'First paint resolves the same legacy cost');
+  // Paying a legacy fixed-cost item must preserve its economic cost. A failed
+  // save restores both the payment status and the pre-payment agreement field.
+  await page.evaluate(()=>{__rtPartnerOpenPayment('fixed',['a','b','c','d']);window.savedBundleSave=saveDB;saveDB=()=>{throw new Error('Synthetic payment save failure');};});
+  await page.locator('#payalloc-create-btn').click();
+  await page.waitForFunction(()=>!document.getElementById('payalloc-create-btn').disabled);
+  assert.equal(await page.evaluate(()=>DB['OCT-26'].every(i=>!i.accountSettled&&i.partnerAgreedAmount===0)&&_accounts[0].settlements.length===0),true,'Failed payment rolls back cost and settlement');
+  await page.evaluate(()=>{saveDB=window.savedBundleSave;});
+  await page.locator('#payalloc-create-btn').click();
+  await page.waitForFunction(()=>!document.getElementById('rt-payalloc-modal-backdrop'));
+  assert.equal(await page.evaluate(()=>DB['OCT-26'].every(i=>i.accountSettled&&i.partnerAgreedAmount===25)),true,'Successful payment freezes the resolved cost');
+  assert.equal(await page.evaluate(()=>orderNumbers().cost),100,'Paying never removes stock cost from profit');
+  await page.evaluate(()=>{_accounts[0].settlements=[];resetBundle();});
   await page.evaluate(()=>openBundleOrderEdit('order'));
   await page.locator('#bundle-listing-mode').selectOption('shared');
   await page.locator('#bundle-listing-total').fill('0.36');
