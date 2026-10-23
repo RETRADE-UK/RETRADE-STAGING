@@ -73,6 +73,7 @@
 
   function agreed(i,a){
     if(!i||itemModel(i,a)!=='fixed_cost')return null;
+    if(typeof _legacyFixedZeroConflict==='function'&&_legacyFixedZeroConflict(i))return Math.round(Number(i.costPrice)*100)/100;
     var vals=[i.partnerAgreedAmount,i.partner_agreed_amount,i.accountPaidAmount,i.account_paid_amount,i.costPrice,i.cost_price];
     for(var x=0;x<vals.length;x++){
       var n=num(vals[x]);
@@ -139,6 +140,7 @@
         }
         r.arrangement_model_override=ov||null;
         var amt=i&&i.partnerAgreedAmount!=null?num(i.partnerAgreedAmount):(i&&i.partner_agreed_amount!=null?num(i.partner_agreed_amount):null);
+        if(typeof _legacyFixedZeroConflict==='function'&&_legacyFixedZeroConflict(i))amt=agreed(i,a);
         if(amt==null&&itemModel(i,a)==='fixed_cost'){
           // Preserve the explicit fixed amount separately without changing the
           // historical costPrice/accountPaidAmount representation.
