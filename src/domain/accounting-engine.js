@@ -133,7 +133,7 @@ function _cashStockTied(){
       if((i.item||'').trim().toUpperCase()==='MONTH END')return;
       // On-hand = anything unsold you still hold: sourced, listed, OR returned-and-back.
       // (Excludes scrapped/donated even if state==='sourced' — the old sourced branch leaked those.)
-      const onHand = !i.dateSold && !i.resaleSalePrice && !i.scrappedAt;
+      const onHand = !i.scrappedAt && (i.isReturned || (!i.dateSold && !i.resaleSalePrice));
       if(!onHand)return;
       c += (typeof calcPartsCost==='function'?(Number(calcPartsCost(i))||0):0); // parts: your cash regardless
 
@@ -150,8 +150,12 @@ function _cashStockTied(){
         else if(typ==='hybrid') acquisitionPaid=true;
         else acquisitionPaid=false; // consignment
       }
+      // Fixed upfront terms can retain a consignment legacy type. Their paid
+      // cash is still invested in stock, independent of tax/payment classification.
+      const fixedAmount=i.accountId?_fixedAccountAmount(i):null;
+      if(fixedAmount!=null)acquisitionPaid=i.accountSettled===true;
       if(acquisitionPaid){
-        const acquisition=(typ==='supplier'&&i.accountPaidAmount!=null)
+        const acquisition=fixedAmount!=null?fixedAmount:(typ==='supplier'&&i.accountPaidAmount!=null)
           ? (Number(i.accountPaidAmount)||0)
           : _itemAcquisitionCost(i);
         c += acquisition;
@@ -240,7 +244,15 @@ function _cashEventsAll(){
     if(Number(i.listingFee)>0)push({id:'listing:'+i.id,date:i.dateListed||sourced,type:'listing_fee',direction:'out',amount:i.listingFee,description:'Listing fee · '+(i.item||'Item'),source:'item',itemId:i.id});
     // Every return-driven relist carries its own dated insertion fee snapshot.
     (i.returnHistory||[]).forEach(function(r,idx){
-      if(r&&r._relistedAt&&Number(r._listingFeeAtRelist)>0)push({id:'relistfee:'+i.id+':'+idx,date:String(r._relistedAt).slice(0,10),type:'listing_fee',direction:'out',amount:r._listingFeeAtRelist,description:'Relist fee · '+(i.item||'Item')+' · next sale',source:'item',itemId:i.id});
+      if(!r||!r._relistedAt)return;
+      const nextNo=Math.max(1,Number(r.saleNo)||1)+1;
+      const next=_saleCycleSnapshot(i,nextNo);
+      const pending=(i.returnHistory||[]).filter(function(x){return x&&x._relistedAt&&(x.type==='full_seller'||x.type==='full_ebay');}).slice(-1)[0];
+      // Preserve explicit zero; older relists can retain their incurred fee
+      // only in the next sale snapshot/current resale field. Count it once.
+      const fallback=next&&_priorRelistEntryForSale(i,nextNo)===r?next.listingFee:(!i.isReturned&&!i.resaleSalePrice&&pending===r?i.resaleListingFee:0);
+      const fee=r._listingFeeAtRelist!=null?r._listingFeeAtRelist:fallback;
+      if(Number(fee)>0)push({id:'relistfee:'+i.id+':'+idx,date:String(r._relistedAt).slice(0,10),type:'listing_fee',direction:'out',amount:fee,description:'Relist fee · '+(i.item||'Item')+' · next sale',source:'item',itemId:i.id});
     });
     // Sale cycles: gross cash in, then the actual selling cash outflows.
     _saleCycleNumbers(i).forEach(function(n){
@@ -262,9 +274,12 @@ function _cashEventsAll(){
     });
     if(i.scrapReason==='supplier_return'&&Number(i.supplierRefund)>0)push({id:'supplierrefund:'+i.id,date:i.supplierRefundDate||(i.scrappedAt?String(i.scrappedAt).slice(0,10):null),type:'supplier_refund',direction:'in',amount:i.supplierRefund,description:'Supplier return refund · '+(i.item||'Item'),source:'item',itemId:i.id});
   });});
-  // Real business expenses. Mileage allowance itself is not cash.
-  (DB.expenses||[]).forEach(function(e){if(Number(e.amount)>0)push({id:'expense:'+e.id,date:e.date||null,type:'expense',direction:'out',amount:e.amount,description:e.description||e.category||'Business expense',source:'expense'});});
-  (DB.trips||[]).forEach(function(t){(Array.isArray(t.expenses)?t.expenses:[]).forEach(function(e,idx){if(Number(e.amount)>0)push({id:'tripexp:'+t.id+':'+idx,date:e.date||t.date||null,type:'trip_expense',direction:'out',amount:e.amount,description:e.description||('Trip expense · '+(t.description||'Sourcing trip')),source:'expense'});});});
+  // Real business expenses and their refunds. The event amount is unsigned;
+  // negative stored costs are cash received, not missing expenses. Keep their
+  // source/type/ID so drill-down and editing still resolve the original record.
+  // Mileage allowance itself is not cash.
+  (DB.expenses||[]).forEach(function(e){const amount=Number(e.amount)||0;if(amount)push({id:'expense:'+e.id,date:e.date||null,type:'expense',direction:amount<0?'in':'out',amount:Math.abs(amount),description:e.description||e.category||'Business expense',source:'expense'});});
+  (DB.trips||[]).forEach(function(t){(Array.isArray(t.expenses)?t.expenses:[]).forEach(function(e,idx){const amount=Number(e.amount)||0;if(amount)push({id:'tripexp:'+t.id+':'+idx,date:e.date||t.date||null,type:'trip_expense',direction:amount<0?'in':'out',amount:Math.abs(amount),description:e.description||('Trip expense · '+(t.description||'Sourcing trip')),source:'expense'});});});
   // Paid account settlements are the authoritative supplier/partner cash outflow.
   (typeof _accounts!=='undefined'?_accounts:[]).forEach(function(acct){(acct.settlements||[]).forEach(function(tx){if(!tx||!tx.paid)return;const amt=Math.max(0,Number(tx.partnerAmount)||0);if(amt>0)push({id:'settlement:'+tx.id,date:tx.date||null,type:'partner_settlement',direction:'out',amount:amt,description:'Settlement paid · '+(acct.name||'Partner')+' · '+((tx.items||[]).length)+' item'+((tx.items||[]).length===1?'':'s'),source:'settlement'});});});
   // Aggregate only actual acquisition outflows on the same date. Never create
@@ -383,6 +398,20 @@ function _originalSale1Date(i){
     ||null;
 }
 
+// Non-cash credit recognition uses the later of its agreement date and the
+// linked item's first realised activity. Aggregate P&L adds those recognised
+// allocations once; cash continues to use actual net payments.
+function _accountNonCashProfitCredits(from,to){
+  const source=typeof window!=='undefined'&&typeof window.__rtPartnerAdjustmentsProfitEvents==='function'?window.__rtPartnerAdjustmentsProfitEvents():[];
+  const seen=new Set(),events=[];let total=0;
+  (source||[]).forEach(function(ev){
+    if(!ev||!ev.id||seen.has(String(ev.id))||!ev.date||(from&&ev.date<from)||(to&&ev.date>to))return;
+    const amount=Math.max(0,Number(ev.amount)||0);if(!amount)return;
+    seen.add(String(ev.id));total+=amount;events.push(Object.assign({},ev,{amount:+amount.toFixed(2)}));
+  });
+  return {amount:+total.toFixed(2),events:events};
+}
+
 function calcYearlyStats(period){
   const range=_periodDateRange(period||SUMMARY_PERIOD);
   const inRange=function(ds){if(!ds)return false;if(!range.from)return true;return ds>=range.from&&ds<=range.to;};
@@ -392,7 +421,8 @@ function calcYearlyStats(period){
   let totalRev=0,realisedProfit=0;
   sales.forEach(function(ev){const b=_saleBreakdown(ev);totalRev+=(Number(b.salePrice)||0)+(Number(b.postage)||0);realisedProfit+=Number(ev.profit)||0;});
   returns.forEach(function(ev){totalRev+=Number(ev.salePrice)||0;realisedProfit+=Number(ev.profit)||0;});
-  totalRev=+totalRev.toFixed(2);realisedProfit=+realisedProfit.toFixed(2);
+  const accountCredits=_accountNonCashProfitCredits(range.from,range.to);
+  totalRev=+totalRev.toFixed(2);realisedProfit=+(realisedProfit+accountCredits.amount).toFixed(2);
 
   const soldCount=sales.length;
   const saleTransactions=sales.map(function(ev){return Number(ev.salePrice)||0;});
@@ -473,9 +503,9 @@ function calcYearlyStats(period){
   _allTrips.forEach(function(t,idx){if(inRange(t.date))tripsCostInPeriod+=(_tieredTrips[idx]?_tieredTrips[idx].totalCost:0);});
   (DB.expenses||[]).forEach(function(e){if(inRange(e.date))expensesCostInPeriod+=(Number(e.amount)||0);});
   const overheadsInPeriod=+(tripsCostInPeriod+expensesCostInPeriod).toFixed(2);
-  const grossProfit=+realisedProfit.toFixed(2),grossMargin=avgMargin;
+  const grossProfit=+realisedProfit.toFixed(2),grossMargin=totalRev>0?+((grossProfit/totalRev)*100).toFixed(1):0;
   const netProfit=+(grossProfit-overheadsInPeriod).toFixed(2),netMargin=totalRev?+((netProfit/totalRev)*100).toFixed(1):0;
-  return{totalRev:totalRev,realisedProfit:grossProfit,unrealisedProfit:+unrealisedProfit.toFixed(2),stockValue:+stockValue.toFixed(2),soldCount:soldCount,listedCount:listedCount,totalItems:totalItems,
+  return{totalRev:totalRev,realisedProfit:grossProfit,accountCreditProfit:accountCredits.amount,accountCreditEvents:accountCredits.events,unrealisedProfit:+unrealisedProfit.toFixed(2),stockValue:+stockValue.toFixed(2),soldCount:soldCount,listedCount:listedCount,totalItems:totalItems,
     fullRefundCount:fullRefundCount,partialOnlyCount:partialOnlyCount,refundedItemCount:refundedItemCount,refundedSalesItemCount:refundedSalesItemCount,refundItemRate:refundItemRate,refundDenom:refundDenom,
     returnCount:returnCount,returnRate:returnRate,partialRefundCount:partialRefundCount,partialRefundRate:partialRefundRate,totalAffected:totalAffected,
     refundMoneyRate:refundMoneyRate,refundMoneyTotal:+refundMoneyTotal.toFixed(2),refundMoneyDenom:+refundMoneyDenom.toFixed(2),avgROI:avgROI,avgMargin:avgMargin,avgSale:avgSale,avgProfit:avgProfit,avgCostPrice:avgCostPrice,
@@ -510,6 +540,7 @@ function _prevPeriodRange(period){
 function _statsForRange(range){
   const evs=getSaleEventsInRange(range&&range.from,range&&range.to),sales=evs.filter(function(e){return !e.isReturnAdjustment;}),rets=evs.filter(function(e){return e.isReturnAdjustment;});
   let totalRev=0,realised=0;evs.forEach(function(e){if(e.isReturnAdjustment)totalRev+=Number(e.salePrice)||0;else{const b=_saleBreakdown(e);totalRev+=(Number(b.salePrice)||0)+(Number(b.postage)||0);}realised+=Number(e.profit)||0;});
+  realised+=_accountNonCashProfitCredits(range&&range.from,range&&range.to).amount;
   let fullRef=0,partialOnly=0;sales.forEach(function(ev){const n=Math.max(1,Number(ev.sale)||1),rh=(ev.item&&ev.item.returnHistory)||[],cy=rh.filter(function(r){return Math.max(1,Number(r.saleNo)||1)===n;});if(cy.some(function(r){return r.type==='full_seller'||r.type==='full_ebay';}))fullRef++;else if(cy.some(function(r){return r.type==='partial_seller'||r.type==='partial_ebay';}))partialOnly++;});
   const refundItemRate=sales.length?((fullRef+partialOnly)/sales.length*100):0,netMargin=totalRev?(realised/totalRev*100):0,avgProfit=sales.length?(sales.reduce(function(sum,e){return sum+(Number(e.profit)||0);},0)/sales.length):0;
   return{totalRev:+totalRev.toFixed(2),grossProfit:+realised.toFixed(2),grossMargin:netMargin,netProfit:+realised.toFixed(2),netMargin:netMargin,soldCount:sales.length,refundItemRate:refundItemRate,avgProfit:avgProfit};
@@ -679,7 +710,12 @@ function _saleCycleSnapshot(i,saleNo){
   if(!i)return null;
   if(n===1){
     const fr=_fullReturnEntryForSale(i,1);
-    const date=i.dateSold||(fr&&fr._dateSoldAtReturn)||null;
+    const recordedDate=i.dateSold||(fr&&fr._dateSoldAtReturn)||null;
+    // Older full returns can have lost their original sale date. Preserve the
+    // known receipt using the return date as an explicit estimate; never write
+    // that estimate back as an exact historical sale date.
+    const inferredDate=fr&&fr.loggedAt?String(fr.loggedAt).slice(0,10):null;
+    const date=recordedDate||(/^\d{4}-\d{2}-\d{2}$/.test(inferredDate||'')?inferredDate:null);
     if(!date)return null;
     const price=Math.max(0,Number(fr&&fr._salePriceAtReturn!=null?fr._salePriceAtReturn:(fr&&fr._salePriceAtRelist!=null?fr._salePriceAtRelist:i.salePrice))||0);
     const postage=Math.max(0,Number(fr&&fr._postageAtReturn!=null?fr._postageAtReturn:(fr&&fr._postageAtRelist!=null?fr._postageAtRelist:i.postage))||0);
@@ -687,7 +723,7 @@ function _saleCycleSnapshot(i,saleNo){
     const promoPercent=Math.max(0,Number(fr&&fr._promoPercentAtReturn!=null?fr._promoPercentAtReturn:(fr&&fr._promoPercentAtRelist!=null?fr._promoPercentAtRelist:i.promoPercent))||0);
     const shipping=Math.max(0,Number(fr&&fr._shippingCostAtReturn!=null?fr._shippingCostAtReturn:(fr&&fr._shippingCostAtRelist!=null?fr._shippingCostAtRelist:i.shippingCost))||0);
     const packaging=Math.max(0,Number(fr&&fr._packagingCostAtReturn!=null?fr._packagingCostAtReturn:(fr&&fr._packagingCostAtRelist!=null?fr._packagingCostAtRelist:i.packagingCost))||0);
-    return {saleNo:1,date:date,price:price,postage:postage,platformId:platformId,promoPercent:promoPercent,
+    return {saleNo:1,date:date,dateEstimated:!recordedDate,dateSource:recordedDate?'recorded':'return_logged_at',price:price,postage:postage,platformId:platformId,promoPercent:promoPercent,
       shipping:shipping,packaging:packaging,listingFee:Math.max(0,Number(i.listingFee)||0),listedDate:i.dateListed||null,
       bundleId:(fr&&fr._bundleIdAtReturn)||i.bundleId||null,bundleRef:(fr&&fr._bundleRefAtReturn)||i.bundleRef||'',bundleTotal:Number(fr&&fr._bundleTotalAtReturn!=null?fr._bundleTotalAtReturn:i.bundleTotal)||0,
       fullReturnEntry:fr,isReturned:!!fr};
@@ -743,7 +779,7 @@ function _sale2EventSnapshot(i){
 }
 function _saleEventForCycle(i,k,cycle){
   const snapItem=_saleCycleItemSnapshot(i,cycle);
-  const ev={item:i,month:k,sale:String(cycle.saleNo),saleDate:cycle.date,salePrice:cycle.price,snapshot:cycle,
+  const ev={item:i,month:k,sale:String(cycle.saleNo),saleDate:cycle.date,dateEstimated:!!cycle.dateEstimated,dateSource:cycle.dateSource||'recorded',salePrice:cycle.price,snapshot:cycle,
     roi:snapItem?calcROI(snapItem):null,margin:snapItem?calcMargin(snapItem):null,
     daysToSell:(cycle.listedDate&&cycle.date)?daysBetween(cycle.listedDate,cycle.date):null,
     isReturned:false,isReturnAdjustment:false};
@@ -865,7 +901,7 @@ function _saleBreakdown(ev,excludePartner){
   const promoPct=Math.max(0,Number(cyc.promoPercent)||0);
   const bpf=calcPlatformBPF(i,salePrice,cyc.postage||0,cyc.platformId,saleNo);
   const promoFee=_calcPromoFee(cyc.platformId,salePrice,cyc.postage||0,promoPct);
-  const itemCost=Math.max(0,_itemAcquisitionCost(i)),parts=Math.max(0,calcPartsCost(i));
+  const itemCost=Math.max(0,_itemAcquisitionCost(i)),parts=Number(calcPartsCost(i))||0;
   const listingFee=Math.max(0,Number(cyc.listingFee)||0);
   // Partner economic cost belongs to one sale cycle only. If the current sale
   // survives, attach it there. If the partner was already paid before a full
@@ -910,6 +946,8 @@ function _buildPnLSummary(from,to,label){
     returnsSell+=b.returnRefund+b.returnPostage+b.partialRefund;
     partnerSell+=b.partnerSplit;
   });
+  const accountCredits=_accountNonCashProfitCredits(from,to);
+  partnerSell=+(partnerSell-accountCredits.amount).toFixed(2);
   const revenue=+(goodsRev+postageIn).toFixed(2);   // turnover (gross receipts)
   postageIn=+postageIn.toFixed(2); goodsRev=+goodsRev.toFixed(2); cogs=+cogs.toFixed(2);
 
@@ -1067,7 +1105,7 @@ function _buildPnLSummary(from,to,label){
   }
 
   return{
-    rows:rows, events:events,
+    rows:rows, events:events,accountCreditProfit:accountCredits.amount,accountCreditEvents:accountCredits.events,
     // legacy keys (unchanged contract)
     revenue:revenue, cogs:cogs, grossProfit:grossProfit, expenses:exp, stock:stock,
     netProfit:netProfit, cashPosition:cashPosition, soldCount:soldCount, returnCount:retCount,
@@ -1108,7 +1146,7 @@ function _taxCashStockAndPartner(from,to){
     const typ=i.accountId?_itemAccountType(i):'own';
     const sourceDate=i.dateSourced||i.dateListed||null;
     (i.parts||[]).forEach(function(p){
-      const amount=Math.max(0,Number(p.cost)||0),date=p.date||sourceDate;
+      const amount=Number(p.cost)||0,date=p.date||sourceDate;
       if(amount&&inR(date))partsPaid+=amount;
     });
     let acquisition=0,payDate=null;
@@ -1578,7 +1616,7 @@ function _privateEbayBuyerFeeRefund(item,saleNo,salePrice,buyerPostage){
 }
 
 function calcPartsCost(i){
-  return (i.parts||[]).reduce(function(s,p){return s+(p.cost||0);},0);
+  return (i.parts||[]).reduce(function(s,p){return s+(Number(p.cost)||0);},0);
 }
 
 function calcItemRevenue(i){
@@ -1836,7 +1874,7 @@ function calcEstGrossProfit(i){
     // A full return restores buy cost + parts to stock, so calcGrossProfit(base)
     // correctly does NOT realise them as a loss while the unit is back in hand.
     // The hypothetical next successful sale consumes that stock basis once as COGS.
-    const stockBasis=Math.max(0,_itemAcquisitionCost(i))+Math.max(0,Number(calcPartsCost(i))||0);
+    const stockBasis=Math.max(0,_itemAcquisitionCost(i))+(Number(calcPartsCost(i))||0);
     // Any relist insertion fee already recorded on the return event is already
     // contained in calcGrossProfit(base), so never deduct it twice here.
     const nextCycle=ask+sellerPostage-bpf-promo-fulfilment-stockBasis;

@@ -1,5 +1,33 @@
 # Runtime ownership
 
+## 26 October - cash and historical accounting review
+
+`accounting-engine.js` retains negative expense/trip refunds as dated cash
+inflows. `cashflow/liabilities.js` no longer suppresses paid reconstructed
+settlements: the engine already excludes their display-only ledger mirrors.
+Canonical paid amounts, including non-cash credit reductions, remain authoritative.
+
+The core loader's legacy `_backfillDateSoldAtReturn` hook no longer writes inferred
+sale dates into return history. Missing evidence stays missing in storage;
+calculation fallbacks are explicitly marked and never become persisted facts.
+Loading or reviewing records must not manufacture a historical sale date.
+
+Partner adjustment modules recognise allocated non-cash credits only when the
+related sale, return or write-off is recognised, and apply cash-basis offsets
+only to verified paid
+transactions for the loaded user. Refund, stock, margin and relist calculations
+remain in the accounting owner; the audit regression covers their boundaries.
+
+`scripts/repairs/verified-supplier-refund.sql` documents the guarded,
+parameterised repair method for a verified never-received purchase. It preserves
+normal revision/sync triggers and requires exact pre-repair economics plus
+external evidence. Actual executed identifiers, amounts and evidence remain in
+the private audit record, outside the repository.
+
+Cache build: `20261026-cash-refunds-paid-history` (staging retains its isolated
+environment suffix/bindings). Both cash and accounting audit browser regressions
+run in Chromium and WebKit CI.
+
 ## 23 October — shared order fees and partner cost reconciliation
 
 `accounting-engine.js` allocates one eBay Business fixed checkout fee across

@@ -2979,52 +2979,11 @@ async function loadFromSupabase(){
   _repairRunLinkedDates(false);
 }
 
-// Fills the snapshot on legacy return entries created before the column existed.
-// Strategy per item:
-//   1. If r._dateSoldAtReturn already set → skip
-//   2. Else if i.dateSold present → use that (most cases)
-//   3. Else (full return wiped dateSold) → use the FULL return's loggedAt as
-//      last-resort approximation. The original sale was at-or-before the return
-//      logged date; for backdating purposes loggedAt is the best available proxy.
-// Only persists if something changed, so subsequent loads are zero-write.
-async function _backfillDateSoldAtReturn(){
-  // One-shot guard: once every return entry in this account has _dateSoldAtReturn
-  // set, we write a localStorage flag so subsequent loads skip the scan entirely.
-  // Key is user-agnostic (preview mode also benefits) — safe to share per-browser.
-  const _BACKFILL_KEY='retrade_backfill_dsar_v1';
-  if(localStorage.getItem(_BACKFILL_KEY)==='1')return;
-  let dirty=0;
-  allDBKeys().forEach(function(k){
-    if(k==='trips'||k==='expenses'||k==='_userOwned'||k==='_taxYear')return;
-    (DB[k]||[]).forEach(function(i){
-      const rh=i.returnHistory||[];
-      if(rh.length===0)return;
-      const fullEntry=rh.find(r=>r.type==='full_seller'||r.type==='full_ebay');
-      const fallbackForFullReturn=fullEntry?(fullEntry.loggedAt||null):null;
-      rh.forEach(function(r){
-        if(r._dateSoldAtReturn)return; // already set, skip
-        const filled=i.dateSold||fallbackForFullReturn||null;
-        if(filled){
-          r._dateSoldAtReturn=filled;
-          dirty++;
-        }
-      });
-    });
-  });
-  if(dirty>0){
-    try{
-      // Re-save every item that has returnHistory so the column gets pushed up
-      // for ALL of them in a single sync. saveDB's debounced diff engine will
-      // batch this into one Supabase round trip.
-      await saveDB();
-    }catch(e){
-      console.warn('[backfill] save failed — values are correct in memory but not persisted:',e);
-    }
-  }
-  // Mark done regardless of whether anything was filled — if dirty=0 it means
-  // all entries were already set, so future loads can skip immediately.
-  try{ localStorage.setItem(_BACKFILL_KEY,'1'); }catch(e){}
-}
+// Legacy migration retained as a compatibility hook. Do not persist guessed
+// dates: the accounting engine now resolves missing original-sale dates from
+// return timestamps read-only, with dateEstimated/dateSource metadata. Existing
+// recorded snapshots remain untouched, including any prior migration values.
+async function _backfillDateSoldAtReturn(){return;}
 
 // ── Missing-column resilience (v2.19.38) ────────────────────────────────────
 // A column the current app writes but the DB hasn't migrated yet (sale_platform,

@@ -34,15 +34,12 @@
       rowCredits=round(rowCredits+applied);
     });
 
-    // Only the part of a credit that can actually reduce partner earnings may
-    // increase RETRADE profit in this statement. Any excess remains an unused
-    // account credit for future liabilities rather than becoming fake income.
-    var grossPartnerEarned=Math.max(0,round(Number(s.totals.grossPartnerEarned)||0));
-    var netPartnerEarned=Math.max(0,round(Number(s.totals.partnerEarned)||0));
-    var effectiveCredit=Math.max(0,round(grossPartnerEarned-netPartnerEarned));
-    var accountLevelCredit=Math.max(0,round(effectiveCredit-rowCredits));
+    // Credit dates can differ from the affected sales. Keep row display credit
+    // capped to that row's partner share, and show the rest at account level.
+    // A period without sales must still recognise its recorded non-cash credit.
     var requestedCredit=Math.max(0,round(-Number(s.totals.partnerAdjustment||0)));
-    s.unusedAdjustmentCredit=Math.max(0,round(requestedCredit-effectiveCredit));
+    var accountLevelCredit=Math.max(0,round(requestedCredit-rowCredits));
+    s.unusedAdjustmentCredit=round((s.accountAdjustments||[]).reduce(function(sum,r){return sum+Math.max(0,Number(r.remaining)||0);},0));
 
     var rowNet=round((s.sales||[]).reduce(function(sum,r){return sum+(Number(r.retrade)||0);},0)
       +(s.adjustments||[]).filter(function(a){return !a.matched;}).reduce(function(sum,a){return sum+(Number(a.profitImpact)||0);},0)
