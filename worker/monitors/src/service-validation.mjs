@@ -1,6 +1,6 @@
 import { createRecipe, canonBenchmark } from "./contracts.mjs";
 
-export function monitorInput(body) {
+export function monitorInput(body, { candidateLinkSearch = false } = {}) {
   if (
     typeof body.name !== "string" ||
     !body.name.trim() ||
@@ -8,7 +8,11 @@ export function monitorInput(body) {
   )
     throw new TypeError("Name must be 1–80 characters");
   const recipe = createRecipe(body.recipe);
-  if (!recipe.searchTerms.length || recipe.searchTerms.length > 3)
+  // This option is server-owned and deliberately absent from request bodies.
+  // The current service supplies no capability: URL recipes cannot activate yet.
+  if (recipe.searchUrl && candidateLinkSearch !== true)
+    throw new TypeError('URL catalogue filters are not verified for this source yet');
+  if (!recipe.searchUrl && (!recipe.searchTerms.length || recipe.searchTerms.length > 3))
     throw new TypeError("Choose 1–3 search terms");
   // MVP supports catalog evidence only. Do not offer filters that require unavailable enrichment.
   if (
@@ -99,3 +103,4 @@ export function comparatorInput(body) {
     throw new TypeError("Enter the Discord message time with a timezone");
   return { listingId: id, observedAt: new Date(time).toISOString() };
 }
+

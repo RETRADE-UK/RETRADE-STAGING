@@ -1,13 +1,19 @@
 import { managedPublicConnection, persistPublicSession, publicMessages, publicFailureMessage } from './public-connection.mjs';
 import { createVintedSource, scanCatalog } from './adapters/vinted-source.mjs';
 import { matchListing } from './engine/match.mjs';
+import { groupSourcePriceScope } from './recipe-source.mjs';
 
 // One global bounded cycle; no credentials, raw provider errors or URLs in output.
-export async function automaticScan({rpc,db,request,token,now=Date.now}) {
+export async function automaticScan({rpc,db,request,token,now=Date.now,candidateLinkSearch=false}) {
  const monitors=await rpc('monitor_auto_claim',{p_token:token});
  monitors.sort((a,b)=>(Date.parse(a.last_success_at||'1970-01-01')-Date.parse(b.last_success_at||'1970-01-01'))||String(a.id).localeCompare(String(b.id)));
  const accounts=new Map(),cache=new Map(),diagnostics=[];let requests=0,committed=0,renewals=0;
  for(const m of monitors){
+  // The deployed service never supplies this candidate capability. Skip before
+  // session renewal so an unverified URL recipe cannot cause source traffic.
+  if(m.recipe.searchUrl != null && candidateLinkSearch!==true){
+   diagnostics.push({monitorId:m.id,stage:'configuration',status:'source_unverified'});continue;
+  }
   let account=accounts.get(m.user_id);
   if(account===undefined){
    const snapshot=await rpc('monitor_connection_worker',{p_user:m.user_id});
@@ -17,7 +23,7 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
      const result=await managedPublicConnection({rpc,request,userId:m.user_id,snapshot,now});
      if(result.diagnostics)diagnostics.push({monitorId:m.id,stage:'renewal',httpStatus:result.httpStatus,failure:result.diagnostics});
      if(result.renewed)renewals++;
-     if(result.session) account={...snapshot,session:result.session,generation:result.generation,source:createVintedSource({request,publicSession:result.session,timeoutMs:10000,now})};
+     if(result.session) account={...snapshot,session:result.session,generation:result.generation,source:createVintedSource({request,publicSession:result.session,timeoutMs:10000,now,candidateLinkSearch})};
      else if(!result.deferred) await rpc('monitor_public_failure',{p_user:m.user_id,p_generation:result.generation || snapshot.generation,p_http:result.httpStatus||null,p_requests:0,
       p_status:result.state==='rate_limited'?'rate_limited':result.retryable?'degraded':'blocked',
       p_message:result.retryable?'Catalogue renewal was interrupted. The saved session will retry after a pause.':result.diagnostics?.challengeSignal?publicFailureMessage({status:result.httpStatus,diagnostics:result.diagnostics}):publicMessages[result.state] || publicMessages.unavailable,
@@ -30,23 +36,26 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
    accounts.set(m.user_id,account);
   }
   if(!account)continue;
+  const checkedPage=page=>{
+   // Source pages may be shared, but evidence requirements belong to each
+   // monitor. A cache hit must not bypass a stricter condition requirement.
+   if(page.listings.some(l=>!l.title||!l.url||l.currency!=='GBP'||l.itemPricePence===null) || (m.recipe.conditions.length && page.listings.length && page.listings.every(l=>l.condition===null)))throw new Error('source_schema');
+   return page;
+  };
   const budget={async searchPage(q){
    const key=m.user_id+':'+JSON.stringify(q);
-   if(cache.has(key))return cache.get(key);
+   if(cache.has(key))return checkedPage(cache.get(key));
    if(requests>=6)throw new Error('cycle_budget');
-   requests++;const page=await account.source.searchPage(q);
-   if(page.listings.some(l=>!l.title||!l.url||l.currency!=='GBP'||l.itemPricePence===null) || (m.recipe.conditions.length && page.listings.length && page.listings.every(l=>l.condition===null)))throw new Error('source_schema');
+   requests++;const page=checkedPage(await account.source.searchPage(q));
    if(!await persistPublicSession({rpc,userId:m.user_id,generation:account.generation,session:account.session,now}))throw new Error('session_changed');
    cache.set(key,page);return page;
   }};
   try{
-   // Identical terms for one owner share a wider source window, then each recipe
-   // applies its own exact price/model rules. Never share authenticated data across owners.
-   const peers=monitors.filter(x=>x.user_id===m.user_id && JSON.stringify(x.recipe.searchTerms)===JSON.stringify(m.recipe.searchTerms));
-   const sourceRecipe={...m.recipe,minPricePence:Math.min(...peers.map(x=>x.recipe.minPricePence)),
-    maxPricePence:peers.some(x=>x.recipe.maxPricePence===null)?null:Math.max(...peers.map(x=>x.recipe.maxPricePence))};
+   // A wider price window is safe only for identical complete source filters
+   // and one owner. Each recipe still applies its own exact local price rules.
+   const priceScope=groupSourcePriceScope(monitors,m);
    const seen=m.catalog_revision===m.revision?(m.catalog_seen_ids||[]):[];
-   const scan=await scanCatalog({source:budget,recipe:sourceRecipe,maxPages:2,maxRequests:6,perPage:50,knownIds:new Set(seen)});
+   const scan=await scanCatalog({source:budget,recipe:m.recipe,priceScope,maxPages:2,maxRequests:6,perPage:50,knownIds:new Set(seen),candidateLinkSearch});
    const evaluated=scan.listings.map(listing=>({listing,result:matchListing(listing,m.recipe)}));
    const reasons={};for(const {result} of evaluated)reasons[result.reason]=(reasons[result.reason]||0)+1;
    diagnostics.push({monitorId:m.id,candidates:scan.listings.length,knownConditions:scan.listings.filter(x=>x.condition).length,
@@ -69,3 +78,4 @@ export async function automaticScan({rpc,db,request,token,now=Date.now}) {
  }
  return {requests,committed,renewals,diagnostics};
 }
+
