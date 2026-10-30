@@ -2611,7 +2611,7 @@ function _rowToItem(row, parts, returns){
     resaleDateSold:     row.resale_date_sold || null,
     resalePlatform:     row.resale_platform || null,
     salePlatform:       row.sale_platform || null,   // v2.19.33 — Sale 1's own platform
-    refreshHistory:     (function(){try{return row.refresh_history?JSON.parse(row.refresh_history):[];}catch(e){return [];}})(),
+    refreshHistory:     (function(){try{return Array.isArray(row.refresh_history)?row.refresh_history:(function(){var h=row.refresh_history?JSON.parse(row.refresh_history):[];return Array.isArray(h)?h:[];})();}catch(e){return [];}})(),
     _lastRelistAt:      row.last_relist_at || null,
     _lastRefreshAt:     row.last_refresh_at || null,
     resaleShippingCost:  row.resale_shipping_cost  ? Number(row.resale_shipping_cost)  : null,
