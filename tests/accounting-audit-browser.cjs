@@ -107,9 +107,9 @@ const {open,settled}=require('./startup-browser.cjs');
    const month=_buildPnLSummary('2026-07-01','2026-07-31',''),all=_buildPnLSummary(null,null,''),summary=calcYearlyStats('all'),comparison=_statsForRange({from:'2026-07-01',to:'2026-07-31'}),cash=calcCashSummary();
    DB.expenses.push({id:'fuel',date:'2026-07-09',category:'Motor, van & travel',amount:12});
    const withFuel=_buildPnLSummary('2026-07-01','2026-07-31',''),fuelSummary=calcYearlyStats('all');
-   return {month:month.netProfit,all:all.netProfit,summary:summary.netProfit,comparison:comparison.netProfit,archive:all.archiveLoss,mileage:month.mileage.cost,travelBox:month.byBox[20],cash:cash.cashAvailable,withFuel:withFuel.netProfit,fuelSummary:fuelSummary.netProfit,excluded:withFuel.motorExcluded,fareExcluded:!!withFuel.byCategory['Public transport & parking'].excluded};
+   return {month:month.netProfit,all:all.netProfit,summary:summary.netProfit,comparison:comparison.netProfit,grossMargin:comparison.grossMargin,archive:all.archiveLoss,mileage:month.mileage.cost,travelBox:month.byBox[20],cash:cash.cashAvailable,withFuel:withFuel.netProfit,fuelSummary:fuelSummary.netProfit,excluded:withFuel.motorExcluded,fareExcluded:!!withFuel.byCategory['Public transport & parking'].excluded};
   });
-  assert.deepEqual(bridge,{month:8,all:8,summary:8,comparison:8,archive:10,mileage:55,travelBox:59,cash:63,withFuel:8,fuelSummary:8,excluded:12,fareExcluded:false},'Profit views agree; noncash mileage and stock loss do not manufacture cash; fares survive the vehicle method');
+  assert.deepEqual(bridge,{month:8,all:8,summary:8,comparison:8,grossMargin:80,archive:10,mileage:55,travelBox:59,cash:63,withFuel:8,fuelSummary:8,excluded:12,fareExcluded:false},'Profit views agree; noncash mileage and stock loss do not manufacture cash; fares survive the vehicle method');
   assert.deepEqual(errors,[]);await context.close();console.log('PASS dated credits, statement periods, no double cash/tax benefit, missing sale cycles, weighted margins, fixed stock, signed parts and relist fees');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
