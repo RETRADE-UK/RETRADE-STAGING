@@ -238,7 +238,7 @@ function _cashEventsAll(){
     const typ=i.accountId&&typeof _itemAccountType==='function'?_itemAccountType(i):'own';
     const sourced=i.dateSourced||i.dateListed||null;
     // Acquisition cash: own stock and hybrid upfront component are paid when sourced.
-    if((!i.accountId||typ==='hybrid')&&_itemAcquisitionCost(i)>0)push({id:'stock:'+i.id,date:sourced,type:'stock_purchase',direction:'out',amount:_itemAcquisitionCost(i),description:'Stock sourced · '+(i.item||'Item'),source:'item',itemId:i.id,purchaseGroupId:i.purchaseGroupId||null,purchaseGroupName:i.purchaseGroupName||null});
+    if((!i.accountId||typ==='hybrid')&&_itemAcquisitionCost(i)>0)push({id:'stock:'+i.id,date:sourced,type:'stock_purchase',direction:'out',amount:_itemAcquisitionCost(i),description:'Stock sourced · '+(i.item||'Item'),source:'item',itemId:i.id});
     (i.parts||[]).forEach(function(p,idx){if(Number(p.cost)>0)push({id:'part:'+i.id+':'+(p.id||idx),date:p.date||sourced,type:'part_purchase',direction:'out',amount:p.cost,description:'Part / repair · '+(p.description||p.desc||i.item||'Item'),source:'item',itemId:i.id});});
     // Original insertion fee occurs when first listed.
     if(Number(i.listingFee)>0)push({id:'listing:'+i.id,date:i.dateListed||sourced,type:'listing_fee',direction:'out',amount:i.listingFee,description:'Listing fee · '+(i.item||'Item'),source:'item',itemId:i.id});
@@ -282,17 +282,7 @@ function _cashEventsAll(){
   (DB.trips||[]).forEach(function(t){(Array.isArray(t.expenses)?t.expenses:[]).forEach(function(e,idx){const amount=Number(e.amount)||0;if(amount)push({id:'tripexp:'+t.id+':'+idx,date:e.date||t.date||null,type:'trip_expense',direction:amount<0?'in':'out',amount:Math.abs(amount),description:e.description||('Trip expense · '+(t.description||'Sourcing trip')),source:'expense'});});});
   // Paid account settlements are the authoritative supplier/partner cash outflow.
   (typeof _accounts!=='undefined'?_accounts:[]).forEach(function(acct){(acct.settlements||[]).forEach(function(tx){if(!tx||!tx.paid)return;const amt=Math.max(0,Number(tx.partnerAmount)||0);if(amt>0)push({id:'settlement:'+tx.id,date:tx.date||null,type:'partner_settlement',direction:'out',amount:amt,description:'Settlement paid · '+(acct.name||'Partner')+' · '+((tx.items||[]).length)+' item'+((tx.items||[]).length===1?'':'s'),source:'settlement'});});});
-  // Aggregate only actual acquisition outflows on the same date. Never create
-  // a second payment or move costs between dates; per-item profit is unchanged.
-  const grouped=new Map(),display=[];
-  out.forEach(function(ev){
-    if(ev.type!=='stock_purchase'||!ev.purchaseGroupId){display.push(ev);return;}
-    const key=JSON.stringify([ev.purchaseGroupId,ev.date]);
-    let group=grouped.get(key);
-    if(!group){group=Object.assign({},ev,{id:'purchase:'+ev.purchaseGroupId+':'+ev.date,source:'purchase',itemId:null,itemIds:[],amount:0,description:'Purchase · '+(ev.purchaseGroupName||'Shared purchase')});grouped.set(key,group);display.push(group);}
-    group.amount=Math.round((group.amount+ev.amount)*100)/100;group.itemIds.push(ev.itemId);
-  });
-  return display.sort(function(a,b){return (a.date||'').localeCompare(b.date||'')||String(a.id).localeCompare(String(b.id));});
+  return out.sort(function(a,b){return (a.date||'').localeCompare(b.date||'')||String(a.id).localeCompare(String(b.id));});
 }
 function calcCashSummary(){
   const events=_cashEventsAll();
@@ -502,9 +492,13 @@ function calcYearlyStats(period){
   const _allTrips=DB.trips||[],_tieredTrips=calcTieredTrips(_allTrips);let tripsCostInPeriod=0,expensesCostInPeriod=0;
   _allTrips.forEach(function(t,idx){if(inRange(t.date))tripsCostInPeriod+=(_tieredTrips[idx]?_tieredTrips[idx].totalCost:0);});
   (DB.expenses||[]).forEach(function(e){if(inRange(e.date))expensesCostInPeriod+=(Number(e.amount)||0);});
-  const overheadsInPeriod=+(tripsCostInPeriod+expensesCostInPeriod).toFixed(2);
+  let overheadsInPeriod=+(tripsCostInPeriod+expensesCostInPeriod).toFixed(2);
   const grossProfit=+realisedProfit.toFixed(2),grossMargin=totalRev>0?+((grossProfit/totalRev)*100).toFixed(1):0;
-  const netProfit=+(grossProfit-overheadsInPeriod).toFixed(2),netMargin=totalRev?+((netProfit/totalRev)*100).toFixed(1):0;
+  // Use the report owner for the same period: write-offs and motor-method exclusions
+  // must agree between the dashboard and the management profit report.
+  const pnl=_buildPnLSummary(range.from,range.to,'');
+  overheadsInPeriod=+(pnl.selling.manual+pnl.overheads.total).toFixed(2);
+  const netProfit=pnl.netProfit,netMargin=totalRev?+((netProfit/totalRev)*100).toFixed(1):0;
   return{totalRev:totalRev,realisedProfit:grossProfit,accountCreditProfit:accountCredits.amount,accountCreditEvents:accountCredits.events,unrealisedProfit:+unrealisedProfit.toFixed(2),stockValue:+stockValue.toFixed(2),soldCount:soldCount,listedCount:listedCount,totalItems:totalItems,
     fullRefundCount:fullRefundCount,partialOnlyCount:partialOnlyCount,refundedItemCount:refundedItemCount,refundedSalesItemCount:refundedSalesItemCount,refundItemRate:refundItemRate,refundDenom:refundDenom,
     returnCount:returnCount,returnRate:returnRate,partialRefundCount:partialRefundCount,partialRefundRate:partialRefundRate,totalAffected:totalAffected,
@@ -542,8 +536,9 @@ function _statsForRange(range){
   let totalRev=0,realised=0;evs.forEach(function(e){if(e.isReturnAdjustment)totalRev+=Number(e.salePrice)||0;else{const b=_saleBreakdown(e);totalRev+=(Number(b.salePrice)||0)+(Number(b.postage)||0);}realised+=Number(e.profit)||0;});
   realised+=_accountNonCashProfitCredits(range&&range.from,range&&range.to).amount;
   let fullRef=0,partialOnly=0;sales.forEach(function(ev){const n=Math.max(1,Number(ev.sale)||1),rh=(ev.item&&ev.item.returnHistory)||[],cy=rh.filter(function(r){return Math.max(1,Number(r.saleNo)||1)===n;});if(cy.some(function(r){return r.type==='full_seller'||r.type==='full_ebay';}))fullRef++;else if(cy.some(function(r){return r.type==='partial_seller'||r.type==='partial_ebay';}))partialOnly++;});
-  const refundItemRate=sales.length?((fullRef+partialOnly)/sales.length*100):0,netMargin=totalRev?(realised/totalRev*100):0,avgProfit=sales.length?(sales.reduce(function(sum,e){return sum+(Number(e.profit)||0);},0)/sales.length):0;
-  return{totalRev:+totalRev.toFixed(2),grossProfit:+realised.toFixed(2),grossMargin:netMargin,netProfit:+realised.toFixed(2),netMargin:netMargin,soldCount:sales.length,refundItemRate:refundItemRate,avgProfit:avgProfit};
+  const pnl=_buildPnLSummary(range&&range.from,range&&range.to,'');
+  const refundItemRate=sales.length?((fullRef+partialOnly)/sales.length*100):0,netMargin=totalRev?(pnl.netProfit/totalRev*100):0,avgProfit=sales.length?(sales.reduce(function(sum,e){return sum+(Number(e.profit)||0);},0)/sales.length):0;
+  return{totalRev:+totalRev.toFixed(2),grossProfit:+realised.toFixed(2),grossMargin:netMargin,netProfit:pnl.netProfit,netMargin:netMargin,soldCount:sales.length,refundItemRate:refundItemRate,avgProfit:avgProfit};
 }
 
 function _grossSummaryForRange(range){
@@ -833,7 +828,7 @@ function getSaleEventsInRange(from,to){
 }
 
 function _expensesInRange(from,to){
-  const inR=function(d){return d && d>=from && d<=to;};
+  const inR=function(d){return d && (!from||d>=from) && (!to||d<=to);};
   const trips=(DB.trips||[]).filter(function(t){return inR(t.date);});
   const exps=(DB.expenses||[]).filter(function(e){return inR(e.date);});
   const rows=[]; let total=0;
@@ -841,20 +836,20 @@ function _expensesInRange(from,to){
   trips.forEach(function(t){
     const miles=Number(t.mileage)||0, row=tiered[allTrips.indexOf(t)];
     const mileageCost=row?row.mileageCost:0,rate=miles?mileageCost/miles:0;
-    const extraExps=(Array.isArray(t.expenses)?t.expenses:[]).reduce(function(s,e){return s+(e.amount||0);},0);
+    const extraExps=(Array.isArray(t.expenses)?t.expenses:[]).reduce(function(s,e){return s+(Number(e.amount)||0);},0);
     const rowTotal=+(mileageCost+extraExps).toFixed(2);
     total+=rowTotal;
     rows.push([t.date||'',(t.description||'Sourcing trip').replace(/,/g,' '),'Mileage','',miles,rate.toFixed(2),mileageCost.toFixed(2),rowTotal.toFixed(2)]);
   });
   exps.forEach(function(e){
-    const amt=e.amount||0; total+=amt;
+    const amt=Number(e.amount)||0; total+=amt;
     rows.push([e.date||'',(e.description||'Expense').replace(/,/g,' '),e.category||'',amt.toFixed(2),'','','',amt.toFixed(2)]);
   });
   return{trips:trips,expenses:exps,total:+total.toFixed(2),rows:rows};
 }
 
 function _unsoldStockCostInRange(from,to){
-  const inR=function(d){return d && d>=from && d<=to;};
+  const inR=function(d){return d && (!from||d>=from) && (!to||d<=to);};
   let cost=0, count=0;
   const items=[];
   allDBKeys().forEach(function(k){
@@ -964,12 +959,13 @@ function _buildPnLSummary(from,to,label){
   const _allPnlTrips=DB.trips||[],_allPnlTiered=calcTieredTrips(_allPnlTrips);
   const _pnlTiered=exp.trips.map(function(t){return _allPnlTiered[_allPnlTrips.indexOf(t)];});
   const mileageCost=_pnlTiered.reduce(function(s,r){return s+(r.mileageCost||0);},0);
-  const totalMiles=(exp.trips||[]).reduce(function(s,t){return s+(t.mileage||0);},0);
+  const totalMiles=(exp.trips||[]).reduce(function(s,t){return s+(Number(t.mileage)||0);},0);
   // Trip-attached sub-expenses (parking, entry fees…) → their own category, default 'Other'.
   const byBox={};       // box → £ total (manual expenses + mileage only, not sale-level)
   const byCategory={};  // canonical label → {label,box,bucket,amount}
   let manualSelling=0, manualOverhead=0;
   const _addCat=function(cat,amt){
+    amt=Number(amt)||0;
     const d=_resolveExpenseCat(cat);
     byBox[d.box]=+(((byBox[d.box]||0)+amt)).toFixed(2);
     if(!byCategory[d.label])byCategory[d.label]={label:d.label,box:d.box,bucket:d.bucket,amount:0};
@@ -1039,7 +1035,7 @@ function _buildPnLSummary(from,to,label){
   // its payment-timed Box 17 figure. Supplier returns are net of any refund.
   let archiveLoss=0,archiveCount=0;
   allItems().forEach(function(i){
-    if(i&&i.scrappedAt&&i.scrappedAt>=from&&i.scrappedAt<=to){
+    if(i&&i.scrappedAt&&(!from||i.scrappedAt>=from)&&(!to||i.scrappedAt<=to)){
       const loss=(typeof _cashRemovedItemNet==='function')?_cashRemovedItemNet(i):Math.max(0,_itemAcquisitionCost(i)+calcPartsCost(i)-(Number(i.supplierRefund)||0));
       if(loss>0){archiveLoss+=loss;archiveCount++;}
     }

@@ -505,6 +505,7 @@ const EXPENSE_CATEGORY_DEFS=[
   {label:'Advertising & marketing',          box:24, bucket:'selling',  group:'Selling costs', short:'Advertising'},
   {label:'Platform & payment fees',          box:26, bucket:'selling',  group:'Selling costs', short:'Platform fees'},
   {label:'Motor, van & travel',              box:20, bucket:'overhead', group:'Overheads',      short:'Motor & travel'},
+  {label:'Public transport & parking',        box:20, bucket:'overhead', group:'Overheads',      short:'Fares & parking'},
   {label:'Rent, rates, power & insurance',   box:21, bucket:'overhead', group:'Overheads',      short:'Rent & bills'},
   {label:'Repairs & equipment',              box:22, bucket:'overhead', group:'Overheads',      short:'Repairs & kit'},
   {label:'Phone, office & stationery',       box:23, bucket:'overhead', group:'Overheads',      short:'Office'},
