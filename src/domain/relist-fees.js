@@ -134,6 +134,51 @@
   /* Backfill maintenance relists created by old builds. A same-day maintenance
      row matching a return-driven relist is treated as the old mirror row, not a
      second listing, so historical data cannot be double-charged. */
+
+  // Historical charges through 28 October were reconciled to statement rows.
+  var AUTO_START='2026-10-29';
+  function monthDay(anchor,offset){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(anchor||''))return null;
+    var a=anchor.split('-').map(Number),d=new Date(Date.UTC(a[0],a[1]-1+offset,1));
+    var last=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate();
+    d.setUTCDate(Math.min(a[2],last));return d.toISOString().slice(0,10);
+  }
+  function renewItem(i,through){
+    through=day(through||new Date().toISOString());
+    if(!i||i.scrappedAt||i.isReturned||i.state==='sourced'||i.state==='unlisted')return 0;
+    if(!Array.isArray(i.refreshHistory))i.refreshHistory=[];
+    var anchors=[day(i.dateListed)],saleNo=1;
+    fullReturns(i).forEach(function(r){if(r._relistedAt){anchors.push(day(r._relistedAt));saleNo=Math.max(saleNo,saleNoOf(r)+1);}});
+    i.refreshHistory.forEach(function(e){if(e&&e.type==='relist')anchors.push(day(e.date));});
+    var sold=day(saleNo>1?i.resaleDateSold:i.dateSold);
+    if(i.state==='sold'&&!sold)return 0;
+    var end=sold&&sold<through?sold:through,anchor=latestDate(anchors);
+    if(!anchor||anchor>end)return 0;
+    var platform=inferPlatform(i,null,saleNo);if(platform!=='ebay_biz')return 0;
+    var policy=i.refreshHistory.filter(function(e){return e&&e.type==='renewal_policy';}).slice(-1)[0];
+    if(policy&&policy.enabled===false)return 0;
+    var fee=policy&&policy.fee!=null?Math.max(0,round(policy.fee)):feeFor(platform);if(fee===null)return 0;
+    var shared=i.refreshHistory.filter(function(e){return e&&e.type==='bundle_listing_fee'&&e.basis==='shared'&&Number(e.saleNo||1)===saleNo;}).slice(-1)[0];
+    if(shared){
+      if(n(shared.totalFee)<=0)fee=0;
+      else{
+        var peers=allItems().filter(function(x){return !x.dateSold&&!x.resaleDateSold&&!x.isReturned&&!x.scrappedAt&&x.state!=='sourced'&&x.state!=='unlisted'&&(x.refreshHistory||[]).some(function(e){return e&&e.type==='bundle_listing_fee'&&e.basis==='shared'&&e.bundleId===shared.bundleId;});}).sort(function(a,b){return String(a.id).localeCompare(String(b.id));});
+        var ix=peers.indexOf(i);if(ix<0)return 0;
+        var pennies=Math.round(fee*100);fee=(Math.floor(pennies/peers.length)+(ix<pennies%peers.length?1:0))/100;
+      }
+    }
+    var changed=0;
+    for(var m=1;m<1200;m++){
+      var due=monthDay(anchor,m);if(!due||due>end||(sold&&due>=sold))break;
+      if(due<AUTO_START)continue;
+      if(i.refreshHistory.some(function(e){return e&&e.type==='monthly_renewal'&&e.date===due&&e.anchor===anchor;}))continue;
+      i.refreshHistory.push({type:'monthly_renewal',date:due,anchor:anchor,_saleNo:saleNo,_platform:platform,_listingFee:fee,estimated:true});
+      applyFeeToCycle(i,saleNo,fee);changed++;
+    }
+    return changed;
+  }
+  window._ebayRenewalDate=monthDay;window._accrueEbayRenewals=renewItem;
+
   function ensureItem(i){
     if(!i)return 0;
     var changed=0;
@@ -176,6 +221,7 @@
     var lastRefresh=latestDate(i.refreshHistory.filter(function(e){return e&&e.type==='refresh';}).map(function(e){return e.date;}));
     if((i._lastRefreshAt||null)!==(lastRefresh||null)){i._lastRefreshAt=lastRefresh;changed++;}
 
+    changed+=renewItem(i);
     return changed;
   }
 
@@ -248,6 +294,16 @@
       if(lab)lab.textContent='Listing fees ('+(sale1Manual.length+1)+' listings)';
     }
 
+
+    var monthly=(i.refreshHistory||[]).filter(function(e){return e&&e.type==='monthly_renewal';});
+    var verified=(i.refreshHistory||[]).some(function(e){return e&&e.type==='verified_sale_fees';});
+    if(listingInput&&(monthly.length||verified)&&!page.querySelector('[data-rt-fee-source]')){
+      var host=listingInput.closest('.ip-receipt-row');
+      if(host){var note=document.createElement('div');note.className='ip-receipt-row indent';note.setAttribute('data-rt-fee-source','1');
+        note.textContent=(verified?'Transaction fee evidence saved; edits may use estimates. ':'')+(monthly.length?'Monthly renewals: '+monthly.length+' / '+round(monthly.reduce(function(v,e){return v+n(e._listingFee);},0)).toFixed(2)+' GBP included; estimated until checked against eBay.':'');
+        host.insertAdjacentElement('afterend',note);
+      }
+    }
     var total=totalRelistingFees(i),count=totalRelistCount(i);
     if(total>0&&listingInput&&!page.querySelector('[data-rt-relist-total="1"]')){
       var host=listingInput.closest('.ip-receipt-row');
@@ -291,8 +347,12 @@
     var i=getItem(m,id);
     if(!i||!Array.isArray(i.refreshHistory)||!i.refreshHistory.length)return;
     ensureItem(i);
-    var removed=i.refreshHistory.pop();
+
+    var idx=-1;for(var j=i.refreshHistory.length-1;j>=0;j--){if(i.refreshHistory[j]&&(i.refreshHistory[j].type==='relist'||i.refreshHistory[j].type==='refresh')){idx=j;break;}}
+    if(idx<0)return;
+    var removed=i.refreshHistory.splice(idx,1)[0];
     if(removed&&removed.type==='relist'){
+      i.refreshHistory=i.refreshHistory.filter(function(e){if(e&&e.type==='monthly_renewal'&&e.anchor===day(removed.date)){removeFeeFromCycle(i,e._saleNo,e._listingFee);return false;}return true;});
       if(!removed._fromReturn)removeFeeFromCycle(i,Math.max(1,n(removed._saleNo)||inferSaleNo(i,removed)),Math.max(0,n(removed._listingFee)));
       i._lastRelistAt=latestDate(i.refreshHistory.filter(function(e){return e&&e.type==='relist';}).map(function(e){return e.date;}));
     }else{
@@ -303,9 +363,49 @@
     try{var s=_getSecStates();renderItemPage(m,id);_applySecStates(s);}catch(_){try{renderItemPage(m,id);}catch(__){}}
   };
 
+
+
   if(typeof window._cashEventsAll==='function'){
     var cashWithManualRelists=window._cashEventsAll;
-    window._cashEventsAll=function(){repairAll(false);return cashWithManualRelists.apply(this,arguments);};
+    window._cashEventsAll=function(){
+      repairAll(false);var events=cashWithManualRelists.apply(this,arguments);
+      allItems().forEach(function(i){
+        var verifiedBySale={};
+        (i.refreshHistory||[]).forEach(function(e){if(e&&e.type==='verified_listing_fees')verifiedBySale[Math.max(1,n(e.saleNo)||1)]=e;});
+        var coverage={},verified=Object.keys(verifiedBySale).map(function(k){return verifiedBySale[k];});
+        verified.forEach(function(v){coverage[Math.max(1,n(v.saleNo)||1)]=day(v.through)||latestDate((v.entries||[]).map(function(e){return e.date;}));});
+        if(verified.length){
+          events=events.filter(function(e){
+            if(e.itemId!==i.id||e.type!=='listing_fee')return true;
+            var sn=Math.max(1,n(e.saleNo)||1);
+            if(String(e.id).indexOf('relistfee:'+i.id+':')===0){var idx=Number(String(e.id).slice(('relistfee:'+i.id+':').length));sn=saleNoOf((i.returnHistory||[])[idx])+1;}
+            return !coverage[sn]||day(e.date)>coverage[sn];
+          });
+          verified.forEach(function(v){(v.entries||[]).forEach(function(e,idx){
+            if(!n(e.amount))return;
+            events.push({id:'verifiedlisting:'+i.id+':'+v.saleNo+':'+e.sourceRow+':'+idx,date:e.date,type:'listing_fee',direction:n(e.amount)<0?'in':'out',amount:Math.abs(n(e.amount)),description:'Actual eBay listing charge / credit - '+i.item,source:'item',itemId:i.id,saleNo:v.saleNo});
+          });});
+        }
+        // liabilities.js already dates manual relists. Process only monthly rows.
+        (i.refreshHistory||[]).filter(function(e){return e&&e.type==='monthly_renewal'&&n(e._listingFee)>0;}).forEach(function(e,idx){
+          var sn=Math.max(1,n(e._saleNo)||1);
+          if(coverage[sn]&&day(e.date)<=coverage[sn])return;
+          if(!coverage[sn]){
+            var source=null;
+            if(sn===1)source=events.find(function(x){return x.id==='listing:'+i.id;});
+            else{
+              var r=priorReturnForSale(i,sn),ri=(i.returnHistory||[]).indexOf(r);
+              // An old missing relist snapshot falls back to the cumulative cycle
+              // field. Explicit return snapshots contain only the original fee.
+              if(r&&r._listingFeeAtRelist==null)source=events.find(function(x){return x.id==='relistfee:'+i.id+':'+ri;});
+            }
+            if(source)source.amount=round(Math.max(0,n(source.amount)-n(e._listingFee)));
+          }
+          events.push({id:'renewal:'+i.id+':'+e.date+':'+idx,date:e.date,type:'listing_fee',direction:'out',amount:round(e._listingFee),description:'Estimated monthly renewal - '+i.item,source:'item',itemId:i.id,saleNo:sn,estimated:true});
+        });
+      });
+      return events.filter(function(e){return n(e.amount)>0;}).sort(function(a,b){return (a.date||'').localeCompare(b.date||'')||String(a.id).localeCompare(String(b.id));});
+    };
   }
 
   [1200,3200,7000].forEach(function(ms){

@@ -260,7 +260,7 @@ function _cashEventsAll(){
       const gross=+(Math.max(0,Number(cyc.price)||0)+_sellerPostageIncome(cyc.platformId,cyc.postage)).toFixed(2);
       push({id:'sale:'+i.id+':'+n,date:cyc.date,type:'sale_receipt',direction:'in',amount:gross,description:'Sale '+n+' receipt · '+(i.item||'Item'),source:'sale',itemId:i.id,saleNo:n});
       const fee=calcPlatformBPF(i,cyc.price||0,cyc.postage||0,cyc.platformId,n);if(fee>0)push({id:'fee:'+i.id+':'+n,date:cyc.date,type:'platform_fee',direction:'out',amount:fee,description:'Platform fee · Sale '+n+' · '+(i.item||'Item'),source:'sale',itemId:i.id,saleNo:n});
-      const promo=_calcPromoFee(cyc.platformId,cyc.price||0,cyc.postage||0,cyc.promoPercent||0);if(promo>0)push({id:'promo:'+i.id+':'+n,date:cyc.date,type:'promo_fee',direction:'out',amount:promo,description:'Promoted listing · Sale '+n+' · '+(i.item||'Item'),source:'sale',itemId:i.id,saleNo:n});
+      const promo=_salePromoFee(i,n,cyc.platformId,cyc.price||0,cyc.postage||0,cyc.promoPercent||0);if(promo>0)push({id:'promo:'+i.id+':'+n,date:cyc.date,type:'promo_fee',direction:'out',amount:promo,description:'Promoted listing · Sale '+n+' · '+(i.item||'Item'),source:'sale',itemId:i.id,saleNo:n});
       if(Number(cyc.shipping)>0)push({id:'ship:'+i.id+':'+n,date:cyc.date,type:'shipping',direction:'out',amount:cyc.shipping,description:'Shipping · Sale '+n+' · '+(i.item||'Item'),source:'sale',itemId:i.id,saleNo:n});
       if(Number(cyc.packaging)>0)push({id:'pkg:'+i.id+':'+n,date:cyc.date,type:'packaging',direction:'out',amount:cyc.packaging,description:'Packaging · Sale '+n+' · '+(i.item||'Item'),source:'sale',itemId:i.id,saleNo:n});
     });
@@ -675,6 +675,8 @@ function _refundCreditsForEntry(i,r){
     platformCredit=calcPlatformBPF(i,price,post,platformId)*ratio;
     promoCredit=_calcPromoFee(platformId,price,post,promoPct)*ratio;
   }
+  const verified=_verifiedRefundCredits(i,r,price,post,platformId,promoPct);
+  if(verified){if(verified.platformCredit!=null)platformCredit=verified.platformCredit;if(verified.promoCredit!=null)promoCredit=verified.promoCredit;}
   return {
     saleNo:saleNo,platformId:platformId,price:price,postage:post,
     platformCredit:+Math.max(0,platformCredit).toFixed(2),
@@ -743,7 +745,11 @@ function _saleCycleSnapshot(i,saleNo){
   const promoPercent=Math.max(0,Number(archived&&archived._promoPercentAtReturn!=null?archived._promoPercentAtReturn:(archived&&archived._promoPercentAtRelist!=null?archived._promoPercentAtRelist:(i.resalePromoPercent!=null?i.resalePromoPercent:i.promoPercent)))||0);
   let listingFee=0;
   if(archived&&archived._listingFeeAtReturn!=null)listingFee=Math.max(0,Number(archived._listingFeeAtReturn)||0);
-  else if(prior&&prior._listingFeeAtRelist!=null)listingFee=Math.max(0,Number(prior._listingFeeAtRelist)||0);
+  else if(prior&&prior._listingFeeAtRelist!=null){
+    listingFee=Math.max(0,Number(prior._listingFeeAtRelist)||0);
+    listingFee+=(i.refreshHistory||[]).filter(function(e){return e&&e.type==='monthly_renewal'&&Math.max(1,Number(e._saleNo)||1)===n;}).reduce(function(sum,e){return sum+Math.max(0,Number(e._listingFee)||0);},0);
+    listingFee=+listingFee.toFixed(2);
+  }
   else if(live)listingFee=Math.max(0,Number(i.resaleListingFee)||0); // live Sale 2/3/4+ fallback
   return {saleNo:n,date:date,price:price,postage:postage,platformId:platformId,promoPercent:promoPercent,
     shipping:shipping,packaging:packaging,listingFee:listingFee,listedDate:(prior&&prior._relistedAt)||null,
@@ -900,7 +906,7 @@ function _saleBreakdown(ev,excludePartner){
   const packaging=Math.max(0,Number(cyc.packaging)||0);
   const promoPct=Math.max(0,Number(cyc.promoPercent)||0);
   const bpf=calcPlatformBPF(i,salePrice,cyc.postage||0,cyc.platformId,saleNo);
-  const promoFee=_calcPromoFee(cyc.platformId,salePrice,cyc.postage||0,promoPct);
+  const promoFee=_salePromoFee(i,saleNo,cyc.platformId,salePrice,cyc.postage||0,promoPct);
   const itemCost=Math.max(0,_itemAcquisitionCost(i)),parts=Number(calcPartsCost(i))||0;
   const listingFee=Math.max(0,Number(cyc.listingFee)||0);
   // Partner economic cost belongs to one sale cycle only. If the current sale
@@ -1473,9 +1479,38 @@ function _ebaySaleFeeComponents(item,price,post,saleNo){
   return Object.assign({},standalone,{perOrder:+(fixedShares[idx]/1.2).toFixed(4),eligibleRefundableGross:refundable[idx],total:+(refundable[idx]+fixedShares[idx]).toFixed(2)});
 }
 
+
+// Verified statement amounts belong to one unchanged sale cycle. History is
+// evidence, never a new maintenance action or a second cash entry.
+function _verifiedSaleFees(item,saleNo,price,post,platform){
+  const target=Math.max(1,Number(saleNo)||1);
+  return ((item&&item.refreshHistory)||[]).slice().reverse().find(function(e){
+    return e&&e.type==='verified_sale_fees'&&e.orderId&&Number(e.saleNo||1)===target&&e.platform===platform
+      &&Math.abs(Number(e.price)-Number(price))<0.005&&Math.abs(Number(e.postage)-Number(post||0))<0.005
+      &&Number.isFinite(Number(e.platformFee))&&Number(e.platformFee)>=0
+      &&Number.isFinite(Number(e.promoFee))&&Number(e.promoFee)>=0;
+  })||null;
+}
+function _salePromoFee(item,saleNo,platform,price,post,pct){
+  const e=_verifiedSaleFees(item,saleNo,price,post,platform);
+  return e&&Math.abs(Number(e.promoPercent||0)-Number(pct||0))<0.000001?Number(e.promoFee):_calcPromoFee(platform,price,post,pct);
+}
+function _verifiedRefundCredits(item,r,price,post,platform,pct){
+  const e=_verifiedSaleFees(item,r&&r.saleNo,price,post,platform);
+  const credit=e&&(e.refunds||[]).find(function(x){return r&&String(x.returnId)===String(r.id)&&Math.abs(Number(x.refundAmount)-Number(r.refundAmount))<0.005;});
+  if(!credit)return null;
+  return {platformCredit:Number.isFinite(Number(credit.platformCredit))?Math.max(0,Number(credit.platformCredit)):null,
+    promoCredit:Math.abs(Number(e.promoPercent||0)-Number(pct||0))<0.000001&&Number.isFinite(Number(credit.promoCredit))?Math.max(0,Number(credit.promoCredit)):null};
+}
+function _evidenceRefundTotal(item,saleNo,field){
+  return ((item&&item.returnHistory)||[]).filter(function(r){return Number(r.saleNo||1)===Math.max(1,Number(saleNo)||1);})
+    .reduce(function(sum,r){return sum+(Number(_refundCreditsForEntry(item,r)[field])||0);},0);
+}
+
 function calcPlatformBPF(item,salePrice,buyerPostage,platformOverride,saleNo){
   const p=platformOverride||_itemPlatform(item);
   const post=buyerPostage||0;
+  const verified=_verifiedSaleFees(item,saleNo,salePrice,post,p);if(verified)return Number(verified.platformFee);
   switch(p){
     case 'ebay':      return calcEbayBPF(salePrice);
     case 'ebay_biz':  return _ebaySaleFeeComponents(item,salePrice,post,saleNo).total;
@@ -1539,6 +1574,7 @@ function _allRefundRatio(item,saleNo,salePrice,buyerPostage){
 function _netPlatformFeeAfterRefunds(item,saleNo,platformId,salePrice,buyerPostage){
   const original=calcPlatformBPF(item,salePrice,buyerPostage,platformId,saleNo);
   if(!original)return 0;
+  if(_verifiedSaleFees(item,saleNo,salePrice,buyerPostage,platformId))return +Math.max(0,original-_evidenceRefundTotal(item,saleNo,'platformCredit')).toFixed(2);
   if(platformId==='ebay_biz')return _netEbayBizFeeAfterRefunds(item,saleNo,salePrice,buyerPostage);
   if(platformId==='depop'){
     // Depop Payments reverses selling/payment/boost fees when a refund is
@@ -1554,8 +1590,10 @@ function _netPlatformFeeAfterRefunds(item,saleNo,platformId,salePrice,buyerPosta
 }
 
 function _netPromoFeeAfterRefunds(item,saleNo,platformId,salePrice,buyerPostage,promoPercent){
-  const original=_calcPromoFee(platformId,salePrice,buyerPostage,promoPercent);
+  const original=_salePromoFee(item,saleNo,platformId,salePrice,buyerPostage,promoPercent);
   if(!original)return 0;
+  const verified=_verifiedSaleFees(item,saleNo,salePrice,buyerPostage,platformId);
+  if(verified&&Math.abs(Number(verified.promoPercent||0)-Number(promoPercent||0))<0.000001)return +Math.max(0,original-_evidenceRefundTotal(item,saleNo,'promoCredit')).toFixed(2);
   let ratio=0;
   if(platformId==='ebay'||platformId==='ebay_biz'){
     ratio=_sellerRefundCreditRatio(item,saleNo,salePrice,buyerPostage);
@@ -1599,6 +1637,7 @@ function _saleRefundTotals(item,saleNo){
 }
 
 function _privateEbayBuyerFeeRefund(item,saleNo,salePrice,buyerPostage){
+  const verified=_verifiedSaleFees(item,saleNo,salePrice,buyerPostage,'ebay');if(verified&&verified.priceBasis==='seller_receipt')return 0;
   const bpf=calcEbayBPF(salePrice);
   if(!bpf)return 0;
   const target=Math.max(1,Number(saleNo)||1);

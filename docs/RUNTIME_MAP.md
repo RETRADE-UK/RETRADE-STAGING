@@ -1,5 +1,26 @@
 # Runtime ownership
 
+## 30 October - statement fee evidence and monthly renewals
+
+The accounting owner accepts verified statement fees only while the sale cycle,
+platform, price and postage still match. Promotion edits invalidate the promotion
+override. Refund credits match the stored return ID and amount. Private seller
+receipts are not reduced by buyer protection a second time. The core mapper reads
+both native JSON arrays and legacy string histories.
+
+The existing relist owner records dated calendar-month renewal estimates from
+29 October onward, respecting explicit free-fee policies, sold/returned state,
+manual relist anchors and shared-listing penny allocation. Short months clamp the
+day without losing the original anniversary. Estimates are labelled on the item
+page; verified historical listing charges replace covered cash estimates.
+The cash wrapper preserves manual relist dates and never charges a resale renewal
+twice. Metadata does not become an undoable maintenance event.
+
+No schema or environment-binding change. Synthetic regressions cover unchanged
+sale evidence, refunds, history formats, anniversary dates, free listings,
+shared pennies, resale P&L and dated cash. CI retains the existing browser suite.
+Cache build: 20261030-ebay-evidence-renewals (staging adds -staging).
+
 ## 26 October - cash and historical accounting review
 
 `accounting-engine.js` retains negative expense/trip refunds as dated cash
