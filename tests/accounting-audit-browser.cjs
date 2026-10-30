@@ -99,6 +99,17 @@ const {open,settled}=require('./startup-browser.cjs');
   });
   assert.deepEqual(deferred.before,{profit:0,available:105,statement:0},'Unallocated and unsold-stock credits remain balances without realised income');
   assert.equal(deferred.after.july,0);assert.equal(deferred.after.september,25);assert.equal(deferred.after.statement,85);assert.equal(deferred.after.events[0].date,'2026-09-10');assert.equal(deferred.after.events[0].creditDate,'2026-07-10');assert.equal(deferred.capped,10,'Allocation amounts cannot exceed the credit record total');
+  const bridge=await page.evaluate(async()=>{
+   await __auditLoadCredits([]);
+   __auditSet([__auditItem('sold',{costPrice:20}),__auditItem('lost',{dateSold:null,state:'scrapped',scrappedAt:'2026-07-12',costPrice:10})]);
+   DB.trips=[{id:'trip',date:'2026-07-09',mileage:100,expenses:[]}];
+   DB.expenses=[{id:'fare',date:'2026-07-09',category:'Public transport & parking',amount:4},{id:'entry',date:'2026-07-09',category:'Other business expenses',amount:3}];
+   const month=_buildPnLSummary('2026-07-01','2026-07-31',''),all=_buildPnLSummary(null,null,''),summary=calcYearlyStats('all'),comparison=_statsForRange({from:'2026-07-01',to:'2026-07-31'}),cash=calcCashSummary();
+   DB.expenses.push({id:'fuel',date:'2026-07-09',category:'Motor, van & travel',amount:12});
+   const withFuel=_buildPnLSummary('2026-07-01','2026-07-31',''),fuelSummary=calcYearlyStats('all');
+   return {month:month.netProfit,all:all.netProfit,summary:summary.netProfit,comparison:comparison.netProfit,grossMargin:comparison.grossMargin,archive:all.archiveLoss,mileage:month.mileage.cost,travelBox:month.byBox[20],cash:cash.cashAvailable,withFuel:withFuel.netProfit,fuelSummary:fuelSummary.netProfit,excluded:withFuel.motorExcluded,fareExcluded:!!withFuel.byCategory['Public transport & parking'].excluded};
+  });
+  assert.deepEqual(bridge,{month:8,all:8,summary:8,comparison:8,grossMargin:80,archive:10,mileage:55,travelBox:59,cash:63,withFuel:8,fuelSummary:8,excluded:12,fareExcluded:false},'Profit views agree; noncash mileage and stock loss do not manufacture cash; fares survive the vehicle method');
   assert.deepEqual(errors,[]);await context.close();console.log('PASS dated credits, statement periods, no double cash/tax benefit, missing sale cycles, weighted margins, fixed stock, signed parts and relist fees');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

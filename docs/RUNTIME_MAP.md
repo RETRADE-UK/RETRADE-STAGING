@@ -1,5 +1,11 @@
 # Runtime ownership
 
+## 30 October - profit and cash bridge
+
+Dashboard and comparison net profit use the same management P&L as reports, including dated stock write-offs and motor-method exclusions. Open-ended reports retain expenses, mileage and write-offs; numeric strings remain valid amounts. Public transport and parking have a separate Box 20 category so mileage does not suppress fares. Entry fees remain other business expenses. Owner funding and drawings remain outside profit.
+
+Synthetic accounting browser regressions cover all-time and dated profit agreement, non-cash mileage, write-offs, fares and actual fuel exclusions. Cache build: `20261030-cash-profit-bridge` (staging adds its environment suffix).
+
 ## 30 October - statement fee evidence and monthly renewals
 
 The accounting owner accepts verified statement fees only while the sale cycle,
