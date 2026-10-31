@@ -51,6 +51,22 @@
     });
     return out;
   }
+  function cashEvents(){
+    if(!uid()||loadedUser!==uid())return [];
+    var out=[];
+    rows.filter(active).forEach(function(r){
+      var left=Math.max(0,round(r.amount));
+      applications(r).forEach(function(a,idx){
+        if(!a)return;
+        var amount=Math.min(left,Math.max(0,round(a.amount)));left=round(left-amount);
+        if(!amount||a.type!=='cash_refund'||!/^\d{4}-\d{2}-\d{2}$/.test(a.date||'')||a.date<r.date||!['personal','business'].includes(a.destination))return;
+        var event={id:'accountrefund:'+r.id+':'+idx,date:a.date,type:'supplier_refund',direction:'in',amount:amount,description:r.reason||'Supplier reimbursement',source:'account_adjustment',accountId:r.account_id,adjustmentId:r.id};
+        out.push(event);
+        if(a.destination==='personal')out.push(Object.assign({},event,{id:event.id+':drawing',type:'owner_draw',direction:'out',description:'Owner drawing · reimbursement received personally'}));
+      });
+    });
+    return out;
+  }
   function refreshFinancialViews(){try{if(typeof _dbLoading!=='undefined'&&_dbLoading)return;if(typeof refreshActivePage==='function')refreshActivePage();}catch(_){} }
   function applications(r){return Array.isArray(r&&r.applications)?r.applications:[];}
   function used(r,throughDate){return round(applications(r).reduce(function(s,a){if(!a)return s;if(throughDate&&a.date&&String(a.date)>String(throughDate))return s;return s+Math.max(0,Number(a.amount)||0);},0));}
@@ -197,8 +213,8 @@
     var page=document.getElementById('p-item');if(!a||!page||!page.classList.contains('on'))return;activeAccountId=a.id;installStyles();
     var old=page.querySelector('.rt-account-adjustments');if(old)old.remove();
     var all=rowsForAccount(a.id),available=availableCredit(a.id),activeN=all.filter(active).length;
-    var list=all.length?all.map(function(r){var isActive=active(r),applied=used(r),left=remaining(r);return '<div class="rt-adj-row '+(isActive?'':'rt-adj-voided')+'"><div><div class="rt-adj-name">'+esc(r.reason||kindLabel(r.kind))+'</div><div class="rt-adj-meta">'+esc(r.date||'')+' · '+esc(kindLabel(r.kind))+(applied>0?' · '+esc(money(applied))+' applied'+(left>0?' · '+esc(money(left))+' remaining':''):'')+(r.item_allocations&&r.item_allocations.length?' · '+r.item_allocations.length+' linked item'+(r.item_allocations.length===1?'':'s'):'')+(isActive?'':' · VOID')+'</div></div><div class="rt-adj-amount">−'+esc(money(r.amount))+'</div>'+(isActive&&applied<=0.009?'<button type="button" class="btn btn-secondary rt-adj-void" data-adj-void="'+esc(r.id)+'">Void</button>':'<span></span>')+'</div>';}).join(''):'<div class="rt-adj-empty">No account adjustments recorded.</div>';
-    var box=document.createElement('section');box.className='rt-account-adjustments';box.innerHTML='<div class="rt-adj-head"><div class="rt-adj-head-copy"><div class="rt-adj-title">Account adjustments</div><div class="rt-adj-sub">Non-cash credits that reduce partner/supplier payable · '+activeN+' active</div></div><div class="rt-adj-credit">'+(available>0?'−'+esc(money(available))+' available':'No credit available')+'</div><button type="button" class="btn btn-secondary rt-adj-add">+ Add adjustment</button></div><div class="rt-adj-list">'+list+'</div>';
+    var list=all.length?all.map(function(r){var isActive=active(r),applied=used(r),left=remaining(r);return '<div class="rt-adj-row '+(isActive?'':'rt-adj-voided')+'"><div><div class="rt-adj-name">'+esc(r.reason||kindLabel(r.kind))+'</div><div class="rt-adj-meta">'+esc(r.date||'')+' · '+esc(kindLabel(r.kind))+(applied>0?' · '+esc(money(applied))+(applications(r).some(function(a){return a.type==='cash_refund';})?' received in cash':' applied')+(left>0?' · '+esc(money(left))+' remaining':''):'')+(r.item_allocations&&r.item_allocations.length?' · '+r.item_allocations.length+' linked item'+(r.item_allocations.length===1?'':'s'):'')+(isActive?'':' · VOID')+'</div></div><div class="rt-adj-amount">−'+esc(money(r.amount))+'</div>'+(isActive&&applied<=0.009?'<button type="button" class="btn btn-secondary rt-adj-void" data-adj-void="'+esc(r.id)+'">Void</button>':'<span></span>')+'</div>';}).join(''):'<div class="rt-adj-empty">No account adjustments recorded.</div>';
+    var box=document.createElement('section');box.className='rt-account-adjustments';box.innerHTML='<div class="rt-adj-head"><div class="rt-adj-head-copy"><div class="rt-adj-title">Account adjustments</div><div class="rt-adj-sub">Credits and received reimbursements · '+activeN+' active</div></div><div class="rt-adj-credit">'+(available>0?'−'+esc(money(available))+' available':'No credit available')+'</div><button type="button" class="btn btn-secondary rt-adj-add">+ Add adjustment</button></div><div class="rt-adj-list">'+list+'</div>';
     var pt=insertionPoint(page);if(pt.b)pt.p.insertBefore(box,pt.b);else pt.p.appendChild(box);
     box.querySelector('.rt-adj-add').addEventListener('click',function(){openAdd(a.id);});box.querySelectorAll('[data-adj-void]').forEach(function(b){b.addEventListener('click',function(){openVoid(b.getAttribute('data-adj-void'));});});
     var actions=page.querySelector('.rt-payalloc2-actions');if(actions&&!actions.querySelector('.rt-payalloc-adjust')){var ab=document.createElement('button');ab.type='button';ab.className='btn btn-secondary rt-payalloc-adjust';ab.textContent='Add adjustment';ab.addEventListener('click',function(){openAdd(a.id);});actions.insertBefore(ab,actions.querySelector('.payalloc-existing')||null);}
@@ -276,7 +292,7 @@
     brand();y=36;doc.setFont('helvetica','bold');doc.setFontSize(19);colour(doc.setTextColor,navy);doc.text(String(s.account.name||'Partner'),L,y);y+=7;doc.setFont('helvetica','normal');doc.setFontSize(9);colour(doc.setTextColor,muted);doc.text(s.period.label+' · Adjustments reconciled',L,y);y+=10;
     section('Account summary');row('Revenue',gbp(s.totals.revenue));row('Margin before partner/supplier payout',gbp(s.totals.preDistribution));row('Gross partner/supplier earned',gbp(s.totals.grossPartnerEarned));if(Math.abs(s.totals.partnerAdjustment)>0.009)row('Account adjustments',('-'+gbp(Math.abs(s.totals.partnerAdjustment))));row('Net partner/supplier earned',gbp(s.totals.partnerEarned),true);row('RETRADE earned',gbp(s.totals.retradeEarned),true);row('Paid in this period',gbp(s.paidInPeriod));row('Still owed',gbp(s.due),true);y+=5;
     section('Sold items — final net position');if(!s.sales.length)row('No sold items in this period','');s.sales.forEach(function(r){var adj=Math.abs(r.accountAdjustment||0)>0.009,label=String(r.item||'Item')+(r.saleNo?' · '+r.saleNo:''),lines=doc.splitTextToSize(label,94),h=Math.max(adj?16:11,lines.length*3.5+(adj?10:6));ensure(h);doc.setFontSize(7.3);doc.setFont('helvetica','normal');colour(doc.setTextColor,muted);doc.text(String(r.date||''),L,y+3);doc.setFont('helvetica','bold');colour(doc.setTextColor,navy);doc.text(lines,L+23,y+3);doc.setFont('helvetica','normal');doc.text('Partner '+gbp(r.partnerAmount),R-31,y+3,{align:'right'});doc.setFont('helvetica','bold');doc.text('RETRADE '+gbp(r.retrade),R,y+3,{align:'right'});if(adj){doc.setFont('helvetica','normal');doc.setFontSize(6.8);colour(doc.setTextColor,muted);doc.text('Account credit allocated '+gbp(Math.abs(r.accountAdjustment)),L+23,y+8);}y+=h;rule();});
-    if(s.accountAdjustments.length){y+=6;section('Account adjustments — non-cash');s.accountAdjustments.forEach(function(a){var txt=a.date+' · '+a.reason+(a.itemAllocations&&a.itemAllocations.length?' · '+a.itemAllocations.length+' linked item'+(a.itemAllocations.length===1?'':'s'):'');row(txt,'−'+gbp(a.amount),true);if(a.note){ensure(6);doc.setFont('helvetica','italic');doc.setFontSize(7);colour(doc.setTextColor,muted);doc.text(doc.splitTextToSize(a.note,W-8),L+4,y);y+=6;}});}
+    if(s.accountAdjustments.length){y+=6;section('Account credits and reimbursements');s.accountAdjustments.forEach(function(a){var txt=a.date+' · '+a.reason+(a.itemAllocations&&a.itemAllocations.length?' · '+a.itemAllocations.length+' linked item'+(a.itemAllocations.length===1?'':'s'):'');row(txt,'−'+gbp(a.amount),true);if(a.note){ensure(6);doc.setFont('helvetica','italic');doc.setFontSize(7);colour(doc.setTextColor,muted);doc.text(doc.splitTextToSize(a.note,W-8),L+4,y);y+=6;}});}
     y+=6;section('Payment transactions');if(!s.payments.length)row('No partner payments in this period','');s.payments.forEach(function(p){var label=p.date+' · '+p.ref+' · '+p.status;row(label,gbp(p.amount),true);if(p.accountAdjustmentAmount){ensure(7);doc.setFontSize(7.2);doc.setFont('helvetica','normal');colour(doc.setTextColor,muted);doc.text('Gross liabilities '+gbp(p.grossAmount)+' · account credit −'+gbp(p.accountAdjustmentAmount)+' · cash paid '+gbp(p.amount),L+5,y);y+=7;}p.allocations.forEach(function(a){ensure(7);doc.setFontSize(7.1);colour(doc.setTextColor,navy);doc.text(doc.splitTextToSize('↳ '+a.item+(a.saleNo?' · '+a.saleNo:''),138),L+5,y);doc.text(gbp(a.amount),R-2,y,{align:'right'});y+=7;});});
     if(s.adjustments&&s.adjustments.length){y+=5;section('Returns & refunds — RETRADE impact');s.adjustments.forEach(function(a){row(a.date+' · '+a.item+' · '+a.saleNo,(a.profitImpact>0?'+':'')+gbp(a.profitImpact));});}
     if(Math.abs(s.totals.reconciliationDifference)>0.01){y+=4;row('RECONCILIATION WARNING',String(s.totals.reconciliationDifference),true);}var pages=doc.getNumberOfPages();for(var i=1;i<=pages;i++){doc.setPage(i);doc.setFontSize(7);colour(doc.setTextColor,muted);doc.text('RETRADE · '+String(s.account.name||'Partner')+' · '+s.period.label,L,291);doc.text('Page '+i+' of '+pages,R,291,{align:'right'});}doc.save('RETRADE_'+String(s.account.name||'Partner').replace(/[^a-z0-9._-]+/gi,'_')+'_Statement_'+s.period.slug+'.pdf');
@@ -300,6 +316,7 @@
         var typ=String(acct&&acct.accountType||'supplier').toLowerCase();
         if(typ==='supplier'){out.goodsPaid=round((Number(out.goodsPaid)||0)-amt);out.supplierStockPaid=round((Number(out.supplierStockPaid)||0)-amt);}else out.partnerPaid=round((Number(out.partnerPaid)||0)-amt);
       });});
+      out.supplierRefundIncome=round((out.supplierRefundIncome||0)+cashEvents().filter(function(e){return e.direction==='in'&&(!from||e.date>=from)&&(!to||e.date<=to);}).reduce(function(n,e){return n+e.amount;},0));
       return out;
     };
     wrappedTax.__rtAccountAdjustments=true;_taxCashStockAndPartner=wrappedTax;
@@ -310,6 +327,7 @@
 
   window.__rtPartnerAdjustmentsEnsureLoaded=ensureLoaded;
   window.__rtPartnerAdjustmentsProfitEvents=profitEvents;
+  window.__rtPartnerAdjustmentsCashEvents=cashEvents;
   window.__rtPartnerAdjustmentsAvailableCredit=availableCredit;
   window.__rtPartnerAdjustmentsPlanPayment=planPayment;
   window.__rtPartnerAdjustmentsCommitPayment=commitPaymentPlan;

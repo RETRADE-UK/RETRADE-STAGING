@@ -198,6 +198,7 @@
         if(!ev||!ev.item||String(ev.item.accountId)!==String(acct.id))return;
         var b=_saleBreakdown(ev);total+=Number(b&&b.netProfit)||0;
       });
+      if(typeof _accountNonCashProfitCredits==='function')total+=_accountNonCashProfitCredits().events.filter(function(e){return String(e.accountId)===String(acct.id);}).reduce(function(n,e){return n+e.amount;},0);
       return roundMoney(total);
     }catch(_){return null;}
   }

@@ -1,5 +1,10 @@
 # Runtime ownership
 
+## 31 October — reimbursements and mileage
+
+Management profit retains actual costs and excludes mileage allowances. HMRC cash-basis reports explicitly opt into annual mileage and exclude actual vehicle running costs when that method applies. UC mileage uses exact assessment dates and its own 833-mile bands. Account adjustment cash-refund applications create a supplier receipt and, when retained personally, an equal owner drawing; consumed credit cannot reduce another payment. Original supplier settlement history is retained. Synthetic tests cover cash, tax, account profit, date boundaries and mileage separation.
+
+
 ## 30 October - profit and cash bridge
 
 Dashboard and comparison net profit use the same management P&L as reports, including dated stock write-offs and motor-method exclusions. Open-ended reports retain expenses, mileage and write-offs; numeric strings remain valid amounts. Public transport and parking have a separate Box 20 category so mileage does not suppress fares. Entry fees remain other business expenses. Owner funding and drawings remain outside profit.

@@ -712,20 +712,22 @@ function _expandedExpenseRows(pnl){
   const allTrips=DB.trips||[],tiered=calcTieredTrips(allTrips);
   (pnl.expenses.trips||[]).forEach(function(t){
     const miles=Number(t.mileage)||0,allocation=tiered[allTrips.indexOf(t)];
-    const mileageCost=allocation?allocation.mileageCost:0,rate=miles?mileageCost/miles:0;
+    const mileageCost=pnl.motorMethod==='mileage'&&allocation?allocation.mileageCost:0,rate=miles?mileageCost/miles:0;
     total+=mileageCost;
-    rows.push([t.date||'','Mileage',(t.description||'Sourcing trip'),'Mileage',(t.description||''),
+    if(mileageCost)rows.push([t.date||'','Mileage',(t.description||'Sourcing trip'),'Mileage',(t.description||''),
       miles,+rate.toFixed(2),mileageCost,'',mileageCost]);
     // Break out each sub-expense on this trip as its own row so "what for" is visible
     (Array.isArray(t.expenses)?t.expenses:[]).forEach(function(e){
-      const amt=+((e.amount||0)).toFixed(2);
+      if(pnl.motorMethod==='mileage'&&_resolveExpenseCat(e.category).label==='Motor, van & travel')return;
+      const amt=+(Number(e.amount)||0).toFixed(2);
       total+=amt;
       rows.push([e.date||t.date||'','Trip expense',(e.description||'Sub-expense'),(e.category||'Trip cost'),(t.description||''),
         '','','',amt,amt]);
     });
   });
   (pnl.expenses.expenses||[]).forEach(function(e){
-    const amt=+((e.amount||0)).toFixed(2);
+    if(pnl.motorMethod==='mileage'&&_resolveExpenseCat(e.category).label==='Motor, van & travel')return;
+    const amt=+(Number(e.amount)||0).toFixed(2);
     total+=amt;
     rows.push([e.date||'','Expense',(e.description||'Expense'),(e.category||''),'',
       '','','',amt,amt]);
@@ -818,7 +820,7 @@ function _buildSA103Rows(pnl){
   rows.push([]);
   rows.push([pnl.netProfit>=0?'47 / S21':'48 / S22',pnl.netProfit>=0?'Net profit':'Net loss',Math.abs(Number(pnl.netProfit)||0),pnl.netProfit>=0?filingProfit:filingLoss]);
   rows.push(['76 / S31','Total taxable profit (before any personal loss/capital-allowance adjustments)',Math.max(0,Number(pnl.netProfit)||0),filingProfit]);
-  if(pnl.mileage.miles>0){
+  if(pnl.motorMethod==='mileage'&&pnl.mileage.miles>0){
     rows.push([]);
     rows.push(['Mileage note',pnl.mileage.miles+' business miles claimed at HMRC simplified rates','','']);
   }
