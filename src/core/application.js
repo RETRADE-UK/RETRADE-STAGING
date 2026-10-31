@@ -9649,7 +9649,7 @@ function _accountStats(accountId){
     // so don't double-count it.
     if(_itemAccountType(i)!=='supplier')partnerProfitCut+=(_accountItemOwed(i)||0);
   });
-  const creditProfit=_accountNonCashProfitCredits().events.filter(function(e){return String(e.accountId)===String(accountId);}).reduce(function(n,e){return n+e.amount;},0);
+  const creditProfit=(typeof _accountNonCashProfitCredits==='function'?_accountNonCashProfitCredits().events:[]).filter(function(e){return String(e.accountId)===String(accountId);}).reduce(function(n,e){return n+e.amount;},0);
   const yourShare=grossProfit-partnerProfitCut+creditProfit;
 
   // Forecast remaining active stock before and after the partner split.
