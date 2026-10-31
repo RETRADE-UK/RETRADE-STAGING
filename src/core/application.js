@@ -203,15 +203,10 @@ function _ensureDBShape(){
 // they were created via the Stock Quick Add flow — never produced by this
 // migration (no existing field can imply pre-listing intent).
 //
-// ALSO: backfill dateSourced for items that don't have it. Anything created
-// via the old List Quick Add flow gets dateSourced=dateListed (effectively
-// "sourced and listed same day" → 0d time-to-list). Falls back to dateSold
-// for ancient entries with neither, ensuring the field is never undefined.
-// This matters for the Stock page's "Avg time to list" KPI which would
-// otherwise have to skip un-sourced items entirely.
+// Unknown acquisition dates remain blank; listing and sale dates are not purchase evidence.
 function _migrateItemStates(){
   const _VALID_STATES=['sourced','listed','sold','returned'];
-  let touchedState=0, touchedSourced=0, reconciled=0;
+  let touchedState=0, reconciled=0;
   allDBKeys().forEach(function(k){
     (DB[k]||[]).forEach(function(i){
       // E7: remap legacy 'stock' → 'sourced'. Items saved before E6 renamed the
@@ -249,10 +244,7 @@ function _migrateItemStates(){
           reconciled++;
         }
       }
-      if(!i.dateSourced){
-        i.dateSourced = i.dateListed || i.dateSold || null;
-        if(i.dateSourced) touchedSourced++;
-      }
+      // Unknown acquisition dates stay unknown. A listing/sale is not purchase evidence.
     });
   });
   if(reconciled>0)console.info('[RETRADE] v2.09.4 state reconcile: fixed '+reconciled+' ghost-sold/returned item'+(reconciled!==1?'s':''));
@@ -2731,10 +2723,10 @@ function _itemToRow(i, month){
     resale_date_sold:     i.resaleDateSold     || null,
     resale_platform:      i.resalePlatform     || null,
     sale_platform:        i.salePlatform       || null,   // v2.19.33
-    resale_shipping_cost: i.resaleShippingCost || null,
-    resale_promo_percent: i.resalePromoPercent || null,
-    resale_packaging_cost:i.resalePackagingCost|| null,
-    resale_postage:       i.resalePostage      || null,
+    resale_shipping_cost: i.resaleShippingCost != null ? i.resaleShippingCost : null,
+    resale_promo_percent: i.resalePromoPercent != null ? i.resalePromoPercent : null,
+    resale_packaging_cost:i.resalePackagingCost != null ? i.resalePackagingCost : null,
+    resale_postage:       i.resalePostage != null ? i.resalePostage : null,
     refresh_history:      (i.refreshHistory&&i.refreshHistory.length)?JSON.stringify(i.refreshHistory):null,
     last_relist_at:       i._lastRelistAt       || null,
     last_refresh_at:      i._lastRefreshAt      || null,
@@ -2762,8 +2754,8 @@ function _itemToRow(i, month){
     est_sale_price:   i.estSalePrice != null ? i.estSalePrice : null,
     default_platform: i.defaultPlatform || null,
     sold_on_platform: i.soldOnPlatform || null,
-    listing_fee:      i.listingFee || null,
-    resale_listing_fee: i.resaleListingFee || null,
+    listing_fee:      i.listingFee != null ? i.listingFee : null,
+    resale_listing_fee: i.resaleListingFee != null ? i.resaleListingFee : null,
   };
 }
 
@@ -15050,15 +15042,16 @@ function _performanceFYMonths(fy,ctx){
     if(field!=='grossProfit'&&Number(value))row.hasCosts=true;
   }
   (p.events||[]).forEach(function(ev){add(ev.saleDate,'grossProfit',_saleBreakdown(ev).netProfit);});
+  (p.accountCreditEvents||[]).forEach(function(e){add(e.date,'grossProfit',e.amount);});
   const allTrips=DB.trips||[],tiered=(ctx&&ctx.tieredTrips)||calcTieredTrips(allTrips);
-  const excludeMotor=p.motorDoubleClaim&&p.motorMethod==='mileage';
+  const excludeMotor=p.reporting&&p.motorDoubleClaim&&p.motorMethod==='mileage';
   function cost(date,field,e){
     if(excludeMotor&&_resolveExpenseCat(e.category).label==='Motor, van & travel')return;
     add(date,field,e.amount);
   }
   (p.expenses.trips||[]).forEach(function(t){
     const row=tiered[allTrips.indexOf(t)];
-    if(row&&!(p.motorDoubleClaim&&p.motorMethod==='actual'))add(t.date,'tripsCost',row.mileageCost);
+    if(p.reporting&&row&&!(p.motorDoubleClaim&&p.motorMethod==='actual'))add(t.date,'tripsCost',row.mileageCost);
     (Array.isArray(t.expenses)?t.expenses:[]).forEach(function(e){cost(t.date,'tripsCost',e);});
   });
   (p.expenses.expenses||[]).forEach(function(e){cost(e.date,'expensesCost',e);});
@@ -23714,17 +23707,18 @@ function renderTax(){
 
   // Show the actual reasons for the difference instead of making two accounting
   // bases artificially equal. Calendar, motor rules and write-offs are separate.
-  const dateAdjustment=round(management.netProfit+(management.archiveLoss||0)-(management.motorExcluded||0)-salesNet);
+  const dateAdjustment=round(management.netProfit+(management.archiveLoss||0)-salesNet);
   const grossRow=row('Yearly Sales gross profit',money(salesGross),'April–March · after item costs and partner shares');
-  const netRow=row('Yearly Sales net profit',money(salesNet),'After trips and logged overheads','tax-bridge-total');
+  const netRow=row('Yearly Sales net profit',money(salesNet),'Before mileage; after cash overheads','tax-bridge-total');
   const adjustment=function(name,value,note){return value?row(name,signed(value),note):'';};
   const dateRows=adjustment('Tax-year dates',dateAdjustment,'Replace 1–5 April '+year+' with 1–5 April '+(year+1))
-    +adjustment('Motor costs excluded',management.motorExcluded||0,'One motor expense method; no duplicate deduction')
     +adjustment('Removed stock / write-offs',-(management.archiveLoss||0),'Management profit adjustment');
   const cashRows=adjustment('Stock purchase timing',round(management.cogs-pnl.cashGoodsPaid),'Sale-matched stock and parts: '+money(management.cogs)+'; purchases paid: '+money(pnl.cashGoodsPaid))
     +adjustment('Partner payment timing',round(management.selling.partner-pnl.cashPartnerPaid),'Share recognised on sales: '+money(management.selling.partner)+'; paid: '+money(pnl.cashPartnerPaid))
     +adjustment('Write-off timing',management.archiveLoss||0,'Paid stock is already deducted when purchased')
-    +adjustment('Supplier refunds received',pnl.otherBusinessIncome||0,'Recovery recorded on the removal / refund date');
+    +adjustment('Supplier refunds received',pnl.otherBusinessIncome||0,'Recovery recorded on the refund receipt date')
+    +adjustment('HMRC mileage deduction',pnl.motorMethod==='mileage'?-(pnl.motorMileage||0):0,'Reporting allowance; no cash withdrawn')
+    +adjustment('Actual motor costs added back',pnl.motorMethod==='mileage'?(pnl.motorExcluded||0):0,'Covered by simplified mileage; no duplicate tax deduction');
   const profitRow=row('Profit on cash basis · actual expenses',money(pnl.netProfit),'Income received less allowable costs paid','tax-bridge-total');
   const bridge=grossRow+netRow+dateRows+row('Sales-basis profit · 6 Apr–5 Apr',money(management.netProfit),'Same tax-year dates','tax-bridge-total')+cashRows+profitRow;
   // Desktop uses the same adjustments once; mobile retains the full original bridge.
@@ -23773,6 +23767,7 @@ function renderTax(){
     html+='<div class="tax-month tax-month-total"><strong>Tax year total</strong><div data-label="Income">'+money(income)+'</div><div data-label="Costs">'+money(expenses)+'</div><div data-label="Profit">'+money(pnl.netProfit)+'</div><div data-label="Set aside">'+money(totalTax)+'</div></div></div></section>';
   }
   if(!monthly.length)html+='<section class="tax-card" id="tax-monthly-summary"><h2>Monthly cash-basis profit</h2><p>No activity recorded in this tax year.</p></section>';
+  html+=_ucReportPanelHTML();
   html+='</div><aside class="tax-aside"><details class="tax-card tax-details" id="tax-estimate"'+(openSections.has('tax-estimate')?' open':'')+'><summary><span class="tax-mobile-only">Tax settings & estimate</span><span class="tax-desktop-only">Estimate breakdown</span></summary><div class="tax-details-body"><details id="tax-estimate-settings" class="tax-settings-disclosure" data-desktop-open="'+Boolean(desktopSettingsOpen)+'" open><summary class="tax-desktop-only">Edit estimate settings</summary><div class="tax-section-heading"><p>Other income affects your tax band.</p></div><div class="tax-settings">'
     +'<label for="tax-region">Tax region<select id="tax-region" onchange="setTaxRegion(this.value)"><option value="rUK"'+(region==='rUK'?' selected':'')+'>England, Wales & Northern Ireland</option><option value="scotland"'+(region==='scotland'?' selected':'')+'>Scotland</option></select></label>'
     +'<label for="tax-other-income">Other taxable income (£)<small>Salary, pension etc. before Personal Allowance</small><input id="tax-other-income" type="number" inputmode="decimal" min="0" step="0.01" value="'+otherIncome+'" onchange="setTaxOtherIncome(this.value)"></label></div></details>'
@@ -23834,11 +23829,38 @@ function _syncTaxDesktopDetails(){
 }
 window.matchMedia('(min-width:1281px)').addEventListener('change',_syncTaxDesktopDetails);
 
+function _ucReportPanelHTML(){
+  const range=window._ucReportRange||{};
+  return '<section class="tax-card" id="tax-uc-report"><div class="tax-section-heading"><h2>Universal Credit assessment period</h2><p>Prepare one assessment period using its exact dates. This is separate from the HMRC monthly figures above.</p></div>'
+    +'<div class="tax-settings"><label>First day<input type="date" id="uc-from" value="'+esc(range.from||'')+'"></label><label>Last day<input type="date" id="uc-to" value="'+esc(range.to||'')+'"></label></div>'
+    +'<button type="button" class="btn btn-secondary" onclick="renderUCAssessmentReport()">Prepare period</button><div id="uc-result"></div>'
+    +'<p class="tax-note">For a non-adapted car: 45p for the first 833 business miles in the assessment period, then 25p. Do not also claim fuel or other covered vehicle costs. Check payment and wallet receipt dates and business use before submitting.</p></section>';
+}
+function renderUCAssessmentReport(){
+  const from=document.getElementById('uc-from').value,to=document.getElementById('uc-to').value;
+  const el=document.getElementById('uc-result');let report;
+  try{report=_buildUCAssessmentSummary(from,to);}catch(e){el.textContent=e.message;return;}
+  window._ucReportRange={from:from,to:to};window._ucReportData=report;
+  const row=(label,value)=>'<div class="tax-bridge-row"><span>'+label+'</span><strong>'+fmt(value)+'</strong></div>';
+  el.innerHTML=row('Business receipts in recorded period',report.income)+row('Recorded costs before mileage',report.expensesBeforeMileage)
+    +row('Car mileage deduction · '+report.miles+' miles',report.mileageDeduction)
+    +row('Profit after UC mileage',report.profit)
+    +'<p class="tax-note">Preparation total before UC loss carry-forward, minimum income floor or benefit calculations. Sales dates currently stand in for wallet receipt dates; verify these against the assessment period. Personally funded purchases and other uncertain payment dates need supporting records.</p>'
+    +'<button type="button" class="btn btn-secondary" onclick="downloadUCAssessmentReport()">Download period CSV</button>';
+}
+function downloadUCAssessmentReport(){
+  const r=window._ucReportData;if(!r)return;
+  const rows=[['Universal Credit assessment preparation'],['From',r.from],['To',r.to],['Business income',r.income],['Costs before mileage',r.expensesBeforeMileage],['Business car miles',r.miles],['UC mileage deduction',r.mileageDeduction],['Profit after mileage',r.profit],['Status','Verify receipt/payment dates and allowable business use before submitting'],[],['Date','Type','Direction','Amount','Description']];
+  r.events.forEach(e=>rows.push([e.date,e.type,e.direction,e.amount,e.description]));
+  const csv=rows.map(row=>row.map(v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const url=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');
+  a.href=url;a.download='RETRADE_UC_'+r.from+'_'+r.to+'.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
 function setTaxWorkspaceView(view){
   if(!['overview','filing','monthly'].includes(view))view='overview';
   window._taxWorkspaceView=view;
   const page=document.getElementById('p-tax');if(!page)return;
-  const sections={overview:['tax-comparison','tax-income-expenses','tax-purchases','tax-estimate'],filing:['tax-filing-guide','tax-filing','tax-assumptions'],monthly:['tax-monthly-summary']};
+  const sections={overview:['tax-comparison','tax-income-expenses','tax-purchases','tax-estimate'],filing:['tax-filing-guide','tax-filing','tax-assumptions'],monthly:['tax-monthly-summary','tax-uc-report']};
   Object.values(sections).flat().forEach(function(id){const el=document.getElementById(id);if(el)el.hidden=!sections[view].includes(id);});
   page.querySelectorAll('[data-tax-view]').forEach(function(button){button.setAttribute('aria-pressed',String(button.dataset.taxView===view));});
   const aside=page.querySelector('.tax-aside');if(aside)aside.hidden=view==='monthly';
@@ -25043,8 +25065,8 @@ function exportForSupabase(){
         is_returned:!!i.isReturned,
         postage_mode:i._postageMode||'simple', sd_rate_idx:i._sdRateIdx!=null?i._sdRateIdx:1, sd_buyer_pays:i._sdBuyerPays===true,
         resale_sale_price:i.resaleSalePrice||null, resale_date_sold:i.resaleDateSold||null,
-        resale_shipping_cost:i.resaleShippingCost||null, resale_promo_percent:i.resalePromoPercent||null,
-        resale_packaging_cost:i.resalePackagingCost||null, resale_postage:i.resalePostage||null,
+        resale_shipping_cost:i.resaleShippingCost != null ? i.resaleShippingCost : null, resale_promo_percent:i.resalePromoPercent != null ? i.resalePromoPercent : null,
+        resale_packaging_cost:i.resalePackagingCost != null ? i.resalePackagingCost : null, resale_postage:i.resalePostage != null ? i.resalePostage : null,
         gross_profit:i.grossProfit||null
       });
       (i.parts||[]).forEach(function(p,pi){
