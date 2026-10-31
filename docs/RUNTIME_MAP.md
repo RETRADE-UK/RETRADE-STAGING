@@ -1,5 +1,14 @@
 # Runtime ownership
 
+## 31 October — received refunds and reporting deductions
+
+Partner adjustments can be settled as a cash refund in their existing application array. One row owns the receipt and, when retained personally, its paired owner drawing; cash-settled credit is unavailable for future settlements. Profit attribution and statements retain original stock costs. Cash-basis reporting recognises receipt dates. Normal user-scoped persistence and revision checks remain unchanged; no schema migration.
+
+Management profit excludes mileage allowances and includes recorded actual motor costs. HMRC keeps its annual mileage/actual-cost rules; the monthly Tax view also prepares a selectable Universal Credit assessment period with the separate 833-mile band. UC exports are preparation records and identify the need to verify platform receipt dates, allowable use and payment dates. Owner-paid acquisition metadata removes only verified personal funding from business cash, preserving item cost.
+
+Loading no longer invents missing source dates. Save mapping retains explicit zero resale/listing costs. Synthetic regressions cover received refunds, personal retention, voids, user isolation, future credit, reports, mileage bands, owner-paid stock and persistence. Cache: 20261031-receipts-profit-reporting (staging suffix retained).
+
+
 ## 30 October - profit and cash bridge
 
 Dashboard and comparison net profit use the same management P&L as reports, including dated stock write-offs and motor-method exclusions. Open-ended reports retain expenses, mileage and write-offs; numeric strings remain valid amounts. Public transport and parking have a separate Box 20 category so mileage does not suppress fares. Entry fees remain other business expenses. Owner funding and drawings remain outside profit.
