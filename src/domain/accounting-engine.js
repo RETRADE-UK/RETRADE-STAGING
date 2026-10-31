@@ -238,7 +238,7 @@ function _cashEventsAll(){
     const typ=i.accountId&&typeof _itemAccountType==='function'?_itemAccountType(i):'own';
     const sourced=i.dateSourced||i.dateListed||null;
     // Acquisition cash: own stock and hybrid upfront component are paid when sourced.
-    if((!i.accountId||typ==='hybrid')&&_itemAcquisitionCost(i)>0)push({id:'stock:'+i.id,date:sourced,type:'stock_purchase',direction:'out',amount:_itemAcquisitionCost(i),description:'Stock sourced · '+(i.item||'Item'),source:'item',itemId:i.id});
+    if((!i.accountId||typ==='hybrid')&&_itemAcquisitionCost(i)>0)push({id:'stock:'+i.id,date:sourced,type:'stock_purchase',direction:'out',amount:_itemAcquisitionCost(i),description:'Stock sourced · '+(i.item||'Item'),source:'item',itemId:i.id,purchaseGroupId:i.purchaseGroupId||null,purchaseGroupName:i.purchaseGroupName||null});
     (i.parts||[]).forEach(function(p,idx){if(Number(p.cost)>0)push({id:'part:'+i.id+':'+(p.id||idx),date:p.date||sourced,type:'part_purchase',direction:'out',amount:p.cost,description:'Part / repair · '+(p.description||p.desc||i.item||'Item'),source:'item',itemId:i.id});});
     // Original insertion fee occurs when first listed.
     if(Number(i.listingFee)>0)push({id:'listing:'+i.id,date:i.dateListed||sourced,type:'listing_fee',direction:'out',amount:i.listingFee,description:'Listing fee · '+(i.item||'Item'),source:'item',itemId:i.id});
@@ -283,7 +283,17 @@ function _cashEventsAll(){
   // Paid account settlements are the authoritative supplier/partner cash outflow.
   (typeof _accounts!=='undefined'?_accounts:[]).forEach(function(acct){(acct.settlements||[]).forEach(function(tx){if(!tx||!tx.paid)return;const amt=Math.max(0,Number(tx.partnerAmount)||0);if(amt>0)push({id:'settlement:'+tx.id,date:tx.date||null,type:'partner_settlement',direction:'out',amount:amt,description:'Settlement paid · '+(acct.name||'Partner')+' · '+((tx.items||[]).length)+' item'+((tx.items||[]).length===1?'':'s'),source:'settlement'});});});
   if(typeof window.__rtPartnerAdjustmentsCashEvents==='function')window.__rtPartnerAdjustmentsCashEvents().forEach(push);
-  return out.sort(function(a,b){return (a.date||'').localeCompare(b.date||'')||String(a.id).localeCompare(String(b.id));});
+  // Aggregate only actual acquisition outflows on the same date. Never create
+  // a second payment or move costs between dates; per-item profit is unchanged.
+  const grouped=new Map(),display=[];
+  out.forEach(function(ev){
+    if(ev.type!=='stock_purchase'||!ev.purchaseGroupId){display.push(ev);return;}
+    const key=JSON.stringify([ev.purchaseGroupId,ev.date]);
+    let group=grouped.get(key);
+    if(!group){group=Object.assign({},ev,{id:'purchase:'+ev.purchaseGroupId+':'+ev.date,source:'purchase',itemId:null,itemIds:[],amount:0,description:'Purchase · '+(ev.purchaseGroupName||'Shared purchase')});grouped.set(key,group);display.push(group);}
+    group.amount=Math.round((group.amount+ev.amount)*100)/100;group.itemIds.push(ev.itemId);
+  });
+  return display.sort(function(a,b){return (a.date||'').localeCompare(b.date||'')||String(a.id).localeCompare(String(b.id));});
 }
 function calcCashSummary(){
   const events=_cashEventsAll();
