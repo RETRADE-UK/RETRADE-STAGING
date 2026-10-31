@@ -15050,15 +15050,16 @@ function _performanceFYMonths(fy,ctx){
     if(field!=='grossProfit'&&Number(value))row.hasCosts=true;
   }
   (p.events||[]).forEach(function(ev){add(ev.saleDate,'grossProfit',_saleBreakdown(ev).netProfit);});
+  (p.accountCreditEvents||[]).forEach(function(e){add(e.date,'grossProfit',e.amount);});
   const allTrips=DB.trips||[],tiered=(ctx&&ctx.tieredTrips)||calcTieredTrips(allTrips);
-  const excludeMotor=p.motorDoubleClaim&&p.motorMethod==='mileage';
+  const excludeMotor=false; // Management profit includes actual paid expenses.
   function cost(date,field,e){
     if(excludeMotor&&_resolveExpenseCat(e.category).label==='Motor, van & travel')return;
     add(date,field,e.amount);
   }
   (p.expenses.trips||[]).forEach(function(t){
     const row=tiered[allTrips.indexOf(t)];
-    if(row&&!(p.motorDoubleClaim&&p.motorMethod==='actual'))add(t.date,'tripsCost',row.mileageCost);
+    // Mileage allowance belongs only in tax/UC reporting.
     (Array.isArray(t.expenses)?t.expenses:[]).forEach(function(e){cost(t.date,'tripsCost',e);});
   });
   (p.expenses.expenses||[]).forEach(function(e){cost(e.date,'expensesCost',e);});
@@ -23721,7 +23722,9 @@ function renderTax(){
   const dateRows=adjustment('Tax-year dates',dateAdjustment,'Replace 1–5 April '+year+' with 1–5 April '+(year+1))
     +adjustment('Motor costs excluded',management.motorExcluded||0,'One motor expense method; no duplicate deduction')
     +adjustment('Removed stock / write-offs',-(management.archiveLoss||0),'Management profit adjustment');
-  const cashRows=adjustment('Stock purchase timing',round(management.cogs-pnl.cashGoodsPaid),'Sale-matched stock and parts: '+money(management.cogs)+'; purchases paid: '+money(pnl.cashGoodsPaid))
+  const cashRows=adjustment('Mileage allowance',-(pnl.motorMethod==='mileage'?pnl.mileage.cost:0),'HMRC deduction only; excluded from Sales profit')
+    +adjustment('Actual vehicle costs excluded',pnl.motorMethod==='mileage'?pnl.motorActual:0,'Running costs are covered by the mileage allowance')
+    +adjustment('Stock purchase timing',round(management.cogs-pnl.cashGoodsPaid),'Sale-matched stock and parts: '+money(management.cogs)+'; purchases paid: '+money(pnl.cashGoodsPaid))
     +adjustment('Partner payment timing',round(management.selling.partner-pnl.cashPartnerPaid),'Share recognised on sales: '+money(management.selling.partner)+'; paid: '+money(pnl.cashPartnerPaid))
     +adjustment('Write-off timing',management.archiveLoss||0,'Paid stock is already deducted when purchased')
     +adjustment('Supplier refunds received',pnl.otherBusinessIncome||0,'Recovery recorded on the removal / refund date');
@@ -23796,6 +23799,7 @@ function renderTax(){
     totalExpenses:expenses,tradingAllowanceUsed:allowance,box15:pnl.revenue,box16:deduction,box23:profit,
     mileageMiles:pnl.mileage.miles,motorDoubleClaim:pnl.motorDoubleClaim,incomeTax:incomeTax,class2:class2,class4:class4,totalTax:totalTax,
     otherIncome:otherIncome,taxRegion:region,effectivePA:effectivePA};
+  html+='<div class="section-card"><div class="section-card-title">Universal Credit mileage</div><p>Enter the exact assessment dates. Cars/vans: 45p for the first 833 miles, then 25p. Do not also claim fuel or vehicle running costs. This calculates mileage only, not total UC earnings.</p><label>From <input type="date" id="uc-mileage-from"></label> <label>To <input type="date" id="uc-mileage-to"></label> <button class="btn btn-secondary" onclick="showUCMileage()">Calculate mileage</button><p id="uc-mileage-result" aria-live="polite"></p></div>';
   page.innerHTML=html;
   setTaxWorkspaceView(window._taxWorkspaceView||'overview');
   _syncTaxDesktopDetails();
@@ -27980,3 +27984,9 @@ console.info('[RETRADE] 1.4.10 expected-profit consistency + return fee-credit v
   window.RETRADE_V1417={version:VERSION,flushTerminal:_flushTerminalMutation};
   console.info('[RETRADE] v1.4.17 terminal disposal durability loaded');
 })();
+
+function showUCMileage(){
+  const out=document.getElementById('uc-mileage-result');
+  try{const r=_ucMileageSummary(document.getElementById('uc-mileage-from').value,document.getElementById('uc-mileage-to').value);out.textContent=r.miles+' business miles: '+fmt(r.allowance)+' mileage deduction. Check your trip log before reporting.';}
+  catch(e){out.textContent=e.message;}
+}

@@ -109,7 +109,26 @@ const {open,settled}=require('./startup-browser.cjs');
    const withFuel=_buildPnLSummary('2026-07-01','2026-07-31',''),fuelSummary=calcYearlyStats('all');
    return {month:month.netProfit,all:all.netProfit,summary:summary.netProfit,comparison:comparison.netProfit,grossMargin:comparison.grossMargin,archive:all.archiveLoss,mileage:month.mileage.cost,travelBox:month.byBox[20],cash:cash.cashAvailable,withFuel:withFuel.netProfit,fuelSummary:fuelSummary.netProfit,excluded:withFuel.motorExcluded,fareExcluded:!!withFuel.byCategory['Public transport & parking'].excluded};
   });
-  assert.deepEqual(bridge,{month:8,all:8,summary:8,comparison:8,grossMargin:80,archive:10,mileage:55,travelBox:59,cash:63,withFuel:8,fuelSummary:8,excluded:12,fareExcluded:false},'Profit views agree; noncash mileage and stock loss do not manufacture cash; fares survive the vehicle method');
+  assert.deepEqual(bridge,{month:63,all:63,summary:63,comparison:63,grossMargin:80,archive:10,mileage:55,travelBox:4,cash:63,withFuel:51,fuelSummary:51,excluded:0,fareExcluded:false},'Profit views agree; noncash mileage and stock loss do not manufacture cash; fares survive the vehicle method');
+
+  const received=await page.evaluate(async()=>{
+   const item=__auditItem('refunded',{accountId:'supplier',accountType:'supplier',costPrice:40,partnerAgreedAmount:40,arrangementModelOverride:'fixed_cost',accountSettled:true});
+   __auditSet([item],[{id:'supplier',accountType:'supplier',arrangementModel:'fixed_cost',settlements:[{id:'paid',paid:true,date:'2026-07-01',partnerAmount:40,items:[{id:item.id,kind:'supplier',amount:40}]}]}]);
+   await __auditLoadCredits([]);const before=calcCashSummary().cashAvailable;
+   const row={id:'refund',user_id:_currentUserId,account_id:'supplier',date:'2026-07-10',amount:82,status:'active',item_allocations:[{item_id:item.id,amount:82}],applications:[{type:'cash_refund',date:'2026-07-10',amount:82,destination:'personal'}]};
+   await __auditLoadCredits([row]);
+   const result={before,after:calcCashSummary().cashAvailable,profit:calcNetProfit(item),tax:_buildTaxCashSummary('2026-07-01','2026-07-31','').netProfit,available:__rtPartnerAdjustmentsAvailableCredit('supplier'),events:__rtPartnerAdjustmentsCashEvents(),month:calcMonthStatsBySale('JUL-26').netProfit,early:_buildTaxCashSummary('2026-07-01','2026-07-09','').otherBusinessIncome};
+   await __auditLoadCredits([{...row,applications:row.applications.concat(row.applications)}]);result.capped=__rtPartnerAdjustmentsCashEvents().filter(e=>e.direction==='in').reduce((s,e)=>s+e.amount,0);
+   await __auditLoadCredits([{...row,status:'void'}]);result.voided=__rtPartnerAdjustmentsCashEvents().length;
+   await __auditLoadCredits([]);__auditSet([]);DB.trips=[{date:'2026-07-06',mileage:1000,expenses:[]},{date:'2026-08-06',mileage:500,expenses:[]}];
+   result.uc=_ucMileageSummary('2026-07-06','2026-08-05');result.hmrc=_buildTaxCashSummary('2026-07-06','2026-08-05','').netProfit;result.management=_buildPnLSummary('2026-07-06','2026-08-05','').netProfit;
+   result.monthly=calcMonthStatsBySale('JUL-26').netProfit;
+   try{_ucMileageSummary('2026-07-01','2026-08-31');result.invalid=false;}catch(_){result.invalid=true;}
+   return result;
+  });
+  assert.equal(received.before,60);assert.equal(received.after,60);assert.equal(received.profit,142);assert.equal(received.tax,142);assert.equal(received.month,142);assert.equal(received.available,0);assert.equal(received.early,0);assert.equal(received.events.length,2);assert.equal(received.capped,82);assert.equal(received.voided,0);
+  assert.equal(received.uc.allowance,416.60);assert.equal(received.uc.miles,1000);assert.equal(received.hmrc,-550);assert.equal(received.management,0);assert.equal(received.monthly,0);assert(received.invalid);
+
   assert.deepEqual(errors,[]);await context.close();console.log('PASS dated credits, statement periods, no double cash/tax benefit, missing sale cycles, weighted margins, fixed stock, signed parts and relist fees');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

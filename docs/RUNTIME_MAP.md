@@ -1,10 +1,16 @@
 # Runtime ownership
 
+## 31 October — reimbursements and mileage
+
+Management profit retains actual costs and excludes mileage allowances. HMRC cash-basis reports explicitly opt into annual mileage and exclude actual vehicle running costs when that method applies. UC mileage uses exact assessment dates and its own 833-mile bands. Account adjustment cash-refund applications create a supplier receipt and, when retained personally, an equal owner drawing; consumed credit cannot reduce another payment. Original supplier settlement history is retained. Synthetic tests cover cash, tax, account profit, date boundaries and mileage separation.
+
+
 ## 30 October - profit and cash bridge
 
 Dashboard and comparison net profit use the same management P&L as reports, including dated stock write-offs and motor-method exclusions. Open-ended reports retain expenses, mileage and write-offs; numeric strings remain valid amounts. Public transport and parking have a separate Box 20 category so mileage does not suppress fares. Entry fees remain other business expenses. Owner funding and drawings remain outside profit.
 
 Synthetic accounting browser regressions cover all-time and dated profit agreement, non-cash mileage, write-offs, fares and actual fuel exclusions. Cache build: `20261030-cash-profit-bridge` (staging adds its environment suffix).
+
 
 ## 30 October - statement fee evidence and monthly renewals
 
@@ -90,26 +96,7 @@ returns. Original allocation/cost values remain in audit metadata and normal
 revision/sync triggers remain enabled. Deployment execution is recorded in the PR.
 Cache build: `20261023-bundle-fees-partner-profit` (staging adds `-staging`).
 
-**17 October partner outstanding UX:** partner payments now separate Sold outstanding from All stock outstanding. Sold fixed-cost items with no agreed payout remain selectable and lead to payout setup rather than a disabled row. `payment-allocations-v2.js` remains the transaction/eligibility owner and `account-ui-v4.js` owns the sold/all-stock account-position breakdown. Current item-cost/payout linking, staging binding, auth helpers and monitor runtime are preserved. Cache build: `20261017-partner-outstanding-staging`.
-
-**15 October partner settlement parity:** fixed-cost amounts entered through legacy item controls are now recognised for advance payment from both partner-account payment surfaces. `payment-allocations-v2.js` remains the single eligibility/allocation owner; staging keeps its own Supabase binding and monitor runtime unchanged. Cache build: `20261015-partner-fixed-upfront-staging`.
-
-**8 October continuity:** [Session renewal, durable expiry and recovery](features/monitors/CONTINUITY_2026-10-08.md).
-The existing session adapter/connection/automatic worker own renewal. The shared
-`monitor_public_due` predicate governs cron, claims and session reads. Cache build:
-`20261008-monitor-continuity-staging`.
-
-**7 October catalogue update:** [Public sessions, current listing fields and setup](features/monitors/PUBLIC_CATALOGUE_2026-10-07.md).
-
-Monitor setup remains owned by `src/features/monitors/page.js` and its existing
-feature stylesheet. A disposed local countdown presents server cooldowns without
-source requests; connection updates fence stale page status responses. See
-`docs/features/monitors/SETUP_CLARITY_2026-10-07.md`.
-
-Monitor tier recovery uses `worker/monitors/src/presets.mjs` for recovered presets
-and `monitor_catalog_commit` for match-only writes plus minimal overlap IDs.
-History shows the current recipe revision; the native page has no pending-results
-feed. See `docs/features/monitors/TIERS_2026-10-07.md`.
+**18 October partner outstanding UX:** partner payments now separate Sold outstanding from All stock outstanding. Sold fixed-cost items with no agreed payout remain selectable and lead to payout setup rather than a disabled row. `payment-allocations-v2.js` remains the transaction/eligibility owner and `account-ui-v4.js` owns the sold/all-stock account-position breakdown. Existing live potential-profit logic, linked item cost / partner payout rules and accounting ownership are preserved. Cache build: `20261018-partner-outstanding`.
 
 PDF banner fine adjustment (v1.5.103): the shared compositor lifts the complete
 shield by 0.2 mm and lowers the title/tagline by 0.2 mm from v1.5.101 positions.
@@ -146,14 +133,6 @@ both movements separately and protect the shield against clipping.
 | Tax cash timing and calendar slices | `src/domain/accounting-engine.js`; report export in `report-engine.js` |
 | Static cache and old-path transition | `sw.js` |
 
-Authenticated automatic scans live in `worker/monitors/src/automatic.mjs`; `sw.js`
-reports push receipt/display-request status. The monitor page owns automatic
-start/pause and device diagnostics. See AUTOMATIC_2026-10-06.md in monitor docs.
-
-Saved connection controls stay under Settings in the monitor page; Finds is the default view. Manual access-token entry is retired. `connection.mjs` owns encrypted
-credential bundles and bounded renewal; service-only connection RPCs own storage,
-cooldown and disconnect fencing. See the dated persistent-connection handover.
-
 ## Loading contract
 
 The two domain entry scripts load before the core. Core fetching overlaps the welcome; evaluation waits for the shield motion. Critical presentation modules install before dashboard release. `retrade:motion-ready` marks that installation; `retrade:launch-settled` allows serial idle loading of deferred extensions. Login can pause that queue. Warm navigation does not replay the brand intro.
@@ -163,15 +142,6 @@ Classic scripts intentionally retain their existing scope and wrapper order. Fil
 Diagnostics are explicitly on demand: `_loadDiagnosticFixtures('accounting')` loads four regression runners; `_loadDiagnosticFixtures('preview')` loads the sample dataset. The release-check UI and disabled-by-default developer preview entry point call these loaders. Normal user data is not replaced by sample data.
 
 ## Cache and deployment
-
-Monitor v1.2 keeps connection controls in `src/features/monitors/page.js` and
-transport in `cloud.js`, both under the existing on-demand manifest entry. The
-server advertises `capabilities.sessionCheck`; an older backend never displays
-token entry. `worker/monitors/src/session-check.mjs` and the private attempt RPCs
-own one-request diagnostics and labelled History samples. They do not change
-automatic source health, scanner baselines, notifications or account data caches.
-The staging cache build is `20261006-monitor-automatic-staging`; backend deployment
-status and required verification are recorded in the monitor v1.2 handover.
 
 The worker installs a small shell and limits warming to three concurrent requests. Remaining active scripts warm after launch; Save-Data skips optional warming. Export engines, diagnostic datasets and device-specific launch images cache only on use. Whitelisted scope-relative paths exclude APIs and business data. One preceding cache generation supports already-open tabs; legacy URL aliases allow the folder migration. Unknown routes bypass the static cache.
 
@@ -467,69 +437,77 @@ Sales browser coverage checks empty/populated selection and exit at four widths.
 This release also refreshes staging's shared app while preserving its isolated
 binding, monitor runtime/worker and parked gesture experiments.
 
-## Staging monitor ownership
+### v1.5.94 — Stock entry, useful inventory totals and mobile Sourcing
 
-Monitor takeover: `experiments/monitors/` contains recovered, audited reference
-sources only and is excluded from the allowlist and `_site/`. The repaired offline
-engine belongs to `worker/monitors/`, also excluded from public assets. There is
-no active monitor UI or deployed service yet. See
-`docs/features/monitors/IMPLEMENTATION_PLAN.md` for UI/worker/schema boundaries
-and activation gates, and the worker README for the current tested contract.
+Core Stock entry resets population and age filters to Listed/All before rendering;
+explicit sourcing callbacks opt into Unlisted, and Dashboard drill-downs retain
+their requested population. Performance decoration no longer sets route filters.
+All-stock KPIs aggregate existing item/job-lot calculations: capital, retained
+estimated profit (listed plus estimated unlisted), listed asking value and capital
+in unlisted/returned/90-day listings. Sold and removed stock remain excluded.
 
-## Monitor preview runtime
+Mobile Sourcing uses a full-width ROI card above two supporting cards, a compact
+search/sort row and denser history rows; calculation help is disclosed on demand.
+Pending markup follows those same classes. Tax filing rows show Box N, with the
+chosen Short/Full form retained in the selector; mappings and totals are unchanged.
 
-Monitors now mounts on demand from `src/features/monitors/cloud.js` and `page.js`, registered in the manifest lazy list. The core owns only navigation, load and disposal hooks. `assets/styles/monitors.css` is scoped to this page. `supabase/functions/monitor-service/` deploys the original `worker/monitors/src/` engine, with no public worker assets. Push uses the existing service worker. The source is blocked after a staging-host 403; example cards are never saved or notified. See `docs/features/monitors/MVP_RUNBOOK.md`.
+### v1.5.95 — Tax summary format chooser
 
-## Purchase groups (staging)
+The Tax download action opens an accessible native dialog for PDF, CSV or Excel.
+Core captures the displayed year/figures when the chooser opens. Report engine
+provides shared rows and CSV/XLSX output; the existing document exporter owns
+the branded PDF. Excel keeps amounts numeric and sales counts as integers.
+The existing lazy export libraries and load order remain unchanged. Asset cache
+version is 20260928-v1595. Synthetic browser coverage downloads all three formats
+on desktop/mobile and verifies figures, filenames, focus and record immutability.
 
-`src/features/purchases/groups.js` owns creation, linking and group details.
-Stock Add exposes a multi-item purchase; Stock selection links existing own-stock
-items with the same source date. The item page links back to its purchase.
-The nullable `items.purchase_group_id` / `purchase_group_name` columns use the
-existing item revision guard, outbox, JSON backup and RLS. Missing purchase columns
-must fail rather than silently drop links. Apply the purchase-groups migration
-before deploying this build. No production data migration is included.
+### v1.5.96 — Consistent PDF banner alignment
 
-Each item retains its allocated cost and independent lifecycle. New-purchase
-allocation validates integer pennies and must sum exactly to the entered total.
-There is no duplicated payment record. The accounting engine combines existing
-stock acquisition outflows by purchase identity AND date; cash amounts and tax
-calculations are unchanged. Group total follows current item allocations. Unlinking
-changes presentation only. Partner purchases remain in their settlement workflow.
-Tests cover rounding, mismatches, serialization, cash aggregation, independent sale
-profit and linking; multi-device delivery still uses the existing per-item writer,
-so a group can temporarily appear incomplete while its member writes are pending.
+The shared brandBanner in src/features/exports/documents.js centres the shield
+beside the combined wordmark and tagline, on the banner's vertical midpoint.
+Tax summaries, sales receipts, order summaries, credit notes, annual statements,
+settlement slips and the final adjustment-aware partner statement exporter use
+this same owner, including continuation pages. Statement action loads its final
+exporter before exposing the PDF action; the older intermediate statement writers
+are superseded in that path. No accounting or document-body layout changed.
 
-Staging migration applied and nullable columns/RLS verified on 28 September 2026.
-Existing Split into units now retains one purchase identity; Duplicate deliberately
-starts a separate purchase. Security advisors reported existing auth/monitor
-findings; this migration changes no policies, grants or functions.
+The PDF banner browser audit generates all seven formats with real jsPDF and
+synthetic records, compares every page's banner and checks the logo's centre.
+Cache version: 20260928-v1596.
 
-Initial validation: purchase creation/linking/unlinking/split tests passed on mobile and
-desktop, including legacy source-date preservation and cloud row round-trips.
-`npm run check` and `npm run build` passed. The full browser command reached an
-existing Sales date-label assertion on the locally available Chromium 138:
-`Tue, 22 Sept` versus a literal `Tue 22 Sep`. The same failure was reproduced on
-unchanged staging `416c33c`; do not treat it as a purchase regression or alter
-sales behaviour for this feature. Tax, item costs and partner/cashflow checks pass.
+### v1.5.97 — Supplied sign artwork in every PDF
 
-Initial publishing was held for explicit approval. The user authorized staging
-deployment on 29 September 2026, including all fixes currently on live. The
-nullable staging schema additions are already applied; production schema is unchanged.
-The remainder of the browser suite was then run separately and passed, including
-navigation, scrolling, workspace layouts, loading, backups/imports, sync and monitor
-database/browser isolation. The only local suite failure is the baseline Sales
-locale assertion described above. Purchase-specific tests were rerun after the
-legacy split-date fix and passed on both viewports. See the combined-release
-validation below for the subsequent complete passing run.
+PDF banners use the supplied dark-background sign logo intact, including its
+wordmark, tightly grouped tagline and gold rules. The original PNG is preserved
+at assets/brand/pdf-logo-dark-v1.png; documents.js renders it proportionally at
+print resolution. There is no separately typeset approximation of the logo.
 
-### Shared PDF banner alignment — 29 September
+The manifest images list declares optional artwork for the public build and
+service worker. It is fetched only for exports and cached on first use, keeping
+it out of startup warming. A failed logo load can be retried. All seven PDF
+exporters share the same artwork, including continuation pages. Cache version:
+20260928-v1597.
 
-Export banners use the approved 42 mm sign artwork with the complete shield
-centred beside the title/tagline. All six existing shared PDF exports and their
-continuation pages use this compositor. Optional artwork is build-allowlisted and
-cached on use only. Staging retains its existing export features, monitor hooks
-and isolated binding. Cache: 20260929-v15100-staging.
+### v1.5.98 — Smaller PDF logo
+
+The shared PDF sign artwork is 42 mm wide (25% smaller), retaining its aspect
+ratio and vertical centring. Applies to all seven exports and continuation pages.
+Cache version: 20260928-v1598.
+
+### v1.5.99 — Text group aligned to shield body
+
+PDF artwork retains the 42 mm scale. The title, tagline and gold rules move as
+one group, aligned to the main shield body rather than its lower swoosh/tail.
+The original source PNG remains unchanged. Shared canvas composition owns this
+alignment for all seven PDF types and continuation pages. Cache: 20260928-v1599.
+
+### v1.5.100 — Complete shield alignment in exported banners
+
+The shared PDF compositor aligns the full visible shield (including the gold
+swoosh) with the title/tagline group. The earlier upper-body-only alignment
+lifted the text above the complete logo centre. Artwork, 42 mm width and banner
+size remain unchanged across all seven PDF formats and continuation pages.
+The pixel-bound regression now checks the complete shield. Cache: 20260929-v15100.
 
 ### PDF banner optical adjustment — v1.5.101
 
@@ -537,85 +515,46 @@ The title and tagline move down together by 0.41 mm from geometric centring.
 The shield, artwork scale and banner dimensions remain unchanged. Shared by
 all existing PDF outputs and continuation pages. Cache: 20260929-v15101.
 
+### v1.5.102 — Local safety-save recovery
 
-### Staging monitor continuation — 29 September
+`src/platform/local-recovery.js` loads before core and owns the on-device
+IndexedDB recovery archive. A quota failure can archive only the signed-in
+user's known, timestamped quarantine snapshots. Original localStorage entries
+are removed only after a strict archive transaction commits and their bytes
+still match. Pending outbox records, authentication and preferences are never
+cleared. Archived evidence is exportable under Reports & Data, not auto-replayed.
 
-`src/features/monitors/page.js` owns builder, gallery, source status and sample
-comparison export. `worker/monitors/src/feed.mjs` assembles the comparator from an
-owner-checked database snapshot; it does not confuse the visible page with complete
-identity history. `monitor-service` owns status polling and explicit operator
-source checks, both authenticated. The new append-only monitor migration owns
-pending confirmation, skipped-lease recovery and expired push attempts. The source
-remains blocked by HTTP 403. See `docs/features/monitors/AUDIT_2026-09-29.md`.
+Core retains failed outbox writes in a user-scoped in-memory queue, retries the
+latest intent after archival and reports an honest warning while not durable.
+Denied storage/archive failures retain the original evidence. The warning is
+rate-limited; users must keep the app open and export a full backup until synced.
+No Supabase schema, accounting or cloud conflict-resolution changes. Synthetic
+desktop/mobile tests cover quota, denied storage, concurrent edits, reload,
+archive failures and account isolation. Cache: 20260929-v15102.
 
-### Combined staging release — purchases and live parity
+### v1.5.104 — cross-device sync convergence
 
-Baseline: staging `8f429b6` plus shared live changes through `6074206` (v1.5.101).
-Includes Stock default filters/inventory KPIs, mobile Sourcing layout, Tax box
-labels and PDF/CSV/Excel Tax export, plus the seven-format PDF banner audit.
-Purchase grouping and all monitor hooks, worker code, styles, staging binding and
-parked gesture experiments are preserved. Cache: 20260929-v15102-purchases-staging.
+Core owns cloud snapshot reads, pending local overlays, the serialized writer and
+Realtime clock coordination. Incoming signals have a 120 ms leading deadline;
+visible sessions poll the clock every 2.5 seconds and check it on every rejoin.
+An incoming refresh waits for an active write batch, preserves pending keys and
+their original CAS bases, and applies unrelated cloud records immediately.
+Edits made during a read remain durable and dirty; the writer waits for its
+atomic commit. Timed-out and old-session reads cannot later replace live state.
+Boot keeps the baseline established by initDB instead of acknowledging recovered
+local intent. Retry sync flushes actual local edits and reads cloud state without
+turning every unchanged row into a write. Signed photo URLs use the existing
+cache and are excluded from durable fingerprints; photos do not block records.
+Partner item fields are mapped before the boot baseline, preventing lazy feature
+hydration from staging untouched stock on the first edit.
 
-`src/platform/local-recovery.js` loads before core and archives only this user's
-timestamped quarantine snapshots to IndexedDB after quota errors. Original bytes
-are removed only after a strict transaction commits and an exact-value recheck.
-Pending outbox records, authentication and preferences are not cleared. The
-user-scoped in-memory safety net retains failed writes and retries latest intent;
-it never reports volatile-only changes as saved. Reports & Data can download the
-archive for manual review; it is not automatically replayed over cloud records.
-Blocked storage retains a clear warning to keep the app open and export a backup.
-No new schema changes for this repair. Local-saving tests exercise desktop/mobile
-quota recovery, denied storage, account isolation, concurrent edits and reload.
-
-Release validation: the full `npm test`, `npm run check` and `npm run build` pass
-on the combined tree, including Sales, Tax downloads, sync/recovery, purchases
-and monitor database/browser checks. A separate mobile UI check downloaded the
-recovery archive and verified its exact preserved bytes. Staging purchase columns
-and item RLS were rechecked read-only. Shared tooling also includes live's path
-separator and line-ending normalization fixes. Protected PR: RETRADE-STAGING #16.
-
-### Purchase transaction item drill-down
-
-`cashflow/transaction-details.js` renders each grouped acquisition movement's
-own `itemIds`, with item title, stock reference/state and allocated cost. Each
-row opens the current item record directly with Cashflow as its return route.
-The wider purchase remains available separately; items paid on another date are
-not mixed into this payment. Missing records are non-clickable; clicks re-resolve
-the current record. No ledger, totals, persistence or schema changes.
-Desktop/mobile purchase tests cover both direct links, unchanged records, narrow
-layout and date-specific membership. Cache: 20260929-v15103-purchase-items-staging.
-
-### Purchase return context
-
-Item navigation accepts a one-shot source renderer, cleared on each new item
-entry and consumed on Back. Cashflow re-resolves the transaction so costs and
-members are current. Purchase details pass their parent renderer through panel
-metadata; Close, Escape, overlay and swipe dismissal return one level. Explicit
-item transitions suppress that dismissal callback. No HTML snapshots or data
-writes are used. Sourced-item purchase links follow Back instead of preceding it.
-Cache: 20260929-v15104-purchase-back-staging.
-
-Sourced-item Back and purchase link now share a non-wrapping flex row owned by
-`workspaces.css`. Back retains its full hit target; the purchase name truncates
-visually while its full label remains accessible and in purchase details.
-Cache: 20260929-v15105-purchase-row-staging.
-
-### Monitor inbox — 5 October
-
-`src/features/monitors/page.js` owns Finds / Monitors / Alerts navigation, history
-filters, saved/read actions and device verification. `monitor-service` owns their
-authenticated endpoints; `monitor_history_inbox` adds service-role-only invoker
-RPCs and owner-readable disposition storage. `sw.js` validates listing IDs before
-opening Vinted on an alert click. No provider URLs or credentials enter the client.
-The existing comparator remains separate from all-history browsing. Source remains
-blocked. See `docs/features/monitors/INBOX_UX_2026-10-05.md`.
-
-Monitor trial build `20261007-monitor-trial-staging`: presets.mjs owns the four
-research-based tiers; match.mjs owns model/kit ceilings and exclusive bundle rules.
-Private connection trial timestamps fence claims and late commits. See
-`docs/features/monitors/TRIAL_2026-10-07.md` for limits and deployment verification.
-
-Monitor connection build `20261007-monitor-connection-staging`: `connection.mjs` owns the shared manual/worker session manager. The private search-health columns and generation-fenced saved-session RPC own readiness independently of token renewal. See `docs/features/monitors/CONNECTION_HEALTH_2026-10-07.md`.
+There are no schema changes or production-data test writes. The new VM regression
+exercises delayed reads, pending work, CAS bases, timeout/account isolation and
+signal bursts. The new two-session browser fixture uses the real loader, writer,
+recovery and clock with a synthetic server; it covers bidirectional propagation,
+failed writes, edits during reads, reconnects, missed events and hard reload.
+All external browser requests are blocked. Physical phone/network latency still
+requires observation on the user's devices. Cache: 20261006-v15104.
 
 
 ## Dashboard headroom refinement — 13 October 2026
@@ -666,6 +605,7 @@ No tax/accounting-engine rules, boundaries, database schema or user data changed
 Verification: tests/stock-performance.cjs, tests/stock-performance-browser.cjs
 and the chart scale/browser suites. All records are synthetic. New static
 generation: 20261013-stock-performance-polish (staging adds -staging).
+
 
 ## Credential forms and Stock control formatting — 14 October 2026
 
@@ -749,40 +689,6 @@ as the other action icons and labels. Its single caret stays at the right edge.
 The existing picker behaviour is unchanged. Static cache generation:
 `20261014-platform-menu-alignment` (staging adds `-staging`).
 
-
-### 16 October 2026 — bulk listing review (staging only)
-
-Core owns the List items action, per-item review and existing sourced → listed
-transition. Unlisted exposes List items / Duplicate; All stock has List items in
-More. Return-history and grouped items require their existing individual flows.
-The review validates every included item before mutation, rechecks current records
-and Job Lot membership, then saves the batch once through the existing durable
-writer. It retains acquisition, parts, identity, purchase/run links and partner
-terms/payments. Cloud delivery remains per item, not a new server transaction.
-
-Category/location are required in quick-add and purchase creation; same-session
-quick-add retains both for the next item. Legacy stock can complete missing data
-in the listing review. Price and promotion remain per item, with optional shared
-platform/promotion controls. Delivery uses the existing rate helpers and listing
-fee stamp. No marketplace adverts are published. Workspaces CSS owns the review
-layout; no schema, auth, monitoring or live-environment changes.
-
-Generation: `20261016-bulk-list-stock-staging`. Synthetic coverage is in
-`tests/bulk-list-browser.cjs` and purchase tests; CI runs Chromium and WebKit.
-
-### 16 October 2026 — populated staging test access
-
-Staging auth now loads with critical startup assets so the signed-out entry is
-available before deferred features. Its overlay observer reinstalls the entry
-when core restores credential forms after sign-out. The existing normal auth
-handoff remains authoritative. Short auth cards scroll internally.
-
-New anonymous test accounts receive the rolling synthetic database fixture;
-existing accounts retain their data. See [test account handover](STAGING_TEST_ACCOUNT.md)
-for the staging-only migration, counts, access and verification. No production
-binding, auth provider settings, RLS policies or core accounting changes.
-Cache generation: `20261016-populated-test-account-staging`.
-
 ### 16 October 2026 — yearly Sales forecast readout
 
 The shared core scrubber now presents actual-to-date and month-end forecast
@@ -793,6 +699,7 @@ the card. Chart finalization and Sales sequencing no longer install competing
 forecast bubbles or native hover titles. Dashes, endpoint timing and touch
 scrubbing keep their existing owners. No accounting or persistence changes.
 Cache generation: `20261016-sales-forecast-readout` (staging adds `-staging`).
+
 
 ### 16 October 2026 — one fixed account cost / payout
 
@@ -834,6 +741,29 @@ The account-cost-payout and item browser tests cover both edit directions, model
 switches, persistence, independent item/account defaults, payment preservation,
 outstanding balances and small-screen controls. Generation:
 `20261016-item-terms-linked-cost` (staging adds `-staging`).
+
+### 16 October 2026 — account potential and legacy status reconciliation
+
+Core owns account inventory grouping through _accountStockGroups, shared by the
+account rows and summary. Completed sales cannot enter remaining potential even
+when an older record still has a listed label. The existing on-load state repair
+now resolves listed/sourced labels against completed sale and active-return
+evidence. Relisted stock and disposed-item history are preserved. Repairs use the
+existing pre-migration snapshot and conflict-aware writer; no direct database
+rewrite or schema migration is required.
+
+The potential card reads forecastYourShare and priced listed/unlisted counts from
+_accountStats. Its separate hand-written profit formula is removed. Listed items
+retain the accounting engine's fees, costs, returns and partner deductions;
+unlisted estimates use the existing item forecast policy. Unpriced items are
+excluded from the estimate, and loss-making stock is not silently clamped to zero.
+Job Lot allocation keeps its existing owner.
+
+Synthetic unit and desktop/mobile Chromium/WebKit regressions cover six active
+listings plus five legacy sold records, idempotent status repair and row roundtrip,
+returns, resale, disposal, unlisted estimates, real platform fees, fixed partner
+amounts and negative profit. Generation: 20261016-account-potential-state
+(staging adds -staging).
 
 
 ### 16 October 2026 — fourteen-day dashboard

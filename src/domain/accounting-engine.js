@@ -238,7 +238,7 @@ function _cashEventsAll(){
     const typ=i.accountId&&typeof _itemAccountType==='function'?_itemAccountType(i):'own';
     const sourced=i.dateSourced||i.dateListed||null;
     // Acquisition cash: own stock and hybrid upfront component are paid when sourced.
-    if((!i.accountId||typ==='hybrid')&&_itemAcquisitionCost(i)>0)push({id:'stock:'+i.id,date:sourced,type:'stock_purchase',direction:'out',amount:_itemAcquisitionCost(i),description:'Stock sourced · '+(i.item||'Item'),source:'item',itemId:i.id,purchaseGroupId:i.purchaseGroupId||null,purchaseGroupName:i.purchaseGroupName||null});
+    if((!i.accountId||typ==='hybrid')&&_itemAcquisitionCost(i)>0)push({id:'stock:'+i.id,date:sourced,type:'stock_purchase',direction:'out',amount:_itemAcquisitionCost(i),description:'Stock sourced · '+(i.item||'Item'),source:'item',itemId:i.id});
     (i.parts||[]).forEach(function(p,idx){if(Number(p.cost)>0)push({id:'part:'+i.id+':'+(p.id||idx),date:p.date||sourced,type:'part_purchase',direction:'out',amount:p.cost,description:'Part / repair · '+(p.description||p.desc||i.item||'Item'),source:'item',itemId:i.id});});
     // Original insertion fee occurs when first listed.
     if(Number(i.listingFee)>0)push({id:'listing:'+i.id,date:i.dateListed||sourced,type:'listing_fee',direction:'out',amount:i.listingFee,description:'Listing fee · '+(i.item||'Item'),source:'item',itemId:i.id});
@@ -282,17 +282,8 @@ function _cashEventsAll(){
   (DB.trips||[]).forEach(function(t){(Array.isArray(t.expenses)?t.expenses:[]).forEach(function(e,idx){const amount=Number(e.amount)||0;if(amount)push({id:'tripexp:'+t.id+':'+idx,date:e.date||t.date||null,type:'trip_expense',direction:amount<0?'in':'out',amount:Math.abs(amount),description:e.description||('Trip expense · '+(t.description||'Sourcing trip')),source:'expense'});});});
   // Paid account settlements are the authoritative supplier/partner cash outflow.
   (typeof _accounts!=='undefined'?_accounts:[]).forEach(function(acct){(acct.settlements||[]).forEach(function(tx){if(!tx||!tx.paid)return;const amt=Math.max(0,Number(tx.partnerAmount)||0);if(amt>0)push({id:'settlement:'+tx.id,date:tx.date||null,type:'partner_settlement',direction:'out',amount:amt,description:'Settlement paid · '+(acct.name||'Partner')+' · '+((tx.items||[]).length)+' item'+((tx.items||[]).length===1?'':'s'),source:'settlement'});});});
-  // Aggregate only actual acquisition outflows on the same date. Never create
-  // a second payment or move costs between dates; per-item profit is unchanged.
-  const grouped=new Map(),display=[];
-  out.forEach(function(ev){
-    if(ev.type!=='stock_purchase'||!ev.purchaseGroupId){display.push(ev);return;}
-    const key=JSON.stringify([ev.purchaseGroupId,ev.date]);
-    let group=grouped.get(key);
-    if(!group){group=Object.assign({},ev,{id:'purchase:'+ev.purchaseGroupId+':'+ev.date,source:'purchase',itemId:null,itemIds:[],amount:0,description:'Purchase · '+(ev.purchaseGroupName||'Shared purchase')});grouped.set(key,group);display.push(group);}
-    group.amount=Math.round((group.amount+ev.amount)*100)/100;group.itemIds.push(ev.itemId);
-  });
-  return display.sort(function(a,b){return (a.date||'').localeCompare(b.date||'')||String(a.id).localeCompare(String(b.id));});
+  if(typeof window.__rtPartnerAdjustmentsCashEvents==='function')window.__rtPartnerAdjustmentsCashEvents().forEach(push);
+  return out.sort(function(a,b){return (a.date||'').localeCompare(b.date||'')||String(a.id).localeCompare(String(b.id));});
 }
 function calcCashSummary(){
   const events=_cashEventsAll();
@@ -500,7 +491,7 @@ function calcYearlyStats(period){
   const totalStaleCount=byCat.reduce(function(sum,c){return sum+(c.stale||0);},0);
 
   const _allTrips=DB.trips||[],_tieredTrips=calcTieredTrips(_allTrips);let tripsCostInPeriod=0,expensesCostInPeriod=0;
-  _allTrips.forEach(function(t,idx){if(inRange(t.date))tripsCostInPeriod+=(_tieredTrips[idx]?_tieredTrips[idx].totalCost:0);});
+  _allTrips.forEach(function(t,idx){if(inRange(t.date))tripsCostInPeriod+=(_tieredTrips[idx]?_tieredTrips[idx].expensesCost:0);});
   (DB.expenses||[]).forEach(function(e){if(inRange(e.date))expensesCostInPeriod+=(Number(e.amount)||0);});
   let overheadsInPeriod=+(tripsCostInPeriod+expensesCostInPeriod).toFixed(2);
   const grossProfit=+realisedProfit.toFixed(2),grossMargin=totalRev>0?+((grossProfit/totalRev)*100).toFixed(1):0;
@@ -936,7 +927,8 @@ function _saleBreakdown(ev,excludePartner){
     returnRefund:0,returnPostage:0,partialRefund:0,partnerSplit:+partnerSplit.toFixed(2),totalCosts:totalCosts,netProfit:netProfit};
 }
 
-function _buildPnLSummary(from,to,label){
+function _buildPnLSummary(from,to,label,options){
+  const taxReporting=!!(options&&options.reporting==='hmrc');
   const events=getSaleEventsInRange(from,to);
   const soldCount=events.filter(function(e){return!e.isReturned;}).length;
   const retCount=events.filter(function(e){return e.isReturned;}).length;
@@ -983,7 +975,7 @@ function _buildPnLSummary(from,to,label){
     if(d.bucket==='selling')manualSelling+=amt; else manualOverhead+=amt;
   };
   // Mileage → Box 20 (its own pseudo-category so it shows as a distinct line)
-  if(mileageCost>0){
+  if(taxReporting&&mileageCost>0){
     byBox[20]=+(((byBox[20]||0)+mileageCost)).toFixed(2);
     byCategory['Mileage allowance']={label:'Mileage allowance',box:20,bucket:'overhead',amount:+mileageCost.toFixed(2),isMileage:true,miles:totalMiles};
     manualOverhead+=mileageCost;
@@ -1013,7 +1005,7 @@ function _buildPnLSummary(from,to,label){
   // touches taxable profit only; the Money/cash model counts real motor spend
   // separately as genuine cash out, so it is unaffected by this choice.
   const motorActual=+(((byCategory['Motor, van & travel']||{}).amount)||0).toFixed(2);
-  const motorMethod=(typeof DB!=='undefined'&&DB._motorMethod==='actual')?'actual':'mileage';
+  const motorMethod=taxReporting?((DB._motorMethod==='actual')?'actual':'mileage'):'management';
   // Decide the motor method over the tax year, not independently in every
   // monthly slice (fuel in one month and mileage in another still overlap).
   const rangeYear=Number(String(from).slice(0,4))-(String(from).slice(5,10)<'04-06'?1:0);
@@ -1025,7 +1017,7 @@ function _buildPnLSummary(from,to,label){
   const yearHasMotor=yearExpenses.some(function(e){return Number(e.amount)>0&&_resolveExpenseCat(e.category).label==='Motor, van & travel';});
   const motorDoubleClaim=(mileageCost>0&&motorActual>0)||(yearHasMileage&&yearHasMotor);
   let motorExcluded=0, motorExcludedLabel='';
-  if(motorDoubleClaim){
+  if(taxReporting){
     if(motorMethod==='actual'){
       byBox[20]=+(((byBox[20]||0)-mileageCost)).toFixed(2);
       manualOverhead-=mileageCost;
@@ -1111,7 +1103,7 @@ function _buildPnLSummary(from,to,label){
     ['Returns',retCount],
     ['Unsold items sourced in period',stock.count]
   ];
-  if(motorDoubleClaim){
+  if(taxReporting){
     rows.push([]);
     rows.push(['Motor method',(motorMethod==='actual'?'Actual motor costs':'Simplified mileage')+' applied — '+money(motorMethod==='actual'?motorActual:mileageCost)+' claimed; '+motorExcludedLabel+' ('+money(motorExcluded)+') excluded (one method per vehicle).']);
   }
@@ -1210,7 +1202,7 @@ function _taxCashStockAndPartner(from,to){
 }
 
 function _buildTaxCashSummary(from,to,label){
-  const p=_buildPnLSummary(from,to,label);
+  const p=_buildPnLSummary(from,to,label,{reporting:'hmrc'});
   const cash=_taxCashStockAndPartner(from,to);
   // Remove sale-matched acquisition/partner costs, then insert amounts actually paid.
   const netProfit=+(p.netProfit+p.cogs+(p.selling.partner||0)+(p.archiveLoss||0)-cash.goodsPaid-cash.partnerPaid+cash.supplierRefundIncome).toFixed(2);
@@ -1291,9 +1283,10 @@ function calcMonthStatsBySale(m,ctx){
   const _monthEnd=String(_monthYear)+'-'+String(_monthIndex+1).padStart(2,'0')+'-'+String(new Date(_monthYear,_monthIndex+1,0).getDate()).padStart(2,'0');
   const _inMonth=function(ds){return !!ds&&ds>=_monthStart&&ds<=_monthEnd;};
   const _allTrips=DB.trips||[],_tieredTrips=(ctx&&Array.isArray(ctx.tieredTrips))?ctx.tieredTrips:calcTieredTrips(_allTrips);let tripsCost=0,expensesCost=0;
-  _allTrips.forEach(function(t,idx){if(_inMonth(t.date))tripsCost+=(_tieredTrips[idx]?_tieredTrips[idx].totalCost:0);});
+  _allTrips.forEach(function(t,idx){if(_inMonth(t.date))tripsCost+=(_tieredTrips[idx]?_tieredTrips[idx].expensesCost:0);});
   (DB.expenses||[]).forEach(function(e){if(_inMonth(e.date))expensesCost+=(Number(e.amount)||0);});
-  const grossProfit=+realisedProfit.toFixed(2),overheads=+(tripsCost+expensesCost).toFixed(2),netProfit=+(grossProfit-overheads).toFixed(2);
+  const monthPnl=_buildPnLSummary(_monthStart,_monthEnd,'');
+  const grossProfit=+(realisedProfit+monthPnl.accountCreditProfit).toFixed(2),overheads=+(tripsCost+expensesCost+monthPnl.archiveLoss).toFixed(2),netProfit=monthPnl.netProfit;
   return {totalRev:+totalRev.toFixed(2),grossRev:+grossRev.toFixed(2),returnsAmt:+returnsAmt.toFixed(2),realisedProfit:grossProfit,grossProfit:grossProfit,netProfit:netProfit,
           tripsCost:+tripsCost.toFixed(2),expensesCost:+expensesCost.toFixed(2),overheads:overheads,
           soldCount:soldCount,eventCount:eventCount,returnedCount:returnedCount,avgROI:avgROI,avgMargin:avgMargin,avgDays:avgDays,
@@ -2039,4 +2032,12 @@ function calcDaysToSell(i){
   }
   if(i.dateSold&&i.dateListed){const d=daysBetween(i.dateListed,i.dateSold);return d>=0?d:null;}
   return null;
+}
+
+// UC uses the supplied assessment period, not the HMRC annual mileage bands.
+function _ucMileageSummary(from,to){
+  const valid=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||'')&&new Date(d+'T00:00:00Z').toISOString().slice(0,10)===d;
+  if(!valid(from)||!valid(to)||from>to||(Date.parse(to)-Date.parse(from))/86400000>31)throw new Error('Enter one UC assessment period (up to 32 days).');
+  const miles=(DB.trips||[]).filter(t=>t.date>=from&&t.date<=to).reduce((n,t)=>n+Math.max(0,Number(t.mileage)||0),0);
+  return {from,to,miles,allowance:+(Math.min(miles,833)*0.45+Math.max(0,miles-833)*0.25).toFixed(2)};
 }

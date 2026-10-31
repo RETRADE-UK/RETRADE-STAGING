@@ -1,0 +1,20 @@
+-- Guarded repair template. Actual owner IDs and evidence are kept in the private
+-- reconciliation record. Never execute placeholder values.
+-- 1. Read and retain the affected item/account rows before writing.
+-- 2. Require an absent ID and unique owner-scoped display ID for new stock.
+-- 3. Insert a sourced item with evidenced acquisition date/cost and explicit
+--    zero sale/listing/shipping fields, no sale dates and no account settlement.
+-- 4. For a received supplier reimbursement, insert an account_adjustments row:
+--    kind='supplier_credit', status='active', amount=verified amount;
+--    item_allocations=[{item_id:<affected item>,amount:<verified amount>}];
+--    applications=[{type:'cash_refund',date:<receipt date>,amount:<amount>,
+--                   destination:'personal' or 'business'}].
+--    The runtime derives the receipt and equal drawing when retained personally.
+--    Do not also insert manual receipt/drawing rows. Retain original stock cost
+--    and settlement. Use the normal ownership/revision triggers.
+-- 5. Verify the inserted IDs, amount, date, allocation and applications, then
+--    check account profit, cash and tax separately. Personal destination nets
+--    zero cash; profit and tax receipt increase once. Available credit is zero.
+-- 6. A missing/changed row or conflicting ID must abort the transaction.
+-- Opening balances are a separate evidenced repair; this template does not
+-- force any reconciliation difference to zero.

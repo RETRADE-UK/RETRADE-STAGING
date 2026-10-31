@@ -30,7 +30,7 @@ const {open,settled}=require('./startup-browser.cjs');
    check('Refund income once',annual().otherBusinessIncome,60);check('Returned-to-supplier net cash loss',annual().netProfit,-20);reconcile('supplier refund');
    reset();DB.trips=[{id:'t1',date:'2026-04-20',mileage:9900,expenses:[]},{id:'t2',date:'2026-05-20',mileage:200,expenses:[]}];
    check('Annual mileage tiers',annual().mileage.cost,5525);check('May uses remaining first tier',_buildTaxCashSummary('2026-05-01','2026-05-31','').mileage.cost,80);reconcile('mileage');
-   check('Expanded mileage export matches period',_expandedExpenseRows(_buildPnLSummary('2026-05-01','2026-05-31','')).total,80);
+   check('Expanded mileage export matches period',_expandedExpenseRows(_buildTaxCashSummary('2026-05-01','2026-05-31','')).total,80);
    DB.expenses=[{id:'fuel',date:'2026-06-01',amount:60,category:'Motor, van & travel'}];reconcile('motor mileage method');DB._motorMethod='actual';reconcile('motor actual method');check('Actual motor excludes mileage',annual().netProfit,-60);
    reset();DB['APR-26']=[item({dateSold:'2027-04-05',dateSourced:'2027-04-01'})];check('Closing April days included',annual().netProfit,108);reconcile('final April');
    reset();DB['APR-26']=[item({isReturned:true,returnHistory:[{id:'r',type:'full_seller',saleNo:1,loggedAt:'2026-05-01',refundAmount:200,returnPostage:5,_salePriceAtReturn:200,_dateSoldAtReturn:'2026-04-20'}]})];reconcile('full return');
