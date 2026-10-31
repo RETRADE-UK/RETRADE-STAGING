@@ -117,7 +117,7 @@ const {open,settled}=require('./startup-browser.cjs');
    await __auditLoadCredits([]);const before=calcCashSummary().cashAvailable;
    const row={id:'refund',user_id:_currentUserId,account_id:'supplier',date:'2026-07-10',amount:82,status:'active',item_allocations:[{item_id:item.id,amount:82}],applications:[{type:'cash_refund',date:'2026-07-10',amount:82,destination:'personal'}]};
    await __auditLoadCredits([row]);
-   const result={before,after:calcCashSummary().cashAvailable,profit:calcNetProfit(item),tax:_buildTaxCashSummary('2026-07-01','2026-07-31','').netProfit,available:__rtPartnerAdjustmentsAvailableCredit('supplier'),events:__rtPartnerAdjustmentsCashEvents(),month:calcMonthStatsBySale('JUL-26').netProfit,early:_buildTaxCashSummary('2026-07-01','2026-07-09','').otherBusinessIncome};
+   const result={accountProfit:_accountStats('supplier').yourShare,before,after:calcCashSummary().cashAvailable,profit:calcNetProfit(item),tax:_buildTaxCashSummary('2026-07-01','2026-07-31','').netProfit,available:__rtPartnerAdjustmentsAvailableCredit('supplier'),events:__rtPartnerAdjustmentsCashEvents(),month:calcMonthStatsBySale('JUL-26').netProfit,early:_buildTaxCashSummary('2026-07-01','2026-07-09','').otherBusinessIncome};
    await __auditLoadCredits([{...row,applications:row.applications.concat(row.applications)}]);result.capped=__rtPartnerAdjustmentsCashEvents().filter(e=>e.direction==='in').reduce((s,e)=>s+e.amount,0);
    await __auditLoadCredits([{...row,status:'void'}]);result.voided=__rtPartnerAdjustmentsCashEvents().length;
    await __auditLoadCredits([]);__auditSet([]);DB.trips=[{date:'2026-07-06',mileage:1000,expenses:[]},{date:'2026-08-06',mileage:500,expenses:[]}];
@@ -126,7 +126,7 @@ const {open,settled}=require('./startup-browser.cjs');
    try{_ucMileageSummary('2026-07-01','2026-08-31');result.invalid=false;}catch(_){result.invalid=true;}
    return result;
   });
-  assert.equal(received.before,60);assert.equal(received.after,60);assert.equal(received.profit,142);assert.equal(received.tax,142);assert.equal(received.month,142);assert.equal(received.available,0);assert.equal(received.early,0);assert.equal(received.events.length,2);assert.equal(received.capped,82);assert.equal(received.voided,0);
+  assert.equal(received.accountProfit,142);assert.equal(received.before,60);assert.equal(received.after,60);assert.equal(received.profit,142);assert.equal(received.tax,142);assert.equal(received.month,142);assert.equal(received.available,0);assert.equal(received.early,0);assert.equal(received.events.length,2);assert.equal(received.capped,82);assert.equal(received.voided,0);
   assert.equal(received.uc.allowance,416.60);assert.equal(received.uc.miles,1000);assert.equal(received.hmrc,-550);assert.equal(received.management,0);assert.equal(received.monthly,0);assert(received.invalid);
 
   assert.deepEqual(errors,[]);await context.close();console.log('PASS dated credits, statement periods, no double cash/tax benefit, missing sale cycles, weighted margins, fixed stock, signed parts and relist fees');
