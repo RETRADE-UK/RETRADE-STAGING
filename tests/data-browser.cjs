@@ -78,7 +78,7 @@ const {open,settled}=require('./startup-browser.cjs');
     assert(geometry.stock.y>=geometry.income.bottom,'Mobile/tablet keeps payment detail after income');
    }
    if(process.env.RETRADE_CAPTURE)await page.screenshot({path:process.env.RETRADE_CAPTURE+'/tax-'+width+'.png',fullPage:true});
-   await page.getByRole('button',{name:'Monthly',exact:true}).click();
+   await page.getByRole('button',{name:'Monthly breakdown',exact:true}).click();
    const size=await page.evaluate(()=>({card:document.getElementById('tax-monthly-summary').getBoundingClientRect().width,layout:document.querySelector('.tax-layout').getBoundingClientRect().width}));
    assert(Math.abs(size.card-size.layout)<2,'Monthly fills width');
   }
