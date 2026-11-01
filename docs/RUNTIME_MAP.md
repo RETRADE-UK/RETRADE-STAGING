@@ -16,6 +16,12 @@ refunds use a recorded receipt date, and attached trip expenses use their own
 payment dates. Missing receipt evidence remains explicit rather than being saved
 as an inferred date. Existing account-credit wrappers remain authoritative.
 
+The shared expense taxonomy exposes Loan interest (Box 25). UC reports allow
+at most GBP 41 of business loan interest per assessment period, with recorded,
+allowed and excluded amounts in the review note; HMRC keeps its recorded
+allowable interest. This follows GOV.UK's self-employed UC expenses guidance:
+https://www.gov.uk/government/publications/universal-credit-for-the-self-employed/business-expenses-you-can-report-to-universal-credit-if-you-are-self-employed
+
 `report-engine.js` exports a captured set of rows to CSV/Excel; `documents.js`
 renders the same snapshot with the shared PDF brand header. These are reporting
 worksheets, not submissions or UC award calculations. Annual overview, filing

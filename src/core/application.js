@@ -511,6 +511,7 @@ const EXPENSE_CATEGORY_DEFS=[
   {label:'Phone, office & stationery',       box:23, bucket:'overhead', group:'Overheads',      short:'Office'},
   {label:'Software & subscriptions',         box:30, bucket:'overhead', group:'Overheads',      short:'Software'},
   {label:'Accountancy, legal & professional',box:28, bucket:'overhead', group:'Overheads',      short:'Professional'},
+  {label:'Loan interest',                   box:25, bucket:'overhead', group:'Overheads',      short:'Interest'},
   {label:'Other business expenses',          box:30, bucket:'overhead', group:'Overheads',      short:'Other'}
 ];
 const EXPENSE_CATEGORIES=EXPENSE_CATEGORY_DEFS.map(function(d){return d.label;});
@@ -531,6 +532,8 @@ const EXPENSE_CATEGORY_ALIASES={
   'Office Supplies':'Phone, office & stationery',
   'Software/Subscriptions':'Software & subscriptions',
   'Professional Fees':'Accountancy, legal & professional',
+  'Business loan interest':'Loan interest',
+  'Interest on bank and other loans':'Loan interest',
   'Other':'Other business expenses'
 };
 

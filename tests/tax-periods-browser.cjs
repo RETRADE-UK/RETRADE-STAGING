@@ -35,6 +35,19 @@ async function financialCases(page){
     check('Tax payments do not change business profit',paid.profit,100);check('UC actual paid deductions',paid.reportableEarnings,65);
     check('Payment entries retained',paid.taxPaid+paid.niPaid+paid.pensionPaid,35);
 
+    reset();DB.expenses=[{id:'interest-a',date:'2026-05-10',category:'Loan interest',amount:20}];
+    check('UC interest below cap remains fully deductible',report('uc').totalExpenses,20);
+    check('HMRC small interest expense unchanged',report().totalExpenses,20);
+    DB.expenses.push({id:'interest-b',date:'2026-05-25',category:'Loan interest',amount:40});
+    const capped=report('uc'),uncapped=report();
+    check('UC interest cap applies across period payments',capped.totalExpenses,41);
+    check('UC interest cap changes signed result',capped.profit,-41);
+    check('HMRC interest has no UC cap',uncapped.totalExpenses,60);
+    check('HMRC interest profit unchanged',uncapped.profit,-60);
+    check('UC interest detail matches permitted deduction',capped.expenseLines.find(row=>row[0]==='Loan interest')[1],41);
+    check('UC capped expense details reconcile',capped.expenseLines.reduce((sum,row)=>sum+row[1],0),capped.totalExpenses);
+    check('HMRC expense details reconcile independently',uncapped.expenseLines.reduce((sum,row)=>sum+row[1],0),uncapped.totalExpenses);
+
     reset();DB['MAY-26']=[item({id:'first',dateSourced:'2026-04-10',dateSold:'2026-05-01',salePrice:100,costPrice:0,shippingCost:0,packagingCost:0}),item({id:'last',dateSourced:'2026-04-10',dateSold:'2026-05-31',salePrice:200,costPrice:0,shippingCost:0,packagingCost:0}),item({id:'before',dateSold:'2026-04-30',salePrice:20,costPrice:0,shippingCost:0,packagingCost:0}),item({id:'after',dateSold:'2026-06-01',salePrice:30,costPrice:0,shippingCost:0,packagingCost:0})];
     check('Both selected date boundaries included',report().income,300);
     check('One-day custom interval supported',report('hmrc','2026-05-31','2026-05-31').income,200);

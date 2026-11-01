@@ -2092,7 +2092,8 @@ function _buildPeriodReport(basis,from,to,options){
   const report={valid:false,errors:errors,basis:basis,title:title,from:from,to:to,
     generatedAt:new Date().toISOString(),income:0,totalExpenses:0,profit:0,
     expensesBeforeMileage:0,mileageMiles:0,mileageCost:0,taxPaid:0,niPaid:0,pensionPaid:0,
-    reportableEarnings:0,expenseLines:[],rows:[],notes:[],saleCount:0,reviewItems:[]};
+    reportableEarnings:0,loanInterestRecorded:0,loanInterestAllowed:0,loanInterestExcluded:0,
+    expenseLines:[],rows:[],notes:[],saleCount:0,reviewItems:[]};
   if(basis!=='hmrc'&&basis!=='uc')errors.push('Choose HMRC or Universal Credit.');
   if(!_reportDateValid(from)||!_reportDateValid(to))errors.push('Enter valid start and end dates.');
   else if(from>to)errors.push('The start date must be on or before the end date.');
@@ -2112,14 +2113,21 @@ function _buildPeriodReport(basis,from,to,options){
   report.mileageMiles=round(p.mileage.miles);
   report.mileageCost=claimedHmrcMileage;
   report.totalExpenses=round(report.income-p.netProfit);
+  report.loanInterestRecorded=round(byBox[25]||0);
+  report.loanInterestAllowed=report.loanInterestRecorded;
   if(basis==='uc'){
     const mileage=_ucMileageSummary(from,to);
     // Cars/vans use UC mileage even when HMRC uses actual vehicle running costs.
     // Public transport and parking retain their separate travel classification.
     const excludedMotor=p.motorMethod==='actual'?round(p.motorActual):0;
     byBox[20]=round((byBox[20]||0)-claimedHmrcMileage-excludedMotor);
+    // UC limits interest on business loans to GBP 41 in each assessment
+    // period. HMRC keeps its recorded allowable interest without this cap.
+    report.loanInterestExcluded=Math.max(0,round(report.loanInterestRecorded-41));
+    report.loanInterestAllowed=round(report.loanInterestRecorded-report.loanInterestExcluded);
+    byBox[25]=report.loanInterestAllowed;
     report.mileageMiles=round(mileage.miles);report.mileageCost=mileage.allowance;
-    report.totalExpenses=round(report.totalExpenses-claimedHmrcMileage-excludedMotor+mileage.allowance);
+    report.totalExpenses=round(report.totalExpenses-claimedHmrcMileage-excludedMotor-report.loanInterestExcluded+mileage.allowance);
   }else byBox[20]=round((byBox[20]||0)-claimedHmrcMileage);
   report.expensesBeforeMileage=round(report.totalExpenses-report.mileageCost);
   const categories={20:'Travel and vehicle costs',21:'Rent, utilities and insurance',22:'Repairs and equipment',
@@ -2145,6 +2153,7 @@ function _buildPeriodReport(basis,from,to,options){
   report.notes.push('Personal disposals must remain outside business stock records. Check consignor payments against your arrangement; owner or partnership profit distributions are not business expenses.');
   if(basis==='uc'){
     report.notes.push('Use the exact assessment dates shown in your UC account. Cars/vans: 45p for the first 833 business miles, then 25p within this period; vehicle running costs are excluded.');
+    if(report.loanInterestExcluded>0)report.notes.push('Business loan interest is limited to GBP 41.00 per UC assessment period. Recorded interest: GBP '+report.loanInterestRecorded.toFixed(2)+'; allowed: GBP '+report.loanInterestAllowed.toFixed(2)+'; excluded: GBP '+report.loanInterestExcluded.toFixed(2)+'. Review the recorded interest and assessment dates.');
     report.notes.push('Tax, NI and pension amounts are your entries for eligible payments actually made in this period, not an estimate. Do not enter a payment already recorded as a business expense.');
     report.notes.push('The signed earnings figure is not a benefit award. DWP applies loss carry-forward, the minimum income floor and household circumstances separately.');
   }else{
