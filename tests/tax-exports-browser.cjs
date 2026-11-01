@@ -8,7 +8,7 @@ const {open,settled}=require('./startup-browser.cjs');
   const {page,context,errors}=await open(browser,{signedIn:true,mobile});await settled(page);
   await context.route('**/jspdf.umd.min.js',route=>route.fulfill({contentType:'text/javascript',body:fs.readFileSync(require.resolve('jspdf/dist/jspdf.umd.min.js'))}));
   await context.route('**/xlsx.full.min.js',route=>route.fulfill({contentType:'text/javascript',body:fs.readFileSync(require.resolve('xlsx/dist/xlsx.full.min.js'))}));
-  await page.evaluate(()=>{goToTab('tax');renderTax();});
+  await page.evaluate(()=>{goToTab('tax');renderTax();setTaxWorkspaceView('overview');});
   // Wait for the app's deferred legacy-record normalisation before checking export immutability.
   await page.evaluate(()=>window.dispatchEvent(new Event('retrade:data-ready')));
   const initial=await page.evaluate(()=>JSON.stringify([DB,_accounts,_taxExportData]));
@@ -53,3 +53,4 @@ const {open,settled}=require('./startup-browser.cjs');
   assert.deepEqual(errors,[]);await context.close();console.log('PASS Tax format chooser, actual PDF/CSV/XLSX downloads, numeric cells, snapshot and no mutations',mobile?'mobile':'desktop');
  }}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
+

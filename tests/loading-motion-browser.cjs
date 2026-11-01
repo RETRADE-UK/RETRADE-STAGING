@@ -33,7 +33,7 @@ const {open,settled}=require('./startup-browser.cjs');
      assert.equal(await page.locator('.page.on .rt-route-skeleton .rt-accounts-overview>div').count(),3);
      assert(await page.locator('.page.on .rt-accounts-overview>div:first-child').evaluate(e=>getComputedStyle(e).backgroundColor!==getComputedStyle(e.querySelector('.rt-pending-value')).backgroundColor),'Outstanding placeholder contrasts with its strip');
     }
-    if(route==='tax')assert(await page.locator('.tax-export-bottom').evaluate(e=>e.closest('.tax-workspace').querySelector('[inert]').lastElementChild===e));
+    if(route==='tax'){assert.equal(await page.locator('.tax-report-card').count(),2);assert(await page.locator('.tax-period-toolbar').isVisible());}
     if(process.env.RETRADE_CAPTURE&&width===390)await page.screenshot({path:process.env.RETRADE_CAPTURE+'/skeleton-'+route+'.png'});
    }
   }

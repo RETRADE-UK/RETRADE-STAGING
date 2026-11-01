@@ -680,6 +680,67 @@ function downloadTaxSummary(format,source){
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
   toast('Tax summary downloaded');
 }
+
+// Every selected-period format consumes the same captured numeric rows. A lazy
+// library load must never change the selected dates or recalculate later data.
+var _periodReportXlsxPromise=null;
+function _periodReportFilename(report){
+  return 'RETRADE_'+(report.basis==='uc'?'UC':'HMRC')+'_'+report.from+'_to_'+report.to;
+}
+function _periodReportCsv(rows){
+  return rows.map(function(row){return row.map(function(value){
+    // Genuine negative amounts stay numbers; untrusted text still receives the
+    // shared spreadsheet-formula protection.
+    return typeof value==='number'&&Number.isFinite(value)?String(value):_csvCell(value);
+  }).join(',');}).join('\r\n');
+}
+function _ensurePeriodReportExcel(){
+  if(window.XLSX)return Promise.resolve();
+  if(_periodReportXlsxPromise)return _periodReportXlsxPromise;
+  _periodReportXlsxPromise=new Promise(function(resolve,reject){
+    const script=document.createElement('script');
+    script.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    script.integrity='sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==';
+    script.crossOrigin='anonymous';script.referrerPolicy='no-referrer';
+    script.onload=function(){window.XLSX?resolve():reject(new Error('Excel library did not initialise.'));};
+    script.onerror=function(){script.remove();reject(new Error('Could not load Excel. Please try again.'));};
+    document.head.appendChild(script);
+  }).catch(function(error){_periodReportXlsxPromise=null;throw error;});
+  return _periodReportXlsxPromise;
+}
+async function exportPeriodReport(format,source){
+  if(!source||!source.valid)throw new Error(source&&source.errors&&source.errors[0]||'Choose a valid reporting period.');
+  if(!['pdf','csv','xlsx'].includes(format))throw new Error('Choose PDF, CSV or Excel.');
+  const report=JSON.parse(JSON.stringify(source));
+  const filename=_periodReportFilename(report);
+  if(format==='pdf'){
+    if(typeof window.generateRetradePeriodReport!=='function')throw new Error('PDF export is still loading. Please try again.');
+    return window.generateRetradePeriodReport(report);
+  }
+  if(format==='xlsx'){
+    await _ensurePeriodReportExcel();
+    const rows=report.rows,wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet(rows);
+    _styleReportSheet(ws,rows,{headerRows:[0],freezeRow:5,moneyCols:[1]});
+    ws['!cols']=[{wch:58},{wch:26},{wch:76}];
+    ws['!merges']=[];
+    rows.forEach(function(row,index){
+      if(row.length===1&&String(row[0]).length>65)ws['!merges'].push({s:{r:index,c:0},e:{r:index,c:2}});
+      // The shared styler recognises the word "returns" as a count in sales
+      // tables; here it is a monetary expense category.
+      if(typeof row[1]==='number'&&ws['B'+(index+1)])ws['B'+(index+1)].z='£#,##0.00;[Red]-£#,##0.00';
+      if(row[0]==='Recorded sales'&&ws['B'+(index+1)])ws['B'+(index+1)].z='0';
+      if(row[0]==='Business miles'&&ws['B'+(index+1)])ws['B'+(index+1)].z='0.##';
+    });
+    XLSX.utils.book_append_sheet(wb,ws,report.basis==='uc'?'UC worksheet':'HMRC summary');
+    XLSX.writeFile(wb,filename+'.xlsx');
+  }else{
+    const blob=new Blob(['\uFEFF'+_periodReportCsv(report.rows)],{type:'text/csv;charset=utf-8'});
+    const link=document.createElement('a'),url=URL.createObjectURL(blob);
+    link.href=url;link.download=filename+'.csv';document.body.appendChild(link);link.click();link.remove();
+    setTimeout(function(){URL.revokeObjectURL(url);},1000);
+  }
+  toast((report.basis==='uc'?'Universal Credit worksheet':'HMRC summary')+' downloaded');
+}
 // Update the user's other (employment) income used to stack the SE estimate, then re-render.
 function _saleDetailRow(ev,forCSV){
   const i=ev.item;
@@ -716,14 +777,15 @@ function _expandedExpenseRows(pnl){
     total+=mileageCost;
     if(mileageCost)rows.push([t.date||'','Mileage',(t.description||'Sourcing trip'),'Mileage',(t.description||''),
       miles,+rate.toFixed(2),mileageCost,'',mileageCost]);
-    // Break out each sub-expense on this trip as its own row so "what for" is visible
-    (Array.isArray(t.expenses)?t.expenses:[]).forEach(function(e){
-      if(pnl.motorMethod==='mileage'&&_resolveExpenseCat(e.category).label==='Motor, van & travel')return;
-      const amt=+(Number(e.amount)||0).toFixed(2);
-      total+=amt;
-      rows.push([e.date||t.date||'','Trip expense',(e.description||'Sub-expense'),(e.category||'Trip cost'),(t.description||''),
-        '','','',amt,amt]);
-    });
+  });
+  // An attached expense owns its explicit payment date, even outside the
+  // trip's month. The trip itself still owns the mileage date.
+  const tripExpenses=pnl.expenses.tripExpenses||_tripExpensesInRange(pnl.from,pnl.to);
+  tripExpenses.forEach(function(entry){
+    const e=entry.expense,t=entry.trip;
+    if(pnl.motorMethod==='mileage'&&_resolveExpenseCat(e.category).label==='Motor, van & travel')return;
+    const amt=+(Number(e.amount)||0).toFixed(2);total+=amt;
+    rows.push([entry.date,'Trip expense',(e.description||'Sub-expense'),(e.category||'Trip cost'),(t.description||''),'','','',amt,amt]);
   });
   (pnl.expenses.expenses||[]).forEach(function(e){
     if(pnl.motorMethod==='mileage'&&_resolveExpenseCat(e.category).label==='Motor, van & travel')return;
@@ -1229,3 +1291,4 @@ const EBAY_BIZ_FVF={
 
 
 // Preview regression scheduling lives in app.js, after PREVIEW_MODE_ENABLED is defined.
+

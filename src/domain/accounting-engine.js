@@ -838,25 +838,39 @@ function getSaleEventsInRange(from,to){
   return out;
 }
 
+function _tripExpensesInRange(from,to){
+  const out=[];
+  (DB.trips||[]).forEach(function(trip){
+    (Array.isArray(trip.expenses)?trip.expenses:[]).forEach(function(expense){
+      const date=expense.date||trip.date||null;
+      if(date&&(!from||date>=from)&&(!to||date<=to))out.push({trip:trip,expense:expense,date:date});
+    });
+  });
+  return out;
+}
 function _expensesInRange(from,to){
   const inR=function(d){return d && (!from||d>=from) && (!to||d<=to);};
   const trips=(DB.trips||[]).filter(function(t){return inR(t.date);});
   const exps=(DB.expenses||[]).filter(function(e){return inR(e.date);});
+  const tripExpenses=_tripExpensesInRange(from,to);
   const rows=[]; let total=0;
   const allTrips=DB.trips||[],tiered=calcTieredTrips(allTrips);
   trips.forEach(function(t){
     const miles=Number(t.mileage)||0, row=tiered[allTrips.indexOf(t)];
     const mileageCost=row?row.mileageCost:0,rate=miles?mileageCost/miles:0;
-    const extraExps=(Array.isArray(t.expenses)?t.expenses:[]).reduce(function(s,e){return s+(Number(e.amount)||0);},0);
-    const rowTotal=+(mileageCost+extraExps).toFixed(2);
+    const rowTotal=+mileageCost.toFixed(2);
     total+=rowTotal;
     rows.push([t.date||'',(t.description||'Sourcing trip').replace(/,/g,' '),'Mileage','',miles,rate.toFixed(2),mileageCost.toFixed(2),rowTotal.toFixed(2)]);
+  });
+  tripExpenses.forEach(function(entry){
+    const e=entry.expense,amt=Number(e.amount)||0;total+=amt;
+    rows.push([entry.date,(e.description||'Trip expense').replace(/,/g,' '),e.category||'Other',amt.toFixed(2),'','','',amt.toFixed(2)]);
   });
   exps.forEach(function(e){
     const amt=Number(e.amount)||0; total+=amt;
     rows.push([e.date||'',(e.description||'Expense').replace(/,/g,' '),e.category||'',amt.toFixed(2),'','','',amt.toFixed(2)]);
   });
-  return{trips:trips,expenses:exps,total:+total.toFixed(2),rows:rows};
+  return{trips:trips,tripExpenses:tripExpenses,expenses:exps,total:+total.toFixed(2),rows:rows};
 }
 
 function _unsoldStockCostInRange(from,to){
@@ -990,9 +1004,7 @@ function _buildPnLSummary(from,to,label,options){
     byCategory['Mileage allowance']={label:'Mileage allowance',box:20,bucket:'overhead',amount:+mileageCost.toFixed(2),isMileage:true,miles:totalMiles};
     manualOverhead+=mileageCost;
   }
-  (exp.trips||[]).forEach(function(t){
-    (Array.isArray(t.expenses)?t.expenses:[]).forEach(function(e){_addCat(e.category,e.amount||0);});
-  });
+  (exp.tripExpenses||[]).forEach(function(entry){_addCat(entry.expense.category,entry.expense.amount||0);});
   (exp.expenses||[]).forEach(function(e){_addCat(e.category,e.amount||0);});
 
   // Sale-level selling costs also belong to SA103 boxes — fold them into byBox
@@ -1158,10 +1170,13 @@ function _taxCashStockAndPartner(from,to){
     // _itemAccountType intentionally defaults unlinked stock to supplier for
     // sale margins. Cash timing must distinguish our own paid purchases.
     const typ=i.accountId?_itemAccountType(i):'own';
-    const sourceDate=i.dateSourced||i.dateListed||null;
+    // A listing date is not evidence of a payment. Keep undated purchases out
+    // of dated returns and expose them for review instead of inventing timing.
+    const sourceDate=i.dateSourced||null;
     (i.parts||[]).forEach(function(p){
       const amount=Number(p.cost)||0,date=p.date||sourceDate;
       if(amount&&inR(date))partsPaid+=amount;
+      if(amount&&!date)assumptions.push({itemId:i.id,amount:amount,excluded:true,reason:'Part or repair has no purchase date and is excluded from this dated report.'});
     });
     let acquisition=0,payDate=null;
     if(typ==='consignment') acquisition=0;
@@ -1186,7 +1201,12 @@ function _taxCashStockAndPartner(from,to){
     if(acquisition>0&&inR(payDate)){
       if(typ==='supplier')supplierStockPaid+=acquisition;else ownStockPaid+=acquisition;
     }
-    if(i.scrapReason==='supplier_return'&&inR(i.scrappedAt))supplierRefundIncome+=Math.max(0,Number(i.supplierRefund)||0);
+    if(acquisition>0&&!payDate)assumptions.push({itemId:i.id,amount:acquisition,excluded:true,reason:'Stock has no purchase date and is excluded from this dated report.'});
+    const refundDate=i.supplierRefundDate||(i.scrappedAt?String(i.scrappedAt).slice(0,10):null);
+    if(i.scrapReason==='supplier_return'&&inR(refundDate)){
+      const refund=Math.max(0,Number(i.supplierRefund)||0);supplierRefundIncome+=refund;
+      if(refund&&!i.supplierRefundDate)assumptions.push({itemId:i.id,amount:refund,reason:'Supplier refund uses the removal date because no separate receipt date is recorded.'});
+    }
   });
   (_accounts||[]).forEach(function(acct){
     (acct.settlements||[]).forEach(function(tx){
@@ -1293,7 +1313,7 @@ function calcMonthStatsBySale(m,ctx){
   const _monthEnd=String(_monthYear)+'-'+String(_monthIndex+1).padStart(2,'0')+'-'+String(new Date(_monthYear,_monthIndex+1,0).getDate()).padStart(2,'0');
   const _inMonth=function(ds){return !!ds&&ds>=_monthStart&&ds<=_monthEnd;};
   const _allTrips=DB.trips||[],_tieredTrips=(ctx&&Array.isArray(ctx.tieredTrips))?ctx.tieredTrips:calcTieredTrips(_allTrips);let tripsCost=0,expensesCost=0;
-  _allTrips.forEach(function(t,idx){if(_inMonth(t.date))tripsCost+=(_tieredTrips[idx]?_tieredTrips[idx].expensesCost:0);});
+  _tripExpensesInRange(_monthStart,_monthEnd).forEach(function(entry){tripsCost+=Number(entry.expense.amount)||0;});
   (DB.expenses||[]).forEach(function(e){if(_inMonth(e.date))expensesCost+=(Number(e.amount)||0);});
   const monthPnl=_buildPnLSummary(_monthStart,_monthEnd,'');
   const grossProfit=+(realisedProfit+monthPnl.accountCreditProfit).toFixed(2),overheads=+(tripsCost+expensesCost+monthPnl.archiveLoss).toFixed(2),netProfit=monthPnl.netProfit;
@@ -2046,8 +2066,112 @@ function calcDaysToSell(i){
 
 // UC uses the supplied assessment period, not the HMRC annual mileage bands.
 function _ucMileageSummary(from,to){
-  const valid=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||'')&&new Date(d+'T00:00:00Z').toISOString().slice(0,10)===d;
-  if(!valid(from)||!valid(to)||from>to||(Date.parse(to)-Date.parse(from))/86400000>31)throw new Error('Enter one UC assessment period (up to 32 days).');
+  if(!_reportDateValid(from)||!_reportDateValid(to)||from>to||(Date.parse(to)-Date.parse(from))/86400000>=31)throw new Error('Enter one UC assessment period (up to 31 days).');
   const miles=(DB.trips||[]).filter(t=>t.date>=from&&t.date<=to).reduce((n,t)=>n+Math.max(0,Number(t.mileage)||0),0);
   return {from,to,miles,allowance:+(Math.min(miles,833)*0.45+Math.max(0,miles-833)*0.25).toFixed(2)};
 }
+
+// A selected-period worksheet is a read-only snapshot. It shares the annual
+// paid-stock/settlement owner, but never uses cash-pot funding as a tax filter.
+function _reportDateValid(value){
+  if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
+  const stamp=Date.parse(value+'T00:00:00Z');
+  return Number.isFinite(stamp)&&new Date(stamp).toISOString().slice(0,10)===value;
+}
+function _freezeReport(value){
+  if(value&&typeof value==='object'&&!Object.isFrozen(value)){
+    Object.keys(value).forEach(function(key){_freezeReport(value[key]);});Object.freeze(value);
+  }
+  return value;
+}
+function _buildPeriodReport(basis,from,to,options){
+  options=options||{};
+  const round=function(value){return Math.round((Number(value)||0)*100)/100;};
+  const errors=[];
+  const title=basis==='uc'?'Universal Credit reporting worksheet':'HMRC cash-basis summary';
+  const report={valid:false,errors:errors,basis:basis,title:title,from:from,to:to,
+    generatedAt:new Date().toISOString(),income:0,totalExpenses:0,profit:0,
+    expensesBeforeMileage:0,mileageMiles:0,mileageCost:0,taxPaid:0,niPaid:0,pensionPaid:0,
+    reportableEarnings:0,loanInterestRecorded:0,loanInterestAllowed:0,loanInterestExcluded:0,
+    expenseLines:[],rows:[],notes:[],saleCount:0,reviewItems:[]};
+  if(basis!=='hmrc'&&basis!=='uc')errors.push('Choose HMRC or Universal Credit.');
+  if(!_reportDateValid(from)||!_reportDateValid(to))errors.push('Enter valid start and end dates.');
+  else if(from>to)errors.push('The start date must be on or before the end date.');
+  else if(basis==='uc'&&(Date.parse(to)-Date.parse(from))/86400000>=31)errors.push('Universal Credit needs one assessment period of up to 31 days. Choose its exact dates.');
+  if(basis==='uc'){
+    [['taxPaid','Income Tax'],['niPaid','National Insurance'],['pensionPaid','Pension contributions']].forEach(function(pair){
+      const raw=options[pair[0]],value=raw==null||raw===''?0:Number(raw);
+      if(!Number.isFinite(value)||value<0)errors.push(pair[1]+' paid must be zero or a positive amount.');
+      else report[pair[0]]=round(value);
+    });
+  }
+  if(errors.length)return _freezeReport(report);
+  const p=_buildTaxCashSummary(from,to,title);
+  const claimedHmrcMileage=p.motorMethod==='actual'?0:round(p.mileage.cost);
+  const byBox=Object.assign({},p.byBox);
+  report.income=round(p.totalBusinessIncome);
+  report.mileageMiles=round(p.mileage.miles);
+  report.mileageCost=claimedHmrcMileage;
+  report.totalExpenses=round(report.income-p.netProfit);
+  report.loanInterestRecorded=round(byBox[25]||0);
+  report.loanInterestAllowed=report.loanInterestRecorded;
+  if(basis==='uc'){
+    const mileage=_ucMileageSummary(from,to);
+    // Cars/vans use UC mileage even when HMRC uses actual vehicle running costs.
+    // Public transport and parking retain their separate travel classification.
+    const excludedMotor=p.motorMethod==='actual'?round(p.motorActual):0;
+    byBox[20]=round((byBox[20]||0)-claimedHmrcMileage-excludedMotor);
+    // UC limits interest on business loans to GBP 41 in each assessment
+    // period. HMRC keeps its recorded allowable interest without this cap.
+    report.loanInterestExcluded=Math.max(0,round(report.loanInterestRecorded-41));
+    report.loanInterestAllowed=round(report.loanInterestRecorded-report.loanInterestExcluded);
+    byBox[25]=report.loanInterestAllowed;
+    report.mileageMiles=round(mileage.miles);report.mileageCost=mileage.allowance;
+    report.totalExpenses=round(report.totalExpenses-claimedHmrcMileage-excludedMotor-report.loanInterestExcluded+mileage.allowance);
+  }else byBox[20]=round((byBox[20]||0)-claimedHmrcMileage);
+  report.expensesBeforeMileage=round(report.totalExpenses-report.mileageCost);
+  const categories={20:'Travel and vehicle costs',21:'Rent, utilities and insurance',22:'Repairs and equipment',
+    23:'Postage, packaging and office',24:'Advertising and marketing',25:'Loan interest',
+    26:'Platform and payment fees',28:'Professional fees',30:'Returns and other expenses'};
+  report.expenseLines.push(['Stock, repairs and consignor payments',round(p.box17)]);
+  Object.keys(byBox).sort(function(a,b){return Number(a)-Number(b);}).forEach(function(box){
+    if(round(byBox[box])!==0)report.expenseLines.push([categories[box]||('Other recorded expenses (category '+box+')'),round(byBox[box])]);
+  });
+  report.expenseLines.push([basis==='uc'?'UC mileage allowance':'HMRC mileage allowance',report.mileageCost]);
+  const lineTotal=round(report.expenseLines.reduce(function(sum,row){return sum+row[1];},0));
+  if(Math.abs(lineTotal-report.totalExpenses)>0.01){
+    errors.push('Recorded expense categories do not reconcile. Review the source records before downloading.');
+    return _freezeReport(report);
+  }
+  report.profit=round(report.income-report.totalExpenses);
+  report.reportableEarnings=round(report.profit-report.taxPaid-report.niPaid-report.pensionPaid);
+  report.saleCount=(p.events||[]).filter(function(event){return !event.isReturnAdjustment;}).length;
+  report.reviewItems=(p.cashDetail&&p.cashDetail.assumptions||[]).map(function(item){return Object.assign({},item);});
+  report.notes.push('Both dates are included. Amounts are GBP. This worksheet prepares figures; it does not submit a return.');
+  report.notes.push('Receipts and sale costs use recorded sale/refund dates. Check when money was actually received or paid, including marketplace balances, before reporting.');
+  report.notes.push('Paid business stock is included even when unsold or funded personally. Owner contributions, drawings, opening balances and cash adjustments are excluded.');
+  report.notes.push('Personal disposals must remain outside business stock records. Check consignor payments against your arrangement; owner or partnership profit distributions are not business expenses.');
+  if(basis==='uc'){
+    report.notes.push('Use the exact assessment dates shown in your UC account. Cars/vans: 45p for the first 833 business miles, then 25p within this period; vehicle running costs are excluded.');
+    if(report.loanInterestExcluded>0)report.notes.push('Business loan interest is limited to GBP 41.00 per UC assessment period. Recorded interest: GBP '+report.loanInterestRecorded.toFixed(2)+'; allowed: GBP '+report.loanInterestAllowed.toFixed(2)+'; excluded: GBP '+report.loanInterestExcluded.toFixed(2)+'. Review the recorded interest and assessment dates.');
+    report.notes.push('Tax, NI and pension amounts are your entries for eligible payments actually made in this period, not an estimate. Do not enter a payment already recorded as a business expense.');
+    report.notes.push('The signed earnings figure is not a benefit award. DWP applies loss carry-forward, the minimum income floor and household circumstances separately.');
+  }else{
+    report.notes.push('Cash basis uses paid stock and recorded expenses. Mileage uses earlier trips in each tax year: 55p for the first 10,000 miles from 6 April 2026 (45p before then), then 25p.');
+    if(p.motorMethod==='actual')report.notes.push('Your HMRC motor setting uses actual vehicle costs, so no mileage allowance is deducted.');
+    report.notes.push('A monthly or custom-period profit is not a separate tax bill. Use the full tax year and your other income for Self Assessment.');
+  }
+  const missing=report.reviewItems.filter(function(item){return item.excluded;});
+  if(missing.length)report.notes.push(missing.length+' undated purchase/repair record(s), totalling GBP '+round(missing.reduce(function(sum,item){return sum+item.amount;},0)).toFixed(2)+', are excluded. Add their actual purchase dates before filing.');
+  if(report.reviewItems.some(function(item){return !item.excluded;}))report.notes.push('Some records use a source or removal date because a separate payment or receipt date is missing. Review the timing notes.');
+  report.rows=[[title],['Period start',from],['Period end (inclusive)',to],['Generated (UTC)',report.generatedAt],[],['INCOME'],['Business income',report.income],[],['BUSINESS EXPENSES']];
+  report.expenseLines.forEach(function(row){report.rows.push(row.slice());});
+  report.rows.push(['Total business expenses',report.totalExpenses],[],['RESULT'],['Business profit / (loss)',report.profit]);
+  if(basis==='uc')report.rows.push(['Income Tax paid',report.taxPaid],['National Insurance paid',report.niPaid],['Pension contributions paid',report.pensionPaid],['Earnings after paid deductions / (loss)',report.reportableEarnings]);
+  report.rows.push([],['ACTIVITY'],['Recorded sales',report.saleCount],['Business miles',report.mileageMiles],[],['REPORTING NOTES']);
+  report.notes.forEach(function(note){report.rows.push([note]);});
+  if(report.reviewItems.length){report.rows.push([],['TIMING REVIEW'],['Record reference','Amount (GBP)','Reason']);report.reviewItems.forEach(function(item){report.rows.push([String(item.itemId||''),round(item.amount),item.reason]);});}
+  report.valid=true;
+  return _freezeReport(report);
+}
+

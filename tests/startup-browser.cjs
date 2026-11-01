@@ -47,6 +47,7 @@ async function open(browser, { signedIn = false, mobile = false, reduced = false
   const page = await context.newPage();
   const errors = [];
   const missingAssets=[];
+  page.__rtStartupDiagnostics={errors,missingAssets};
   page.on('pageerror', e => errors.push(e.message));
   await context.route('**/*', async route => {
     const url = new URL(route.request().url());
@@ -69,7 +70,17 @@ async function open(browser, { signedIn = false, mobile = false, reduced = false
   return { page, context, errors, missingAssets };
 }
 async function settled(page) {
-  await page.waitForFunction(() => window.__rtFeaturesReady && window.__rtLaunchSettled && !document.documentElement.classList.contains('rt-app-cold'), null, { timeout: 15000 });
+  // Deferred modules load in order through idle/frame callbacks. Slow fixtures
+  // and CI scheduling can exceed 15s; dedicated tests still measure performance.
+  try{
+    await page.waitForFunction(() => window.__rtFeaturesReady && window.__rtLaunchSettled && !document.documentElement.classList.contains('rt-app-cold'), null, { timeout: 30000 });
+  }catch(error){
+    let state;
+    try{state=await page.evaluate(()=>({featuresReady:window.__rtFeaturesReady??null,launchSettled:window.__rtLaunchSettled??null,cold:document.documentElement.classList.contains('rt-app-cold'),readyState:document.readyState,activePage:document.querySelector('.page.on')?.id}));}
+    catch(diagnosticError){state={unavailable:diagnosticError.message};}
+    console.error('Startup diagnostics:',JSON.stringify({...state,...page.__rtStartupDiagnostics}));
+    throw error;
+  }
 }
 async function checkFigures(page) {
   const values = await page.evaluate(() => [...document.querySelectorAll('#p-summary [data-cv]')].filter(e => e.getClientRects().length).map(e => ({ value: e.textContent, expected: (_CV_FMT[e.dataset.cvFmt] || _CV_FMT.k)(Number(e.dataset.cv)), target: Number(e.dataset.cv) })));
@@ -270,3 +281,4 @@ if(require.main===module)(async () => {
     await failed.context.close();
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
+
