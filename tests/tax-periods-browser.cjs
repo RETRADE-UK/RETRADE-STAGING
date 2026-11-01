@@ -21,7 +21,7 @@ async function financialCases(page){
     const checks=[];
     const check=(name,actual,expected)=>checks.push({name,actual,expected,ok:typeof expected==='number'?Math.abs(actual-expected)<0.011:actual===expected});
     const reset=()=>{DB={'MAY-26':[],trips:[],expenses:[],cashLedger:[],_taxYear:2026,_taxMethod:'actual_manual',_motorMethod:'mileage'};_accounts=[];};
-    const item=(x={})=>Object.assign({id:'own',item:'Period test camera',state:'sold',dateSourced:'2026-05-10',dateListed:'2026-05-11',dateSold:'2026-05-20',salePrice:200,costPrice:80,postage:0,shippingCost:10,packagingCost:2,promoPercent:0,listingFee:0,salePlatform:'fb',parts:[],returnHistory:[]},x);
+    const item=(x={})=>Object.assign({id:'own',item:'Period test camera',state:'sold',dateSourced:'2026-05-10',dateListed:'2026-05-11',dateSold:'2026-05-20',salePrice:200,costPrice:80,postage:0,shippingCost:10,packagingCost:2,promoPercent:0,listingFee:0,salePlatform:'fb',parts:[],returnHistory:[],refreshHistory:[]},x);
     const report=(basis='hmrc',from='2026-05-01',to='2026-05-31',options={})=>_buildPeriodReport(basis,from,to,options);
 
     reset();DB['MAY-26']=[item()];DB.expenses=[{id:'e',date:'2026-05-31',category:'Other',amount:8}];
@@ -108,7 +108,7 @@ async function chooseMonth(page,value){
       if(process.env.RETRADE_CAPTURE_BLOBS==='1')await page.evaluate(()=>{const create=URL.createObjectURL.bind(URL);URL.createObjectURL=function(blob){window.__periodLastBlob=blob;return create(blob);};});
       await page.evaluate(()=>window.dispatchEvent(new Event('retrade:data-ready')));
       if(!mobile)await financialCases(page);
-      else await page.evaluate(()=>{DB={'MAY-26':[{id:'own',item:'Period test camera',state:'sold',dateSourced:'2026-05-10',dateListed:'2026-05-11',dateSold:'2026-05-20',salePrice:200,costPrice:80,postage:0,shippingCost:10,packagingCost:2,promoPercent:0,listingFee:0,salePlatform:'fb',parts:[],returnHistory:[]}],trips:[],expenses:[{id:'e',date:'2026-05-31',category:'Other',amount:8}],cashLedger:[],_taxYear:2026,_taxMethod:'actual_manual',_motorMethod:'mileage'};_accounts=[];});
+      else await page.evaluate(()=>{DB={'MAY-26':[{id:'own',item:'Period test camera',state:'sold',dateSourced:'2026-05-10',dateListed:'2026-05-11',dateSold:'2026-05-20',salePrice:200,costPrice:80,postage:0,shippingCost:10,packagingCost:2,promoPercent:0,listingFee:0,salePlatform:'fb',parts:[],returnHistory:[],refreshHistory:[]}],trips:[],expenses:[{id:'e',date:'2026-05-31',category:'Other',amount:8}],cashLedger:[],_taxYear:2026,_taxMethod:'actual_manual',_motorMethod:'mileage'};_accounts=[];});
       await page.evaluate(()=>{goToTab('tax');renderTax();setTaxWorkspaceView('reports');});
       await chooseMonth(page,'2024-02');
       assert.deepEqual(await page.evaluate(()=>[window._taxPeriodReports.hmrc.from,window._taxPeriodReports.hmrc.to]),['2024-02-01','2024-02-29']);
