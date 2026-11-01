@@ -233,6 +233,10 @@
 .rt #p-tax .tax-report-card>footer{margin-top:auto;padding-top:18px;display:grid;gap:8px}
 .rt #p-tax .tax-report-download{width:100%;min-height:46px;justify-content:center;font-size:13px;white-space:normal}
 .rt #p-tax .tax-report-download:disabled{cursor:not-allowed;opacity:.48}
+/* Amber keeps a dark foreground in either theme; selected tabs follow the
+   theme's high-contrast text token instead of using gold for small text. */
+.rt #p-tax .tax-report-download.btn-primary{color:#172033}
+.rt #p-tax .tax-view-switch button[data-tax-view][aria-pressed="true"]{color:var(--text)}
 .rt #p-tax .tax-report-card>footer>span{font-size:10px;color:var(--text-secondary);text-align:center;letter-spacing:.035em}
 .rt #p-tax .tax-report-footnote{margin:16px 2px 0;font-size:11px;color:var(--text-secondary);max-width:100ch;line-height:1.6}
 .rt #p-tax .tax-report-error{padding:12px;margin:12px 0 0;border:1px solid var(--border);border-radius:9px;background:var(--surface2);font-size:12px;color:var(--red);line-height:1.5}
