@@ -6,7 +6,7 @@ The numbered Stage 1 and Stage 2 files are production history. Once applied, the
 
 Some early files are read-only audit or verification steps. They remain here because removing an existing migration can make local and remote migration histories disagree.
 
-`20261101214612_items_purchase_paid_date.sql` was applied to staging through the Supabase migration tool on 1 November 2026; live application is pending. It adds a nullable `date` column without a default or backfill. Deploy the schema before the application version that writes this field. Read-only verification:
+`20261101214612_items_purchase_paid_date.sql` was applied through the Supabase migration tool on 1 November 2026: staging version `20261101214612`, live version `20261101215448`. Both recorded migrations contain the same additive SQL. It adds a nullable `date` column without a default or backfill. Deploy the schema before the application version that writes this field. Read-only verification:
 
 ```sql
 SELECT column_name, data_type, is_nullable, column_default
