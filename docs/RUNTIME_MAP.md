@@ -1,5 +1,32 @@
 # Runtime ownership
 
+## 1 November - explicit stock payment dates
+
+`_itemPurchasePaymentDate` resolves a valid recorded `purchasePaidDate` for
+own-stock and hybrid upfront acquisition cash and tax expenses. A missing
+payment date retains the source-date estimate with a review note; an invalid
+recorded payment date is excluded from dated reports until corrected. Listing
+dates are not used as acquisition-payment evidence. The reader never backfills
+data. Sourcing history, management stock costs, repair dates and supplier
+settlement dates keep their existing meanings.
+
+## 1 November - listing-charge reporting dates
+
+`accounting-engine.js` exposes the pure `_listingFeeEventsAll` reader shared by
+cashflow and HMRC/UC reports. The manual-relist owner in `cashflow/liabilities.js`
+and the verified-charge/monthly-renewal owner in `relist-fees.js` extend that same
+reader. Cashflow retains its existing repair hook; generating a report does not
+repair, accrue or save records.
+
+Cash-basis reports replace sale-matched listing allocations with the signed
+charges/credits on their recorded dates, including unsold stock. Management item
+profit keeps its existing allocation. Independent expenses remain independent;
+matching an invoice to item charges requires evidence, not equal-amount guesses.
+Timing review identifies undated listing entries, source-date fallbacks,
+estimated renewal charges, estimated legacy sale dates and supplier payments
+with unallocated balances. No additional supplier expense is inferred from an
+unallocated payment.
+
 ## 1 November - monthly and selected-date reporting
 
 Tax opens on Reports with one calendar-month/custom-date selector and matching
@@ -899,4 +926,3 @@ The isolated fortnight regression runs in Chromium and WebKit at 320, 390, 768
 and 1440px, checking boundaries, totals, blank days, losses, bar gaps, label bounds,
 selection persistence, hover, drill-downs and switching between daily periods.
 Cache generation: `20261016-dashboard-14-days` (staging adds `-staging`).
-

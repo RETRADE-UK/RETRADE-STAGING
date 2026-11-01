@@ -28,6 +28,20 @@ function _itemAcquisitionCost(i){
   return Number(i&&i.costPrice)||0;
 }
 
+// Payment is separate from sourcing/listing and repair dates. Own-stock and
+// hybrid upfront cash use this resolver; supplier settlements retain their
+// recorded transaction dates. Never persist a fallback estimate.
+function _itemPurchasePaymentDate(i){
+  const recorded=i&&i.purchasePaidDate!=null?String(i.purchasePaidDate).trim():'';
+  if(recorded)return _reportDateValid(recorded)
+    ?{date:recorded,dateSource:'purchase_paid_date',dateEstimated:false,invalidRecordedDate:false}
+    :{date:null,dateSource:'invalid_purchase_paid_date',dateEstimated:false,invalidRecordedDate:true};
+  const sourced=i&&i.dateSourced!=null?String(i.dateSourced).trim():'';
+  return _reportDateValid(sourced)
+    ?{date:sourced,dateSource:'date_sourced',dateEstimated:true,invalidRecordedDate:false}
+    :{date:null,dateSource:sourced?'invalid_source_date':'missing',dateEstimated:false,invalidRecordedDate:false};
+}
+
 /*
  * RETRADE ACCOUNTING ENGINE
  * Step 3 modularisation — financial calculation logic only.
@@ -218,6 +232,31 @@ function _cashCapitalNetLost(){
   return +lost.toFixed(2);
 }
 
+// Pure dated listing charges shared by cashflow and cash-basis reports.
+// Relist owners extend these events without repairing or saving stock records.
+function _listingFeeEventsAll(){
+  const out=[];
+  allItems().forEach(function(i){
+    if(!i||(i.item||'').trim().toUpperCase()==='MONTH END')return;
+    const sourced=i.dateSourced||null;
+    // Original insertion fee occurs when first listed.
+    if(Number(i.listingFee)>0)out.push({id:'listing:'+i.id,date:i.dateListed||sourced,type:'listing_fee',direction:'out',amount:i.listingFee,description:'Listing fee · '+(i.item||'Item'),source:'item',itemId:i.id,saleNo:1,dateEstimated:!i.dateListed&&!!sourced,dateSource:i.dateListed?'listed':sourced?'sourced':'missing'});
+    // Every return-driven relist carries its own dated insertion fee snapshot.
+    (i.returnHistory||[]).forEach(function(r,idx){
+      if(!r||!r._relistedAt)return;
+      const nextNo=Math.max(1,Number(r.saleNo)||1)+1;
+      const next=_saleCycleSnapshot(i,nextNo);
+      const pending=(i.returnHistory||[]).filter(function(x){return x&&x._relistedAt&&(x.type==='full_seller'||x.type==='full_ebay');}).slice(-1)[0];
+      // Preserve explicit zero; older relists can retain their incurred fee
+      // only in the next sale snapshot/current resale field. Count it once.
+      const fallback=next&&_priorRelistEntryForSale(i,nextNo)===r?next.listingFee:(!i.isReturned&&!i.resaleSalePrice&&pending===r?i.resaleListingFee:0);
+      const fee=r._listingFeeAtRelist!=null?r._listingFeeAtRelist:fallback;
+      if(Number(fee)>0)out.push({id:'relistfee:'+i.id+':'+idx,date:String(r._relistedAt).slice(0,10),type:'listing_fee',direction:'out',amount:fee,description:'Relist fee · '+(i.item||'Item')+' · next sale',source:'item',itemId:i.id,saleNo:nextNo});
+    });
+  });
+  return out;
+}
+
 function _cashEventsAll(){
   const out=[];
   const push=function(ev){
@@ -237,23 +276,13 @@ function _cashEventsAll(){
     if(!i||(i.item||'').trim().toUpperCase()==='MONTH END')return;
     const typ=i.accountId&&typeof _itemAccountType==='function'?_itemAccountType(i):'own';
     const sourced=i.dateSourced||i.dateListed||null;
-    // Acquisition cash: own stock and hybrid upfront component are paid when sourced.
-    if((!i.accountId||typ==='hybrid')&&_itemAcquisitionCost(i)>0)push({id:'stock:'+i.id,date:sourced,type:'stock_purchase',direction:'out',amount:_itemAcquisitionCost(i),description:'Stock sourced · '+(i.item||'Item'),source:'item',itemId:i.id,purchaseGroupId:i.purchaseGroupId||null,purchaseGroupName:i.purchaseGroupName||null});
+    // Acquisition cash uses the payment date; sourcing is an explicit
+    // estimate only when no payment date is recorded. Parts stay separate.
+    if((!i.accountId||typ==='hybrid')&&_itemAcquisitionCost(i)>0){
+      const paymentDate=_itemPurchasePaymentDate(i);
+      push({id:'stock:'+i.id,date:paymentDate.date,dateSource:paymentDate.dateSource,dateEstimated:paymentDate.dateEstimated,type:'stock_purchase',direction:'out',amount:_itemAcquisitionCost(i),description:'Stock purchase - '+(i.item||'Item'),source:'item',itemId:i.id,purchaseGroupId:i.purchaseGroupId||null,purchaseGroupName:i.purchaseGroupName||null});
+    }
     (i.parts||[]).forEach(function(p,idx){if(Number(p.cost)>0)push({id:'part:'+i.id+':'+(p.id||idx),date:p.date||sourced,type:'part_purchase',direction:'out',amount:p.cost,description:'Part / repair · '+(p.description||p.desc||i.item||'Item'),source:'item',itemId:i.id});});
-    // Original insertion fee occurs when first listed.
-    if(Number(i.listingFee)>0)push({id:'listing:'+i.id,date:i.dateListed||sourced,type:'listing_fee',direction:'out',amount:i.listingFee,description:'Listing fee · '+(i.item||'Item'),source:'item',itemId:i.id});
-    // Every return-driven relist carries its own dated insertion fee snapshot.
-    (i.returnHistory||[]).forEach(function(r,idx){
-      if(!r||!r._relistedAt)return;
-      const nextNo=Math.max(1,Number(r.saleNo)||1)+1;
-      const next=_saleCycleSnapshot(i,nextNo);
-      const pending=(i.returnHistory||[]).filter(function(x){return x&&x._relistedAt&&(x.type==='full_seller'||x.type==='full_ebay');}).slice(-1)[0];
-      // Preserve explicit zero; older relists can retain their incurred fee
-      // only in the next sale snapshot/current resale field. Count it once.
-      const fallback=next&&_priorRelistEntryForSale(i,nextNo)===r?next.listingFee:(!i.isReturned&&!i.resaleSalePrice&&pending===r?i.resaleListingFee:0);
-      const fee=r._listingFeeAtRelist!=null?r._listingFeeAtRelist:fallback;
-      if(Number(fee)>0)push({id:'relistfee:'+i.id+':'+idx,date:String(r._relistedAt).slice(0,10),type:'listing_fee',direction:'out',amount:fee,description:'Relist fee · '+(i.item||'Item')+' · next sale',source:'item',itemId:i.id});
-    });
     // Sale cycles: gross cash in, then the actual selling cash outflows.
     _saleCycleNumbers(i).forEach(function(n){
       const cyc=_saleCycleSnapshot(i,n);if(!cyc||!cyc.date)return;
@@ -274,6 +303,7 @@ function _cashEventsAll(){
     });
     if(i.scrapReason==='supplier_return'&&Number(i.supplierRefund)>0)push({id:'supplierrefund:'+i.id,date:i.supplierRefundDate||(i.scrappedAt?String(i.scrappedAt).slice(0,10):null),type:'supplier_refund',direction:'in',amount:i.supplierRefund,description:'Supplier return refund · '+(i.item||'Item'),source:'item',itemId:i.id});
   });});
+  _listingFeeEventsAll().forEach(push);
   // Real business expenses and their refunds. The event amount is unsigned;
   // negative stored costs are cash received, not missing expenses. Keep their
   // source/type/ID so drill-down and editing still resolve the original record.
@@ -1178,7 +1208,7 @@ function _taxCashStockAndPartner(from,to){
       if(amount&&inR(date))partsPaid+=amount;
       if(amount&&!date)assumptions.push({itemId:i.id,amount:amount,excluded:true,reason:'Part or repair has no purchase date and is excluded from this dated report.'});
     });
-    let acquisition=0,payDate=null;
+    let acquisition=0,payDate=null,paymentDate=null;
     if(typ==='consignment') acquisition=0;
     else if(typ==='supplier'){
       const acct=(_accounts||[]).find(function(a){return a.id===i.accountId;});
@@ -1195,13 +1225,14 @@ function _taxCashStockAndPartner(from,to){
         payDate=sourceDate;
         if(acquisition>0&&inR(payDate))assumptions.push({itemId:i.id,amount:acquisition,reason:'Settled supplier purchase uses its source date; no payment allocation is recorded.'});
       }
-    } else { // hybrid: upfront stock cost is paid when acquired; later split is settlement-based
-      acquisition=_itemAcquisitionCost(i); payDate=sourceDate;
+    } else { // own / hybrid upfront purchases; later hybrid split is settlement-based
+      acquisition=_itemAcquisitionCost(i);paymentDate=_itemPurchasePaymentDate(i);payDate=paymentDate.date;
+      if(acquisition>0&&inR(payDate)&&paymentDate.dateEstimated)assumptions.push({kind:'purchase_payment_date',itemId:i.id,amount:acquisition,reason:'Stock payment date is missing; the source date is used as an estimate. Verify when this purchase was actually paid.'});
     }
     if(acquisition>0&&inR(payDate)){
       if(typ==='supplier')supplierStockPaid+=acquisition;else ownStockPaid+=acquisition;
     }
-    if(acquisition>0&&!payDate)assumptions.push({itemId:i.id,amount:acquisition,excluded:true,reason:'Stock has no purchase date and is excluded from this dated report.'});
+    if(acquisition>0&&!payDate)assumptions.push({itemId:i.id,amount:acquisition,excluded:true,reason:paymentDate&&paymentDate.invalidRecordedDate?'Stock payment date is invalid and this purchase is excluded from the dated report. Correct the recorded payment date; no source-date fallback was used.':'Stock has no valid purchase/payment date and is excluded from this dated report.'});
     const refundDate=i.supplierRefundDate||(i.scrappedAt?String(i.scrappedAt).slice(0,10):null);
     if(i.scrapReason==='supplier_return'&&inR(refundDate)){
       const refund=Math.max(0,Number(i.supplierRefund)||0);supplierRefundIncome+=refund;
@@ -1212,6 +1243,9 @@ function _taxCashStockAndPartner(from,to){
     (acct.settlements||[]).forEach(function(tx){
       if(!tx||!tx.paid||!inR(tx.date))return;
       const allocs=tx.items||[];
+      const allocated=allocs.reduce(function(sum,x){return sum+Math.max(0,Number(x&&x.amount)||0);},0);
+      const unallocated=+Math.max(0,(Number(tx.partnerAmount)||0)-allocated).toFixed(2);
+      if(unallocated>0&&(tx.kind||acct.accountType||'supplier')==='supplier')assumptions.push({kind:'supplier_allocation',itemId:tx.id,amount:unallocated,reason:'Paid supplier transaction has an unallocated balance. Reconcile it to purchases, including any settled-item fallback already claimed; no additional expense was inferred.'});
       if(allocs.length){
         partnerPaid+=allocs.reduce(function(sum,x){
           if(!x)return sum;
@@ -1234,15 +1268,41 @@ function _taxCashStockAndPartner(from,to){
 function _buildTaxCashSummary(from,to,label){
   const p=_buildPnLSummary(from,to,label,{reporting:'hmrc'});
   const cash=_taxCashStockAndPartner(from,to);
+  const listingFeeEvents=[],listingAssumptions=[];
+  let listingFees=0;
+  _listingFeeEventsAll().forEach(function(event){
+    const date=event.date?String(event.date).slice(0,10):null;
+    const amount=+((event.direction==='in'?-1:1)*(Number(event.amount)||0)).toFixed(2);
+    if(!amount)return;
+    if(!_reportDateValid(date)){
+      listingAssumptions.push({kind:'listing_fee_timing',itemId:event.itemId,amount:amount,excluded:true,reason:'Listing charge or credit has no valid payment date and is excluded from this dated report.'});
+      return;
+    }
+    if((from&&date<from)||(to&&date>to))return;
+    listingFees+=amount;listingFeeEvents.push(Object.assign({},event,{date:date}));
+    if(event.dateEstimated)listingAssumptions.push({kind:'listing_fee_timing',itemId:event.itemId,amount:amount,reason:'Listing fee uses the stock source date because its listing/payment date is missing. Check the actual charge date.'});
+    if(event.estimated)listingAssumptions.push({kind:'listing_fee_estimate',itemId:event.itemId,amount:amount,reason:'Monthly listing renewal is an estimate. Check its charge and date against marketplace evidence before filing.'});
+  });
+  listingFees=+listingFees.toFixed(2);
+  const listingDifference=+(listingFees-(p.selling.listingFees||0)).toFixed(2);
+  cash.assumptions=(cash.assumptions||[]).concat(listingAssumptions);
+  (p.events||[]).forEach(function(event){
+    if(event.dateEstimated)cash.assumptions.push({kind:'sale_date',itemId:event.item&&event.item.id,amount:+(Number(event.salePrice)||0).toFixed(2),reason:'Original sale date is missing; this receipt uses the recorded return date as an estimate. Verify when the sale money was received.'});
+  });
   // Remove sale-matched acquisition/partner costs, then insert amounts actually paid.
-  const netProfit=+(p.netProfit+p.cogs+(p.selling.partner||0)+(p.archiveLoss||0)-cash.goodsPaid-cash.partnerPaid+cash.supplierRefundIncome).toFixed(2);
+  // Listing charges have their own payment dates, including charges on unsold
+  // stock and signed credits. Replace only their sale-matched item allocation.
+  const netProfit=+(p.netProfit+p.cogs+(p.selling.partner||0)+(p.archiveLoss||0)-cash.goodsPaid-cash.partnerPaid+cash.supplierRefundIncome-listingDifference).toFixed(2);
   const byBox=Object.assign({},p.byBox);
+  byBox[26]=+((byBox[26]||0)+listingDifference).toFixed(2);
   if((p.archiveLoss||0)>0)byBox[30]=+Math.max(0,(byBox[30]||0)-(p.archiveLoss||0)).toFixed(2);
   const box17=+(cash.goodsPaid+cash.partnerPaid).toFixed(2);
   return Object.assign({},p,{
     basis:'HMRC cash basis', netProfit:netProfit, box17:box17, byBox:byBox,
     otherBusinessIncome:cash.supplierRefundIncome,
     cashGoodsPaid:cash.goodsPaid,cashPartnerPaid:cash.partnerPaid,cashDetail:cash,
+    cashListingFees:listingFees,listingFeeEvents:listingFeeEvents,
+    selling:Object.assign({},p.selling,{listingFees:listingFees,fees:+(p.selling.fees+listingDifference).toFixed(2),total:+(p.selling.total+listingDifference).toFixed(2)}),
     totalBusinessIncome:+(p.revenue+cash.supplierRefundIncome).toFixed(2)
   });
 }
@@ -2148,7 +2208,8 @@ function _buildPeriodReport(basis,from,to,options){
   report.saleCount=(p.events||[]).filter(function(event){return !event.isReturnAdjustment;}).length;
   report.reviewItems=(p.cashDetail&&p.cashDetail.assumptions||[]).map(function(item){return Object.assign({},item);});
   report.notes.push('Both dates are included. Amounts are GBP. This worksheet prepares figures; it does not submit a return.');
-  report.notes.push('Receipts and sale costs use recorded sale/refund dates. Check when money was actually received or paid, including marketplace balances, before reporting.');
+  report.notes.push('Receipts and sale costs use recorded sale/refund dates; listing charges and credits use their own recorded dates. Check when money was actually received or paid, including marketplace balances, before reporting.');
+  report.notes.push('Item listing charges and separately logged expenses are both included. If an invoice expense covers the same charges, reconcile the source records so each charge is claimed once.');
   report.notes.push('Paid business stock is included even when unsold or funded personally. Owner contributions, drawings, opening balances and cash adjustments are excluded.');
   report.notes.push('Personal disposals must remain outside business stock records. Check consignor payments against your arrangement; owner or partnership profit distributions are not business expenses.');
   if(basis==='uc'){
@@ -2161,9 +2222,9 @@ function _buildPeriodReport(basis,from,to,options){
     if(p.motorMethod==='actual')report.notes.push('Your HMRC motor setting uses actual vehicle costs, so no mileage allowance is deducted.');
     report.notes.push('A monthly or custom-period profit is not a separate tax bill. Use the full tax year and your other income for Self Assessment.');
   }
-  const missing=report.reviewItems.filter(function(item){return item.excluded;});
+  const missing=report.reviewItems.filter(function(item){return item.excluded&&!item.kind;});
   if(missing.length)report.notes.push(missing.length+' undated purchase/repair record(s), totalling GBP '+round(missing.reduce(function(sum,item){return sum+item.amount;},0)).toFixed(2)+', are excluded. Add their actual purchase dates before filing.');
-  if(report.reviewItems.some(function(item){return !item.excluded;}))report.notes.push('Some records use a source or removal date because a separate payment or receipt date is missing. Review the timing notes.');
+  if(report.reviewItems.some(function(item){return item.kind||!item.excluded;}))report.notes.push('Review the record notes for missing or estimated dates, estimated listing charges and incomplete supplier payment allocations before filing.');
   report.rows=[[title],['Period start',from],['Period end (inclusive)',to],['Generated (UTC)',report.generatedAt],[],['INCOME'],['Business income',report.income],[],['BUSINESS EXPENSES']];
   report.expenseLines.forEach(function(row){report.rows.push(row.slice());});
   report.rows.push(['Total business expenses',report.totalExpenses],[],['RESULT'],['Business profit / (loss)',report.profit]);
@@ -2174,4 +2235,3 @@ function _buildPeriodReport(basis,from,to,options){
   report.valid=true;
   return _freezeReport(report);
 }
-
