@@ -1,7 +1,7 @@
 /* Runtime asset contract. Ordered classic scripts: do not alphabetise.
  * Shared by the browser loader, service worker and validation tools. */
 globalThis.RT_ASSETS = Object.freeze({
-  "build": "20261101-tax-period-reports-staging",
+  "build": "20261101-payment-fee-dates-staging",
   "environment": "staging",
   "entry": [
     "src/platform/local-recovery.js",
@@ -173,4 +173,3 @@ globalThis.RT_ASSETS = Object.freeze({
     "staging-dev-auth.js": "src/platform/staging-auth.js"
   }
 });
-

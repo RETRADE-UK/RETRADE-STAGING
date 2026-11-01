@@ -91,6 +91,235 @@ async function financialCases(page){
   console.log('PASS period report financial cases',result.length);
 }
 
+async function listingFeeCases(page){
+  const result=await page.evaluate(()=>{
+    const checks=[];
+    const check=(name,actual,expected)=>checks.push({name,actual,expected,ok:typeof expected==='number'?Math.abs(actual-expected)<0.001:actual===expected});
+    const reset=(stock=[],expenses=[])=>{DB={'MAY-26':stock,trips:[],expenses,cashLedger:[],_taxYear:2026,_taxMethod:'actual_manual',_motorMethod:'mileage'};_accounts=[];};
+    // A listing may incur a fee before a sale on a different marketplace.
+    // Facebook sales isolate listing timing from separate sale commission.
+    const item=(x={})=>Object.assign({id:'listing-test',item:'Synthetic listing-fee test',state:'listed',dateSourced:'2026-04-10',dateListed:'2026-05-01',dateSold:null,salePrice:0,costPrice:0,postage:0,shippingCost:0,packagingCost:0,promoPercent:0,listingFee:.36,defaultPlatform:'ebay_biz',salePlatform:'fb',parts:[],returnHistory:[],refreshHistory:[]},x);
+    const report=(basis='hmrc',from='2026-05-01',to='2026-05-31')=>_buildPeriodReport(basis,from,to);
+    const fees=r=>(r.expenseLines.find(row=>row[0]==='Platform and payment fees')||[null,0])[1];
+    const reconciles=r=>Math.abs(r.expenseLines.reduce((sum,row)=>sum+row[1],0)-r.totalExpenses)<0.001;
+    const evidence=(saleNo,through,entries)=>({type:'verified_listing_fees',saleNo,through,entries:entries.map(([date,amount],idx)=>({date,amount,sourceRow:idx+1}))});
+
+    reset([item()]);
+    let before=JSON.stringify([DB,_accounts]),h=report(),u=report('uc');
+    check('Unsold listing charge reduces HMRC profit',h.profit,-.36);
+    check('Unsold listing charge reduces UC earnings',u.reportableEarnings,-.36);
+    check('Unsold listing charge has an expense category',fees(h),.36);
+    check('Unsold listing report categories reconcile',reconciles(h),true);
+    check('Listing reports do not run maintenance or alter source records',JSON.stringify([DB,_accounts]),before);
+    check('Management P&L retains sale-matched listing costs',_buildPnLSummary('2026-05-01','2026-05-31','May').netProfit,0);
+
+    reset([item({state:'sold',dateSold:'2026-06-10',salePrice:100})]);
+    check('Later sale does not move the May charge',report().totalExpenses,.36);
+    check('Later sale does not deduct listing fee again',report('hmrc','2026-06-01','2026-06-30').totalExpenses,0);
+    check('UC later sale also has no repeat deduction',report('uc','2026-06-01','2026-06-30').profit,100);
+    check('Sale-matched management margin remains unchanged',_buildPnLSummary('2026-06-01','2026-06-30','June').netProfit,99.64);
+
+    reset([item({listingFee:.72,refreshHistory:[{type:'relist',date:'2026-05-31',_saleNo:1,_platform:'ebay_biz',_listingFee:.36}]})]);
+    check('First-day listing fee included exactly once',report('hmrc','2026-05-01','2026-05-01').totalExpenses,.36);
+    check('Last-day manual relist fee included exactly once',report('hmrc','2026-05-31','2026-05-31').totalExpenses,.36);
+    check('Manual relist is split from cumulative original fee',report().totalExpenses,.72);
+    check('Outside fee dates no cost is invented',report('hmrc','2026-05-02','2026-05-30').totalExpenses,0);
+
+    reset([item({listingFee:.36,refreshHistory:[evidence(1,'2026-06-30',[['2026-05-01',.36],['2026-06-15',-.36]])]})]);
+    before=JSON.stringify([DB,_accounts]);h=report();u=report('uc','2026-06-01','2026-06-30');
+    check('Verified charge replaces covered estimate',h.totalExpenses,.36);
+    check('Verified credit reduces expenses on credit date',u.totalExpenses,-.36);
+    check('Verified credit retains signed category value',fees(u),-.36);
+    check('Verified credit increases period earnings',u.reportableEarnings,.36);
+    check('Credit categories reconcile',reconciles(u),true);
+    check('Charge and credit cancel over a longer HMRC range',report('hmrc','2026-05-01','2026-06-30').totalExpenses,0);
+    check('Verified listing evidence remains immutable',JSON.stringify([DB,_accounts]),before);
+
+    const renewal={type:'monthly_renewal',date:'2026-06-01',anchor:'2026-05-01',_saleNo:1,_platform:'ebay_biz',_listingFee:.36,estimated:true};
+    reset([item({listingFee:.72,refreshHistory:[renewal]})]);
+    check('Renewal is removed from original cumulative fee',report().totalExpenses,.36);
+    h=report('hmrc','2026-06-01','2026-06-30');
+    check('Recorded monthly renewal follows its own date',h.totalExpenses,.36);
+    check('Estimated renewal is labelled for review',h.reviewItems.some(r=>r.kind==='listing_fee_estimate'),true);
+    reset([item({listingFee:.72,refreshHistory:[renewal,evidence(1,'2026-06-30',[['2026-05-01',.36],['2026-06-01',.25]])]})]);
+    h=report('hmrc','2026-06-01','2026-06-30');
+    check('Verified actual amount replaces a covered renewal estimate',h.totalExpenses,.25);
+    check('Verified fee amount is not increased by another VAT estimate',fees(h),.25);
+    check('Covered renewal estimate is not reported as an extra charge',h.reviewItems.some(r=>r.kind==='listing_fee_estimate'),false);
+
+    // A manual expense remains authoritative in its own source layer. Similar
+    // values/dates are not enough evidence to infer that it is a duplicate.
+    reset([item()], [{id:'separate-fee',date:'2026-05-01',category:'Platform & payment fees',description:'Separate business listing charge',amount:.36}]);
+    check('Independent manual and item fee records both remain',report().totalExpenses,.72);
+    check('Both fee source layers reconcile to the category',fees(report()),.72);
+    reset([], [{id:'unallocated-fee',date:'2026-05-01',category:'Platform & payment fees',description:'Unallocated business listing charge',amount:.36}]);
+    check('Unallocated manual business fee is still deductible',report().totalExpenses,.36);
+
+    const returned={id:1,saleNo:1,type:'full_seller',loggedAt:'2026-05-22',refundAmount:100,_dateSoldAtReturn:'2026-05-20',_salePriceAtReturn:100,_postageAtReturn:0,_platformAtReturn:'fb',_listingFeeAtReturn:.36,_relistedAt:'2026-06-01',_platformAtRelist:'ebay_biz',_listingFeeAtRelist:.36};
+    reset([item({state:'sold',dateSold:'2026-05-20',salePrice:100,resaleDateSold:'2026-07-10',resaleSalePrice:120,resalePlatform:'fb',resaleListingFee:.72,resalePostage:0,resaleShippingCost:0,resalePackagingCost:0,resalePromoPercent:0,returnHistory:[returned],refreshHistory:[{type:'relist',date:'2026-06-15',_saleNo:2,_platform:'ebay_biz',_listingFee:.36},evidence(1,'2026-05-31',[['2026-05-01',.36]]),evidence(2,'2026-06-30',[['2026-06-01',.36],['2026-06-15',.36]])]})]);
+    before=JSON.stringify([DB,_accounts]);
+    const months=[['2026-05-01','2026-05-31'],['2026-06-01','2026-06-30'],['2026-07-01','2026-07-31']].map(([from,to])=>report('hmrc',from,to));
+    const annual=report('hmrc','2026-04-06','2027-04-05'),annualSource=_buildTaxCashSummary('2026-04-06','2027-04-05','Tax year');
+    check('First sale cycle uses its dated listing charge',fees(months[0]),.36);
+    check('Return and manual relists belong to their payment month',fees(months[1]),.72);
+    check('Resale does not repeat prior cycle listing charges',fees(months[2]),0);
+    check('Annual listing fees equal dated cycle charges',fees(annual),1.08);
+    check('Annual listing fees equal monthly listing total',fees(annual),months.reduce((sum,r)=>sum+fees(r),0));
+    check('Annual profit equals complete monthly periods',annual.profit,months.reduce((sum,r)=>sum+r.profit,0));
+    check('Annual and selected-period reporting share cash basis',annual.profit,annualSource.netProfit);
+    check('All cycle expense categories reconcile',months.concat(annual).every(reconciles),true);
+    check('Multi-cycle reporting preserves item and return snapshots',JSON.stringify([DB,_accounts]),before);
+    const datedEvents=_listingFeeEventsAll();
+    check('Pure listing event owner reconciles to annual fees',datedEvents.reduce((sum,e)=>sum+(e.direction==='in'?-e.amount:e.amount),0),1.08);
+    check('Listing event owner preserves source records',JSON.stringify([DB,_accounts]),before);
+
+    reset([item({dateListed:null,dateSourced:'2026-05-10'})]);h=report();
+    check('Missing listing date preserves recorded source-date fallback',h.totalExpenses,.36);
+    check('Source-date fallback is disclosed for timing review',h.reviewItems.some(r=>r.kind==='listing_fee_timing'),true);
+    reset([item({dateListed:null,dateSourced:null})]);h=report();
+    check('Completely undated fee is excluded from a dated period',h.totalExpenses,0);
+    check('Undated fee is disclosed instead of silently lost',h.reviewItems.some(r=>r.kind==='listing_fee_timing'),true);
+    reset([item({refreshHistory:[evidence(1,'2026-05-31',[[null,.36]])]})]);h=report();
+    check('Undated verified charge does not borrow the listing date',h.totalExpenses,0);
+    check('Undated verified charge is disclosed for timing review',h.reviewItems.some(r=>r.kind==='listing_fee_timing'),true);
+    return checks;
+  });
+  assert(result.every(r=>r.ok),'Listing fee period regressions: '+JSON.stringify(result.filter(r=>!r.ok)));
+  console.log('PASS dated listing fee financial cases',result.length);
+}
+
+async function purchasePaymentCases(page){
+  const result=await page.evaluate(()=>{
+    const checks=[];
+    const check=(name,actual,expected)=>checks.push({name,actual,expected,ok:typeof expected==='number'?Math.abs(actual-expected)<0.001:actual===expected});
+    const item=(x={})=>Object.assign({id:'purchase-date-test',item:'Synthetic payment-date test',state:'sold',category:ITEM_CATEGORIES[0],location:'Test shelf',dateSourced:'2026-05-10',purchasePaidDate:'2026-06-01',dateListed:'2026-05-11',dateSold:'2026-05-20',salePrice:100,costPrice:80,postage:0,shippingCost:0,packagingCost:0,promoPercent:0,listingFee:0,defaultPlatform:'fb',salePlatform:'fb',parts:[],returnHistory:[],refreshHistory:[]},x);
+    const reset=(stock=[],accounts=[])=>{DB={'MAY-26':stock,trips:[],expenses:[],cashLedger:[],_taxYear:2026,_taxMethod:'actual_manual',_motorMethod:'mileage'};_accounts=accounts;};
+    const report=(basis='hmrc',from='2026-05-01',to='2026-05-31')=>_buildPeriodReport(basis,from,to);
+    const stockCash=()=>_cashEventsAll().filter(e=>e.type==='stock_purchase');
+
+    reset([item()]);
+    let before=JSON.stringify([DB,_accounts]);
+    let payment=_itemPurchasePaymentDate(DB['MAY-26'][0]);
+    check('Explicit stock payment date wins over source date',payment.date,'2026-06-01');
+    check('Explicit stock payment date is not estimated',payment.dateEstimated,false);
+    check('Source month does not claim a later payment',report().totalExpenses,0);
+    check('Payment month includes paid stock even after its sale',report('hmrc','2026-06-01','2026-06-30').totalExpenses,80);
+    check('UC source month does not claim the later payment',report('uc').profit,100);
+    check('UC payment month retains the paid acquisition loss',report('uc','2026-06-01','2026-06-30').profit,-80);
+    check('Payment-date boundary is included',report('hmrc','2026-06-01','2026-06-01').totalExpenses,80);
+    check('Before payment date no expense is invented',report('hmrc','2026-05-31','2026-05-31').totalExpenses,0);
+    check('Management margin still matches stock to the sale',_buildPnLSummary('2026-05-01','2026-05-31','May').netProfit,20);
+    check('Own-stock cash event occurs once',stockCash().length,1);
+    check('Own-stock cash event follows the explicit paid date',stockCash()[0].date,'2026-06-01');
+    check('Own-stock cash amount stays unchanged',stockCash()[0].amount,80);
+    check('Cash event retains explicit payment-date provenance',stockCash()[0].dateSource,payment.dateSource);
+    check('Cash event does not label explicit payment as estimated',stockCash()[0].dateEstimated,false);
+    check('Payment-date report and cash reads preserve records',JSON.stringify([DB,_accounts]),before);
+    const annual=report('hmrc','2026-04-06','2027-04-05');
+    check('Payment timing preserves whole-year profit',annual.profit,20);
+    check('Monthly payment timing reconciles to annual profit',report().profit+report('hmrc','2026-06-01','2026-06-30').profit,annual.profit);
+
+    // Purchase groups are a staging feature. Test their cash representation
+    // only when the checked-in runtime manifest actually includes that owner.
+    // An expected but missing runtime owner still fails instead of skipping.
+    if((window.RT_ASSETS&&window.RT_ASSETS.deferred||[]).includes('src/features/purchases/groups.js')){
+      check('Configured purchase-group owner is loaded',typeof window.purchaseGroupMembers,'function');
+      reset([item({id:'group-a',purchaseGroupId:'synthetic-group',costPrice:30,state:'sourced',dateSold:null,salePrice:0}),item({id:'group-b',purchaseGroupId:'synthetic-group',costPrice:50,purchasePaidDate:'2026-06-02',state:'sourced',dateSold:null,salePrice:0})]);
+      check('Shared purchase keeps separate payment dates in cash',stockCash().length,2);
+      check('Shared purchase cash totals stay unchanged',stockCash().reduce((sum,e)=>sum+e.amount,0),80);
+      check('First shared-purchase payment has its own day',report('hmrc','2026-06-01','2026-06-01').totalExpenses,30);
+      check('Second shared-purchase payment has its own day',report('hmrc','2026-06-02','2026-06-02').totalExpenses,50);
+      reset([item({id:'group-a',purchaseGroupId:'synthetic-group',costPrice:30,state:'sourced',dateSold:null,salePrice:0}),item({id:'group-b',purchaseGroupId:'synthetic-group',costPrice:50,state:'sourced',dateSold:null,salePrice:0})]);
+      check('Same-day shared purchase remains one cash group',stockCash().length,1);
+      check('Same-day shared purchase is not charged twice',stockCash()[0].amount,80);
+    }
+
+    reset([item({purchasePaidDate:null})]);payment=_itemPurchasePaymentDate(DB['MAY-26'][0]);
+    check('Legacy source date remains a timing fallback',payment.date,'2026-05-10');
+    check('Source-date fallback is explicitly estimated',payment.dateEstimated,true);
+    check('Legacy source-date amount is preserved',report().totalExpenses,80);
+    check('Source-date payment assumption is disclosed',report().reviewItems.some(r=>r.itemId==='purchase-date-test'&&r.amount===80&&!r.excluded),true);
+    check('Fallback is not written into the explicit paid date',DB['MAY-26'][0].purchasePaidDate,null);
+    reset([item({purchasePaidDate:'2026-02-30'})]);payment=_itemPurchasePaymentDate(DB['MAY-26'][0]);
+    check('Invalid recorded payment date is identified',payment.invalidRecordedDate,true);
+    check('Invalid explicit date does not silently use source date',report().totalExpenses,0);
+    check('Invalid explicit payment is listed for review',report().reviewItems.some(r=>r.itemId==='purchase-date-test'&&r.amount===80&&r.excluded),true);
+    check('Invalid explicit date is not assigned to a dated cash event',stockCash().every(e=>!e.date),true);
+    reset([item({dateSourced:null,purchasePaidDate:null})]);
+    check('Listing date does not stand in for stock payment',report().totalExpenses,0);
+    check('Undated acquisition is shown for review',report().reviewItems.some(r=>r.itemId==='purchase-date-test'&&r.amount===80&&r.excluded),true);
+
+    reset([item({parts:[{id:'dated-part',cost:7,date:'2026-05-15'},{id:'legacy-part',cost:3,date:null}]})]);
+    check('Repairs keep their separate dates in the source month',report().totalExpenses,10);
+    check('Stock payment does not move or repeat repair expenses',report('hmrc','2026-06-01','2026-06-30').totalExpenses,80);
+    const parts=_cashEventsAll().filter(e=>e.type==='part_purchase');
+    check('Explicit part payment date is preserved',parts.find(e=>e.id==='part:purchase-date-test:dated-part').date,'2026-05-15');
+    check('Legacy part timing still uses source date',parts.find(e=>e.id==='part:purchase-date-test:legacy-part').date,'2026-05-10');
+
+    const supplier={id:'supplier-account',accountType:'supplier',settlements:[{id:'supplier-payment',date:'2026-07-04',paid:true,partnerAmount:80,items:[{id:'purchase-date-test',amount:80,kind:'supplier'}]}]};
+    reset([item({accountId:'supplier-account',accountType:'supplier',accountSettled:false})],[supplier]);
+    check('Supplier purchase ignores an item paid-date override',report('hmrc','2026-06-01','2026-06-30').totalExpenses,0);
+    check('Supplier settlement retains its own payment date',report('hmrc','2026-07-01','2026-07-31').totalExpenses,80);
+    check('Supplier acquisition is not also emitted as own-stock cash',stockCash().length,0);
+    check('Supplier cash payment remains the settlement event',_cashEventsAll().find(e=>e.id==='settlement:supplier-payment').date,'2026-07-04');
+    reset([item({accountId:'supplier-account',accountType:'supplier',accountSettled:false})],[{...supplier,settlements:[]}]);
+    check('An unpaid supplier item stays undeducted despite paid-date field',report('hmrc','2026-06-01','2026-06-30').totalExpenses,0);
+
+    reset([item({accountId:'hybrid-account',accountType:'hybrid',costPrice:50,accountSettled:true,accountPaidAmount:25})],[{id:'hybrid-account',accountType:'hybrid',settlements:[{id:'hybrid-share',date:'2026-07-05',paid:true,partnerAmount:25,items:[{id:'purchase-date-test',amount:25,kind:'hybrid'}]}]}]);
+    check('Hybrid upfront purchase follows explicit paid date',report('hmrc','2026-06-01','2026-06-30').totalExpenses,50);
+    check('Hybrid later partner share remains settlement-based',report('hmrc','2026-07-01','2026-07-31').totalExpenses,25);
+    check('Hybrid cash acquisition remains a single payment',stockCash().length,1);
+    check('Hybrid cash acquisition follows paid date',stockCash()[0].date,'2026-06-01');
+
+    const mapped=_rowToItem({id:'mapped',item:'Mapped synthetic stock',date_sourced:'2026-05-10',purchase_paid_date:'2026-06-01'});
+    check('Database mapper reads explicit purchase payment date',mapped.purchasePaidDate,'2026-06-01');
+    check('Database mapper preserves source date separately',mapped.dateSourced,'2026-05-10');
+    check('Database writer serializes explicit payment date',_itemToRow(mapped,'MAY-26').purchase_paid_date,'2026-06-01');
+    check('Null payment date stays null on load',_rowToItem({purchase_paid_date:null,date_sourced:'2026-05-10'}).purchasePaidDate,null);
+    check('Legacy missing payment date is not backfilled on load',_rowToItem({date_sourced:'2026-05-10'}).purchasePaidDate,null);
+    check('Cleared payment date stays null when serialized',_itemToRow({...mapped,purchasePaidDate:null},'MAY-26').purchase_paid_date,null);
+    reset([item()]);
+    const duplicate=_duplicateItemRecord('MAY-26','purchase-date-test',{unlisted:true});
+    check('Duplicated stock does not inherit payment evidence',duplicate.purchasePaidDate,null);
+    check('Duplicating stock preserves original payment evidence',DB['MAY-26'][0].purchasePaidDate,'2026-06-01');
+    reset([item({id:'legacy-state',dateSourced:null,purchasePaidDate:null}),item({id:'known-payment',dateSourced:null})]);
+    _migrateItemStates();
+    check('Legacy state reconciliation still fills the source date',DB['MAY-26'][0].dateSourced,'2026-05-11');
+    check('Legacy state reconciliation never invents a paid date',DB['MAY-26'][0].purchasePaidDate,null);
+    check('Reconciled source date remains estimated for payment timing',_itemPurchasePaymentDate(DB['MAY-26'][0]).dateEstimated,true);
+    check('Legacy state reconciliation preserves a known paid date',DB['MAY-26'][1].purchasePaidDate,'2026-06-01');
+
+    // Exercise the stock editor against an in-memory fixture. Stub persistence
+    // explicitly so editing cannot enqueue a database write, even in the harness.
+    reset([item({state:'sourced',dateSold:null,salePrice:0,purchasePaidDate:null})]);
+    const oldSave=saveDB;let saves=0;
+    try{
+      saveDB=()=>{saves++;};
+      _editStockItem('MAY-26',DB['MAY-26'][0]);
+      check('Stock editor leaves unknown paid date blank',document.getElementById('edit-stock-paid-date').value,'');
+      document.getElementById('edit-stock-paid-date').value='2026-06-01';
+      _saveStockEdit('MAY-26','purchase-date-test');
+      check('Stock editor saves a distinct paid date',DB['MAY-26'][0].purchasePaidDate,'2026-06-01');
+      check('Saving paid date preserves the stock source date',DB['MAY-26'][0].dateSourced,'2026-05-10');
+      check('Paid-date edit preserves acquisition amount',DB['MAY-26'][0].costPrice,80);
+      check('Paid-date edit moves cash exactly once',stockCash().length,1);
+      check('Edited paid date reaches the cash event',stockCash()[0].date,'2026-06-01');
+      check('Unsold stock edit removes expense from source month',report().totalExpenses,0);
+      check('Unsold stock edit assigns expense to payment month',report('hmrc','2026-06-01','2026-06-30').totalExpenses,80);
+      _editStockItem('MAY-26',DB['MAY-26'][0]);
+      document.getElementById('edit-stock-paid-date').value='';
+      _saveStockEdit('MAY-26','purchase-date-test');
+      check('Clearing payment date restores unknown state',DB['MAY-26'][0].purchasePaidDate,null);
+      check('Clearing payment date preserves source date',DB['MAY-26'][0].dateSourced,'2026-05-10');
+      check('Cleared payment date restores disclosed cash fallback',stockCash()[0].date,'2026-05-10');
+      check('Both synthetic editor saves used the persistence stub',saves,2);
+    }finally{saveDB=oldSave;closePanel();}
+    return checks;
+  });
+  assert(result.every(r=>r.ok),'Purchase payment-date regressions: '+JSON.stringify(result.filter(r=>!r.ok)));
+  console.log('PASS explicit purchase payment date cases',result.length);
+}
+
 async function chooseMonth(page,value){
   await page.locator('#tax-report-mode-month').click();
   await page.locator('#tax-report-month').fill(value);
@@ -107,7 +336,7 @@ async function chooseMonth(page,value){
       await context.route('**/xlsx.full.min.js',route=>route.fulfill({contentType:'text/javascript',body:fs.readFileSync(require.resolve('xlsx/dist/xlsx.full.min.js'))}));
       if(process.env.RETRADE_CAPTURE_BLOBS==='1')await page.evaluate(()=>{const create=URL.createObjectURL.bind(URL);URL.createObjectURL=function(blob){window.__periodLastBlob=blob;return create(blob);};});
       await page.evaluate(()=>window.dispatchEvent(new Event('retrade:data-ready')));
-      if(!mobile)await financialCases(page);
+      if(!mobile){await purchasePaymentCases(page);await listingFeeCases(page);await financialCases(page);}
       else await page.evaluate(()=>{DB={'MAY-26':[{id:'own',item:'Period test camera',state:'sold',dateSourced:'2026-05-10',dateListed:'2026-05-11',dateSold:'2026-05-20',salePrice:200,costPrice:80,postage:0,shippingCost:10,packagingCost:2,promoPercent:0,listingFee:0,salePlatform:'fb',parts:[],returnHistory:[],refreshHistory:[]}],trips:[],expenses:[{id:'e',date:'2026-05-31',category:'Other',amount:8}],cashLedger:[],_taxYear:2026,_taxMethod:'actual_manual',_motorMethod:'mileage'};_accounts=[];});
       await page.evaluate(()=>{goToTab('tax');renderTax();setTaxWorkspaceView('reports');});
       await chooseMonth(page,'2024-02');

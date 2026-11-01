@@ -224,10 +224,10 @@
      manual portion from that base event, then add each manual fee back on its
      actual relist date. Later sale cycles never have a base listing event, so
      their manual relists are simply appended alongside the return-driven fee. */
-  if(typeof window._cashEventsAll==='function'){
-    var baseCashEventsAll=window._cashEventsAll;
-    window._cashEventsAll=function(){
-      var out=baseCashEventsAll.apply(this,arguments);
+  if(typeof window._listingFeeEventsAll==='function'){
+    var baseListingFeeEventsAll=window._listingFeeEventsAll;
+    window._listingFeeEventsAll=function(){
+      var out=baseListingFeeEventsAll.apply(this,arguments);
       if(!Array.isArray(out))return out;
 
       try{

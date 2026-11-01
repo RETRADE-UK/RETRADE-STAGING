@@ -365,10 +365,10 @@
 
 
 
-  if(typeof window._cashEventsAll==='function'){
-    var cashWithManualRelists=window._cashEventsAll;
-    window._cashEventsAll=function(){
-      repairAll(false);var events=cashWithManualRelists.apply(this,arguments);
+  if(typeof window._listingFeeEventsAll==='function'){
+    var listingWithManualRelists=window._listingFeeEventsAll;
+    window._listingFeeEventsAll=function(){
+      var events=listingWithManualRelists.apply(this,arguments);
       allItems().forEach(function(i){
         var verifiedBySale={};
         (i.refreshHistory||[]).forEach(function(e){if(e&&e.type==='verified_listing_fees')verifiedBySale[Math.max(1,n(e.saleNo)||1)]=e;});
@@ -406,6 +406,13 @@
       });
       return events.filter(function(e){return n(e.amount)>0;}).sort(function(a,b){return (a.date||'').localeCompare(b.date||'')||String(a.id).localeCompare(String(b.id));});
     };
+  }
+
+  // Cashflow keeps its historical repair behavior. The pure listing-event
+  // reader used by reports does not mutate records or manufacture renewals.
+  if(typeof window._cashEventsAll==='function'){
+    var cashBeforeListingRepair=window._cashEventsAll;
+    window._cashEventsAll=function(){repairAll(false);return cashBeforeListingRepair.apply(this,arguments);};
   }
 
   [1200,3200,7000].forEach(function(ms){
