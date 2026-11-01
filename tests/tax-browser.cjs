@@ -40,7 +40,7 @@ const {open,settled}=require('./startup-browser.cjs');
    // A representative UI fixture with activity on both tax-year boundaries.
    reset();DB['APR-26']=[item({salePrice:5000,costPrice:1600}),item({id:'closing',dateSold:'2027-04-05',dateSourced:'2027-04-01'})];
    DB.expenses=[{id:'overhead',date:'2026-04-30',amount:400,category:'Software & subscriptions'}];DB._taxOtherIncome=36000;
-   goToTab('tax');renderTax();
+   goToTab('tax');renderTax();setTaxWorkspaceView('overview');
    return out;
   });
   assert(results.every(r=>r.ok),'Financial regression: '+JSON.stringify(results.filter(r=>!r.ok)));console.log('PASS tax accounting',results.length,'assertions');
@@ -109,7 +109,7 @@ const {open,settled}=require('./startup-browser.cjs');
   assert.deepEqual(errors,[]);await context.close();console.log('PASS tax responsive layout, method/year controls and export state');
   const mobile=await open(browser,{signedIn:true,mobile:true,timezoneId:'America/Los_Angeles'});await settled(mobile.page);
   assert.equal(await mobile.page.evaluate(()=>calcTieredTrips([{date:'2026-04-06',mileage:100}])[0].mileageCost),55,'Tax-year mileage boundary is timezone-independent');
-  await mobile.page.evaluate(()=>{document.documentElement.setAttribute('data-theme','dark');document.body.setAttribute('data-theme','dark');goToTab('tax');});
+  await mobile.page.evaluate(()=>{document.documentElement.setAttribute('data-theme','dark');document.body.setAttribute('data-theme','dark');goToTab('tax');setTaxWorkspaceView('overview');});
   await mobile.page.waitForFunction(()=>!document.getElementById('p-tax').hasAttribute('aria-busy'));
   await mobile.page.locator('#tax-reconciliation summary').tap();
   await mobile.page.evaluate(()=>renderTax());
@@ -122,3 +122,4 @@ const {open,settled}=require('./startup-browser.cjs');
   assert.deepEqual(mobile.errors,[]);await mobile.context.close();console.log('PASS mobile touch, dark Tax layout and non-UK timezone boundary');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
+

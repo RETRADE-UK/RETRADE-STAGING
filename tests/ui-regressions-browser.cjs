@@ -32,7 +32,7 @@ const {open,settled}=require('./startup-browser.cjs');
     assert(!state.overflow,tab+' does not overflow');assert(['none','normal'].includes(state.line),tab+' has no secondary blinking line');
    }
    // Force a meaningful wait to inspect the actual destination's loading layout.
-   for(const [tab,view,selector,count] of [['monthly','detail','.sales-kpis-v2 .kpi',4],['monthly','grid','.monthly-charts-row',1],['tax',null,'.tax-kpi:visible',mobile?3:4],['cash',null,'.rt-cash-primary',1]]){
+   for(const [tab,view,selector,count] of [['monthly','detail','.sales-kpis-v2 .kpi',4],['monthly','grid','.monthly-charts-row',1],['tax',null,'.tax-report-card:visible',2],['cash',null,'.rt-cash-primary',1]]){
     await page.evaluate(({tab,view})=>{if(view)MONTHLY_VIEW=view;_deactivatePages();const p=document.getElementById('p-'+tab);p.innerHTML='';p.classList.add('on');_showRoutePending(tab);}, {tab,view});
     await page.waitForSelector('.rt-route-skeleton');
     assert.equal(await page.locator('.rt-route-skeleton '+selector).count(),count);

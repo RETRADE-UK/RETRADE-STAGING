@@ -189,6 +189,43 @@
       addFooter(doc,'Tax summary · '+data.year);doc.save('RETRADE_Tax_'+String(data.year).replace('/','-')+'.pdf');toastSafe('Tax summary PDF downloaded');
     }catch(err){toastSafe(err.message||'Could not generate tax summary PDF','error');}
   }
+  async function periodReport(report){
+    if(!report||!report.valid)throw new Error('Choose a valid reporting period.');
+    var p=await startPdf(),doc=p.doc,title=report.basis==='uc'?'UNIVERSAL CREDIT':'HMRC CASH-BASIS SUMMARY';
+    var y=shell(doc,p.logo,title,friendlyDate(report.from)+' to '+friendlyDate(report.to)+' (inclusive)','');
+    function ensure(height){if(y+height>277)y=newPage(doc,p.logo,title+' - continued');}
+    report.rows.slice(1).forEach(function(row){
+      if(!row.length){y+=2;return;}
+      var label=String(row[0]||'');
+      if(row.length===1){
+        if(/^[A-Z &-]+$/.test(label)&&label.length<40){ensure(12);y=section(doc,label,y);return;}
+        doc.setFont('helvetica','normal');doc.setFontSize(7.6);
+        var words=doc.splitTextToSize(label,W-4),height=words.length*3.7+4;
+        ensure(height);doc.setFont('helvetica','normal');doc.setFontSize(7.6);
+        colour(doc,doc.setTextColor,C.muted);doc.text(words,L+2,y);y+=height;return;
+      }
+      if(row.length===3){
+        if(label==='Record reference')return;
+        doc.setFont('helvetica','normal');doc.setFontSize(7.4);
+        var reason=doc.splitTextToSize(String(row[2]),W-4),h=reason.length*3.6+11;
+        ensure(h);y=kv(doc,'Record '+label,gbp(row[1]),y);colour(doc,doc.setTextColor,C.muted);
+        doc.setFont('helvetica','normal');doc.setFontSize(7.4);doc.text(reason,L+2,y);y+=reason.length*3.6+4;return;
+      }
+      var value=typeof row[1]==='number'?(/^(Recorded sales|Business miles)$/.test(label)?String(row[1]):gbp(row[1])):String(row[1]||'');
+      var bold=/^(Total business|Business profit|Earnings after)/.test(label);
+      doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(8.3);
+      var left=doc.splitTextToSize(label,108),right=doc.splitTextToSize(value,65),height=Math.max(left.length,right.length)*4+3;
+      ensure(height);
+      // Continuation headers select their own font. Restore the exact body
+      // metrics used to wrap these lines before drawing the first row there.
+      doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(8.3);
+      if(bold){colour(doc,doc.setFillColor,C.pale);doc.roundedRect(L,y-4,W,height,1,1,'F');}
+      colour(doc,doc.setTextColor,C.text);doc.text(left,L+2,y);doc.text(right,R-2,y,{align:'right'});y+=height;
+    });
+    addFooter(doc,(report.basis==='uc'?'UC worksheet':'HMRC summary')+' - '+report.from+' to '+report.to);
+    doc.save(_periodReportFilename(report)+'.pdf');
+    toastSafe((report.basis==='uc'?'Universal Credit worksheet':'HMRC summary')+' PDF downloaded');
+  }
   async function annualStatement(fyStart){
     try{
       fyStart=Number(fyStart);if(!fyStart||fyStart<2000)throw new Error('Choose a valid financial year.');var label=typeof _getFYLabel==='function'?_getFYLabel(fyStart):(fyStart+'/'+String(fyStart+1).slice(-2)),from=fyStart+'-04-06',to=(fyStart+1)+'-04-05',pnl=typeof _buildPnLSummary==='function'?_buildPnLSummary(from,to,'FY '+label):null;
@@ -253,6 +290,7 @@
   window.generateRetradeCreditNote=creditNote;
   window.generateRetradeAnnualStatement=annualStatement;
   window.generateRetradeTaxSummary=taxSummary;
+  window.generateRetradePeriodReport=periodReport;
   window.generateRetradeSettlementSlip=settlementSlip;
   window.RETRADE_DOCUMENTS={colors:C,tagline:TAGLINE,bannerWords:BANNER_WORDS,ensurePdf:ensurePdf,logoDataUrl:logoDataUrl,brandBanner:brandBanner,statusStamp:statusStamp,addFooter:addFooter,safeFileName:safe,gbp:gbp,fitSingle:fitSingle,clampLines:clampLines};
 
@@ -272,3 +310,4 @@
   repair();
   console.info('[RETRADE] branded document exports v1.5.00 loaded');
 })();
+

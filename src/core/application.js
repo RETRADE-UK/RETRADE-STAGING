@@ -5604,10 +5604,10 @@ function _routeSkeletonMarkup(name,yearly){
     body='<div class="rt-accounts-overview">'+['Total outstanding','Potential profit','Awaiting payment'].map(function(label){return '<div><span>'+label+'</span><strong>'+value+'</strong><small>'+foot+'</small></div>';}).join('')+'</div><div class="rt-acct-op-controls rt-acct-compact-controls">'+search('accounts')+button('Filter / Sort ▾')+'</div><div class="rt-accounts-ledger-head"><span>Account / arrangement</span><span>Stock on hand</span><span>Last activity</span><span>Outstanding</span><span></span></div><div class="rt-acct-op-list">'+Array.from({length:4},function(){return '<div class="rt-acct-op-row"><div class="rt-acct-op-main">'+foot+foot+'</div><div class="rt-acct-op-stock">'+value+foot+'</div><div class="rt-acct-op-activity">'+foot+'</div><div class="rt-acct-op-money">'+value+foot+'</div><span>›</span></div>';}).join('')+'</div>';
   }else if(name==='tax'){
     const y=DB._taxYear||((new Date().getMonth()<3||(new Date().getMonth()===3&&new Date().getDate()<6))?new Date().getFullYear()-1:new Date().getFullYear());
-    header='<header class="tax-header"><div><h1>Tax overview</h1><p>Your business profit, deductions and estimated tax.</p></div><label class="tax-year-control"><span class="tax-year-caption">Tax year<small>6 Apr '+y+' – 5 Apr '+(y+1)+'</small></span><select class="tax-year-select" disabled><option>'+y+'/'+String(y+1).slice(2)+'</option></select></label></header>';
-    body='<div class="tax-kpis tax-mobile-only">'+['Taxable profit','Estimated tax &amp; NI','Yearly Sales net profit'].map(function(label,i){return '<div class="tax-kpi'+(!i?' tax-kpi-primary':'')+'"><span>'+label+'</span><strong>'+value+'</strong><small>'+foot+'</small></div>';}).join('')+'</div>'+segments(['Overview','Filing guide','Monthly'],'tax-view-switch');
+    header='<header class="tax-header"><div><h1>Tax & Universal Credit</h1><p>Clear figures for your reporting period, ready to download.</p></div><label class="tax-year-control"><span class="tax-year-caption">Tax year<small>6 Apr '+y+' - 5 Apr '+(y+1)+'</small></span><select class="tax-year-select" disabled><option>'+y+'/'+String(y+1).slice(2)+'</option></select></label></header>';
+    body='<div class="tax-kpis tax-mobile-only">'+['Taxable profit','Estimated tax &amp; NI','Yearly Sales net profit'].map(function(label,i){return '<div class="tax-kpi'+(!i?' tax-kpi-primary':'')+'"><span>'+label+'</span><strong>'+value+'</strong><small>'+foot+'</small></div>';}).join('')+'</div>'+segments(['Reports','Annual overview','Filing guide','Monthly breakdown'],'tax-view-switch');
     body=body.replace('<div class="tax-view-switch"','<div class="tax-kpis tax-desktop-only">'+['Business income','Allowable expenses','Business profit','Estimated tax &amp; NI'].map(function(label,i){return '<div class="tax-kpi'+(i===2?' tax-kpi-primary':'')+'"><span>'+label+'</span><strong>'+value+'</strong><small>'+foot+'</small></div>';}).join('')+'</div><div class="tax-view-switch"');
-    const view=window._taxWorkspaceView||'overview';
+    const view=window._taxWorkspaceView||'reports';
     const section=function(label,contents){return '<section class="tax-card"><div class="tax-section-heading"><h2>'+label+'</h2>'+(contents.indexOf('<p>')===0?contents.slice(0,contents.indexOf('</p>')+4):'')+'</div>'+contents.replace(/^<p>.*?<\/p>/,'')+'</section>';};
     body+='<div class="tax-layout'+(view==='monthly'?' tax-layout-monthly':view==='overview'?' tax-layout-overview':'')+'"><div class="tax-main">'+(view==='monthly'?section('Monthly cash-basis profit',rows('tax-months')):view==='filing'?section('Prepare your tax return',rows('tax-filing-lines')):section('How your profit compares','<p>Sales matches costs to sales. Tax uses payment timing and tax-year dates.</p>'+'<div class="tax-profit-bridge"><div class="tax-bridge-row"><span>Yearly Sales net profit<small>1 Apr '+y+' – 31 Mar '+(y+1)+'</small></span><strong>'+value+'</strong></div><div class="tax-bridge-row tax-bridge-total"><span>Cash-basis profit<small>6 Apr '+y+' – 5 Apr '+(y+1)+'</small></span><strong>'+value+'</strong></div></div><details class="tax-card tax-details"><summary>See the full reconciliation</summary></details>')+['Income &amp; deductions','Stock &amp; partner payment detail'].map(function(t){return '<details class="tax-card tax-details"><summary>'+t+'</summary></details>';}).join(''))+'</div>'+(view==='monthly'?'':'<aside class="tax-aside">'+(view==='filing'?['Filing references','How this estimate works']:['Tax settings &amp; estimate']).map(function(t){return '<details class="tax-card tax-details"><summary>'+t+'</summary></details>';}).join('')+'</aside>')+'</div><button disabled class="btn btn-primary tax-export-bottom">Download tax summary</button>';
     if(view==='overview'&&window.matchMedia('(min-width:1281px)').matches){
@@ -5619,6 +5619,10 @@ function _routeSkeletonMarkup(name,yearly){
         +'</div><aside class="tax-aside">'+pendingDetail('Estimate breakdown',pendingRows(4)+'<div class="tax-estimate-basis"><strong>'+foot+'</strong>'+foot+'</div><details class="tax-settings-disclosure"><summary>Edit estimate settings</summary></details><p class="tax-note">'+foot+'</p>')
         +pendingDetail('Stock &amp; partner payment detail',pendingRows(4)+'<p class="tax-note">'+foot+foot+'</p>')+'</aside></div>';
       body=body.slice(0,body.indexOf('<div class="tax-layout'))+overview+'<button disabled class="btn btn-primary tax-export-bottom">Download tax summary</button>';
+    }
+    if(view==='reports'){
+      const pendingStatement=function(isUC){return '<article class="tax-report-card"><header><div><span class="tax-report-eyebrow">'+(isUC?'Monthly assessment':'Self Assessment')+'</span><h2>'+(isUC?'Universal Credit':'HMRC cash basis')+'</h2></div><span class="tax-report-badge">'+(isUC?'Worksheet':'Summary')+'</span></header><div class="tax-report-numbers">'+['Business income','Business expenses'].map(label=>'<div><span>'+label+'</span><strong>'+value+'</strong></div>').join('')+'</div><div class="tax-report-result"><span>'+(isUC?'Income less deductions':'Business profit')+'</span><strong>'+value+'</strong></div><div class="tax-report-support">'+['Mileage allowance included','Business miles',isUC?'Tax, NI & pension paid':'Accounting method'].map(label=>'<div class="tax-report-line"><span>'+label+'</span><strong>'+value+'</strong></div>').join('')+'</div><details class="tax-report-details"><summary>Expense breakdown</summary></details><p class="tax-report-context">'+foot+foot+'</p><details class="tax-report-details"><summary>Basis &amp; review notes</summary></details><footer><button disabled class="btn '+(isUC?'btn-secondary':'btn-primary')+' tax-report-download">Download '+(isUC?'UC worksheet':'HMRC report')+'</button><span>PDF · CSV · Excel</span></footer></article>';};
+      body=segments(['Reports','Annual overview','Filing guide','Monthly breakdown'],'tax-view-switch')+'<div class="tax-layout tax-layout-reports"><div class="tax-main"><section><section class="tax-period-toolbar"><div class="tax-period-heading"><div><h2>Reporting period</h2><p>One set of dates. Two reporting bases.</p></div><div class="tax-period-switch">'+button('Monthly')+button('Custom dates')+'</div></div><div class="tax-period-controls"><div class="tax-report-month-picker">'+button('←')+'<label>Calendar month<input type="month" disabled></label>'+button('→')+'</div><div class="tax-period-caption"><strong>'+foot+'</strong><span>Start and end dates are included</span></div></div></section><div class="tax-report-grid">'+pendingStatement(false)+pendingStatement(true)+'</div></section></div></div>';
     }
   }else if(name==='cash'){
     header=heading(button('Reconcile')+button('Add',true));
@@ -5643,7 +5647,7 @@ function _routeSkeletonMarkup(name,yearly){
     // Archive/search are collections, not four invented KPI cards.
     body=controls(name==='scrapped'?'archive':name)+rows();
   }
-  return '<div class="rt-route-skeleton'+(name==='tax'?' tax-workspace':'')+'" data-view="'+(yearly?'yearly':name==='monthly'?'monthly':name)+'"><div aria-hidden="true" inert>'+header+body+'</div></div>';
+  return '<div class="rt-route-skeleton'+(name==='tax'?' tax-workspace':'')+'" data-view="'+(yearly?'yearly':name==='monthly'?'monthly':name==='tax'?(window._taxWorkspaceView||'reports'):name)+'"><div aria-hidden="true" inert>'+header+body+'</div></div>';
 }
 
 function _routeLoadingStatus(text){
@@ -23648,6 +23652,119 @@ function openTaxSummaryDownload(){
   dialog.addEventListener('close',()=>dialog.remove(),{once:true});
   document.body.appendChild(dialog);dialog.showModal();
 }
+// Reporting selections are local to this session. They never amend the ledger.
+function _taxReportMonthRange(month){
+  if(!/^\d{4}-\d{2}$/.test(month||''))return null;
+  const y=Number(month.slice(0,4)),m=Number(month.slice(5));
+  if(y<1900||y>9998||m<1||m>12)return null;
+  const last=new Date(Date.UTC(y,m,0)).getUTCDate();
+  return {from:month+'-01',to:month+'-'+String(last).padStart(2,'0')};
+}
+function _taxReportState(){
+  if(!window._taxReportSelection){
+    const now=new Date(),previous=new Date(now.getFullYear(),now.getMonth()-1,1);
+    const month=previous.getFullYear()+'-'+String(previous.getMonth()+1).padStart(2,'0');
+    const dates=_taxReportMonthRange(month);
+    window._taxReportSelection={mode:'month',month:month,from:dates.from,to:dates.to,taxPaid:0,niPaid:0,pensionPaid:0,assessmentConfirmed:false};
+  }
+  return window._taxReportSelection;
+}
+function setTaxReportSelection(field,value){
+  const state=_taxReportState();
+  const previousRange=state.from+'|'+state.to;
+  if(field==='mode'){state.mode=value==='custom'?'custom':'month';}
+  else if(field==='month'){state.month=value;}
+  else if(field==='from'||field==='to'){state[field]=value;}
+  else if(field==='assessmentConfirmed'){state.assessmentConfirmed=!!value;}
+  else if(['taxPaid','niPaid','pensionPaid'].includes(field)){state[field]=value;}
+  else return;
+  if(['mode','month','from','to'].includes(field)){
+    if(state.mode==='month'){
+      const dates=_taxReportMonthRange(state.month);
+      state.from=dates?dates.from:'';state.to=dates?dates.to:'';
+    }
+    // Payments and assessment confirmation belong to one exact date range.
+    if(state.from+'|'+state.to!==previousRange){state.taxPaid=0;state.niPaid=0;state.pensionPaid=0;state.assessmentConfirmed=false;}
+  }
+  const focus=document.activeElement&&document.activeElement.id;
+  renderTaxPeriodReports();
+  const restored=focus&&document.getElementById(focus);
+  if(restored)restored.focus({preventScroll:true});
+}
+function shiftTaxReportMonth(direction){
+  const state=_taxReportState(),dates=_taxReportMonthRange(state.month);if(!dates)return;
+  const date=new Date(Date.UTC(Number(state.month.slice(0,4)),Number(state.month.slice(5))-1+direction,1));
+  setTaxReportSelection('month',date.getUTCFullYear()+'-'+String(date.getUTCMonth()+1).padStart(2,'0'));
+}
+function _taxReportDateLabel(value){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(value||''))return '';
+  return Number(value.slice(8))+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(value.slice(5,7))-1]+' '+value.slice(0,4);
+}
+function renderTaxPeriodReports(){
+  const host=document.getElementById('tax-period-reports');if(!host)return;
+  const state=_taxReportState(),openIds=new Set(Array.from(host.querySelectorAll('details[open]')).map(el=>el.id));
+  const options={taxPaid:state.taxPaid,niPaid:state.niPaid,pensionPaid:state.pensionPaid};
+  const hmrc=_buildPeriodReport('hmrc',state.from,state.to,options),uc=_buildPeriodReport('uc',state.from,state.to,options);
+  window._taxPeriodReports={hmrc:hmrc,uc:uc};
+  const money=n=>(Number(n)<0?'-':'')+fmt(Math.abs(Number(n)||0));
+  const range=_taxReportDateLabel(state.from)+' - '+_taxReportDateLabel(state.to);
+  const errors=[...new Set([...(hmrc.errors||[])])];
+  const row=(label,value)=>'<div class="tax-report-line"><span>'+esc(label)+'</span><strong>'+value+'</strong></div>';
+  const details=(id,title,body)=>'<details class="tax-report-details" id="'+id+'"'+(openIds.has(id)?' open':'')+'><summary>'+title+'</summary><div>'+body+'</div></details>';
+  const monthFields='<div class="tax-report-month-picker"><button type="button" id="tax-report-previous" class="btn btn-secondary" aria-label="Previous month" onclick="shiftTaxReportMonth(-1)">&#8592;</button><label for="tax-report-month">Calendar month<input id="tax-report-month" type="month" value="'+esc(state.month)+'" onchange="setTaxReportSelection(\'month\',this.value)"></label><button type="button" id="tax-report-next" class="btn btn-secondary" aria-label="Next month" onclick="shiftTaxReportMonth(1)">&#8594;</button></div>';
+  const customFields='<div class="tax-report-custom"><label for="tax-report-from">From<input id="tax-report-from" type="date" value="'+esc(state.from)+'" onchange="setTaxReportSelection(\'from\',this.value)"></label><label for="tax-report-to">To<input id="tax-report-to" type="date" value="'+esc(state.to)+'" onchange="setTaxReportSelection(\'to\',this.value)"></label></div>';
+  let html='<section class="tax-period-toolbar" aria-label="Report period"><div class="tax-period-heading"><div><h2>Reporting period</h2><p>One set of dates. Two reporting bases.</p></div><div class="tax-period-switch" role="group" aria-label="Choose period type"><button type="button" id="tax-report-mode-month" aria-pressed="'+(state.mode==='month')+'" onclick="setTaxReportSelection(\'mode\',\'month\')">Monthly</button><button type="button" id="tax-report-mode-custom" aria-pressed="'+(state.mode==='custom')+'" onclick="setTaxReportSelection(\'mode\',\'custom\')">Custom dates</button></div></div>'
+    +'<div class="tax-period-controls">'+(state.mode==='month'?monthFields:customFields)+'<div class="tax-period-caption"><strong>'+esc(hmrc.valid?range:'Choose valid dates')+'</strong><span>Start and end dates are included</span></div></div>'
+    +(errors.length?'<p class="tax-report-error" role="alert">'+errors.map(esc).join(' ')+'</p>':'')+'</section>';
+  function card(report,basis){
+    const isUC=basis==='uc',valid=report.valid,ready=valid&&(!isUC||state.assessmentConfirmed);
+    const result=isUC?report.reportableEarnings:report.profit;
+    const deductions=(Number(report.taxPaid)||0)+(Number(report.niPaid)||0)+(Number(report.pensionPaid)||0);
+    const lines=(report.expenseLines||[]).map(line=>row(Array.isArray(line)?line[0]:line.label,money(Array.isArray(line)?line[1]:line.amount))).join('');
+    const title=isUC?'Universal Credit':'HMRC cash basis';
+    const paidInputs=isUC?[['taxPaid','Income Tax paid'],['niPaid','National Insurance paid'],['pensionPaid','Pension contributions paid']].map(([key,label])=>'<label for="tax-report-'+key+'">'+label+' (£)<input id="tax-report-'+key+'" type="number" inputmode="decimal" min="0" step="0.01" value="'+esc(String(state[key]))+'" onchange="setTaxReportSelection(\''+key+'\',this.value)"></label>').join(''):'';
+    const paidDetail=isUC?details('tax-report-uc-paid','Tax, NI & pension paid<strong>'+money(deductions)+'</strong>','<p>Enter eligible amounts actually paid in this period. Annual tax estimates are not payments. These worksheet entries stay in this session only.</p><div class="tax-report-paid-fields">'+paidInputs+'</div>'):'';
+    let content='<article class="tax-report-card" data-report-basis="'+basis+'"><header><div><span class="tax-report-eyebrow">'+(isUC?'Monthly assessment':'Self Assessment')+'</span><h2>'+title+'</h2></div><span class="tax-report-badge">'+(isUC?'Worksheet':'Summary')+'</span></header>'
+      +'<div class="tax-report-numbers"><div><span>Business income</span><strong data-report-number="income">'+(valid?money(report.income):'—')+'</strong></div><div><span>Business expenses</span><strong data-report-number="expenses">'+(valid?money(report.totalExpenses):'—')+'</strong></div></div>'
+      +'<div class="tax-report-result"><span>'+(isUC?'Income less deductions':((Number(result)<0?'Business loss':'Business profit')))+'</span><strong data-report-number="profit">'+(valid?money(result):'—')+'</strong></div>'
+      +'<div class="tax-report-support">'+row('Mileage allowance included',valid?money(report.mileageCost):'—')+row('Business miles',valid?Number(report.mileageMiles||0).toLocaleString('en-GB',{maximumFractionDigits:2}):'—')
+      +(isUC?paidDetail:row('Accounting method','Cash basis'))+'</div>';
+    if(valid){
+      content+=details('tax-report-'+basis+'-expenses','Expense breakdown',lines||'<p>No business expenses recorded for these dates.</p>');
+      if(isUC){
+        content+='<label class="tax-assessment-check" for="tax-assessment-confirmed"><input id="tax-assessment-confirmed" type="checkbox"'+(state.assessmentConfirmed?' checked':'')+' onchange="setTaxReportSelection(\'assessmentConfirmed\',this.checked)"><span>These are my exact UC assessment dates.<small>A calendar month may differ from your assessment period.</small></span></label>';
+      }else{
+        content+='<p class="tax-report-context">Stock is deducted when paid, including unsold stock. Mileage follows the tax-year allowance.</p>';
+      }
+    }else{
+      content+='<p class="tax-report-error" role="status">'+(report.errors||['Choose valid dates to prepare this report.']).map(esc).join(' ')+'</p>';
+    }
+    if(report.notes&&report.notes.length)content+=details('tax-report-'+basis+'-notes','Basis & review notes','<ul>'+report.notes.map(note=>'<li>'+esc(note)+'</li>').join('')+'</ul>');
+    content+='<footer><button type="button" class="btn '+(isUC?'btn-secondary':'btn-primary')+' tax-report-download" aria-haspopup="dialog" onclick="openTaxPeriodDownload(\''+basis+'\')"'+(ready?'':' disabled')+'>Download '+(isUC?'UC worksheet':'HMRC report')+'</button><span>PDF · CSV · Excel</span></footer></article>';
+    return content;
+  }
+  html+='<div class="tax-report-grid">'+card(hmrc,'hmrc')+card(uc,'uc')+'</div>'
+    +'<p class="tax-report-footnote">Working figures from your RETRADE records. Review receipt and payment dates before reporting. These downloads do not submit a return or calculate a Universal Credit award.</p>';
+  host.innerHTML=html;
+}
+function openTaxPeriodDownload(basis){
+  const report=window._taxPeriodReports&&window._taxPeriodReports[basis];
+  if(!report||!report.valid||(basis==='uc'&&!_taxReportState().assessmentConfirmed))return;
+  if(document.getElementById('tax-export-dialog'))return;
+  const snapshot=JSON.parse(JSON.stringify(report)),trigger=document.activeElement;
+  const dialog=document.createElement('dialog');dialog.id='tax-export-dialog';dialog.className='tax-export-dialog';
+  dialog.setAttribute('aria-labelledby','tax-export-title');dialog.setAttribute('aria-describedby','tax-export-description');
+  dialog.innerHTML='<h2 id="tax-export-title">Download '+(basis==='uc'?'UC worksheet':'HMRC report')+'</h2><p id="tax-export-description">'+esc(_taxReportDateLabel(snapshot.from)+' - '+_taxReportDateLabel(snapshot.to))+'. Choose your format.</p><div class="tax-export-options">'
+    +[['pdf','PDF','Formatted document'],['csv','CSV','Simple data file'],['xlsx','Excel','Spreadsheet (.xlsx)']].map(([format,label,description])=>'<button type="button" class="btn btn-secondary" data-format="'+format+'"><strong>'+label+'</strong><span>'+description+'</span></button>').join('')
+    +'</div><form method="dialog"><button class="btn btn-secondary">Cancel</button></form>';
+  dialog.addEventListener('click',function(event){
+    const choice=event.target.closest('[data-format]');
+    if(choice){dialog.close();Promise.resolve(exportPeriodReport(choice.dataset.format,snapshot)).catch(error=>{console.error('[RETRADE] Period export',error);toast('The report could not be downloaded. Please try again.','error');});}
+    else if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)dialog.close();}
+  });
+  dialog.addEventListener('close',()=>{dialog.remove();if(trigger&&trigger.isConnected)trigger.focus({preventScroll:true});},{once:true});
+  document.body.appendChild(dialog);dialog.showModal();
+}
 function renderTax(){
   const page=document.getElementById('p-tax');
   const previousSettings=page.querySelector('#tax-estimate-settings');
@@ -23706,13 +23823,13 @@ function renderTax(){
   });
   let options='';
   for(let y=Math.max(currentYear,year);y>=Math.min(currentYear-2,year);y--)options+='<option value="'+y+'"'+(y===year?' selected':'')+'>'+y+'/'+String(y+1).slice(2)+'</option>';
-  let html='<div class="tax-workspace"><header class="tax-header"><div><h1>Tax overview</h1><p>Your business profit, deductions and estimated tax.</p></div>'
+  let html='<div class="tax-workspace"><header class="tax-header"><div><h1>Tax & Universal Credit</h1><p>Clear figures for your reporting period, ready to download.</p></div>'
     +'<label class="tax-year-control"><span class="tax-year-caption">Tax year<small>6 Apr '+year+' – 5 Apr '+(year+1)+'</small></span><select id="tax-year" class="tax-year-select" onchange="DB._taxYear=Number(this.value);DB._taxMethod=null;saveDB();renderTax()">'+options+'</select></label></header>'
     +'<div class="tax-kpis tax-mobile-only">'+kpi(profit<0?'Business loss':'Taxable profit',money(profit),usingTA?'Trading allowance selected':'After allowable expenses',true)
     +kpi('Estimated tax & NI',money(totalTax),'Other income: '+money(otherIncome))+kpi('Yearly Sales net profit',money(salesNet),'April–March · after overheads')+'</div>'
     +'<div class="tax-kpis tax-desktop-only">'+kpi('Business income',money(income),'Cash received')+kpi('Allowable expenses',money(expenses),'Recorded deductions')+kpi(profit<0?'Business loss':'Business profit',money(profit),'After allowable expenses',true)+kpi('Estimated tax & NI',money(totalTax),'Based on income entered')+'</div>'
-    +'<div class="tax-view-switch" role="group" aria-label="Tax sections"><button type="button" data-tax-view="overview" onclick="setTaxWorkspaceView(\'overview\')">Overview</button><button type="button" data-tax-view="filing" onclick="setTaxWorkspaceView(\'filing\')">Filing guide</button><button type="button" data-tax-view="monthly" onclick="setTaxWorkspaceView(\'monthly\')">Monthly</button></div>'
-    +'<div class="tax-layout"><div class="tax-main">';
+    +'<div class="tax-view-switch" role="group" aria-label="Tax sections"><button type="button" data-tax-view="reports" onclick="setTaxWorkspaceView(\'reports\')">Reports</button><button type="button" data-tax-view="overview" onclick="setTaxWorkspaceView(\'overview\')">Annual overview</button><button type="button" data-tax-view="filing" onclick="setTaxWorkspaceView(\'filing\')">Filing guide</button><button type="button" data-tax-view="monthly" onclick="setTaxWorkspaceView(\'monthly\')">Monthly breakdown</button></div>'
+    +'<div class="tax-layout"><div class="tax-main"><section id="tax-period-reports" aria-label="Monthly and custom date reports"></section>';
 
   // Show the actual reasons for the difference instead of making two accounting
   // bases artificially equal. Calendar, motor rules and write-offs are separate.
@@ -23800,9 +23917,9 @@ function renderTax(){
     totalExpenses:expenses,tradingAllowanceUsed:allowance,box15:pnl.revenue,box16:deduction,box23:profit,
     mileageMiles:pnl.mileage.miles,motorDoubleClaim:pnl.motorDoubleClaim,incomeTax:incomeTax,class2:class2,class4:class4,totalTax:totalTax,
     otherIncome:otherIncome,taxRegion:region,effectivePA:effectivePA};
-  html+='<div class="section-card"><div class="section-card-title">Universal Credit mileage</div><p>Enter the exact assessment dates. Cars/vans: 45p for the first 833 miles, then 25p. Do not also claim fuel or vehicle running costs. This calculates mileage only, not total UC earnings.</p><label>From <input type="date" id="uc-mileage-from"></label> <label>To <input type="date" id="uc-mileage-to"></label> <button class="btn btn-secondary" onclick="showUCMileage()">Calculate mileage</button><p id="uc-mileage-result" aria-live="polite"></p></div>';
   page.innerHTML=html;
-  setTaxWorkspaceView(window._taxWorkspaceView||'overview');
+  renderTaxPeriodReports();
+  setTaxWorkspaceView(window._taxWorkspaceView||'reports');
   _syncTaxDesktopDetails();
   if(focusedSetting&&window.matchMedia('(min-width:1281px)').matches){const field=document.getElementById(focusedSetting);if(field)field.focus({preventScroll:true});}
 }
@@ -23840,14 +23957,15 @@ function _syncTaxDesktopDetails(){
 window.matchMedia('(min-width:1281px)').addEventListener('change',_syncTaxDesktopDetails);
 
 function setTaxWorkspaceView(view){
-  if(!['overview','filing','monthly'].includes(view))view='overview';
+  if(!['reports','overview','filing','monthly'].includes(view))view='reports';
   window._taxWorkspaceView=view;
   const page=document.getElementById('p-tax');if(!page)return;
-  const sections={overview:['tax-comparison','tax-income-expenses','tax-purchases','tax-estimate'],filing:['tax-filing-guide','tax-filing','tax-assumptions'],monthly:['tax-monthly-summary']};
+  const sections={reports:['tax-period-reports'],overview:['tax-comparison','tax-income-expenses','tax-purchases','tax-estimate'],filing:['tax-filing-guide','tax-filing','tax-assumptions'],monthly:['tax-monthly-summary']};
   Object.values(sections).flat().forEach(function(id){const el=document.getElementById(id);if(el)el.hidden=!sections[view].includes(id);});
   page.querySelectorAll('[data-tax-view]').forEach(function(button){button.setAttribute('aria-pressed',String(button.dataset.taxView===view));});
-  const aside=page.querySelector('.tax-aside');if(aside)aside.hidden=view==='monthly';
-  const layout=page.querySelector('.tax-layout');if(layout){layout.classList.toggle('tax-layout-monthly',view==='monthly');layout.classList.toggle('tax-layout-overview',view==='overview');if(!page.hasAttribute('aria-busy')&&window._animateWorkspaceChange)window._animateWorkspaceChange(layout);}
+  const workspace=page.querySelector('.tax-workspace');if(workspace)workspace.dataset.view=view;
+  const aside=page.querySelector('.tax-aside');if(aside)aside.hidden=view==='monthly'||view==='reports';
+  const layout=page.querySelector('.tax-layout');if(layout){layout.classList.toggle('tax-layout-monthly',view==='monthly');layout.classList.toggle('tax-layout-overview',view==='overview');layout.classList.toggle('tax-layout-reports',view==='reports');if(!page.hasAttribute('aria-busy')&&window._animateWorkspaceChange)window._animateWorkspaceChange(layout);}
 }
 
 // Build a clean, accountant-friendly CSV of the current tax year's SA103 figures.
@@ -27991,3 +28109,4 @@ function showUCMileage(){
   try{const r=_ucMileageSummary(document.getElementById('uc-mileage-from').value,document.getElementById('uc-mileage-to').value);out.textContent=r.miles+' business miles: '+fmt(r.allowance)+' mileage deduction. Check your trip log before reporting.';}
   catch(e){out.textContent=e.message;}
 }
+

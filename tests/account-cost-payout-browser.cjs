@@ -101,7 +101,8 @@ const engine=process.argv.includes('--webkit')?'webkit':'chromium';
    for(const accountType of ['supplier','consignment']){
     await page.evaluate(type=>{
      _accounts[0].accountType=type;
-     DB['OCT-26']=[costFixture({accountType:type}),costFixture({id:'other',accountType:type})];
+     // Quick-add uses today's month; discard its earlier fixture across month boundaries.
+     DB={'OCT-26':[costFixture({accountType:type}),costFixture({id:'other',accountType:type})],trips:[],expenses:[]};
      _accounts[0].settlements=[];openItemPage('OCT-26','one');
     },accountType);
     const defaults=await page.evaluate(()=>termsSnapshot());
@@ -154,3 +155,4 @@ const engine=process.argv.includes('--webkit')?'webkit':'chromium';
   }
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
+
