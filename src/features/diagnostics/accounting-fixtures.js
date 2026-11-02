@@ -246,7 +246,7 @@ function runCashLedgerRegressionTests(){
   const oldDB=DB;
   const oldAccounts=(typeof _accounts!=='undefined')?_accounts.slice():[];
   const baseLedger=function(){return [{id:'OPEN',type:'opening_balance',amount:1000,direction:'in',date:'2026-08-01',description:'Opening'}];};
-  const baseItem=function(){return {id:'C1',item:'Cash test',state:'listed',dateSourced:'2026-08-01',dateListed:'2026-08-02',salePrice:180,costPrice:100,shippingCost:5,packagingCost:1,postage:0,promoPercent:0,parts:[{id:'P1',description:'Repair',cost:10,date:'2026-08-01'}],listingFee:0,defaultPlatform:'ebay_biz',salePlatform:'ebay_biz',returnHistory:[]};};
+  const baseItem=function(){return {id:'C1',item:'Cash test',state:'listed',dateSourced:'2026-08-01',dateListed:'2026-08-02',salePrice:180,costPrice:100,shippingCost:5,packagingCost:1,postage:0,promoPercent:0,parts:[{id:'P1',description:'Repair',cost:10,date:'2026-08-01'}],listingFee:0,defaultPlatform:'ebay_biz',salePlatform:'ebay_biz',refreshHistory:[{type:'renewal_policy',enabled:false}],returnHistory:[]};};
   const reset=function(items){
     DB={trips:[],expenses:[],cashLedger:baseLedger(),'AUG-26':items||[]};
     if(typeof _accounts!=='undefined'){_accounts.length=0;}
