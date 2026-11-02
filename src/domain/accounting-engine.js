@@ -1405,7 +1405,7 @@ function _buildTaxCashSummary(from,to,label){
   if((p.archiveLoss||0)>0)byBox[30]=+Math.max(0,(byBox[30]||0)-(p.archiveLoss||0)).toFixed(2);
   const box17=+(cash.goodsPaid+cash.partnerPaid).toFixed(2);
   return Object.assign({},p,{
-    basis:'HMRC cash basis', netProfit:netProfit, box17:box17, byBox:byBox,
+    basis:'HMRC cash basis', revenue:trading.income, netProfit:netProfit, box17:box17, byBox:byBox,
     otherBusinessIncome:cash.supplierRefundIncome,
     cashGoodsPaid:cash.goodsPaid,cashPartnerPaid:cash.partnerPaid,cashDetail:cash,
     cashListingFees:listingFees,listingFeeEvents:listingFeeEvents,tradingCashEvents:trading.events,
@@ -2315,7 +2315,7 @@ function _buildPeriodReport(basis,from,to,options){
   report.saleCount=(p.events||[]).filter(function(event){return !event.isReturnAdjustment;}).length;
   report.reviewItems=(p.cashDetail&&p.cashDetail.assumptions||[]).map(function(item){return Object.assign({},item);});
   report.notes.push('Both dates are included. Amounts are GBP. This worksheet prepares figures; it does not submit a return.');
-  report.notes.push('Receipts and sale costs use recorded sale/refund dates; listing charges and credits use their own recorded dates. Check when money was actually received or paid, including marketplace balances, before reporting.');
+  report.notes.push('Verified receipts, fees, shipping and refunds use their source transaction dates. Components without verified evidence retain recorded sale/refund dates. Listing charges and credits use their own recorded dates. Check marketplace balances as well as bank payments before reporting.');
   report.notes.push('Item listing charges and separately logged expenses are both included. If an invoice expense covers the same charges, reconcile the source records so each charge is claimed once.');
   report.notes.push('Paid business stock is included even when unsold or funded personally. Owner contributions, drawings, opening balances and cash adjustments are excluded.');
   report.notes.push('Personal disposals must remain outside business stock records. Check consignor payments against your arrangement; owner or partnership profit distributions are not business expenses.');
