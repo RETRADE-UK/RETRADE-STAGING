@@ -257,6 +257,122 @@ function _listingFeeEventsAll(){
   return out;
 }
 
+// One read-only trading cash ledger for cashflow and dated tax reports.
+// Management P&L continues to use the sale/return snapshots above.
+function _tradingCashEventsAll(){
+  const items=allItems().filter(function(i){return i&&(i.item||'').trim().toUpperCase()!=='MONTH END';});
+  const base=[],reviews=[],records=[],knownOrders=new Set();
+  const returnTypes=new Set(['customer_refund','fee_refund','return_postage']);
+  const allowed=new Set(['sale_receipt','platform_fee','promo_fee','shipping','customer_refund','fee_refund','return_postage']);
+  const history=function(i){let h=i.refreshHistory;if(typeof h==='string'){try{h=JSON.parse(h);}catch(_){h=[];}}return Array.isArray(h)?h:[];};
+  const slot=function(itemId,saleNo,e){return JSON.stringify([String(itemId),Number(saleNo),e.type,returnTypes.has(e.type)?String(e.returnId):'',e.type==='fee_refund'?e.component:'']);};
+  const push=function(e){const amount=+Math.max(0,Number(e.amount)||0).toFixed(2);if(amount)base.push(Object.assign({},e,{amount:amount}));};
+  items.forEach(function(i){
+    history(i).forEach(function(h){if(h&&h.type==='verified_sale_fees'&&h.orderId)knownOrders.add(String(h.orderId));});
+    _saleCycleNumbers(i).forEach(function(n){
+      const c=_saleCycleSnapshot(i,n);if(!c||!c.date)return;
+      const common={date:c.date,source:'sale',itemId:i.id,saleNo:n,direction:'out'};
+      const add=function(id,type,amount,description,direction){push(Object.assign({},common,{id:id+':'+i.id+':'+n,type:type,amount:amount,description:description+' - '+(i.item||'Item'),direction:direction||'out'}));};
+      add('sale','sale_receipt',Math.max(0,Number(c.price)||0)+_sellerPostageIncome(c.platformId,c.postage),'Sale '+n+' receipt','in');
+      add('fee','platform_fee',calcPlatformBPF(i,c.price||0,c.postage||0,c.platformId,n),'Platform fee - Sale '+n);
+      add('promo','promo_fee',_salePromoFee(i,n,c.platformId,c.price||0,c.postage||0,c.promoPercent||0),'Promotion - Sale '+n);
+      add('ship','shipping',c.shipping,'Shipping - Sale '+n);
+      add('pkg','packaging',c.packaging,'Packaging - Sale '+n);
+    });
+    (i.returnHistory||[]).forEach(function(r,idx){
+      const date=_returnEventDate(r);if(!date)return;
+      const impact=_returnEventImpact(i,r),n=Math.max(1,Number(r.saleNo)||1);
+      const common={date:date,source:'return',itemId:i.id,saleNo:n,returnId:r.id,direction:'out'};
+      const add=function(id,type,amount,description,direction,component){push(Object.assign({},common,{id:id+':'+i.id+':'+idx+(component?':'+component:''),type:type,amount:amount,description:description+' - '+(i.item||'Item'),direction:direction||'out',component:component}));};
+      add('refund','customer_refund',impact.refund,'Customer refund');
+      add('refundcredit','fee_refund',impact.platformCredit,'Platform fee credit','in','platform');
+      add('refundcredit','fee_refund',impact.promoCredit,'Promotion fee credit','in','promotion');
+      add('returnpost','return_postage',impact.postage,'Return postage');
+    });
+    const seen=new Set();
+    history(i).slice().reverse().forEach(function(h){
+      if(!h||h.type!=='verified_cash_events')return;
+      const key=JSON.stringify([h.provider,h.orderId,h.mode,h.saleNo==null?null:Number(h.saleNo)]);
+      if(seen.has(key))return;seen.add(key);
+      if(h.status==='void')return;
+      records.push({item:i,record:h,key:key,valid:true,reasons:[],covers:[],events:[]});
+      if(h.mode==='replace'&&h.orderId)knownOrders.add(String(h.orderId));
+    });
+  });
+  const reject=function(r,reason){r.valid=false;if(r.reasons.indexOf(reason)<0)r.reasons.push(reason);};
+  const sameNumber=function(a,b,tolerance){return Number.isFinite(Number(a))&&Number.isFinite(Number(b))&&Math.abs(Number(a)-Number(b))<(tolerance||0.005);};
+  records.forEach(function(rec){
+    const h=rec.record,i=rec.item,source=h.source||{},n=Number(h.saleNo);
+    if(h.status!=='active'||h.version!==1||h.provider!=='ebay'||!h.orderId||!['replace','additive'].includes(h.mode))reject(rec,'Unsupported or incomplete verified cash record.');
+    if(!/^[a-f0-9]{64}$/i.test(source.sha256||'')||!_reportDateValid(source.from)||!_reportDateValid(source.to)||source.from>source.to)reject(rec,'Verified cash source identity or date coverage is invalid.');
+    if(!Array.isArray(h.covers)||!Array.isArray(h.cashEvents))reject(rec,'Verified cash coverage or event rows are missing.');
+    if(h.mode==='additive'){
+      if((h.covers||[]).length||h.saleNo!=null||knownOrders.has(String(h.orderId)))reject(rec,'An additive attempt must be separate from every recorded sale order and replace no sale components.');
+    }else if(h.mode==='replace'){
+      const c=Number.isInteger(n)&&n>0?_saleCycleSnapshot(i,n):null,expected=h.expected||{},sale=expected.sale;
+      if(!c||!sale||sale.date!==c.date||sale.platformId!==c.platformId||!['price','postage','shipping','packaging'].every(function(k){return Object.prototype.hasOwnProperty.call(sale,k)&&sameNumber(sale[k],c[k]);})||!Object.prototype.hasOwnProperty.call(sale||{},'promoPercent')||!sameNumber(sale&&sale.promoPercent,c&&c.promoPercent,0.000001))reject(rec,'The linked sale changed or its expected snapshot is incomplete; verified cash was not applied.');
+      const actual=(i.returnHistory||[]).filter(function(r){return Math.max(1,Number(r.saleNo)||1)===n;}),expectedReturns=expected.returns;
+      if(actual.some(function(r){return r.id==null||!String(r.id).trim();})||new Set(actual.map(function(r){return String(r.id);})).size!==actual.length||!Array.isArray(expectedReturns)||expectedReturns.some(function(r){return !r||r.id==null||!String(r.id).trim();})||new Set((expectedReturns||[]).map(function(r){return String(r.id);})).size!==(expectedReturns||[]).length)reject(rec,'Return identities must be present and unique.');
+      if(!Array.isArray(expectedReturns)||actual.length!==expectedReturns.length||actual.some(function(r){return !expectedReturns.some(function(e){return String(e.id)===String(r.id)&&Number(e.saleNo)===n&&e.type===r.type&&sameNumber(e.refundAmount,r.refundAmount);});}))reject(rec,'The linked return set changed; verified cash was not applied.');
+      const covered=new Set();
+      (Array.isArray(h.covers)?h.covers:[]).forEach(function(cover){
+        if(!cover||!allowed.has(cover.type)||(cover.type==='fee_refund'&&!['platform','promotion'].includes(cover.component))){reject(rec,'Verified cash contains an unsupported component.');return;}
+        if(returnTypes.has(cover.type)){
+          const hit=actual.some(function(r){return String(r.id)===String(cover.returnId);});
+          if(cover.sourceOnly?(!String(cover.returnId||'').startsWith('source:')||hit):!hit)reject(rec,'Verified refund coverage does not identify its return record or source-only refund.');
+        }
+        const key=slot(i.id,n,cover);if(covered.has(key))reject(rec,'The same cash component is covered more than once.');covered.add(key);rec.covers.push(key);
+      });
+    }
+    (Array.isArray(h.cashEvents)?h.cashEvents:[]).forEach(function(e){
+      if(!e||!allowed.has(e.type)||!['in','out'].includes(e.direction)||!_reportDateValid(e.date)||e.date<source.from||e.date>source.to||!String(e.sourceTxnId||'').trim()||!String(e.leg||'').trim()||!Number.isSafeInteger(e.amountPence)||e.amountPence<=0||!Number.isSafeInteger(e.sourceAmountPence)||e.sourceAmountPence<e.amountPence||(e.type==='fee_refund'&&!['platform','promotion'].includes(e.component))){reject(rec,'A verified cash event has an invalid date, identity, component or penny amount.');return;}
+      if(h.mode==='replace'&&rec.covers.indexOf(slot(i.id,n,e))<0)reject(rec,'A source cash event is outside its explicitly covered component.');
+      rec.events.push(Object.assign({},e,{itemId:i.id,saleNo:h.mode==='replace'?n:null,orderId:String(h.orderId),provider:h.provider}));
+    });
+  });
+  // A raw source leg may be allocated across bundle members, but it must be
+  // represented once in full. Reject all linked records if any allocation is
+  // missing, duplicated, inconsistent or stale; never apply a partial group.
+  const groups=new Map(),coverage=new Map();
+  records.forEach(function(rec){
+    rec.covers.forEach(function(key){if(!coverage.has(key))coverage.set(key,[]);coverage.get(key).push(rec);});
+    rec.events.forEach(function(e){const key=JSON.stringify([e.provider,e.sourceTxnId,e.leg]);if(!groups.has(key))groups.set(key,[]);groups.get(key).push({rec:rec,event:e});});
+  });
+  coverage.forEach(function(rs){if(rs.length>1)rs.forEach(function(r){reject(r,'Multiple source orders claim the same recorded cash component.');});});
+  let changed=true;
+  while(changed){
+    changed=false;
+    groups.forEach(function(xs){
+      const first=xs[0].event,allocations=new Set();let sum=0,bad=xs.some(function(x){return !x.rec.valid;});
+      xs.forEach(function(x){const e=x.event,key=JSON.stringify([String(e.itemId),e.saleNo]);if(allocations.has(key))bad=true;allocations.add(key);sum+=e.amountPence;
+        if(e.date!==first.date||e.type!==first.type||e.component!==first.component||e.direction!==first.direction||e.sourceAmountPence!==first.sourceAmountPence)bad=true;
+      });
+      if(sum!==first.sourceAmountPence)bad=true;
+      if(bad)xs.forEach(function(x){if(x.rec.valid)changed=true;reject(x.rec,'Source transaction allocations are incomplete, duplicated or inconsistent; the entire linked cash record was left for review.');});
+    });
+  }
+  const replaced=new Set(),verified=[];
+  records.forEach(function(rec){
+    if(!rec.valid){reviews.push({kind:'verified_cash_events',itemId:rec.item.id,orderId:rec.record.orderId,amount:0,reason:rec.reasons.join(' ')});return;}
+    rec.covers.forEach(function(key){replaced.add(key);});
+    rec.events.forEach(function(e){verified.push(Object.assign({},e,{id:'verifiedcash:'+JSON.stringify([e.provider,e.sourceTxnId,e.leg,String(e.itemId),e.saleNo]),amount:e.amountPence/100,source:returnTypes.has(e.type)?'return':'sale',verified:true,dateEstimated:false,description:'Verified '+e.type.replace(/_/g,' ')+' - '+e.orderId+' - '+(rec.item.item||'Item')}));});
+  });
+  const events=base.filter(function(e){return !replaced.has(slot(e.itemId,e.saleNo,e));}).concat(verified);
+  events.sort(function(a,b){return (a.date||'').localeCompare(b.date||'')||String(a.id).localeCompare(String(b.id));});
+  return {events:events,reviewItems:reviews};
+}
+
+function _tradingCashSummary(from,to){
+  const ledger=_tradingCashEventsAll(),out={income:0,fees:0,postPkg:0,returns:0,events:[],reviewItems:ledger.reviewItems};
+  ledger.events.forEach(function(e){if(!e.date||(from&&e.date<from)||(to&&e.date>to))return;const cost=(e.direction==='out'?1:-1)*e.amount;out.events.push(e);
+    if(e.type==='sale_receipt')out.income-=cost;
+    else if(['platform_fee','promo_fee','fee_refund'].includes(e.type))out.fees+=cost;
+    else if(['shipping','packaging'].includes(e.type))out.postPkg+=cost;
+    else if(['customer_refund','return_postage'].includes(e.type))out.returns+=cost;
+  });
+  ['income','fees','postPkg','returns'].forEach(function(k){out[k]=+out[k].toFixed(2);});return out;
+}
+
 function _cashEventsAll(){
   const out=[];
   const push=function(ev){
@@ -283,26 +399,9 @@ function _cashEventsAll(){
       push({id:'stock:'+i.id,date:paymentDate.date,dateSource:paymentDate.dateSource,dateEstimated:paymentDate.dateEstimated,type:'stock_purchase',direction:'out',amount:_itemAcquisitionCost(i),description:'Stock purchase - '+(i.item||'Item'),source:'item',itemId:i.id,purchaseGroupId:i.purchaseGroupId||null,purchaseGroupName:i.purchaseGroupName||null});
     }
     (i.parts||[]).forEach(function(p,idx){if(Number(p.cost)>0)push({id:'part:'+i.id+':'+(p.id||idx),date:p.date||sourced,type:'part_purchase',direction:'out',amount:p.cost,description:'Part / repair · '+(p.description||p.desc||i.item||'Item'),source:'item',itemId:i.id});});
-    // Sale cycles: gross cash in, then the actual selling cash outflows.
-    _saleCycleNumbers(i).forEach(function(n){
-      const cyc=_saleCycleSnapshot(i,n);if(!cyc||!cyc.date)return;
-      const gross=+(Math.max(0,Number(cyc.price)||0)+_sellerPostageIncome(cyc.platformId,cyc.postage)).toFixed(2);
-      push({id:'sale:'+i.id+':'+n,date:cyc.date,type:'sale_receipt',direction:'in',amount:gross,description:'Sale '+n+' receipt · '+(i.item||'Item'),source:'sale',itemId:i.id,saleNo:n});
-      const fee=calcPlatformBPF(i,cyc.price||0,cyc.postage||0,cyc.platformId,n);if(fee>0)push({id:'fee:'+i.id+':'+n,date:cyc.date,type:'platform_fee',direction:'out',amount:fee,description:'Platform fee · Sale '+n+' · '+(i.item||'Item'),source:'sale',itemId:i.id,saleNo:n});
-      const promo=_salePromoFee(i,n,cyc.platformId,cyc.price||0,cyc.postage||0,cyc.promoPercent||0);if(promo>0)push({id:'promo:'+i.id+':'+n,date:cyc.date,type:'promo_fee',direction:'out',amount:promo,description:'Promoted listing · Sale '+n+' · '+(i.item||'Item'),source:'sale',itemId:i.id,saleNo:n});
-      if(Number(cyc.shipping)>0)push({id:'ship:'+i.id+':'+n,date:cyc.date,type:'shipping',direction:'out',amount:cyc.shipping,description:'Shipping · Sale '+n+' · '+(i.item||'Item'),source:'sale',itemId:i.id,saleNo:n});
-      if(Number(cyc.packaging)>0)push({id:'pkg:'+i.id+':'+n,date:cyc.date,type:'packaging',direction:'out',amount:cyc.packaging,description:'Packaging · Sale '+n+' · '+(i.item||'Item'),source:'sale',itemId:i.id,saleNo:n});
-    });
-    // Refunds/returns are dated independently of the sale. Fee credits are real
-    // cash returned by the platform; COGS restoration is inventory, not cash.
-    (i.returnHistory||[]).forEach(function(r,idx){
-      const d=_returnEventDate(r);if(!d)return;const impact=_returnEventImpact(i,r);
-      if(impact.refund>0)push({id:'refund:'+i.id+':'+idx,date:d,type:'customer_refund',direction:'out',amount:impact.refund,description:'Customer refund · Sale '+(Math.max(1,Number(r.saleNo)||1))+' · '+(i.item||'Item'),source:'return',itemId:i.id,saleNo:Math.max(1,Number(r.saleNo)||1)});
-      if(impact.feeCredit>0)push({id:'refundcredit:'+i.id+':'+idx,date:d,type:'fee_refund',direction:'in',amount:impact.feeCredit,description:'Platform fee credit · Sale '+(Math.max(1,Number(r.saleNo)||1))+' · '+(i.item||'Item'),source:'return',itemId:i.id,saleNo:Math.max(1,Number(r.saleNo)||1)});
-      if(impact.postage>0)push({id:'returnpost:'+i.id+':'+idx,date:d,type:'return_postage',direction:'out',amount:impact.postage,description:'Return postage · Sale '+(Math.max(1,Number(r.saleNo)||1))+' · '+(i.item||'Item'),source:'return',itemId:i.id,saleNo:Math.max(1,Number(r.saleNo)||1)});
-    });
     if(i.scrapReason==='supplier_return'&&Number(i.supplierRefund)>0)push({id:'supplierrefund:'+i.id,date:i.supplierRefundDate||(i.scrappedAt?String(i.scrappedAt).slice(0,10):null),type:'supplier_refund',direction:'in',amount:i.supplierRefund,description:'Supplier return refund · '+(i.item||'Item'),source:'item',itemId:i.id});
   });});
+  _tradingCashEventsAll().events.forEach(push);
   _listingFeeEventsAll().forEach(push);
   // Real business expenses and their refunds. The event amount is unsigned;
   // negative stored costs are cash received, not missing expenses. Keep their
@@ -1285,6 +1384,12 @@ function _buildTaxCashSummary(from,to,label){
   });
   listingFees=+listingFees.toFixed(2);
   const listingDifference=+(listingFees-(p.selling.listingFees||0)).toFixed(2);
+  const trading=_tradingCashSummary(from,to);
+  const incomeDifference=+(trading.income-p.revenue).toFixed(2);
+  const feeDifference=+(trading.fees-p.selling.platformFees).toFixed(2);
+  const postageDifference=+(trading.postPkg-p.selling.postPkg).toFixed(2);
+  const returnDifference=+(trading.returns-p.selling.returns).toFixed(2);
+  cash.assumptions=(cash.assumptions||[]).concat(trading.reviewItems);
   cash.assumptions=(cash.assumptions||[]).concat(listingAssumptions);
   (p.events||[]).forEach(function(event){
     if(event.dateEstimated)cash.assumptions.push({kind:'sale_date',itemId:event.item&&event.item.id,amount:+(Number(event.salePrice)||0).toFixed(2),reason:'Original sale date is missing; this receipt uses the recorded return date as an estimate. Verify when the sale money was received.'});
@@ -1292,18 +1397,20 @@ function _buildTaxCashSummary(from,to,label){
   // Remove sale-matched acquisition/partner costs, then insert amounts actually paid.
   // Listing charges have their own payment dates, including charges on unsold
   // stock and signed credits. Replace only their sale-matched item allocation.
-  const netProfit=+(p.netProfit+p.cogs+(p.selling.partner||0)+(p.archiveLoss||0)-cash.goodsPaid-cash.partnerPaid+cash.supplierRefundIncome-listingDifference).toFixed(2);
+  const netProfit=+(p.netProfit+p.cogs+(p.selling.partner||0)+(p.archiveLoss||0)-cash.goodsPaid-cash.partnerPaid+cash.supplierRefundIncome-listingDifference+incomeDifference-feeDifference-postageDifference-returnDifference).toFixed(2);
   const byBox=Object.assign({},p.byBox);
-  byBox[26]=+((byBox[26]||0)+listingDifference).toFixed(2);
+  byBox[26]=+((byBox[26]||0)+listingDifference+feeDifference).toFixed(2);
+  byBox[23]=+((byBox[23]||0)+postageDifference).toFixed(2);
+  byBox[30]=+((byBox[30]||0)+returnDifference).toFixed(2);
   if((p.archiveLoss||0)>0)byBox[30]=+Math.max(0,(byBox[30]||0)-(p.archiveLoss||0)).toFixed(2);
   const box17=+(cash.goodsPaid+cash.partnerPaid).toFixed(2);
   return Object.assign({},p,{
-    basis:'HMRC cash basis', netProfit:netProfit, box17:box17, byBox:byBox,
+    basis:'HMRC cash basis', revenue:trading.income, netProfit:netProfit, box17:box17, byBox:byBox,
     otherBusinessIncome:cash.supplierRefundIncome,
     cashGoodsPaid:cash.goodsPaid,cashPartnerPaid:cash.partnerPaid,cashDetail:cash,
-    cashListingFees:listingFees,listingFeeEvents:listingFeeEvents,
-    selling:Object.assign({},p.selling,{listingFees:listingFees,fees:+(p.selling.fees+listingDifference).toFixed(2),total:+(p.selling.total+listingDifference).toFixed(2)}),
-    totalBusinessIncome:+(p.revenue+cash.supplierRefundIncome).toFixed(2)
+    cashListingFees:listingFees,listingFeeEvents:listingFeeEvents,tradingCashEvents:trading.events,
+    selling:Object.assign({},p.selling,{listingFees:listingFees,platformFees:trading.fees,fees:+(trading.fees+listingFees).toFixed(2),postPkg:trading.postPkg,returns:trading.returns,total:+(p.selling.total+listingDifference+feeDifference+postageDifference+returnDifference).toFixed(2)}),
+    totalBusinessIncome:+(trading.income+cash.supplierRefundIncome).toFixed(2)
   });
 }
 
@@ -2208,7 +2315,7 @@ function _buildPeriodReport(basis,from,to,options){
   report.saleCount=(p.events||[]).filter(function(event){return !event.isReturnAdjustment;}).length;
   report.reviewItems=(p.cashDetail&&p.cashDetail.assumptions||[]).map(function(item){return Object.assign({},item);});
   report.notes.push('Both dates are included. Amounts are GBP. This worksheet prepares figures; it does not submit a return.');
-  report.notes.push('Receipts and sale costs use recorded sale/refund dates; listing charges and credits use their own recorded dates. Check when money was actually received or paid, including marketplace balances, before reporting.');
+  report.notes.push('Verified receipts, fees, shipping and refunds use their source transaction dates. Components without verified evidence retain recorded sale/refund dates. Listing charges and credits use their own recorded dates. Check marketplace balances as well as bank payments before reporting.');
   report.notes.push('Item listing charges and separately logged expenses are both included. If an invoice expense covers the same charges, reconcile the source records so each charge is claimed once.');
   report.notes.push('Paid business stock is included even when unsold or funded personally. Owner contributions, drawings, opening balances and cash adjustments are excluded.');
   report.notes.push('Personal disposals must remain outside business stock records. Check consignor payments against your arrangement; owner or partnership profit distributions are not business expenses.');
@@ -2235,3 +2342,4 @@ function _buildPeriodReport(basis,from,to,options){
   report.valid=true;
   return _freezeReport(report);
 }
+
