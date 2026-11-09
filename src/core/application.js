@@ -7435,6 +7435,7 @@ function renderSearchResults(q){
   const results=searchAllItems(q);
   const total=results.length;
   const soldItems=results.filter(i=>(i.dateSold||i.resaleSalePrice)&&!i.isReturned);
+  const totalRevenue=soldItems.reduce((s,i)=>s+calcItemRevenue(i),0);
   const totalProfit=soldItems.reduce((s,i)=>s+calcGrossProfit(i),0);
 
   const rows=results.map(i=>{
@@ -7479,9 +7480,9 @@ function renderSearchResults(q){
         <button class="btn btn-secondary" onclick="exitSearchPage()" style="font-size:13px">← Back</button>
         <div class="page-title" style="margin-bottom:2px">Search</div>
       </div>
-      <div style="font-size:14px;color:var(--muted);margin-bottom:16px">
+      <div data-testid="search-results-summary" style="font-size:14px;color:var(--muted);margin-bottom:16px">
         <strong style="color:var(--text)">${total}</strong> item${total!==1?'s':''} matching <strong style="color:var(--accent)">"${esc(q)}"</strong>
-        ${soldItems.length>0?` · <strong style="color:var(--green)">${soldItems.length} sold</strong> · Total profit: <strong style="color:var(--green)">${fmt(totalProfit)}</strong>`:''}
+        ${soldItems.length>0?` · <strong style="color:var(--green)">${soldItems.length} sold</strong> · Total revenue: <strong data-testid="search-total-revenue" style="color:var(--text)">${fmt(totalRevenue)}</strong> · Total profit: <strong style="color:var(--green)">${fmt(totalProfit)}</strong>`:''}
       </div>
     </div>
     <div style="border-top:1px solid var(--border)">
