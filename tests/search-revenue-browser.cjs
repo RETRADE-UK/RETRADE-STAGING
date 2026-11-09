@@ -17,7 +17,7 @@ const {open,settled}=require('./startup-browser.cjs');
    await page.setViewportSize({width,height:900});
    const result=await page.evaluate(()=>{
     const mk=(id,item,salePrice,extra={})=>Object.assign({
-     id,gid:'R-TEST-'+id,item,category:'Digital Cameras & Lenses',
+     id,gid:'R-TEST-'+id,item,category:'Other',
      dateSourced:'2026-10-01',dateListed:'2026-10-02',dateSold:'2026-10-10',
      salePrice,costPrice:0,state:'sold',isReturned:false,
      salePlatform:'fb',defaultPlatform:'fb',soldOnPlatform:'fb',
