@@ -26,6 +26,12 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium webkit
         timeout-minutes: 5
+      - name: Search editing regressions (Chromium and WebKit)
+        run: |
+          node tests/search-input-cache.cjs
+          node tests/search-input-browser.cjs
+          node tests/search-input-browser.cjs --webkit
+          node tests/search-revenue-browser.cjs
       - run: node tests/dashboard-fortnight-browser.cjs --webkit
       - run: node tests/account-cost-payout-browser.cjs --webkit
       - run: node tests/staging-auth-browser.cjs --webkit

@@ -1,4 +1,4 @@
-/* Release 20260926-v1588. Versioned static cache; business/API traffic stays outside it. */
+/* Release 20261110-search-input. Versioned static cache; business/API traffic stays outside it. */
 importScripts('./config/assets.js');
 const ASSETS=self.RT_ASSETS;
 const BUILD=ASSETS.build;
@@ -64,6 +64,10 @@ self.addEventListener('install',event=>{
   event.waitUntil((async()=>{
     // Small shell first. Optional runtime warming starts after the brand reveal.
     await warmPaths(SHELL.concat(['app.js','config/assets.js']));
+    // Same-release, backwards-compatible UI hotfix. Refresh only its critical
+    // asset so installed apps cannot keep the old disappearing search field.
+    // A failed download leaves the previous worker and cached UI available.
+    if(!await fetchAndCache('src/platform/navigation.js'))throw new Error('Navigation update could not load');
     await self.skipWaiting();
   })());
 });
