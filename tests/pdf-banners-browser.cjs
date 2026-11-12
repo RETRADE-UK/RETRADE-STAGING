@@ -5,7 +5,7 @@ const {open,settled}=require('./startup-browser.cjs');
 (async()=>{
  const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{})});
  try{
-  const {page,context,errors}=await open(browser,{signedIn:true});await settled(page);
+  const {page,context,errors}=await open(browser,{signedIn:true});await settled(page);await page.evaluate(()=>window.__rtEnsureView('tax'));
   await page.addScriptTag({content:fs.readFileSync(require.resolve('jspdf/dist/jspdf.umd.min.js'),'utf8')});
   // The Statement action loads these in this order before exposing its PDF button.
   for(const file of ['statements.js','statements-accounting-v3.js','account-adjustment-statements.js'])await page.addScriptTag({url:'http://retrade.test/src/features/partners/'+file});

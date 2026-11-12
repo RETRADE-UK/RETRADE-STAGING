@@ -1,3 +1,27 @@
+# Page modules — 12 November 2026
+
+The `20261112-page-modules` build (with `-staging` on staging) moves eight
+presentation groups from `src/core/application.js` to `src/views/`. The original
+function bodies are retained. Stable core functions dispatch to registered
+implementations so existing accounting and presentation wrappers keep their
+execution order. Shared data, saving, auth, calculations and mutation handlers
+remain in core.
+
+`src/platform/view-loader.js` owns module requests through the asset manifest.
+Item, Stock, Sales, Sourcing, Accounts and Costs views load in the existing ordered
+background queue after Dashboard is revealed. Tax and Data views load on first
+use and are cached by the service worker on demand. Normal navigation waits for
+its view; an early item opening can load its view directly. Concurrent requests
+share one promise. Navigation/user changes cancel delayed render intents, and a
+failed request offers a retry without reloading or replacing business data.
+
+Current view functions are listed in `config/assets.js` under `views`, and each
+file appears exactly once in `deferred` or `lazy`. Do not add the old function
+body back into core or override its public wrapper in a view file. Add new
+view-specific presentation beside its existing owner.
+
+---
+
 # Current startup and account ownership — 12 November 2026
 
 The `20261112-startup-optimisation` generation supersedes earlier loading notes

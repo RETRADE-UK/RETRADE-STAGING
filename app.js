@@ -92,7 +92,9 @@
         var run=function(){
           if(!window.__rtLaunchSettled){setTimeout(next,180);return;}
           var src=files[index++];
-          append(src,'low',schedule,schedule);
+          var view=Object.keys(assets.views||{}).find(function(key){return './'+assets.views[key].file===src;});
+          if(view)window.__rtEnsureView(view).then(schedule,schedule);
+          else append(src,'low',schedule,schedule);
         };
         if(window.__rtFeatureLoadUrgent)setTimeout(run,0);
         else if('requestIdleCallback' in window)requestIdleCallback(run,{timeout:600});
@@ -130,7 +132,7 @@
     bindingAt(0);
   }
   /* Fetch the large core while the shield moves, but evaluate it after the
-     shield/wordmark choreography. Parsing 1.6 MB on the same main thread as
+     shield/wordmark choreography. Parsing the shared core on the same main thread as
      that animation can compete for its frames on desktop hard refresh. */
   var corePreload=document.createElement('link');
   corePreload.rel='preload';corePreload.as='script';corePreload.href='./src/core/application.js?v='+v;

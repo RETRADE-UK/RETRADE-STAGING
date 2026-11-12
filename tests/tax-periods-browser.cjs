@@ -331,7 +331,7 @@ async function chooseMonth(page,value){
   const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{}),...(process.env.RETRADE_CAPTURE?{downloadsPath:process.env.RETRADE_CAPTURE}:{}),args:['--no-sandbox','--disable-dev-shm-usage']});
   try{
     for(const mobile of [false,true]){
-      const {page,context,errors}=await open(browser,{signedIn:true,mobile,timezoneId:mobile?'America/Los_Angeles':'Europe/London'});await settled(page);
+      const {page,context,errors}=await open(browser,{signedIn:true,mobile,timezoneId:mobile?'America/Los_Angeles':'Europe/London'});await settled(page);await page.evaluate(()=>window.__rtEnsureView('tax'));
       await context.route('**/jspdf.umd.min.js',route=>route.fulfill({contentType:'text/javascript',body:fs.readFileSync(require.resolve('jspdf/dist/jspdf.umd.min.js'))}));
       await context.route('**/xlsx.full.min.js',route=>route.fulfill({contentType:'text/javascript',body:fs.readFileSync(require.resolve('xlsx/dist/xlsx.full.min.js'))}));
       if(process.env.RETRADE_CAPTURE_BLOBS==='1')await page.evaluate(()=>{const create=URL.createObjectURL.bind(URL);URL.createObjectURL=function(blob){window.__periodLastBlob=blob;return create(blob);};});
