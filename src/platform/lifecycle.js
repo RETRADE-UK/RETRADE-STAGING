@@ -14,13 +14,11 @@
   var hiddenAt=0;
   var resumeTimer=0;
   var warmTimer=0;
-  var snapshotArmed=false;
+  var lastWarmAt=0;
+  var lastResumeAt=0;
 
   function now(){return Date.now();}
   function build(){return String(window.__rtBuildId||'');}
-  function standalone(){
-    try{return navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);}catch(_){return false;}
-  }
   function body(){return document.body||null;}
   function genuineBootInProgress(){
     var b=body();
@@ -31,14 +29,15 @@
   }
 
   function warmSoon(delay){
+    if(lastWarmAt&&now()-lastWarmAt<5*60*1000)return;
     if(warmTimer)clearTimeout(warmTimer);
     warmTimer=setTimeout(function(){
-      warmTimer=0;
+      warmTimer=0;lastWarmAt=now();
       try{
         if(!('serviceWorker' in navigator))return;
         navigator.serviceWorker.ready.then(function(reg){
           var target=(navigator.serviceWorker.controller)||(reg&&reg.active);
-          if(target)target.postMessage({type:'RT_WARM_STATIC',build:build()});
+          if(target)target.postMessage({type:'RT_WARM_STATIC',build:build(),saveData:!!(navigator.connection&&navigator.connection.saveData)});
         }).catch(function(){});
       }catch(_){}
     },Math.max(0,Number(delay)||0));
@@ -49,23 +48,10 @@
     try{if(typeof _syncFabVisibility==='function')_syncFabVisibility();}catch(_){}
   }
 
-  function launchPlate(){return document.getElementById('rt-launch-brand');}
-  function armSnapshot(){
-    if(genuineBootInProgress()||!hasBooted())return;
-    var el=launchPlate();if(!el)return;
-    snapshotArmed=true;
-    el.classList.remove('rt-launch-brand-out','rt-launch-brand-dormant');
-    el.classList.add('rt-launch-snapshot');
-  }
-  function disarmSnapshot(){
-    var el=launchPlate();if(!el)return;
-    snapshotArmed=false;
-    el.classList.remove('rt-launch-snapshot');
-    el.classList.add('rt-launch-brand-out','rt-launch-brand-dormant');
-  }
-
   function fastResume(reason){
-    disarmSnapshot();
+    if(lastResumeAt&&now()-lastResumeAt<100)return;
+    lastResumeAt=now();
+
     if(genuineBootInProgress()||!hasBooted()){
       warmSoon(120);
       return;
@@ -107,10 +93,9 @@
   function onVisibility(){
     if(document.visibilityState==='hidden'){
       hiddenAt=now();
-      armSnapshot();
       return;
     }
-    disarmSnapshot();
+
     var slept=hiddenAt?now()-hiddenAt:0;
     hiddenAt=0;
     fastResume(slept>1500?'foreground':'visible');
@@ -125,13 +110,9 @@
   window.addEventListener('focus',function(){
     if(hiddenAt||document.visibilityState==='visible')fastResume('focus');
   },{passive:true});
-  window.addEventListener('pagehide',function(){hiddenAt=now();armSnapshot();},{passive:true});
-  /* WebKit can capture a standalone app snapshot before pagehide/freeze. Arm
-     on blur in installed mode as well; focus/pageshow immediately disarm it. */
-  window.addEventListener('blur',function(){if(standalone())armSnapshot();},{passive:true});
-  try{document.addEventListener('freeze',armSnapshot,{passive:true});}catch(_){};
+  window.addEventListener('pagehide',function(){hiddenAt=now();},{passive:true});
   window.addEventListener('retrade:motion-ready',function(){warmSoon(180);},{once:true});
   warmSoon(600);
 
-  console.info('[RETRADE] v1.5.38 PWA lifecycle + early branded snapshot guard loaded');
+  console.info('[RETRADE] v1.5.38 PWA lifecycle + quiet foreground resume loaded');
 })();

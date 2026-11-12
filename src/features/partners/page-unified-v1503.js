@@ -51,30 +51,7 @@
     document.head.appendChild(s);
   }
 
-  function patchPartnersList(){
-    var page=document.getElementById('p-accounts');if(!page||!page.classList.contains('on'))return;
-    if(page.dataset.rtAccountsOwned==='true')return;
-    page.querySelectorAll('.rt-acct-op-row[data-account-id]').forEach(function(row){
-      var a=accountById(row.getAttribute('data-account-id'));if(!a)return;
-      var term=row.querySelector('.rt-acct-snapshot-term');
-      if(term&&arrangement(a)==='profit_share'&&term.textContent!=='')term.textContent='';
-    });
-  }
-
   function settingsSvg(){return '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.1A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.1A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.12.36.33.7.6 1 .27.3.65.45 1.1.4h.1v4h-.1a1.7 1.7 0 0 0-1.1.4c-.27.3-.48.64-.6 1Z"/></svg>';}
-
-  function classifySummary(page){
-    var summary=page&&page.querySelector('.rt-partner-summary-v3');if(!summary)return;
-    summary.classList.add('rt-partner-mobile-summary');
-    summary.querySelectorAll('.rt-partner-summary-v3-card').forEach(function(card){
-      if(card.getAttribute('data-kind'))return;
-      var label=norm((card.querySelector('.rt-partner-summary-v3-label')||{}).textContent).toLowerCase();
-      if(label.indexOf('outstanding')!==-1)card.setAttribute('data-kind','outstanding');
-      else if(label.indexOf('potential')!==-1)card.setAttribute('data-kind','potential');
-      else if(label.indexOf('paid')!==-1)card.setAttribute('data-kind','paid');
-      else if(label.indexOf('earned')!==-1)card.setAttribute('data-kind','earned');
-    });
-  }
 
   function ensureSettings(page,a){
     var nav=page.querySelector('.rt-partner-v4-navrow');if(!nav)return;
@@ -157,9 +134,14 @@
   function polishAccount(){
     queued=false;
     var page=document.getElementById('p-item'),a=currentAccount();if(!page||!page.classList.contains('on')||!a)return;
-    classifySummary(page);ensureSettings(page,a);ensureActionRow(page,a);arrangeWorkspace(page);
+    ensureSettings(page,a);ensureActionRow(page,a);arrangeWorkspace(page);
   }
-  function schedule(){if(queued)return;queued=true;requestAnimationFrame(function(){requestAnimationFrame(function(){patchPartnersList();polishAccount();});});}
+  function finalizeAccount(){
+    (window.__rtPartnerRenderFinalizers||[]).forEach(function(f){f();});
+    polishAccount();
+    if(observer)observer.takeRecords();
+  }
+  function schedule(){if(queued)return;queued=true;queueMicrotask(function(){queued=false;finalizeAccount();});}
 
   function openFabMenu(){var a=currentAccount();if(!a)return false;var body=''
     +'<button type="button" class="rt-partner-v1503-choice" data-rt-v1503-fab="item"><span class="rt-partner-v1503-choice-icon">＋</span><span class="rt-partner-v1503-choice-copy"><strong>Add item</strong><span>New stock, new listing, or assign an existing RETRADE item.</span></span></button>'
@@ -178,15 +160,13 @@
     var renderBase=_renderAccountPage;
     _renderAccountPage=function(a){
       var result=renderBase.apply(this,arguments);
-      (window.__rtPartnerRenderFinalizers||[]).forEach(function(f){f();});
-      polishAccount();
+      finalizeAccount();
       return result;
     };
   }
 
   function start(){
     installStyles();installFab();schedule();
-    var pa=document.getElementById('p-accounts');if(pa){new MutationObserver(schedule).observe(pa,{childList:true,subtree:true});}
     var pi=document.getElementById('p-item');if(pi){observer=new MutationObserver(function(muts){for(var i=0;i<muts.length;i++){if(muts[i].type==='childList'){schedule();return;}}});observer.observe(pi,{childList:true,subtree:true});}
     window.addEventListener('retrade:motion-ready',schedule);window.addEventListener('popstate',schedule);window.addEventListener('hashchange',schedule);
   }

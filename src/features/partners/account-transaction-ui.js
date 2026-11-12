@@ -11,8 +11,6 @@
   if(window.__rtPartnerTransactionUi1482)return;
   window.__rtPartnerTransactionUi1482=true;
 
-  var menu=null;
-  var menuOriginal=null;
   var enhanceQueued=false;
 
   function round(v){return Math.round((Number(v)||0)*100)/100;}
@@ -46,21 +44,6 @@
   function styles(){if(document.getElementById('rt-partner-transaction-ui-style'))return;var s=document.createElement('style');s.id='rt-partner-transaction-ui-style';s.textContent='\
     .rt-account-adjustments,.rt-payalloc-adjust{display:none!important}.rt-account-add-pop{position:fixed;z-index:15020;min-width:210px;padding:6px;border:1px solid var(--border);border-radius:12px;background:var(--surface);box-shadow:0 16px 45px rgba(0,0,0,.28)}.rt-account-add-pop button{display:block;width:100%;text-align:left;border:0;background:transparent;color:var(--text);padding:10px 11px;border-radius:8px;font:650 12px var(--font-body);cursor:pointer}.rt-account-add-pop button:hover{background:var(--surface2)}.rt-account-add-pop small{display:block;color:var(--text-secondary);font-size:10px;font-weight:500;margin-top:2px;line-height:1.35}.rt-adj-modal-backdrop{position:fixed;inset:0;z-index:16000;background:rgba(4,9,18,.64);display:flex;align-items:center;justify-content:center;padding:18px}.rt-adj-modal{width:min(620px,100%);max-height:min(780px,calc(100vh - 36px));overflow:auto;border:1px solid var(--border);border-radius:16px;background:var(--surface);box-shadow:0 24px 70px rgba(0,0,0,.42)}.rt-adj-modal-head{display:flex;align-items:flex-start;gap:12px;padding:16px 18px 12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:2}.rt-adj-modal-head>div{flex:1}.rt-adj-modal-title{font-size:16px;font-weight:850}.rt-adj-modal-sub{font-size:10.5px;color:var(--text-secondary);margin-top:3px;line-height:1.4}.rt-adj-modal-close{width:34px;height:34px;border:0;border-radius:9px;background:var(--surface2);color:var(--text);font-size:20px;cursor:pointer}.rt-adj-modal-body{padding:16px 18px 18px}.rt-adj-modal-items{max-height:225px;overflow:auto;border:1px solid var(--border);border-radius:10px}.rt-adj-modal-item{display:flex;gap:10px;align-items:center;padding:9px 10px;border-bottom:1px solid var(--border);cursor:pointer}.rt-adj-modal-item:last-child{border-bottom:0}.rt-adj-modal-item input{width:18px;height:18px}.rt-adj-modal-item span{min-width:0}.rt-adj-modal-item strong{display:block;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rt-adj-modal-item small{display:block;font-size:10px;color:var(--text-secondary);margin-top:2px}.rt-txn-reconcile{border:1px solid var(--border);border-radius:12px;background:var(--surface2);padding:11px 12px;margin:0 0 14px}.rt-txn-reconcile-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}.rt-txn-reconcile-title{font-size:12px;font-weight:850}.rt-txn-reconcile-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid var(--border);font-size:11.5px}.rt-txn-reconcile-row:first-of-type{border-top:0}.rt-txn-reconcile-row span{color:var(--text-secondary);min-width:0}.rt-txn-reconcile-row strong{white-space:nowrap;font-variant-numeric:tabular-nums}.rt-txn-reconcile-adjust strong{color:var(--green)}.rt-txn-reconcile-total{font-size:13px}.rt-txn-reconcile-total strong{font-size:17px;color:var(--accent)}.rt-txn-toggle{display:flex;align-items:flex-start;gap:8px;margin:7px 0 0;font-size:10.5px;color:var(--text-secondary)}.rt-txn-toggle input{width:17px;height:17px;margin-top:1px}.rt-txn-add-adjustment{width:100%;margin-top:9px}.rt-txn-reconcile-empty{font-size:10.5px;color:var(--text-secondary);padding:4px 0 2px}@media(max-width:560px){.rt-adj-modal-backdrop{align-items:flex-end;padding:0}.rt-adj-modal{width:100%;max-height:90vh;border-radius:18px 18px 0 0;border-bottom:0}.rt-adj-modal-body{padding-bottom:24px}}';document.head.appendChild(s);}
 
-  function cleanupMainPage(){var p=page();if(!p)return;p.querySelectorAll('.rt-account-adjustments,.rt-payalloc-adjust').forEach(function(el){el.remove();});installTopAddMenu(p);}
-
-  function closeMenu(){if(menu){menu.remove();menu=null;}menuOriginal=null;}
-  function openMenu(btn,orig,accountId){
-    closeMenu();menuOriginal=orig;var r=btn.getBoundingClientRect(),m=document.createElement('div');m.className='rt-account-add-pop';m.innerHTML='<button type="button" data-kind="existing">Add existing items<small>Use the current account item workflow</small></button><button type="button" data-kind="adjustment">Add adjustment<small>Record a non-cash credit against this account</small></button>';document.body.appendChild(m);menu=m;
-    var mw=m.offsetWidth||220,left=Math.max(8,Math.min(window.innerWidth-mw-8,r.right-mw)),top=Math.min(window.innerHeight-(m.offsetHeight||120)-8,r.bottom+6);m.style.left=left+'px';m.style.top=Math.max(8,top)+'px';
-    m.addEventListener('click',function(ev){var b=ev.target.closest('button[data-kind]');if(!b)return;var kind=b.getAttribute('data-kind');closeMenu();if(kind==='existing'){try{orig.click();}catch(_){}}else openAdjustmentModal(accountId,{source:'account'});});
-    setTimeout(function(){document.addEventListener('pointerdown',outsideMenu,true);},0);
-  }
-  function outsideMenu(ev){if(menu&&menu.contains(ev.target))return;closeMenu();document.removeEventListener('pointerdown',outsideMenu,true);}
-  function installTopAddMenu(p){
-    if(!p)return;var group=p.querySelector('.account-group');var buttons=Array.prototype.slice.call(p.querySelectorAll('button')).filter(function(b){if(b.dataset.rtAccountAddMenu||b.dataset.rtAccountAddOriginal)return false;if(b.closest('.account-group,.rt-payalloc2,.rt-partner-v2-selection,.rt-partner-statement-btn'))return false;var t=txt(b).toLowerCase();if(!/^(?:\+\s*)?add(?:\s+(?:item|items|stock))?$/.test(t))return false;if(group&&!(b.compareDocumentPosition(group)&Node.DOCUMENT_POSITION_FOLLOWING))return false;return true;});
-    if(!buttons.length)return;var orig=buttons[0],acct=accountFromPage();if(!acct)return;orig.dataset.rtAccountAddOriginal='1';var clone=orig.cloneNode(true);clone.removeAttribute('id');clone.removeAttribute('onclick');clone.dataset.rtAccountAddMenu='1';clone.setAttribute('aria-haspopup','menu');clone.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();openMenu(clone,orig,acct.id);});orig.style.display='none';orig.parentNode.insertBefore(clone,orig);
-  }
-
   function modalRoot(){return document.getElementById('rt-adj-modal-root');}
   function closeAdjustmentModal(){var root=modalRoot();if(root)root.remove();}
   function openAdjustmentModal(accountId,opts){
@@ -91,10 +74,9 @@
   }
   function scheduleEnhance(){if(enhanceQueued)return;enhanceQueued=true;setTimeout(enhancePaymentPanel,0);}
 
-  function start(){styles();cleanupMainPage();var p=document.getElementById('p-item');if(p){new MutationObserver(function(){cleanupMainPage();}).observe(p,{childList:true,subtree:true});}document.addEventListener('click',function(ev){if(ev.target&&ev.target.closest&&ev.target.closest('.payalloc-new'))scheduleEnhance();},false);document.addEventListener('change',function(ev){if(ev.target&&(ev.target.id==='payalloc-date'||ev.target.id==='payalloc-apply-credit'))scheduleEnhance();},true);window.addEventListener('resize',closeMenu);window.addEventListener('scroll',closeMenu,true);setTimeout(cleanupMainPage,250);setTimeout(cleanupMainPage,900);}
+  function start(){styles();document.addEventListener('click',function(ev){if(ev.target&&ev.target.closest&&ev.target.closest('.payalloc-new'))scheduleEnhance();},false);document.addEventListener('change',function(ev){if(ev.target&&(ev.target.id==='payalloc-date'||ev.target.id==='payalloc-apply-credit'))scheduleEnhance();},true);}
 
   window.__rtOpenPartnerAccountAdjustment=function(accountId,opts){openAdjustmentModal(accountId,opts||{});};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
   console.info('[RETRADE] partner transaction-first adjustment UI v1.4.82 loaded');
-  (window.__rtPartnerRenderFinalizers=window.__rtPartnerRenderFinalizers||[]).push(cleanupMainPage);
 })();

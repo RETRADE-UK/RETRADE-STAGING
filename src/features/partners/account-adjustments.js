@@ -13,7 +13,6 @@
   var loadedUser=null;
   var loadPromise=null;
   var activeAccountId=null;
-  var renderQueued=false;
   var pdfPromise=null;
   var xlsxPromise=null;
 
@@ -85,9 +84,10 @@
       var res=await client.from('account_adjustments').select('*').eq('user_id',user).order('date',{ascending:false}).order('created_at',{ascending:false});
       if(res.error)throw res.error;
       if(uid()!==user)return []; // never publish another user's in-flight response
-      rows=(Array.isArray(res.data)?res.data:[]).filter(function(r){return r&&(!r.user_id||String(r.user_id)===String(user));});
-      loadedUser=user;
-      refreshFinancialViews();
+      var nextRows=(Array.isArray(res.data)?res.data:[]).filter(function(r){return r&&(!r.user_id||String(r.user_id)===String(user));});
+      var changed=JSON.stringify(loadedUser===user?rows:[])!==JSON.stringify(nextRows);
+      rows=nextRows;loadedUser=user;
+      if(changed)refreshFinancialViews();
       return rows;
     })().catch(function(err){console.warn('[RETRADE] account adjustments load failed',err);throw err;}).finally(function(){loadPromise=null;});
     return loadPromise;
@@ -170,12 +170,12 @@
       rows.unshift(res.data&&res.data[0]?res.data[0]:rec);
       refreshFinancialViews();
       try{closePanel();}catch(_){}try{toast('Account credit recorded · '+money(amount));}catch(_){}
-      var a=account(accountId);if(a)render(a);
     }catch(err){console.error('[RETRADE] adjustment save failed',err);try{toast(err.message||'Could not save account adjustment','error');}catch(_){}}
     finally{if(btn){btn.disabled=false;btn.textContent='Save account credit';}}
   }
 
   function openAdd(accountId){
+    installStyles();
     var entries=allAccountItems(accountId).filter(function(e){var i=e.item;return i&&(i.dateSold||i.resaleDateSold||i.returnHistory&&i.returnHistory.length||i.scrappedAt);});
     entries.sort(function(a,b){var aw=returnLoss(a.item),bw=returnLoss(b.item);if((aw>0)!==(bw>0))return bw-aw;return String(b.item.dateSold||b.item.resaleDateSold||'').localeCompare(String(a.item.dateSold||a.item.resaleDateSold||''));});
     var defaultReturnIds=entries.filter(function(e){return returnLoss(e.item)>0;}).map(function(e){return String(e.item.id);});
@@ -200,26 +200,13 @@
     if(used(r)>0.009){try{toast('This adjustment has already been applied to a payment and cannot be voided','error');}catch(_){}return;}
     var reason=String((document.getElementById('rt-adj-void-reason')||{}).value||'Voided by user').trim()||'Voided by user';
     var client=sb(),user=uid(),oldRevision=Number(r.revision)||0;if(!client||!user)return;
-    try{var res=await client.from('account_adjustments').update({status:'void',voided_at:new Date().toISOString(),void_reason:reason,revision:oldRevision+1,updated_at:new Date().toISOString()}).eq('id',r.id).eq('user_id',user).eq('revision',oldRevision).select('*');if(res.error||!res.data||res.data.length!==1)throw (res.error||new Error('Adjustment changed on another device.'));Object.assign(r,res.data[0]);refreshFinancialViews();try{closePanel();}catch(_){}try{toast('Adjustment voided');}catch(_){}var a=account(r.account_id);if(a)render(a);}catch(err){try{toast(err.message||'Could not void adjustment','error');}catch(_){}}
+    try{var res=await client.from('account_adjustments').update({status:'void',voided_at:new Date().toISOString(),void_reason:reason,revision:oldRevision+1,updated_at:new Date().toISOString()}).eq('id',r.id).eq('user_id',user).eq('revision',oldRevision).select('*');if(res.error||!res.data||res.data.length!==1)throw (res.error||new Error('Adjustment changed on another device.'));Object.assign(r,res.data[0]);refreshFinancialViews();try{closePanel();}catch(_){}try{toast('Adjustment voided');}catch(_){}}catch(err){try{toast(err.message||'Could not void adjustment','error');}catch(_){}}
   }
 
   function openVoid(id){var r=rows.find(function(x){return x&&String(x.id)===String(id);});if(!r)return;var body='<div class="rt-adj-help">Voiding keeps the original record for audit history but removes its effect from the account balance and statements.</div><div class="fg"><label>Reason</label><input id="rt-adj-void-reason" type="text" value="Voided by user"></div><button type="button" class="btn btn-danger" id="rt-adj-void-confirm" style="width:100%">Void '+esc(money(r.amount))+' credit</button>';try{openPanel('Void account adjustment',body);}catch(_){return;}var b=document.getElementById('rt-adj-void-confirm');if(b)b.addEventListener('click',function(){voidAdjustment(id);});}
 
   function installStyles(){if(document.getElementById('rt-account-adjustments-style'))return;var s=document.createElement('style');s.id='rt-account-adjustments-style';s.textContent='\
     .rt-account-adjustments{margin:0 0 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden}.rt-adj-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border)}.rt-adj-head-copy{flex:1;min-width:0}.rt-adj-title{font-size:13px;font-weight:800}.rt-adj-sub{font-size:10.5px;color:var(--text-secondary);margin-top:2px}.rt-adj-credit{font-size:14px;font-weight:800;color:var(--green);white-space:nowrap}.rt-adj-list{display:block}.rt-adj-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)}.rt-adj-row:last-child{border-bottom:0}.rt-adj-name{font-size:12px;font-weight:750}.rt-adj-meta{font-size:10.5px;color:var(--text-secondary);margin-top:3px}.rt-adj-amount{font-size:12px;font-weight:800;color:var(--green);font-variant-numeric:tabular-nums}.rt-adj-voided .rt-adj-name,.rt-adj-voided .rt-adj-amount{color:var(--text-secondary);text-decoration:line-through}.rt-adj-empty{padding:12px 14px;font-size:11px;color:var(--text-secondary)}.rt-adj-help{font-size:11.5px;line-height:1.5;color:var(--text-secondary);padding:10px 11px;border:1px solid var(--border);background:var(--surface2);border-radius:10px;margin-bottom:13px}.rt-adj-link-head{display:flex;gap:10px;align-items:center;margin:12px 0 7px}.rt-adj-link-head>div{flex:1;min-width:0}.rt-adj-link-head strong{display:block;font-size:12px}.rt-adj-link-head small{display:block;font-size:10.5px;color:var(--text-secondary);margin-top:2px}.rt-adj-items{max-height:240px;overflow:auto;border:1px solid var(--border);border-radius:10px}.rt-adj-item{display:flex;gap:10px;align-items:center;padding:9px 10px;border-bottom:1px solid var(--border);cursor:pointer}.rt-adj-item:last-child{border-bottom:0}.rt-adj-item input{width:18px;height:18px}.rt-adj-item span{min-width:0}.rt-adj-item strong{display:block;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rt-adj-item small{display:block;font-size:10px;color:var(--text-secondary);margin-top:2px}.rt-adj-statement-note{font-size:6.8px;color:#65707e}@media(max-width:560px){.rt-adj-head{flex-wrap:wrap}.rt-adj-head .btn{width:100%}.rt-adj-row{grid-template-columns:minmax(0,1fr) auto}.rt-adj-row .rt-adj-void{grid-column:1/-1;width:100%}}';document.head.appendChild(s);}
-
-  function insertionPoint(page){var pay=page.querySelector('.rt-payalloc2');if(pay)return {p:pay.parentNode,b:pay};var groups=Array.prototype.slice.call(page.querySelectorAll('.account-group'));for(var i=0;i<groups.length;i++){var t=String((groups[i].querySelector('.account-group-title')||{}).textContent||'').toLowerCase();if(t.indexOf('payment')!==-1||t.indexOf('settlement')!==-1)return {p:groups[i].parentNode,b:groups[i]};}return {p:page,b:null};}
-  function render(a){
-    var page=document.getElementById('p-item');if(!a||!page||!page.classList.contains('on'))return;activeAccountId=a.id;installStyles();
-    var old=page.querySelector('.rt-account-adjustments');if(old)old.remove();
-    var all=rowsForAccount(a.id),available=availableCredit(a.id),activeN=all.filter(active).length;
-    var list=all.length?all.map(function(r){var isActive=active(r),applied=used(r),left=remaining(r);return '<div class="rt-adj-row '+(isActive?'':'rt-adj-voided')+'"><div><div class="rt-adj-name">'+esc(r.reason||kindLabel(r.kind))+'</div><div class="rt-adj-meta">'+esc(r.date||'')+' · '+esc(kindLabel(r.kind))+(applied>0?' · '+esc(money(applied))+(applications(r).some(function(a){return a.type==='cash_refund';})?' received in cash':' applied')+(left>0?' · '+esc(money(left))+' remaining':''):'')+(r.item_allocations&&r.item_allocations.length?' · '+r.item_allocations.length+' linked item'+(r.item_allocations.length===1?'':'s'):'')+(isActive?'':' · VOID')+'</div></div><div class="rt-adj-amount">−'+esc(money(r.amount))+'</div>'+(isActive&&applied<=0.009?'<button type="button" class="btn btn-secondary rt-adj-void" data-adj-void="'+esc(r.id)+'">Void</button>':'<span></span>')+'</div>';}).join(''):'<div class="rt-adj-empty">No account adjustments recorded.</div>';
-    var box=document.createElement('section');box.className='rt-account-adjustments';box.innerHTML='<div class="rt-adj-head"><div class="rt-adj-head-copy"><div class="rt-adj-title">Account adjustments</div><div class="rt-adj-sub">Credits and received reimbursements · '+activeN+' active</div></div><div class="rt-adj-credit">'+(available>0?'−'+esc(money(available))+' available':'No credit available')+'</div><button type="button" class="btn btn-secondary rt-adj-add">+ Add adjustment</button></div><div class="rt-adj-list">'+list+'</div>';
-    var pt=insertionPoint(page);if(pt.b)pt.p.insertBefore(box,pt.b);else pt.p.appendChild(box);
-    box.querySelector('.rt-adj-add').addEventListener('click',function(){openAdd(a.id);});box.querySelectorAll('[data-adj-void]').forEach(function(b){b.addEventListener('click',function(){openVoid(b.getAttribute('data-adj-void'));});});
-    var actions=page.querySelector('.rt-payalloc2-actions');if(actions&&!actions.querySelector('.rt-payalloc-adjust')){var ab=document.createElement('button');ab.type='button';ab.className='btn btn-secondary rt-payalloc-adjust';ab.textContent='Add adjustment';ab.addEventListener('click',function(){openAdd(a.id);});actions.insertBefore(ab,actions.querySelector('.payalloc-existing')||null);}
-  }
-  function schedule(a){if(a&&a.id!=null)activeAccountId=a.id;if(renderQueued)return;renderQueued=true;requestAnimationFrame(function(){renderQueued=false;var resolved=(a&&a.id!=null)?a:account(activeAccountId);if(!resolved)return;ensureLoaded(false).then(function(){render(resolved);}).catch(function(){});});}
 
   function adjustmentRowsForPeriod(accountId,period){return activeRowsForAccount(accountId).filter(function(r){return (!period||!period.from||String(r.date)>=String(period.from))&&(!period||!period.to||String(r.date)<=String(period.to));});}
   function adjustedStatement(accountId,period){
@@ -336,7 +323,6 @@
   window.__rtPartnerAdjustmentsRowsForAccount=rowsForAccount;
   window.__rtBuildPartnerStatementV3Adjusted=adjustedStatement;
 
-  try{if(typeof _renderAccountPage==='function'){var baseRender=_renderAccountPage;_renderAccountPage=function(a){if(a&&a.id!=null)activeAccountId=a.id;var result=baseRender.apply(this,arguments);schedule(a);setTimeout(function(){schedule(a);},100);return result;};}}catch(_){}
   var baseOpen=window.openPartnerStatement;if(typeof baseOpen==='function'){window.openPartnerStatement=function(accountId){activeAccountId=accountId;window.__rtPartnerStatementActiveAccountId=accountId;var r=baseOpen.apply(this,arguments);ensureLoaded(false).catch(function(){});return r;};}
   window._partnerStatementPdf=generatePdf;
   window._partnerStatementExcel=generateExcel;
@@ -345,7 +331,7 @@
   // Reload credits with the user data, so navigation and imports cannot retain
   // stale P&L after a credit is created or voided on another device.
   if(typeof loadFromSupabase==='function'){var baseLoad=loadFromSupabase;loadFromSupabase=async function(){var result=await baseLoad.apply(this,arguments);await ensureLoaded(true).catch(function(){});return result;};}
-  function boot(){ensureLoaded(false).then(function(){schedule();}).catch(function(){});}
-  setTimeout(boot,0);setTimeout(boot,700);
+  // One load; navigation and the data-load wrapper retry when needed.
+  ensureLoaded(false).catch(function(){});
   console.info('[RETRADE] partner account adjustments v1.4.81 loaded');
 })();

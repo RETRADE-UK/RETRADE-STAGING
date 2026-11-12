@@ -84,9 +84,9 @@ assert 'rtLaunchShieldArc1540' in index and 'rtLaunchWordReveal1540' in index, '
 assert supabase!=-1 and app!=-1 and supabase<app and supabase>head, 'Supabase must load at body end after launch plate parses'
 assert "document.getElementById('rt-launch-brand')" in launch, 'launch coordinator is not adopting static plate'
 lifecycle=Path('src/platform/lifecycle.js').read_text(encoding='utf-8')
-assert 'armSnapshot()' in lifecycle and 'rt-launch-snapshot' in lifecycle, 'branded snapshot guard missing'
+assert 'armSnapshot' not in lifecycle and 'rt-launch-snapshot' not in lifecycle, 'foreground must not replay a brand snapshot'
 assert "!finishRequested&&b&&b.classList.contains('rt-real-layout-loading')" not in launch, 'finish request is suppressing skeleton handoff again'
-assert 'BRAND_MIN_MS=2425' in launch and 'BRAND_TO_SKELETON_MS=2525' in launch and 'SKELETON_MIN_MS=360' in launch and 'skeletonRemaining' in launch, 'premium launch/skeleton timing missing'
+assert '__rtReplayIntro' in index and 'rt-last-active-at' in index and 'skeletonRemaining' in launch, 'session-aware launch policy missing'
 
 start=core.find('function setSummaryPeriod(p)')
 end=core.find('\n}',start)

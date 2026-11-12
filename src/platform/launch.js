@@ -26,7 +26,8 @@
   var lastRevealing=false;
   var warmScheduled=false;
   var brandEl=null,brandShownAt=0,brandTimer=0,finishRequested=false,skeletonVisibleAt=0,directRevealReady=false;
-  var BRAND_MIN_MS=2425,BRAND_TO_SKELETON_MS=2525,BRAND_FADE_MS=380,SKELETON_MIN_MS=360;
+  var replayIntro=window.__rtReplayIntro!==false;
+  var BRAND_MIN_MS=replayIntro?2425:0,BRAND_TO_SKELETON_MS=replayIntro?2525:0,BRAND_FADE_MS=replayIntro?380:0,SKELETON_MIN_MS=replayIntro?360:0;
   var bootSummaryReplayPending=false;
   var authRevealTimer=0;
 
@@ -111,8 +112,8 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
     if(brandTimer){clearTimeout(brandTimer);brandTimer=0;}
     var el=brandEl;el.setAttribute('aria-hidden','true');brandEl=null;perf.brandHandoff=mode||'content';perf.brandDismissedAt=stamp();
     if(mode==='skeleton'){skeletonVisibleAt=clock()+BRAND_FADE_MS;perf.skeletonVisibleAt=stamp()+BRAND_FADE_MS;}
-    el.classList.remove('rt-launch-snapshot','rt-launch-brand-dormant');
-    if(reducedMotion()){el.classList.add('rt-launch-brand-out','rt-launch-brand-dormant');return;}
+    el.classList.remove('rt-launch-brand-dormant');
+    if(!replayIntro||reducedMotion()){el.classList.add('rt-launch-brand-out','rt-launch-brand-dormant');return;}
     el.classList.add('rt-launch-brand-out');
     setTimeout(function(){if(el)el.classList.add('rt-launch-brand-dormant');},BRAND_FADE_MS+35);
   }
@@ -148,7 +149,7 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
       root.classList.remove('rt-app-cold');root.classList.add('rt-app-awake');
       var targetRect=target&&target.getBoundingClientRect();
       var bridge=null;
-      if(!reducedMotion()&&sourceRect&&targetRect&&sourceRect.width&&targetRect.width&&source.animate){
+      if(replayIntro&&!reducedMotion()&&sourceRect&&targetRect&&sourceRect.width&&targetRect.width&&source.animate){
         // Clone the complete lockup once. Equal source/destination geometry
         // keeps the shield-to-wordmark gap fixed, with no per-frame layout work.
         bridge=target.cloneNode(true);bridge.setAttribute('aria-hidden','true');
@@ -162,14 +163,14 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
         root.classList.add('rt-auth-bridge');
         bridge.animate([{transform:'translate3d(0,0,0)',color:sourceColor},{transform:'translate3d('+(targetRect.left-left)+'px,'+(targetRect.top-sourceRect.top)+'px,0)',color:targetColor}],{duration:720,easing:'cubic-bezier(.22,.61,.36,1)',fill:'forwards'});
       }
-      root.classList.add('rt-launch-to-auth');
+      if(replayIntro)root.classList.add('rt-launch-to-auth');
       removeBrand('auth');
       setTimeout(function(){
         if(bridge)bridge.remove();
         if(source)source.style.visibility='';
         root.classList.remove('rt-auth-bridge','rt-launch-to-auth');
         if(!loadingSeen)notifySettled('auth');
-      },reducedMotion()?0:760);
+      },(!replayIntro||reducedMotion())?0:760);
     },remaining);
   }
   window.__rtPrepareLoginHandoff=function(){
@@ -267,7 +268,9 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
     // secondary features, warming analytics or filling the offline cache.
     var sequenceMs=0;
     document.querySelectorAll('#p-summary svg').forEach(function(svg){sequenceMs=Math.max(sequenceMs,svg.__rtSequenceMs||0);});
-    setTimeout(function(){notifySettled('dashboard');scheduleStaticWarm();},reducedMotion()?0:Math.max(2700,sequenceMs+700));
+    window.__rtFinishLaunchSoon=function(){notifySettled('dashboard');};
+    if(window.__rtFeatureLoadUrgent)notifySettled('dashboard');
+    setTimeout(function(){notifySettled('dashboard');scheduleStaticWarm();},(!replayIntro||reducedMotion())?0:Math.max(2700,sequenceMs+700));
   }
   function inspectBody(body){
     if(!body)return;

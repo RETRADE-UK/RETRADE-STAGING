@@ -16,7 +16,6 @@ Static browser application with a Supabase backend. No production build framewor
 | `tests/`, `scripts/` | Isolated browser/worker regressions and dependency-free verification/build tools |
 | `supabase/migrations/` | Append-only database history |
 | `docs/` | Workflow, ownership, audits and handovers |
-| `archive/` | Inactive historical sources; never loaded by the app |
 
 See [runtime ownership](docs/RUNTIME_MAP.md), [cleanup report](docs/OPTIMISATION_HANDOVER.md) and [next feature handover](docs/NEXT_FEATURE_HANDOVER.md).
 
@@ -31,8 +30,10 @@ npm run build
 npm run audit:size
 ```
 
-`check` validates asset references, syntax, isolation, existing production invariants and worker behaviour. Browser tests use synthetic auth/data and block external business requests. `build` creates `_site/` from an explicit allowlist, excluding archives, experiments, docs and tests. `audit:size` reports uncompressed assets, not an FPS score. Serve the repository or `_site/` over HTTP; opening HTML as a local file does not exercise PWA behaviour.
+`check` validates asset references, syntax, isolation, existing production invariants and worker behaviour. Browser tests use synthetic auth/data and block external business requests. `build` creates `_site/` from an explicit allowlist, excluding experiments, docs and tests. `audit:size` reports uncompressed assets, not an FPS score. Serve the repository or `_site/` over HTTP; opening HTML as a local file does not exercise PWA behaviour.
 
 The scripts still share classic-script globals. Preserve manifest order; changing to ES modules or merging wrappers requires a separate migration with feature tests. The remaining large core is documented technical debt, not a claim that the architecture rewrite is finished.
 
 Live fixes: `RETRADE-UK/RETRADE`. New features: `RETRADE-UK/RETRADE-STAGING`. Gestures are parked there; Vinted monitor work is next. Never commit exports, credentials or local business backups.
+
+Historical app snapshots and retired patch generators are retained in Git history, not duplicated in the working tree. See the current ownership notes at the top of `docs/RUNTIME_MAP.md`.
