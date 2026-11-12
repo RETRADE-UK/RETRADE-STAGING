@@ -5,7 +5,7 @@ const {open,settled}=require('./startup-browser.cjs');
 (async()=>{
  const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{}),args:['--no-sandbox','--disable-dev-shm-usage']});
  try{
-  const {page,context,errors}=await open(browser,{signedIn:true,timezoneId:'Europe/London'});await settled(page);
+  const {page,context,errors}=await open(browser,{signedIn:true,timezoneId:'Europe/London'});await settled(page);await page.evaluate(()=>window.__rtEnsureView('tax'));
   const results=await page.evaluate(()=>{
    const out=[],check=(name,actual,expected)=>{out.push({name,actual,expected,ok:Math.abs(actual-expected)<0.011});};
    const reset=()=>{DB={'APR-26':[],trips:[],expenses:[],_taxYear:2026,_taxMethod:'actual_manual'};_accounts=[];};

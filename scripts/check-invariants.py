@@ -144,10 +144,11 @@ core=Path('src/core/application.js').read_text(encoding='utf-8')
 assert 'function _queueLocalControlRender(key,fn)' in core
 assert "_queueLocalControlRender('stock-filter'" in core
 assert "_queueLocalControlRender('month-detail-filter'" in core
-assert 'data-stock-state=' in core
-assert 'data-stock-filter=' in core
-assert 'data-stock-sourced-filter=' in core
-assert 'data-month-filter=' in core
+view_source='\n'.join(p.read_text(encoding='utf-8') for p in Path('src/views').glob('*.js'))
+assert 'data-stock-state=' in core+view_source
+assert 'data-stock-filter=' in core+view_source
+assert 'data-stock-sourced-filter=' in core+view_source
+assert 'data-month-filter=' in core+view_source
 for fn in ('setStockSort','setStockFilter','setStockSourcedFilter','setStockStateFilter','setMonthFilter','setMonthSort'):
     start=core.find('function '+fn+'(')
     assert start!=-1, fn+' missing'
