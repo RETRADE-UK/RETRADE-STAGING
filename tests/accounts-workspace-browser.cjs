@@ -2,7 +2,7 @@
 const assert=require('node:assert/strict');const {chromium}=require('playwright');const {open,settled}=require('./startup-browser.cjs');
 (async()=>{const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{})});
 try{for(const mobile of [false,true]){
- const {page,context,errors}=await open(browser,{signedIn:true,mobile});await settled(page);
+ const {page,context,errors}=await open(browser,{signedIn:true,partnerData:true,mobile});await settled(page);
  await page.evaluate(()=>{window.dispatchEvent(new Event('retrade:data-ready'));goToTab('accounts');renderAccountsPage();});
  const input=page.getByRole('searchbox',{name:'Search accounts'});await input.waitFor();
  assert(!await page.locator('.rt-accounts-result').isVisible(),'No redundant result caption before filtering');

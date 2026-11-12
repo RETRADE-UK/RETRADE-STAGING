@@ -13,6 +13,11 @@ i=item({dateSold:'2026-11-30',state:'sold'});assert.equal(c._accrueEbayRenewals(
 for(const extra of [{defaultPlatform:'vinted'},{defaultPlatform:'ebay'},{state:'sourced'},{state:'unlisted'},{state:'sold'},{isReturned:true},{scrappedAt:'2026-11-01'}])assert.equal(c._accrueEbayRenewals(item(extra),'2027-01-31'),0);
 i=item({refreshHistory:[{type:'relist',date:'2026-11-10',_listingFee:.36}]});assert.equal(c._accrueEbayRenewals(i,'2026-12-10'),1);assert.equal(i.refreshHistory.at(-1).date,'2026-12-10');
 i=item({refreshHistory:[{type:'renewal_policy',fee:0}]});c._accrueEbayRenewals(i,'2026-12-31');assert.equal(i.listingFee,.36);
+// Read-only views also support historical items lacking a maintenance array.
+i=item({salePlatform:'fb',defaultPlatform:'fb'});delete i.refreshHistory;
+const beforeRead=JSON.stringify(i);assert.equal(c._totalRelistingFees(i),0);assert.equal(JSON.stringify(i),beforeRead);
+i.defaultPlatform='ebay_biz';i.salePlatform='ebay_biz';assert.equal(c._accrueEbayRenewals(i,'2026-11-30'),1);
+assert.equal(i.refreshHistory[0].type,'monthly_renewal');
 const evidence={type:'verified_sale_fees',saleNo:1,orderId:'synthetic-order',price:100,postage:0,platform:'ebay',platformFee:0,promoFee:5,promoPercent:.05,priceBasis:'seller_receipt',refunds:[{returnId:1,refundAmount:100,platformCredit:0,promoCredit:5}]};
 i=item({salePlatform:'ebay',defaultPlatform:'ebay',refreshHistory:[evidence],returnHistory:[{id:1,saleNo:1,type:'full_seller',refundAmount:100,_salePriceAtReturn:100,_postageAtReturn:0,_platformAtReturn:'ebay',_promoPercentAtReturn:.05}]});
 assert.equal(c.calcPlatformBPF(i,100,0,'ebay',1),0);assert.equal(c._salePromoFee(i,1,'ebay',100,0,.05),5);assert.equal(c._netPromoFeeAfterRefunds(i,1,'ebay',100,0,.05),0);assert.equal(c._privateEbayBuyerFeeRefund(i,1,100,0),0);assert.equal(c._returnEventImpact(i,i.returnHistory[0]).profit,-95);

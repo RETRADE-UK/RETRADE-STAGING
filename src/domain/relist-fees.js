@@ -146,19 +146,19 @@
   function renewItem(i,through){
     through=day(through||new Date().toISOString());
     if(!i||i.scrappedAt||i.isReturned||i.state==='sourced'||i.state==='unlisted')return 0;
-    if(!Array.isArray(i.refreshHistory))i.refreshHistory=[];
+    var history=Array.isArray(i.refreshHistory)?i.refreshHistory:[];
     var anchors=[day(i.dateListed)],saleNo=1;
     fullReturns(i).forEach(function(r){if(r._relistedAt){anchors.push(day(r._relistedAt));saleNo=Math.max(saleNo,saleNoOf(r)+1);}});
-    i.refreshHistory.forEach(function(e){if(e&&e.type==='relist')anchors.push(day(e.date));});
+    history.forEach(function(e){if(e&&e.type==='relist')anchors.push(day(e.date));});
     var sold=day(saleNo>1?i.resaleDateSold:i.dateSold);
     if(i.state==='sold'&&!sold)return 0;
     var end=sold&&sold<through?sold:through,anchor=latestDate(anchors);
     if(!anchor||anchor>end)return 0;
     var platform=inferPlatform(i,null,saleNo);if(platform!=='ebay_biz')return 0;
-    var policy=i.refreshHistory.filter(function(e){return e&&e.type==='renewal_policy';}).slice(-1)[0];
+    var policy=history.filter(function(e){return e&&e.type==='renewal_policy';}).slice(-1)[0];
     if(policy&&policy.enabled===false)return 0;
     var fee=policy&&policy.fee!=null?Math.max(0,round(policy.fee)):feeFor(platform);if(fee===null)return 0;
-    var shared=i.refreshHistory.filter(function(e){return e&&e.type==='bundle_listing_fee'&&e.basis==='shared'&&Number(e.saleNo||1)===saleNo;}).slice(-1)[0];
+    var shared=history.filter(function(e){return e&&e.type==='bundle_listing_fee'&&e.basis==='shared'&&Number(e.saleNo||1)===saleNo;}).slice(-1)[0];
     if(shared){
       if(n(shared.totalFee)<=0)fee=0;
       else{
@@ -171,8 +171,9 @@
     for(var m=1;m<1200;m++){
       var due=monthDay(anchor,m);if(!due||due>end||(sold&&due>=sold))break;
       if(due<AUTO_START)continue;
-      if(i.refreshHistory.some(function(e){return e&&e.type==='monthly_renewal'&&e.date===due&&e.anchor===anchor;}))continue;
-      i.refreshHistory.push({type:'monthly_renewal',date:due,anchor:anchor,_saleNo:saleNo,_platform:platform,_listingFee:fee,estimated:true});
+      if(history.some(function(e){return e&&e.type==='monthly_renewal'&&e.date===due&&e.anchor===anchor;}))continue;
+      if(!Array.isArray(i.refreshHistory))i.refreshHistory=history;
+      history.push({type:'monthly_renewal',date:due,anchor:anchor,_saleNo:saleNo,_platform:platform,_listingFee:fee,estimated:true});
       applyFeeToCycle(i,saleNo,fee);changed++;
     }
     return changed;
@@ -182,9 +183,9 @@
   function ensureItem(i){
     if(!i)return 0;
     var changed=0;
-    if(!Array.isArray(i.refreshHistory))i.refreshHistory=[];
+    var history=Array.isArray(i.refreshHistory)?i.refreshHistory:[];
 
-    i.refreshHistory.forEach(function(e){
+    history.forEach(function(e){
       if(!e||e.type!=='relist')return;
       if(e._fromReturn)return;
       if(e._listingFee!==undefined&&e._listingFee!==null)return;
@@ -213,12 +214,12 @@
     });
 
     var relistDates=[];
-    i.refreshHistory.forEach(function(e){if(e&&e.type==='relist'&&e.date)relistDates.push(e.date);});
+    history.forEach(function(e){if(e&&e.type==='relist'&&e.date)relistDates.push(e.date);});
     fullReturns(i).forEach(function(r){if(r&&r._relistedAt)relistDates.push(r._relistedAt);});
     var lastRelist=latestDate(relistDates);
     if((i._lastRelistAt||null)!==(lastRelist||null)){i._lastRelistAt=lastRelist;changed++;}
 
-    var lastRefresh=latestDate(i.refreshHistory.filter(function(e){return e&&e.type==='refresh';}).map(function(e){return e.date;}));
+    var lastRefresh=latestDate(history.filter(function(e){return e&&e.type==='refresh';}).map(function(e){return e.date;}));
     if((i._lastRefreshAt||null)!==(lastRefresh||null)){i._lastRefreshAt=lastRefresh;changed++;}
 
     changed+=renewItem(i);
@@ -246,7 +247,7 @@
 
   function manualRelistEvents(i){
     ensureItem(i);
-    return (i&&i.refreshHistory||[]).filter(function(e){return e&&e.type==='relist'&&!e._fromReturn;});
+    return (i&&Array.isArray(i.refreshHistory)?i.refreshHistory:[]).filter(function(e){return e&&e.type==='relist'&&!e._fromReturn;});
   }
 
   function totalRelistingFees(i){
