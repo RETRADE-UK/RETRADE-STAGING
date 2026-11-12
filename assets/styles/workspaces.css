@@ -506,3 +506,8 @@
   .rt-position .rt-position-balances {grid-template-columns:1.2fr 1fr 1fr}
   .rt-position .rt-position-balances [data-metric="due"] {grid-column:auto;border-bottom:0;border-right:1px solid var(--border)}
 }
+
+/* Account directory controls: one renderer, no DOM replacement layer. */
+.rt-acct-combined-menu{right:0;left:auto;min-width:238px;max-height:min(520px,75vh);overflow:auto}
+.rt-acct-fs-title{padding:8px 10px 5px;font-size:11px;font-weight:800;color:var(--text-secondary)}
+@media(max-width:640px){.rt-acct-combined-menu{min-width:min(250px,calc(100vw - 32px))}}

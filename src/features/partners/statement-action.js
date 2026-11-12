@@ -8,7 +8,6 @@
   var activeAccountId=null;
   var statementLoader=null;
   var repairQueued=false;
-  var observer=null;
 
   function compact(el){return String(el&&el.textContent||'').replace(/\s+/g,' ').trim();}
   function accountById(id){try{return (_accounts||[]).find(function(a){return a&&String(a.id)===String(id);})||null;}catch(_){return null;}}
@@ -40,19 +39,19 @@
     if(window.__rtPartnerAdjustmentStatementExportersReady){resolve();return;}
     var old=document.getElementById('rt-partner-adjustment-statement-exporters');
     if(old){old.addEventListener('load',function(){window.__rtPartnerAdjustmentStatementExportersReady?resolve():reject(new Error('Adjustment statement exporters did not initialise'));},{once:true});old.addEventListener('error',reject,{once:true});return;}
-    var script=document.createElement('script');script.id='rt-partner-adjustment-statement-exporters';script.src='./src/features/partners/account-adjustment-statements.js?v=20260917-v1500';script.async=true;script.onload=function(){window.__rtPartnerAdjustmentStatementExportersReady?resolve():reject(new Error('Adjustment statement exporters did not initialise'));};script.onerror=reject;document.head.appendChild(script);
+    var script=document.createElement('script');script.id='rt-partner-adjustment-statement-exporters';script.src='./src/features/partners/account-adjustment-statements.js?v='+encodeURIComponent(window.__rtBuildId||RT_ASSETS.build);script.async=true;script.onload=function(){window.__rtPartnerAdjustmentStatementExportersReady?resolve():reject(new Error('Adjustment statement exporters did not initialise'));};script.onerror=reject;document.head.appendChild(script);
   }
   function loadAddon(resolve,reject){
     function finish(){loadAdjustmentExporter(resolve,reject);}
     if(window.__rtPartnerStatementAccountingV3Ready&&typeof window._partnerStatementPdf==='function'){finish();return;}
     var old=document.getElementById('rt-partner-statements-accounting-v3-script');
     if(old){old.addEventListener('load',function(){window.__rtPartnerStatementAccountingV3Ready?finish():reject(new Error('Statement accounting module did not initialise'));},{once:true});old.addEventListener('error',reject,{once:true});return;}
-    var addon=document.createElement('script');addon.id='rt-partner-statements-accounting-v3-script';addon.src='./src/features/partners/statements-accounting-v3.js?v=20260917-v1500';addon.async=true;addon.onload=function(){window.__rtPartnerStatementAccountingV3Ready?finish():reject(new Error('Statement accounting module did not initialise'));};addon.onerror=reject;document.head.appendChild(addon);
+    var addon=document.createElement('script');addon.id='rt-partner-statements-accounting-v3-script';addon.src='./src/features/partners/statements-accounting-v3.js?v='+encodeURIComponent(window.__rtBuildId||RT_ASSETS.build);addon.async=true;addon.onload=function(){window.__rtPartnerStatementAccountingV3Ready?finish():reject(new Error('Statement accounting module did not initialise'));};addon.onerror=reject;document.head.appendChild(addon);
   }
   function loadStatements(done){
     if(typeof window.openPartnerStatement==='function'&&window.__rtPartnerStatementAccountingV3Ready&&window.__rtPartnerAdjustmentStatementExportersReady){done();return;}
     if(statementLoader){statementLoader.then(done).catch(function(){try{toast('Could not load partner statements','error');}catch(_){}});return;}
-    statementLoader=new Promise(function(resolve,reject){function finish(){loadAddon(resolve,reject);}if(typeof window.openPartnerStatement==='function'){finish();return;}var existing=document.getElementById('rt-partner-statements-script');if(existing&&typeof window.openPartnerStatement!=='function'){try{existing.remove();}catch(_){}}var script=document.createElement('script');script.id='rt-partner-statements-script';script.src='./src/features/partners/statements.js?v=20260917-v1500';script.async=true;script.onload=function(){typeof window.openPartnerStatement==='function'?finish():reject(new Error('Partner statement module did not initialise'));};script.onerror=reject;document.head.appendChild(script);});
+    statementLoader=new Promise(function(resolve,reject){function finish(){loadAddon(resolve,reject);}if(typeof window.openPartnerStatement==='function'){finish();return;}var existing=document.getElementById('rt-partner-statements-script');if(existing&&typeof window.openPartnerStatement!=='function'){try{existing.remove();}catch(_){}}var script=document.createElement('script');script.id='rt-partner-statements-script';script.src='./src/features/partners/statements.js?v='+encodeURIComponent(window.__rtBuildId||RT_ASSETS.build);script.async=true;script.onload=function(){typeof window.openPartnerStatement==='function'?finish():reject(new Error('Partner statement module did not initialise'));};script.onerror=reject;document.head.appendChild(script);});
     statementLoader.then(done).catch(function(err){statementLoader=null;console.warn('[RETRADE] partner statement module failed to load',err);try{toast('Could not load partner statements','error');}catch(_){}});
   }
 
@@ -61,8 +60,7 @@
   function placeStatementAction(acct){var page=document.getElementById('p-item');if(!acct||!isAccountDetail(page))return;activeAccountId=acct.id;installStyle();var btn=page.querySelector('.rt-partner-statement-btn');if(!btn)btn=makeButton(acct);btn.dataset.accountId=acct.id;btn.style.display='inline-flex';btn.style.alignItems='center';btn.style.justifyContent='center';btn.style.gap='5px';btn.style.fontSize='12px';btn.style.padding='7px 10px';btn.style.minHeight='36px';btn.style.whiteSpace='nowrap';var back=findBackControl(page),row=ensureNavRow(page,back);if(row){if(btn.parentElement!==row)row.appendChild(btn);btn.style.setProperty('margin-left','auto','important');page.querySelectorAll('.rt-partner-statement-fallback').forEach(function(el){if(!el.children.length)el.remove();});return;}var toolbar=page.querySelector('.rt-partner-v2-toolbar');if(toolbar&&toolbar.parentNode){var fallback=page.querySelector('.rt-partner-statement-fallback');if(!fallback){fallback=document.createElement('div');fallback.className='rt-partner-statement-fallback';fallback.style.cssText='display:flex;justify-content:flex-end;margin:0 0 10px;';toolbar.parentNode.insertBefore(fallback,toolbar);}fallback.appendChild(btn);}}
   function repair(){repairQueued=false;var page=document.getElementById('p-item');if(!isAccountDetail(page))return;var acct=accountFromPage(page);if(acct)placeStatementAction(acct);}
   function scheduleRepair(acct){if(acct&&acct.id!=null)activeAccountId=acct.id;if(repairQueued)return;repairQueued=true;requestAnimationFrame(repair);}
-  if(typeof _renderAccountPage==='function'){var baseRenderAccountPage=_renderAccountPage;_renderAccountPage=function(acct){if(acct&&acct.id!=null)activeAccountId=acct.id;var result=baseRenderAccountPage.apply(this,arguments);scheduleRepair(acct);return result;};}
-  var page=document.getElementById('p-item');if(page){try{observer=new MutationObserver(function(){scheduleRepair();});observer.observe(page,{childList:true,subtree:true});}catch(_){} }
+  if(typeof _renderAccountPage==='function'){var baseRenderAccountPage=_renderAccountPage;_renderAccountPage=function(acct){if(acct&&acct.id!=null)activeAccountId=acct.id;var result=baseRenderAccountPage.apply(this,arguments);placeStatementAction(acct);return result;};}
   scheduleRepair();console.info('[RETRADE] v1.5.00 adjustment-aware partner Statement action loaded');
   (window.__rtPartnerRenderFinalizers=window.__rtPartnerRenderFinalizers||[]).push(repair);
 })();

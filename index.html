@@ -37,6 +37,18 @@
 <script id="rt-theme-first-paint">
 (function(){
   var root=document.documentElement;
+  // Intro policy is decided before first paint. sessionStorage survives a
+  // reload in this tab, but a new app session gets the full welcome. No user
+  // identity or business data is stored here.
+  var idleMs=30*60*1000,last=0,at=Date.now();
+  try{last=Number(sessionStorage.getItem('rt-last-active-at'))||0;}catch(_){}
+  window.__rtReplayIntro=!(last>0&&at>=last&&at-last<idleMs);
+  if(!window.__rtReplayIntro)root.classList.add('rt-quick-start');
+  function rememberActive(){try{sessionStorage.setItem('rt-last-active-at',String(Date.now()));}catch(_){} }
+  rememberActive();
+  document.addEventListener('visibilitychange',rememberActive,{passive:true});
+  window.addEventListener('pagehide',rememberActive,{passive:true});
+  window.addEventListener('pageshow',rememberActive,{passive:true});
   root.classList.add('rt-launch-sealed');
   try{window.__rtLaunchSourceAt=(window.performance&&performance.now)?performance.now():Date.now();}catch(_e){}
   setTimeout(function(){root.classList.remove('rt-launch-sealed');},6000);
@@ -77,6 +89,11 @@ html[data-theme="dark"] #rt-launch-brand{--text-primary:#f4f5f7;background:#0f17
 @keyframes rtWelcomeWaitIn{to{opacity:.65}}
 @keyframes rtWelcomeWaitPulse{0%,100%{opacity:.35;transform:scaleX(.65)}50%{opacity:.85;transform:scaleX(1)}}
 @media(prefers-reduced-motion:reduce){#rt-launch-brand .rt-launch-progress::before{animation:none}#rt-launch-brand .rt-launch-progress{animation:none;opacity:.65}}
+html.rt-quick-start #rt-launch-brand{transition:none}
+html.rt-quick-start #rt-launch-brand .rt-launch-lockup{display:none}
+html.rt-quick-start #rt-launch-brand .rt-launch-progress{top:50%;opacity:.65;animation:none}
+html.rt-quick-start #rt-launch-brand .rt-launch-progress::before{animation:none}
+html.rt-quick-start #auth-screen-login{transform:none}
 #rt-launch-brand.rt-launch-brand-out{opacity:0;pointer-events:none}
 html.rt-launch-to-auth #rt-launch-brand .rt-launch-lockup{transform:translate3d(0,-36px,0) scale(.88);opacity:0;transition:transform 480ms cubic-bezier(.22,.61,.36,1),opacity 380ms ease-out}
 html.rt-app-cold #auth-screen-login{opacity:0;transform:translate3d(0,16px,0)}
@@ -100,9 +117,6 @@ html.rt-auth-bridge #auth-screen-login .rt-auth-brand{visibility:hidden}
 #rt-launch-brand .rt-launch-word{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:25px;font-weight:900;font-style:normal;letter-spacing:-.01em;line-height:1;transform:skewX(-10.7deg);color:var(--text-primary);white-space:nowrap;opacity:0;clip-path:inset(0 100% 0 0);transform:skewX(-10.7deg) translate3d(0,8px,0);animation:rtLaunchWordReveal1540 460ms cubic-bezier(.22,.61,.36,1) 1280ms both}
 #rt-launch-brand .rt-launch-word span{color:var(--brand)}
 #rt-launch-brand.rt-launch-brand-out .rt-launch-lockup{opacity:.82;transform:scale(1.018);transition:opacity 380ms ease-out,transform 420ms cubic-bezier(.22,.61,.36,1)}
-#rt-launch-brand.rt-launch-snapshot{visibility:visible!important;opacity:1!important;pointer-events:none!important;transition:none!important}
-#rt-launch-brand.rt-launch-snapshot .rt-launch-mark-wrap,#rt-launch-brand.rt-launch-snapshot .rt-launch-word{animation:none!important;opacity:1!important;transform:none!important;clip-path:none!important}
-#rt-launch-brand.rt-launch-snapshot .rt-launch-mark-wrap::after{animation:none!important;opacity:0!important}
 @keyframes rtLaunchShieldArc1540{
   0%{opacity:0;transform:translate3d(-50vw,22vh,0) scale(.18) rotateY(-150deg) rotateZ(-30deg)}
   8%{opacity:.82;transform:translate3d(-44vw,18vh,0) scale(.24) rotateY(-137deg) rotateZ(-25deg)}
@@ -151,15 +165,15 @@ html.rt-auth-bridge #auth-screen-login .rt-auth-brand{visibility:hidden}
 <!-- V2 Session 1 — JetBrains Mono (Inter is already loaded above with the full weight range V2 needs) -->
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <!-- V2 Session 4a: Chart.js removed — dashboard chart is hand-rolled SVG -->
-<link rel="stylesheet" href="./assets/styles/application.css?v=20261112-partner-balance-staging">
-<link rel="stylesheet" href="./assets/styles/tax.css?v=20261112-partner-balance-staging">
-<link rel="stylesheet" href="./assets/styles/item.css?v=20261112-partner-balance-staging">
-<link rel="stylesheet" href="./assets/styles/sales.css?v=20261112-partner-balance-staging">
-<link rel="stylesheet" href="./assets/styles/status.css?v=20261112-partner-balance-staging">
-<link rel="stylesheet" href="./assets/styles/responsive.css?v=20261112-partner-balance-staging">
-<link rel="stylesheet" href="./assets/styles/workspaces.css?v=20261112-partner-balance-staging">
-<link rel="stylesheet" href="./assets/styles/monitors.css?v=20261112-partner-balance-staging">
-<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./assets/styles/loading.css?v=20261112-partner-balance-staging">
+<link rel="stylesheet" href="./assets/styles/application.css?v=20261112-startup-optimisation-staging">
+<link rel="stylesheet" href="./assets/styles/tax.css?v=20261112-startup-optimisation-staging">
+<link rel="stylesheet" href="./assets/styles/item.css?v=20261112-startup-optimisation-staging">
+<link rel="stylesheet" href="./assets/styles/sales.css?v=20261112-startup-optimisation-staging">
+<link rel="stylesheet" href="./assets/styles/status.css?v=20261112-startup-optimisation-staging">
+<link rel="stylesheet" href="./assets/styles/responsive.css?v=20261112-startup-optimisation-staging">
+<link rel="stylesheet" href="./assets/styles/workspaces.css?v=20261112-startup-optimisation-staging">
+<link rel="stylesheet" href="./assets/styles/monitors.css?v=20261112-startup-optimisation-staging">
+<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./assets/styles/loading.css?v=20261112-startup-optimisation-staging">
 
 
 
@@ -1117,12 +1131,12 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 
 </div>
 
-<script src="./config/assets.js?v=20261112-partner-balance-staging"></script>
-<script src="./src/platform/local-recovery.js?v=20261112-partner-balance-staging"></script>
-<script src="./src/domain/accounting-engine.js?v=20261112-partner-balance-staging"></script>
-<script src="./src/domain/report-engine.js?v=20261112-partner-balance-staging"></script>
+<script src="./config/assets.js?v=20261112-startup-optimisation-staging"></script>
+<script src="./src/platform/local-recovery.js?v=20261112-startup-optimisation-staging"></script>
+<script src="./src/domain/accounting-engine.js?v=20261112-startup-optimisation-staging"></script>
+<script src="./src/domain/report-engine.js?v=20261112-startup-optimisation-staging"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.js" integrity="sha384-OUpie84zd1LdwNlK9uJJQRwab0BLqo3eKYKFh7hSVL58FSk7wPp2l0kfUMIIoaQd" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="./app.js?v=20261112-partner-balance-staging"></script>
+<script src="./app.js?v=20261112-startup-optimisation-staging"></script>
 
 <!-- RETRADE dashboard spacing cleanup: mobile/tablet/narrow-desktop rhythm v3 - 2026-06-29 -->
 <section id="rt-sync-details" aria-label="Cloud sync details" tabindex="-1" hidden>

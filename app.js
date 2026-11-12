@@ -98,9 +98,10 @@
         else if('requestIdleCallback' in window)requestIdleCallback(run,{timeout:600});
         else setTimeout(run,32);
       }
-      function schedule(){requestAnimationFrame(next);}
+      function schedule(){if(window.__rtFeatureLoadUrgent)next();else requestAnimationFrame(next);}
       schedule();
     }
+    window.__rtLoadFeaturesNow=function(){window.__rtFeatureLoadUrgent=true;if(window.__rtFinishLaunchSoon)window.__rtFinishLaunchSoon();if(window.__rtLaunchSettled)loadDeferred();};
     window.addEventListener('retrade:launch-settled',loadDeferred,{once:true});
     critical.forEach(function(src,index){
       append(src,index<3?'auto':'low',index===critical.length-1?function(){
@@ -136,5 +137,5 @@
   document.head.appendChild(corePreload);
   var elapsed=performance.now()-(window.__rtLaunchSourceAt||0);
   var reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  setTimeout(startCore,reduce?0:Math.max(0,1750-elapsed));
+  setTimeout(startCore,(reduce||window.__rtReplayIntro===false)?0:Math.max(0,1750-elapsed));
 })();

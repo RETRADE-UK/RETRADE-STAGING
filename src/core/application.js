@@ -5570,6 +5570,7 @@ function _queueInteractionRender(fn){
       const render=function(){if(token===_interactionRenderToken)fn();};
       if(window.__rtFeaturesReady===false&&window.__rtFeaturesPromise){
         window.__rtFeatureLoadUrgent=true;
+        if(window.__rtLoadFeaturesNow)window.__rtLoadFeaturesNow();
         window.__rtFeaturesPromise.then(render);
       }else render();
     },0);
@@ -10347,7 +10348,6 @@ function _renderAccountPage(acct){
   document.getElementById('p-item').dataset.rtAccountId=String(acct.id);
   const page=document.getElementById('p-item');
   if(!page)return;
-  const stats=_accountStats(acct.id);
   const items=_accountItems(acct.id);
   const sold=items.filter(_accountItemIsSold)
     .sort(function(a,b){
@@ -10363,55 +10363,7 @@ function _renderAccountPage(acct){
   const listedStock=active.filter(function(i){const l=_activeJobLotForItem(i.id);return l?l.status==='listed':i.state==='listed';});
   const unlistedStock=active.filter(function(i){const l=_activeJobLotForItem(i.id);return l?l.status==='building':i.state==='sourced';});
 
-  const mc=function(label,val,sub,valCol){
-    // Keep semantic value colour (green/red/--warn); omit when neutral.
-    const vc=(valCol&&valCol!=='var(--text)')?' style="color:'+valCol+';"':'';
-    return '<div class="card kpi"><div class="kpi-label">'+label+'</div>'
-      +'<div class="kpi-value num"'+vc+'>'+val+'</div>'
-      +(sub?'<div class="kpi-foot">'+sub+'</div>':'')+'</div>';
-  };
-  // Cash-flow view: headline = owed on unsettled SOLD items (payable now),
-  // bracket = owed on unsettled UNSOLD stock (grey — comes due once it sells).
-  const _outSoldOwed=stats.dueNow||0;
-  const _outUnsoldOwed=stats.pipeline||0;
-  const _outSub=(function(){
-    if(stats.unsettledOwed<=0)return 'All paid \u2713';
-    if(!stats.paysOnSale)return stats.unsettledCount+' unsettled item'+(stats.unsettledCount!==1?'s':'');
-    if(_outSoldOwed>0&&_outUnsoldOwed>0)return 'Due now \u00b7 rest when unsold sells';
-    if(_outSoldOwed>0)return stats.unsettledSoldCount+' sold, due now';
-    return 'Comes due as stock sells';
-  })();
-  // Value line: amber £ for sold-now, grey (£X unsold) for the pipeline.
-  const _outVal='\u00a3'+_outSoldOwed.toFixed(0)
-    +(_outUnsoldOwed>0?' <span style="font-size:0.62em;font-weight:600;color:var(--text-tertiary);">(\u00a3'+_outUnsoldOwed.toFixed(0)+' unsold)</span>':'');
-  // Amber while anything is owed (now or coming); green only when fully clear.
-  const _outColour=stats.unsettledOwed>0?'var(--warn)':'var(--green)';
-  const _isConsignment=(acct.accountType==='consignment');
-  const _splitPct=acct.defaultSplitPercent!=null?Math.max(0,Math.min(100,Number(acct.defaultSplitPercent)||0)):null;
-  const heroHTML=_isConsignment
-    ? '<div class="accounts-kpis-v2" style="margin-bottom:18px;">'
-      +mc('Stock value',fmt(stats.forecastStockValue),
-        stats.listedCount+' listed · '+stats.unlistedCount+' unlisted · '+stats.returnedCount+' returned')
-      +mc('Profit forecast',fmt(stats.forecastProfitPool),
-        'before partner share',stats.forecastProfitPool>=0?'var(--green)':'var(--red)')
-      +mc('Your projected',fmt(stats.projectedYourTotal),
-        fmt(stats.yourShare)+' realised · '+fmt(stats.forecastYourShare)+' forecast',stats.projectedYourTotal>=0?'var(--green)':'var(--red)')
-      +mc('Partner projected',fmt(stats.projectedPartnerTotal),
-        fmt(stats.totalOwed)+' realised · '+fmt(stats.forecastPartnerShare)+' forecast','var(--accent)')
-      +'</div>'
-    : '<div class="accounts-kpis-v2" style="margin-bottom:18px;">'
-      +mc('Your realised profit','\u00a3'+stats.yourShare.toFixed(0),stats.soldCount+' sold',stats.yourShare>=0?'var(--green)':'var(--red)')
-      +mc('Outstanding to partner',_outVal,_outSub,_outColour)
-      +mc('Paid to partner','\u00a3'+stats.settledOwed.toFixed(0),(acct.settlements||[]).length+' settlement'+((acct.settlements||[]).length!==1?'s':''))
-      +mc('Stock on hand',String(stats.stockOnHandCount),stats.listedCount+' listed · '+stats.unlistedCount+' unlisted · '+stats.returnedCount+' returned')
-      +'</div>';
-  const stockSummaryHTML=_isConsignment?''
-    : '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:-6px 0 16px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:12px;color:var(--text-secondary);">'
-      +'<span><strong style="color:var(--text);">Stock cost '+fmt(stats.stockCost)+'</strong></span>'
-      +'<span>Listed asking '+fmt(stats.activeStockValue)+'</span>'
-      +'<span>Est. potential '+fmt(stats.activePotential)+'</span>'
-    +'</div>';
-
+  // Partner balance is rendered once by account-ui-v3; do not build a hidden legacy hero.
   const isSupplierAcct=(acct.accountType==='supplier');
 
   // ── Row helper builders ────────────────────────────────────────────────────
@@ -10601,11 +10553,6 @@ function _renderAccountPage(acct){
       +'<button class="btn btn-secondary" style="font-size:11px;padding:3px 9px;margin-top:5px;color:var(--accent);" onclick="openRelist(\''+i._month+'\',\''+i.id+'\')">Relist</button></div></div>';
   }).join(''):'<div style="padding:14px;text-align:center;color:var(--muted);font-size:12px;">No returned stock</div>';
 
-  // "Mark all N unsettled as paid" — supplier accounts include unsold items in
-  // the count (debt is per-purchase, not per-sale). Consignment/hybrid still
-  // restrict to sold.
-  const unsettledCount=(isSupplierAcct?items:sold)
-    .filter(function(i){return _accountItemDebt(i)!==null&&!i.accountSettled;}).length;
   // Items with neither a % nor a fixed amount set — candidates for "apply default".
   const noSplitCount=items.filter(function(i){return i.accountSplitPercent==null&&i.accountPaidAmount==null;}).length;
   const _typeLabels={consignment:'Consignment',supplier:'Supplier',hybrid:'Hybrid'};
@@ -10621,52 +10568,15 @@ function _renderAccountPage(acct){
         +(acct.accountType==='consignment'?' \u00b7 costPrice auto-set to \u00a30 on assign':'')+'.</div>'
       : '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">No default split set. Tap <strong style="color:var(--text);">Edit</strong> to set the arrangement.</div>';
 
-  // Select bar — always shown when in select mode. When 0 items selected we
-  // show a slim "select all / cancel" bar so the user doesn't have to hunt for
-  // Select all after tapping into select mode; once one item is picked the full
-  // action bar unlocks. Fixes the "no option to select all" report.
-  const primaryBulkBtn=isSupplierAcct
-    ? '<button class="btn btn-secondary" style="font-size:12px;" onclick="_acctBulkSetCost()">Set cost</button>'
-    : '<button class="btn btn-secondary" style="font-size:12px;" onclick="_acctBulkSetSplit()">Set split</button>';
-  let selBar='';
-  if(_acctSelectMode){
-    if(_acctSelected.size===0){
-      selBar='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;background:var(--surface2);border:1px dashed var(--accent);border-radius:10px;margin-bottom:12px;">'
-        +'<span style="font-size:12px;color:var(--text-secondary);flex:1;">Tap items to select \u2014 or:</span>'
-        +'<button class="btn btn-secondary" style="font-size:12px;color:var(--accent);border-color:var(--accent);" onclick="_acctSelectAll()">Select all ('+items.length+')</button>'
-        +'<button class="btn btn-secondary" style="font-size:12px;color:var(--text-secondary);" onclick="_acctToggleSelectMode()">Cancel</button>'
-      +'</div>';
-    } else {
-      selBar='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;background:var(--surface2);border:1px solid var(--accent);border-radius:10px;margin-bottom:12px;">'
-        +'<span style="font-size:13px;font-weight:700;color:var(--accent);flex:1 1 100%;">'+_acctSelected.size+' selected</span>'
-        +'<button class="btn btn-secondary" style="font-size:12px;" onclick="_acctBulkSettle()">'+(isSupplierAcct?'Settle selected':'Allocate & settle')+'</button>'
-        +'<button class="btn btn-secondary" style="font-size:12px;" onclick="_acctBulkUnsettle()">Mark unsettled</button>'
-        +primaryBulkBtn
-        +'<button class="btn btn-secondary" style="font-size:12px;color:var(--red);border-color:rgba(239,68,68,0.35);" onclick="_acctBulkRemoveFromAccount()">Remove</button>'
-        +'<button class="btn btn-secondary" style="font-size:12px;" onclick="_acctSelectAll()">All</button>'
-        +'<button class="btn btn-secondary" style="font-size:12px;color:var(--text-secondary);" onclick="_acctClearSelect()">Clear</button>'
-      +'</div>';
-    }
-  }
-
   const html='<div style="padding:16px 0 40px;">'
     +'<button class="btn btn-secondary" onclick="backToAccountsList()" style="margin-bottom:14px;">\u2190 Accounts</button>'
     +'<div class="page-header" style="margin-bottom:14px;">'
       +'<div><div class="page-title">'+esc(acct.name)+'</div>'
       +'<div style="display:flex;align-items:center;gap:6px;margin-top:4px;">'+_typeTag
       +(acct.notes?'<span style="font-size:12px;color:var(--text-secondary);">'+esc(acct.notes)+'</span>':'')+'</div></div>'
-      +'<div style="display:flex;gap:8px;">'
-        +'<button class="btn btn-secondary" style="font-size:12px;padding:6px 10px;" onclick="openEditAccount(\''+acct.id+'\')">Edit</button>'
-        +'<button class="btn btn-secondary" style="font-size:12px;padding:6px 10px;" onclick="openBulkAssignAccountModal(\''+acct.id+'\')">+ Add</button>'
-        +'<button class="btn btn-secondary" style="font-size:12px;padding:6px 10px;'+(_acctSelectMode?'color:var(--accent);border-color:var(--accent)':'')+'" onclick="_acctToggleSelectMode()">'+(_acctSelectMode?'\u2715 Done':'Select')+'</button>'
-      +'</div>'
     +'</div>'
     +defaultLine
-    +heroHTML
-    +stockSummaryHTML
-    +selBar
     +((!isSupplierAcct&&hasDefault&&noSplitCount>0&&!_acctSelectMode)?'<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;" onclick="applyDefaultSplitToAll(\''+acct.id+'\')">Apply '+acct.defaultSplitPercent+'% to '+noSplitCount+' item'+(noSplitCount!==1?'s':'')+' with no split</button>':'')
-    +(unsettledCount>0&&!_acctSelectMode?'<button class="btn btn-primary" style="width:100%;margin-bottom:14px;" onclick="'+(isSupplierAcct?'settleAllForAccount(\''+acct.id+'\')':'_openConsignmentSettlementForAccount(\''+acct.id+'\')')+'">'+(isSupplierAcct?'Settle '+unsettledCount+' outstanding item'+(unsettledCount!==1?'s':''):'Allocate & settle '+unsettledCount+' item'+(unsettledCount!==1?'s':''))+'</button>':'')
     +_accountGroupHTML(acct,'sales','Sales',sold.length,soldRows,true)
     +_accountGroupHTML(acct,'listed','Listed stock',listedStock.length,listedRows,false)
     +_accountGroupHTML(acct,'unlisted','Unlisted · needs listing',unlistedStock.length,unlistedRows,false)
@@ -11167,78 +11077,17 @@ function openBulkAssignAccountModal(accountId){
 
 // ── Accounts list page ─────────────────────────────────────────────────────
 function renderAccountsPage(){
+  // The directory has one owner. Until it is installed, show the route's
+  // existing loading state instead of rendering a superseded account list.
   const page=document.getElementById('p-accounts');
-  if(!page)return;
-
-  const hasAccounts=_accounts.length>0;
-
-  const emptyHTML=
-    '<div style="text-align:center;padding:48px 24px;color:var(--text-secondary)">'
-      +'<div style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:6px">No accounts yet</div>'
-      +'<div style="font-size:13px;line-height:1.6;max-width:320px;margin:0 auto 18px">Track stock from sourcing partners or vendors \u2014 see their lifetime performance and what you owe them, all in one place.</div>'
-      +'<button class="btn btn-primary" style="gap:6px;padding:10px 18px;font-size:13px" onclick="openAddAccountModal()">'
-        +'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
-        +'Add your first account</button>'
-    +'</div>';
-
-  let listHTML='';
-  if(hasAccounts){
-    // Sort: any account with unsettled money owed first (most owed first),
-    // then alphabetically — surfaces what needs attention without a manual sort control.
-    const withStats=_accounts.map(function(a){return {acct:a,stats:_accountStats(a.id)};});
-    withStats.sort(function(a,b){
-      if(a.stats.dueNow!==b.stats.dueNow)return b.stats.dueNow-a.stats.dueNow;
-      return (a.acct.name||'').localeCompare(b.acct.name||'');
-    });
-    listHTML=withStats.map(function(w){
-      const a=w.acct,s=w.stats;
-    const _tLabel={consignment:'Consignment',supplier:'Supplier',hybrid:'Hybrid'};
-    const _tClr={consignment:'var(--accent)',supplier:'var(--blue)',hybrid:'var(--green)'};
-    const _tTag='<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;background:rgba(255,255,255,0.07);color:'+(_tClr[a.accountType]||'var(--muted)')+';">'+(_tLabel[a.accountType]||'Supplier')+'</span>';
-    // Must match the account page headline exactly (v2.14.1): show what's due
-    // now, with any not-yet-due pipeline in muted brackets.
-    const owedStr=s.dueNow>0
-      ?'<span style="color:var(--accent);font-weight:700;">'+fmt(s.dueNow)+' owed</span>'+(s.pipeline>0?'<span style="color:var(--text-tertiary);"> ('+fmt(s.pipeline)+' unsold)</span>':'')
-      :(s.pipeline>0
-        ?'<span style="color:var(--green);">Settled up</span><span style="color:var(--text-tertiary);"> ('+fmt(s.pipeline)+' unsold)</span>'
-        :'<span style="color:var(--green);">Settled up</span>');
-      return '<div class="run-history-row" data-acctid="'+a.id+'" onclick="openAccountPage(this.dataset.acctid)">'
-        +'<div class="rh-body">'
-          +'<div class="rh-name" style="display:flex;align-items:center;gap:6px;">'+esc(a.name)+_tTag+'</div>'
-          +'<div class="rh-meta rh-meta-full">'+s.itemCount+' item'+(s.itemCount!==1?'s':'')+' \u00b7 '+s.stockOnHandCount+' stock on hand \u00b7 '+s.listedCount+' listed \u00b7 '+s.unlistedCount+' unlisted'+(s.returnedCount?' \u00b7 '+s.returnedCount+' returned':'')+' \u00b7 '+owedStr+'</div>'
-          +'<div class="rh-meta rh-meta-compact">'+s.itemCount+' items \u00b7 '+owedStr+'</div>'
-        +'</div>'
-        +'<span class="rh-profit" style="color:'+(s.yourShare>=0?'var(--green)':'var(--red)')+';">'+fmt(s.yourShare)+'</span>'
-        +'<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-      +'</div>';
-    }).join('');
-
-    // Summary strip — total owed across all accounts is the one number worth
-    // surfacing at a glance, since it's money that's left your business but
-    // isn't yet officially settled.
-    const totalUnsettled=withStats.reduce(function(s,w){return s+w.stats.dueNow;},0);
-    const totalYourShare=withStats.reduce(function(s,w){return s+w.stats.yourShare;},0);
-    if(totalUnsettled>0){
-      listHTML='<div class="panel-card" style="margin-bottom:14px;background:rgba(212,136,10,0.06);border-color:rgba(212,136,10,0.25);">'
-        +'<div style="display:flex;align-items:center;justify-content:space-between;">'
-          +'<div><div style="font-size:12px;color:var(--text-secondary);font-weight:600;">Total owed across all accounts</div>'
-          +'<div style="font-size:20px;font-weight:800;color:var(--accent);margin-top:2px;">'+fmt(totalUnsettled)+'</div></div>'
-        +'</div></div>'
-        +listHTML;
+  if(!page||!page.classList.contains('on'))return;
+  const pendingRenderer=renderAccountsPage;
+  _showRoutePending('accounts');
+  if(window.__rtFeaturesPromise)window.__rtFeaturesPromise.then(function(){
+    if(page.classList.contains('on')&&renderAccountsPage!==pendingRenderer){
+      renderAccountsPage();_clearRoutePending(page);
     }
-  }
-
-  const html=
-    '<div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">'
-      +'<div><div class="page-title">Accounts</div>'
-      +'<div class="page-subtitle" style="font-size:12px;margin-top:2px;">Partners &amp; vendors \u2014 stock, profit split &amp; settlement.</div></div>'
-      +(hasAccounts?'<button class="btn btn-primary" style="gap:6px;padding:9px 14px;font-size:13px;white-space:nowrap;" onclick="openAddAccountModal()">'
-        +'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
-        +'<span class="btn-label-hide-xs">Add partner</span></button>':'')
-    +'</div>'
-    +(hasAccounts?listHTML:emptyHTML);
-
-  page.innerHTML=html;
+  });
 }
 
 function openRunPageFromRuns(runId){

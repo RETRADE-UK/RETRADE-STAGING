@@ -1,3 +1,39 @@
+# Current startup and account ownership — 12 November 2026
+
+The `20261112-startup-optimisation` generation supersedes earlier loading notes
+below (staging adds `-staging`). `index.html` decides whether to replay the intro
+before paint: a new tab/app session or a document restart after 30 minutes away
+uses the full welcome; a recent same-tab reload uses a quiet loading indicator.
+Normal foreground/focus and back-forward restoration preserve the actual page.
+The operating system may restore a closed tab's sessionStorage; the inactivity
+rule still applies, since browsers do not reliably expose a force-quit signal.
+
+Accounts directory: `operations-dashboard.js` is the only list renderer. Core
+uses a loading state until it is available. Account details build the current
+balance directly; legacy hero/stock cards are no longer constructed. Six
+obsolete presentation modules were removed after tracing their replacements.
+Unchanged credit responses no longer rebuild the active page. Payment timing comes from core fields plus `arrangements-v2.js`. Visible account
+credits remain in the transaction UI and statements; the hidden, repeatedly
+created adjustment panel was removed. Accounting functions and database schema
+are unchanged.
+
+`page-unified-v1503.js` owns the final account presentation pass. It runs before
+paint after a render and through one observer for later content updates, drains
+its own mutation records, and preserves selection/collapse state. Statement,
+nav and collapse finalizers no longer each observe the entire item subtree.
+
+Route interactions expedite ordered feature loading after the dashboard is
+ready, without waiting for decorative chart dwell. Foreground cache warming is
+throttled to once per five minutes and respects Save-Data. Lazy partner scripts
+use the current manifest generation instead of fixed historical versions.
+
+Inactive `archive/` app copies and `.github/archive/` patch generators were
+removed from both working trees; their source remains recoverable from Git
+history. Migrations, repair history, tests and staging experiments are retained.
+No archived source is required to build or run the app.
+
+---
+
 # Runtime ownership
 
 ## 12 November — partner balance

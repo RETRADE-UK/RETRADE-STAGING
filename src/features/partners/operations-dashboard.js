@@ -157,6 +157,8 @@
   window._rtAcctOpSearch=function(v){state.q=v||'';updateList();};
   window._rtAcctOpFilter=function(v){state.filter=v||'all';updateList();};
   window._rtAcctOpSort=function(v){state.sort=v||'owed';updateList();};
+  window._rtAcctCompactFilter=function(v){closeFilterPill('rt-acct-filter-sort');window._rtAcctOpFilter(v);};
+  window._rtAcctCompactSort=function(v){closeFilterPill('rt-acct-filter-sort');window._rtAcctOpSort(v);};
   window._rtAcctOpSelectMode=function(){state.selecting=!state.selecting;if(!state.selecting)state.selected.clear();render();};
   window._rtAcctOpToggle=function(id,on){if(on)state.selected.add(String(id));else state.selected.delete(String(id));render();};
   window._rtAcctOpSelectVisible=function(){sortRows(allRows().filter(matches)).forEach(function(r){state.selected.add(String(r.acct.id));});render();};

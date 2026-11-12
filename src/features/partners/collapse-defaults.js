@@ -7,7 +7,7 @@
   if(window.__rtPartnerCollapseDefaults1491)return;
   window.__rtPartnerCollapseDefaults1491=true;
 
-  var groupState=Object.create(null),unsettledState=Object.create(null),queued=false,observer=null;
+  var groupState=Object.create(null),unsettledState=Object.create(null),queued=false;
   function norm(v){return String(v==null?'':v).replace(/\s+/g,' ').trim();}
   function page(){var p=document.getElementById('p-item');return p&&p.classList.contains('on')?p:null;}
   function searchActive(p){var input=p&&p.querySelector('.rt-partner-v2-search input');return !!(input&&norm(input.value));}
@@ -40,7 +40,7 @@
   function schedule(){if(queued)return;queued=true;requestAnimationFrame(enhance);}
 
   function start(){
-    schedule();var p=document.getElementById('p-item');if(p){observer=new MutationObserver(function(muts){for(var i=0;i<muts.length;i++){if(muts[i].type==='childList'&&(muts[i].addedNodes.length||muts[i].removedNodes.length)){schedule();return;}}});observer.observe(p,{childList:true,subtree:true});}
+    schedule();
     window.addEventListener('retrade:motion-ready',schedule);window.addEventListener('retrade:account-page-reveal',schedule);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();

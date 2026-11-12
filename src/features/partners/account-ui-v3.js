@@ -118,31 +118,6 @@
     page.querySelectorAll('.rt-partner-statement-fallback').forEach(function(el){if(!el.children.length)el.remove();});
   }
 
-  function isBeforeAnchor(anchor,el){
-    if(!anchor||!el)return true;
-    return !!(el.compareDocumentPosition(anchor)&Node.DOCUMENT_POSITION_FOLLOWING);
-  }
-
-  function hideLegacyKpis(page,anchor){
-    var selectors='.kpi-card,.stat-card,.metric-card,.summary-card,.kpi,.stat,[class*="kpi-card"],[class*="stat-card"],[class*="summary-card"]';
-    page.querySelectorAll(selectors).forEach(function(el){
-      if(!isBeforeAnchor(anchor,el))return;
-      if(el.closest('.account-group,.rt-partner-summary-v3,.rt-partner-v2-toolbar,.rt-partner-v2-selection'))return;
-      var txt=compactText(el);
-      if(!/£\s*[-\d]/.test(txt))return;
-      if(!/(profit|earned|earning|outstanding|owed|paid|potential|expected|projected|settled|revenue|value)/i.test(txt))return;
-      if(/back to|statement/i.test(txt))return;
-      el.classList.add('rt-partner-v3-legacy-kpi');
-    });
-    page.querySelectorAll('div').forEach(function(el){
-      if(!isBeforeAnchor(anchor,el)||el.closest('.account-group')||el.classList.contains('rt-partner-summary-v3'))return;
-      var kids=Array.prototype.slice.call(el.children||[]);
-      if(kids.length<2||kids.length>8)return;
-      var hidden=kids.filter(function(k){return k.classList&&k.classList.contains('rt-partner-v3-legacy-kpi');}).length;
-      if(hidden>=2&&hidden===kids.length)el.classList.add('rt-partner-v3-legacy-kpi');
-    });
-  }
-
   function realizedRetradeProfit(acct){
     var total=0;
     try{
@@ -371,7 +346,6 @@
     pinStatement(page);
     var anchor=page.querySelector('.rt-partner-v2-toolbar')||page.querySelector('.account-group');
     if(anchor){
-      hideLegacyKpis(page,anchor);
       buildSummary(page,acct,anchor);
     }
     wireRowMenus(page,acct);
