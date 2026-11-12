@@ -195,7 +195,8 @@
     if(p.heldStockOutstanding)dueNotes.push(money(p.heldStockOutstanding)+' on returned or written-off stock is held separately');
     if(!dueNotes.length)dueNotes.push('No payment outstanding');
     var paidNote=p.hasEarlyOrUnallocatedPayments?'Includes advance or unallocated payments':'';
-    var earnedNote=p.earnedAdjustments?'After '+money(p.earnedAdjustments)+' in adjustments':'Includes unpaid sales';
+    var earnedNote='Includes unpaid sales';
+    if(p.earnedAdjustments)earnedNote+=' · After '+money(p.earnedAdjustments)+' in adjustments';
     if(p.hasLegacySettled)paidNote+=(paidNote?' · ':'')+'Some earlier items were marked settled without a recorded payment';
     var html='<dl class="rt-position-balances">'+
       metric('due','Due now',!p.dueCount&&p.dueNeedsTerms?null:p.due,dueNotes.join(' · '))+

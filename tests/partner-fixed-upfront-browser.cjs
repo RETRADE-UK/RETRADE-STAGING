@@ -82,7 +82,7 @@ async function assertPartnerFigures(view, expected){
    await page.evaluate(()=>{
     saveDB=()=>{};
     _accounts=[{id:'matt',name:"Matt's Drives",accountType:'consignment',arrangementModel:'fixed_cost',paymentTiming:'on_sale',paymentTerms:'on_sale',settlements:[]}];
-    const item=(id,extra={})=>Object.assign({id,item:'Drive lot '+id,accountId:'matt',accountType:'consignment',state:'sourced',costPrice:0,salePrice:60,accountPaidAmount:null,accountSplitPercent:null,accountSettled:false,partnerAgreedAmount:null,arrangementModelOverride:'fixed_cost',dateSold:null,dateListed:null,dateSourced:'2026-10-01',salePlatform:'ebay',parts:[],returnHistory:[]},extra);
+    const item=(id,extra={})=>Object.assign({id,item:'Drive lot '+id,accountId:'matt',accountType:'consignment',state:'sourced',costPrice:0,salePrice:60,accountPaidAmount:null,accountSplitPercent:null,accountSettled:false,partnerAgreedAmount:null,arrangementModelOverride:'fixed_cost',dateSold:null,dateListed:null,dateSourced:'2026-10-01',salePlatform:'ebay',parts:[],returnHistory:[],refreshHistory:[]},extra);
     DB={'OCT-26':[
       item('m-known',{item:'7× 500GB Seagate bundle',state:'sold',dateSold:'2026-10-07',salePrice:59.99,accountPaidAmount:30,partnerAgreedAmount:30}),
       item('m-missing-1',{item:'10× 320GB WD bundle',state:'sold',dateSold:'2026-10-10',salePrice:49.99}),
