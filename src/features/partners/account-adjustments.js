@@ -19,7 +19,6 @@
   function round(v){return Math.round((Number(v)||0)*100)/100;}
   function money(v){try{return typeof fmt==='function'?fmt(round(v)):'£'+round(v).toFixed(2);}catch(_){return '£'+round(v).toFixed(2);}}
   function gbp(v){return '£'+round(v).toFixed(2);}
-  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function today(){return new Date().toISOString().slice(0,10);}
   function uid(){try{return _currentUserId||null;}catch(_){return null;}}
   function sb(){try{return _sb||null;}catch(_){return null;}}
@@ -143,72 +142,6 @@
     }
   }
 
-  function returnLoss(item){
-    var total=0;
-    try{(item&&Array.isArray(item.returnHistory)?item.returnHistory:[]).forEach(function(r){var x=(typeof _returnEventImpact==='function')?_returnEventImpact(item,r):null;if(x){total+=Math.max(0,(Number(x.refund)||0)+(Number(x.postage)||0)-(Number(x.feeCredit)||0)-(Number(x.promoCredit)||0));}else total+=Math.max(0,(Number(r&&r.refundAmount)||0)+(Number(r&&r.returnPostage)||0));});}catch(_){}
-    return round(total);
-  }
-
-  function proportionalAllocations(accountId,selectedIds,total){
-    total=round(total);var selected=allAccountItems(accountId).filter(function(e){return selectedIds.indexOf(String(e.item.id))!==-1;});if(!selected.length||total<=0)return [];
-    var weights=selected.map(function(e){return Math.max(0,returnLoss(e.item));});var sum=weights.reduce(function(s,v){return s+v;},0);if(sum<=0){weights=weights.map(function(){return 1;});sum=weights.length;}
-    var cents=Math.round(total*100),usedCents=0;
-    return selected.map(function(e,idx){var c=idx===selected.length-1?cents-usedCents:Math.floor(cents*weights[idx]/sum);usedCents+=c;return {item_id:e.item.id,item_name:e.item.item||'Item',amount:round(c/100)};}).filter(function(a){return a.amount>0;});
-  }
-
-  async function saveNewAdjustment(accountId){
-    var amount=Math.abs(Number((document.getElementById('rt-adj-amount')||{}).value)||0),date=(document.getElementById('rt-adj-date')||{}).value||today(),kind=(document.getElementById('rt-adj-kind')||{}).value||'partner_loss_contribution',reason=String((document.getElementById('rt-adj-reason')||{}).value||'').trim(),note=String((document.getElementById('rt-adj-note')||{}).value||'').trim();
-    if(!(amount>0)||!reason){try{toast('Enter an amount and reason','error');}catch(_){}return;}
-    amount=round(amount);
-    var ids=Array.prototype.slice.call(document.querySelectorAll('[data-rt-adj-item]:checked')).map(function(el){return String(el.getAttribute('data-rt-adj-item'));});
-    var itemAlloc=proportionalAllocations(accountId,ids,amount);
-    var client=sb(),user=uid();if(!client||!user){try{toast('Database is not ready','error');}catch(_){}return;}
-    var rec={id:'adj_'+Date.now()+'_'+Math.random().toString(36).slice(2,9),user_id:user,account_id:String(accountId),date:date,kind:kind,amount:amount,reason:reason,note:note||null,item_allocations:itemAlloc,applications:[],status:'active',revision:0,updated_at:new Date().toISOString()};
-    var btn=document.getElementById('rt-adj-save');if(btn){btn.disabled=true;btn.textContent='Saving…';}
-    try{
-      var res=await client.from('account_adjustments').insert(rec).select('*');if(res.error)throw res.error;
-      rows.unshift(res.data&&res.data[0]?res.data[0]:rec);
-      refreshFinancialViews();
-      try{closePanel();}catch(_){}try{toast('Account credit recorded · '+money(amount));}catch(_){}
-    }catch(err){console.error('[RETRADE] adjustment save failed',err);try{toast(err.message||'Could not save account adjustment','error');}catch(_){}}
-    finally{if(btn){btn.disabled=false;btn.textContent='Save account credit';}}
-  }
-
-  function openAdd(accountId){
-    installStyles();
-    var entries=allAccountItems(accountId).filter(function(e){var i=e.item;return i&&(i.dateSold||i.resaleDateSold||i.returnHistory&&i.returnHistory.length||i.scrappedAt);});
-    entries.sort(function(a,b){var aw=returnLoss(a.item),bw=returnLoss(b.item);if((aw>0)!==(bw>0))return bw-aw;return String(b.item.dateSold||b.item.resaleDateSold||'').localeCompare(String(a.item.dateSold||a.item.resaleDateSold||''));});
-    var defaultReturnIds=entries.filter(function(e){return returnLoss(e.item)>0;}).map(function(e){return String(e.item.id);});
-    var itemHtml=entries.length?entries.slice(0,80).map(function(e){var loss=returnLoss(e.item),checked=loss>0?' checked':'';return '<label class="rt-adj-item"><input type="checkbox" data-rt-adj-item="'+esc(e.item.id)+'"'+checked+'><span><strong>'+esc(e.item.item||'Item')+'</strong><small>'+(loss>0?'Recorded return loss '+esc(money(loss)):'Link for item-level attribution')+'</small></span></label>';}).join(''):'<div class="rt-adj-empty">No eligible account items to link.</div>';
-    var body=''
-      +'<div class="rt-adj-help">This is a <strong>non-cash account credit</strong>. It reduces what the partner/supplier is owed and improves RETRADE earnings, but does not create a cashflow entry until a real payment is made.</div>'
-      +'<div class="fg"><label>Adjustment type</label><select id="rt-adj-kind"><option value="partner_loss_contribution">Return-loss contribution</option><option value="supplier_credit">Supplier credit</option><option value="manual_credit">Other agreed credit</option></select></div>'
-      +'<div class="fg"><label>Amount</label><input id="rt-adj-amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="100.00"></div>'
-      +'<div class="fg"><label>Date</label><input id="rt-adj-date" type="date" value="'+today()+'"></div>'
-      +'<div class="fg"><label>Reason</label><input id="rt-adj-reason" type="text" placeholder="e.g. Contribution toward returned stock losses"></div>'
-      +'<div class="fg"><label>Note <span style="font-weight:400">optional</span></label><textarea id="rt-adj-note" rows="2" placeholder="Extra context for the audit trail or statement"></textarea></div>'
-      +'<div class="rt-adj-link-head"><div><strong>Link affected items</strong><small>Optional · selected items split the credit proportionally using recorded return losses.</small></div>'+(defaultReturnIds.length?'<button type="button" class="btn btn-secondary" id="rt-adj-returned">Returned items</button>':'')+'</div>'
-      +'<div class="rt-adj-items">'+itemHtml+'</div>'
-      +'<button type="button" class="btn btn-primary" id="rt-adj-save" style="width:100%;margin-top:12px">Save account credit</button>';
-    try{openPanel('Add account adjustment',body);}catch(_){return;}
-    var save=document.getElementById('rt-adj-save');if(save)save.addEventListener('click',function(){saveNewAdjustment(accountId);});
-    var returned=document.getElementById('rt-adj-returned');if(returned)returned.addEventListener('click',function(){document.querySelectorAll('[data-rt-adj-item]').forEach(function(el){el.checked=defaultReturnIds.indexOf(String(el.getAttribute('data-rt-adj-item')))!==-1;});});
-  }
-
-  async function voidAdjustment(id){
-    var r=rows.find(function(x){return x&&String(x.id)===String(id);});if(!r||!active(r))return;
-    if(used(r)>0.009){try{toast('This adjustment has already been applied to a payment and cannot be voided','error');}catch(_){}return;}
-    var reason=String((document.getElementById('rt-adj-void-reason')||{}).value||'Voided by user').trim()||'Voided by user';
-    var client=sb(),user=uid(),oldRevision=Number(r.revision)||0;if(!client||!user)return;
-    try{var res=await client.from('account_adjustments').update({status:'void',voided_at:new Date().toISOString(),void_reason:reason,revision:oldRevision+1,updated_at:new Date().toISOString()}).eq('id',r.id).eq('user_id',user).eq('revision',oldRevision).select('*');if(res.error||!res.data||res.data.length!==1)throw (res.error||new Error('Adjustment changed on another device.'));Object.assign(r,res.data[0]);refreshFinancialViews();try{closePanel();}catch(_){}try{toast('Adjustment voided');}catch(_){}}catch(err){try{toast(err.message||'Could not void adjustment','error');}catch(_){}}
-  }
-
-  function openVoid(id){var r=rows.find(function(x){return x&&String(x.id)===String(id);});if(!r)return;var body='<div class="rt-adj-help">Voiding keeps the original record for audit history but removes its effect from the account balance and statements.</div><div class="fg"><label>Reason</label><input id="rt-adj-void-reason" type="text" value="Voided by user"></div><button type="button" class="btn btn-danger" id="rt-adj-void-confirm" style="width:100%">Void '+esc(money(r.amount))+' credit</button>';try{openPanel('Void account adjustment',body);}catch(_){return;}var b=document.getElementById('rt-adj-void-confirm');if(b)b.addEventListener('click',function(){voidAdjustment(id);});}
-
-  function installStyles(){if(document.getElementById('rt-account-adjustments-style'))return;var s=document.createElement('style');s.id='rt-account-adjustments-style';s.textContent='\
-    .rt-account-adjustments{margin:0 0 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden}.rt-adj-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border)}.rt-adj-head-copy{flex:1;min-width:0}.rt-adj-title{font-size:13px;font-weight:800}.rt-adj-sub{font-size:10.5px;color:var(--text-secondary);margin-top:2px}.rt-adj-credit{font-size:14px;font-weight:800;color:var(--green);white-space:nowrap}.rt-adj-list{display:block}.rt-adj-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)}.rt-adj-row:last-child{border-bottom:0}.rt-adj-name{font-size:12px;font-weight:750}.rt-adj-meta{font-size:10.5px;color:var(--text-secondary);margin-top:3px}.rt-adj-amount{font-size:12px;font-weight:800;color:var(--green);font-variant-numeric:tabular-nums}.rt-adj-voided .rt-adj-name,.rt-adj-voided .rt-adj-amount{color:var(--text-secondary);text-decoration:line-through}.rt-adj-empty{padding:12px 14px;font-size:11px;color:var(--text-secondary)}.rt-adj-help{font-size:11.5px;line-height:1.5;color:var(--text-secondary);padding:10px 11px;border:1px solid var(--border);background:var(--surface2);border-radius:10px;margin-bottom:13px}.rt-adj-link-head{display:flex;gap:10px;align-items:center;margin:12px 0 7px}.rt-adj-link-head>div{flex:1;min-width:0}.rt-adj-link-head strong{display:block;font-size:12px}.rt-adj-link-head small{display:block;font-size:10.5px;color:var(--text-secondary);margin-top:2px}.rt-adj-items{max-height:240px;overflow:auto;border:1px solid var(--border);border-radius:10px}.rt-adj-item{display:flex;gap:10px;align-items:center;padding:9px 10px;border-bottom:1px solid var(--border);cursor:pointer}.rt-adj-item:last-child{border-bottom:0}.rt-adj-item input{width:18px;height:18px}.rt-adj-item span{min-width:0}.rt-adj-item strong{display:block;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rt-adj-item small{display:block;font-size:10px;color:var(--text-secondary);margin-top:2px}.rt-adj-statement-note{font-size:6.8px;color:#65707e}@media(max-width:560px){.rt-adj-head{flex-wrap:wrap}.rt-adj-head .btn{width:100%}.rt-adj-row{grid-template-columns:minmax(0,1fr) auto}.rt-adj-row .rt-adj-void{grid-column:1/-1;width:100%}}';document.head.appendChild(s);}
-
-  function adjustmentRowsForPeriod(accountId,period){return activeRowsForAccount(accountId).filter(function(r){return (!period||!period.from||String(r.date)>=String(period.from))&&(!period||!period.to||String(r.date)<=String(period.to));});}
   function adjustedStatement(accountId,period){
     if(typeof window.__rtBuildPartnerStatementV3Base!=='function'&&typeof window.__rtBuildPartnerStatementV3==='function')window.__rtBuildPartnerStatementV3Base=window.__rtBuildPartnerStatementV3;
     var base=window.__rtBuildPartnerStatementV3Base;if(typeof base!=='function')throw new Error('Partner statement engine is not ready.');

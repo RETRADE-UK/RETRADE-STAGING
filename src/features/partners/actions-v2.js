@@ -13,7 +13,6 @@
 
   var searchByAccount=Object.create(null);
   var activeAccountId=null;
-  var enhanceQueued=false;
 
   function accountById(id){
     try{return (_accounts||[]).find(function(a){return a&&String(a.id)===String(id);})||null;}
@@ -228,7 +227,6 @@
   }
 
   function enhance(acct){
-    enhanceQueued=false;
     var page=document.getElementById('p-item');
     if(!acct||!isAccountDetailPage(page))return;
     activeAccountId=acct.id;
@@ -239,15 +237,7 @@
     buildSelectionBar(page,acct,toolbar);
   }
 
-  function scheduleEnhance(acct){
-    if(acct&&acct.id!=null)activeAccountId=acct.id;
-    if(enhanceQueued)return;
-    enhanceQueued=true;
-    requestAnimationFrame(function(){
-      var resolved=acct&&acct.id!=null?acct:accountById(activeAccountId);
-      enhance(resolved);
-    });
-  }
+
 
   function openGroupedPayment(acct){
     if(typeof window.__rtPartnerOpenPayment!=='function'){
