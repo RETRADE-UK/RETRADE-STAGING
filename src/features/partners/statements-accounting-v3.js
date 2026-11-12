@@ -29,7 +29,6 @@
   function accountModel(acct){try{if(typeof _rtArrangementForAccount==='function')return _rtArrangementForAccount(acct);}catch(_){}return String(acct&&acct.accountType||'supplier').toLowerCase()==='supplier'?'fixed_cost':'profit_share';}
   function itemModel(item,acct){try{if(typeof _rtArrangementForItem==='function')return _rtArrangementForItem(item,acct);}catch(_){}try{if(typeof _itemAccountType==='function')return String(_itemAccountType(item)||'').toLowerCase()==='supplier'?'fixed_cost':'profit_share';}catch(_){}return accountModel(acct);}
   function arrangementLabel(acct){try{if(typeof _rtArrangementLabel==='function')return _rtArrangementLabel(acct);}catch(_){}return accountModel(acct)==='fixed_cost'?'Fixed cost':'Profit share';}
-  function agreedAmount(item,acct,b){try{if(typeof _rtPartnerAgreedAmount==='function'){var a=_rtPartnerAgreedAmount(item,acct);if(a!=null)return Math.max(0,money(a));}}catch(_){}if(item&&item.partnerAgreedAmount!=null)return Math.max(0,money(item.partnerAgreedAmount));if(item&&item.accountPaidAmount!=null)return Math.max(0,money(item.accountPaidAmount));if(b&&b.itemCost!=null)return Math.max(0,money(b.itemCost));return Math.max(0,money(item&&item.costPrice));}
   function iso(d){var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+day;}
   function monthEnd(ym){var p=String(ym||'').split('-'),y=Number(p[0]),m=Number(p[1]);if(!y||!m)return null;return iso(new Date(y,m,0));}
   function currentMonth(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
@@ -120,7 +119,7 @@
       // return does not reverse that supplier payout, and a later resale must
       // never create a second supplier payout. Profit-share rows already rely
       // on the canonical b.partnerSplit sale-cycle allocation.
-      var partnerAmount=fixed?(saleCycle===1?agreedAmount(ev.item,acct,b):0):Math.max(0,money(b.partnerSplit));
+      var partnerAmount=money(_rtPartnerSaleEntitlement(ev,acct,b));
       var operatingCosts=fixed?money(n(b.totalCosts)-n(b.partnerSplit)-n(b.itemCost)):money(n(b.totalCosts)-n(b.partnerSplit));
       var preDistribution=money(revenue-operatingCosts),retrade=money(preDistribution-partnerAmount);
       var partnerPct=preDistribution!==0?partnerAmount/preDistribution*100:null,retradePct=preDistribution!==0?retrade/preDistribution*100:null;

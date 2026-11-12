@@ -7,7 +7,7 @@ const engine=process.argv.includes('--webkit')?'webkit':'chromium';
  const browser=await (engine==='webkit'?webkit:chromium).launch({headless:true,...(engine==='chromium'?{args:['--no-sandbox'],...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{})}:{})});
  try{
   for(const mobile of [true,false]){
-   const {page,context,errors}=await open(browser,{signedIn:true,mobile});await settled(page);
+   const {page,context,errors}=await open(browser,{signedIn:true,partnerData:true,mobile});await settled(page);
    await page.evaluate(()=>{
     saveDB=()=>{};
     _accounts=[{id:'fixed',name:'Fixed account',accountType:'consignment',arrangementModel:'fixed_cost',paymentTiming:'upfront',paymentTerms:'upfront',settlements:[]},{id:'share',name:'Share account',accountType:'consignment',arrangementModel:'profit_share',defaultSplitPercent:50,paymentTiming:'on_sale',paymentTerms:'on_sale',settlements:[]}];

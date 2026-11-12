@@ -473,3 +473,36 @@
 /* The staging test-account entry adds height; keep every auth control reachable
    on short phones and with the keyboard open. */
 #auth-overlay form{max-height:calc(100dvh - 48px);overflow-y:auto;overscroll-behavior:contain;}
+
+/* Partner balances use the same reading order in the account and the handover view. */
+.rt-position-head {display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.rt-position-head h2 {margin:0;font-size:17px;color:var(--text)}
+.rt-position-head .rt-show-partner {width:auto;min-height:40px;padding:6px 14px}
+.rt-position-balances {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin:0;border:1px solid var(--border);border-radius:15px;overflow:hidden;background:var(--surface)}
+.rt-position-metric {min-width:0;padding:14px 16px}
+.rt-position-metric dt {font-size:13px;font-weight:650;color:var(--text-secondary)}
+.rt-position-metric dd {margin:0}
+.rt-position-metric .rt-position-value {font-size:clamp(18px,4.5vw,25px);font-weight:800;line-height:1.25;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;color:var(--text)}
+.rt-position-metric .rt-position-note,.rt-position-date {margin-top:4px;font-size:12px;line-height:1.4;color:var(--text-secondary)}
+.rt-position-balances [data-metric="due"] {grid-column:1/-1;background:var(--accent-dim);border-bottom:1px solid var(--border)}
+.rt-position-balances [data-metric="due"] dt {color:var(--text)}
+.rt-position-balances [data-metric="due"] .rt-position-value {font-size:32px;color:var(--accent)}
+.rt-position-balances [data-metric="paid"] {border-left:1px solid var(--border)}
+.rt-position-stock {margin:8px 0 0;border:1px solid var(--border);border-radius:12px}
+.rt-position-stock .rt-position-metric {display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:0 12px;padding:10px 16px}
+.rt-position-stock .rt-position-value {font-size:17px}
+.rt-position-stock .rt-position-note {grid-column:1/-1;margin:0}
+.rt-retrade-results {margin-top:5px}
+.rt-retrade-results summary {padding:11px 2px;width:fit-content;cursor:pointer;color:var(--text-secondary);font-size:13px}
+.rt-position-internal {display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr));padding:8px 2px 12px}
+.rt-position-internal span,.rt-position-internal strong,.rt-position-internal small {display:block}
+.rt-position-internal span {font-size:13px;color:var(--text)}
+.rt-position-internal small {color:var(--text-secondary)}
+.rt-show-partner:focus-visible,.rt-retrade-results summary:focus-visible {outline:2px solid var(--accent);outline-offset:2px}
+.rt #slide-panel.on:has(.rt-partner-readonly) {width:100%;max-width:none;border-radius:0;background:var(--bg)}
+#slide-panel:has(.rt-partner-readonly) .panel-header,#slide-panel:has(.rt-partner-readonly) #panel-content {max-width:620px;margin-inline:auto}
+.rt-partner-readonly .rt-position-date {margin:4px 0 14px}
+@media (min-width:780px) {
+  .rt-position .rt-position-balances {grid-template-columns:1.2fr 1fr 1fr}
+  .rt-position .rt-position-balances [data-metric="due"] {grid-column:auto;border-bottom:0;border-right:1px solid var(--border)}
+}

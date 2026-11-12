@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict');
 const {chromium}=require('playwright');const {open,settled}=require('./startup-browser.cjs');
 (async()=>{const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{}),args:['--no-sandbox']});
-try{for(const mobile of [true,false]){const {page,context,errors}=await open(browser,{signedIn:true,mobile});await settled(page);
+try{for(const mobile of [true,false]){const {page,context,errors}=await open(browser,{signedIn:true,partnerData:true,mobile});await settled(page);
  await page.evaluate(()=>{saveDB=()=>{};_accounts=[{id:'p',name:'Upfront test',accountType:'supplier',arrangementModel:'fixed_cost',paymentTerms:'on_sale',settlements:[]}];
  const item=(id,state,cost,extra={})=>Object.assign({id,item:id,accountId:'p',accountType:'supplier',state,costPrice:cost,salePrice:100,dateSourced:'2026-09-01',dateListed:state==='listed'?'2026-09-02':null,dateSold:state==='sold'?'2026-09-03':null,parts:[],returnHistory:[],salePlatform:'fb'},extra);
  DB={'SEP-26':[item('listed','listed',30),item('unlisted','sourced',20),item('sold','sold',10),item('share','listed',0,{accountType:'consignment',arrangementModelOverride:'profit_share',accountSplitPercent:50}),item('paid','listed',40,{accountSettled:true}),item('disposed','sourced',50,{scrappedAt:'2026-09-04'})],trips:[],expenses:[]};

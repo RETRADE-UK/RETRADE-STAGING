@@ -325,6 +325,7 @@
 
   try{if(typeof calcNetProfit==='function'&&!calcNetProfit.__rtAccountAdjustments){var baseNet=calcNetProfit;var wrappedNet=function(i){var v=baseNet.apply(this,arguments);if(v==null||!i||!i.accountId)return v;var credit=profitEvents().filter(function(e){return String(e.accountId)===String(i.accountId)&&String(e.itemId)===String(i.id);}).reduce(function(sum,e){return sum+e.amount;},0);return round((Number(v)||0)+credit);};wrappedNet.__rtAccountAdjustments=true;calcNetProfit=wrappedNet;}}catch(_){}
 
+  window.__rtPartnerAdjustmentsLoaded=function(){return !sb()||!uid()||loadedUser===uid();};
   window.__rtPartnerAdjustmentsEnsureLoaded=ensureLoaded;
   window.__rtPartnerAdjustmentsProfitEvents=profitEvents;
   window.__rtPartnerAdjustmentsCashEvents=cashEvents;

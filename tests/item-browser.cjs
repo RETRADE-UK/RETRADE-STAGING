@@ -10,7 +10,8 @@ const {open,settled}=require('./startup-browser.cjs');
   await page.evaluate(()=>{
    window.itemSaves=0;saveDB=function(){window.itemSaves++;};
    DB={'SEP-26':[],trips:[],expenses:[]};
-   window.itemFixture=function(overrides={}){return Object.assign({id:'item-test',gid:'R-001',item:'Canon EOS camera kit',state:'listed',dateSourced:'2026-09-01',dateListed:'2026-09-03',dateSold:null,costPrice:50,salePrice:200,shippingCost:2,postage:0,packagingCost:1,promoPercent:0,listingFee:0,parts:[],returnHistory:[],defaultPlatform:'ebay_biz',salePlatform:'ebay_biz',_postageMode:'custom'},overrides);};
+   // This fixture counts saves from a postage edit. Monthly renewal writes have their own regression.
+   window.itemFixture=function(overrides={}){return Object.assign({id:'item-test',gid:'R-001',item:'Canon EOS camera kit',state:'listed',dateSourced:'2026-09-01',dateListed:'2026-09-03',dateSold:null,costPrice:50,salePrice:200,shippingCost:2,postage:0,packagingCost:1,promoPercent:0,listingFee:0,parts:[],returnHistory:[],refreshHistory:[{type:'renewal_policy',enabled:false}],defaultPlatform:'ebay_biz',salePlatform:'ebay_biz',_postageMode:'custom'},overrides);};
    _accounts=[{id:'partner',name:'Partner example',accountType:'consignment',arrangementModel:'profit_share',defaultSplitPercent:50,settlements:[]},{id:'supplier',name:'Supplier example',accountType:'supplier',arrangementModel:'fixed_cost',settlements:[]}];
    localStorage.setItem(SHIPPING_POLICIES_KEY,JSON.stringify([{name:'Tracked parcel',yourCost:3.4,buyerPays:4.99},{name:'Free delivery',yourCost:3.4,buyerPays:0}]));
    DB['SEP-26']=[itemFixture()];openItemPage('SEP-26','item-test');

@@ -1,5 +1,18 @@
 # Runtime ownership
 
+## 12 November — partner balance
+
+The payment allocation owner exposes a read-only partner position using recorded
+cash payments, known outstanding item amounts, payment timing and account
+credits. The arrangement owner supplies the per-sale entitlement used by the
+account and its statement. Fixed payouts are earned once across returns and
+resales. Upfront payments can precede earnings from sales.
+
+The account UI renders the same figures in the account summary and the read-only
+partner panel. RETRADE's actual and forecast profit sit in a separate disclosure
+on the account. The asset generation is `20261112-partner-balance` with the usual
+staging suffix.
+
 ## 2 November - verified trading cash dates
 
 `_tradingCashEventsAll` provides receipt, selling-cost and refund cash events to
