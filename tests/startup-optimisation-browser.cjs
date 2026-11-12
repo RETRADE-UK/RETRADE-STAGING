@@ -6,6 +6,16 @@ const {open,settled}=require('./startup-browser.cjs');
   const engine=process.argv.includes('--webkit')?webkit:chromium;
   const browser=await engine.launch({headless:true,...(engine===chromium&&process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{})});
   try{
+    const early=await open(browser,{signedIn:true,partnerData:true,mobile:true,reduced:true,slowFeatures:true});
+    await early.page.waitForFunction(()=>window.__rtLaunchSettled&&!window.__rtFeaturesReady);
+    const loading=await early.page.evaluate(()=>{
+      goToTab('accounts');renderAccountsPage();
+      return {legacy:document.querySelectorAll('#p-accounts .run-history-row').length,busy:document.getElementById('p-accounts').getAttribute('aria-busy')};
+    });
+    assert.deepEqual(loading,{legacy:0,busy:'true'},'Early navigation waits for the sole directory renderer');
+    await early.page.locator('#rt-acct-op-search').waitFor();
+    await early.page.waitForFunction(()=>!document.getElementById('p-accounts').hasAttribute('aria-busy'));
+    assert.deepEqual(early.errors,[]);await early.context.close();
     for(const mobile of [false,true]){
       const {page,context,errors,missingAssets}=await open(browser,{signedIn:true,partnerData:true,mobile});
       await settled(page);
@@ -19,11 +29,14 @@ const {open,settled}=require('./startup-browser.cjs');
         const result=[snapshot()];for(let i=0;i<8;i++){await new Promise(requestAnimationFrame);result.push(snapshot());}return result;
       });
       for(const frame of frames)assert.deepEqual(frame,{legacy:0,summary:1,workspace:1,statements:1});
+      assert.equal(await page.getByRole('button',{name:/Allocate & settle|Settle .* outstanding/}).count(),0);
+      assert.equal(await page.locator('[data-rt-partner-v2-hidden]').count(),0,'No disposable hidden core controls');
       // Nothing should create, erase and recreate account DOM after the paint.
       await page.waitForTimeout(300);
       const idle=await page.evaluate(async()=>{
         let mutations=0;const p=document.getElementById('p-item'),first=p.firstElementChild;
         const observer=new MutationObserver(m=>mutations+=m.length);observer.observe(p,{childList:true,subtree:true});
+        await window.__rtPartnerAdjustmentsEnsureLoaded(true);
         await new Promise(r=>setTimeout(r,500));observer.disconnect();
         const data=JSON.stringify([DB,_accounts]);
         window.dispatchEvent(new Event('blur'));window.dispatchEvent(new Event('pagehide'));window.dispatchEvent(new Event('focus'));window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));

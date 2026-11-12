@@ -10,7 +10,7 @@ rule still applies, since browsers do not reliably expose a force-quit signal.
 
 Accounts directory: `operations-dashboard.js` is the only list renderer. Core
 uses a loading state until it is available. Account details build the current
-balance directly; legacy hero/stock cards are no longer constructed. Five
+balance directly; legacy hero/stock cards are no longer constructed. Six
 obsolete presentation modules were removed after tracing their replacements.
 Unchanged credit responses no longer rebuild the active page. Payment timing comes from core fields plus `arrangements-v2.js`. Visible account
 credits remain in the transaction UI and statements; the hidden, repeatedly

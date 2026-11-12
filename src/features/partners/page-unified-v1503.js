@@ -26,7 +26,6 @@
     try{return typeof _acctCurrentAcct==='function'?_acctCurrentAcct():null;}catch(_){return null;}
   }
   function isAccountPage(){var p=document.getElementById('p-item');return !!(p&&p.classList.contains('on')&&currentAccount());}
-  function arrangement(a){try{if(typeof _rtArrangementForAccount==='function')return _rtArrangementForAccount(a);}catch(_){}return String(a&&a.accountType||'supplier').toLowerCase()==='supplier'?'fixed_cost':'profit_share';}
 
   function installStyles(){
     if(document.getElementById('rt-partner-unified-1503-style'))return;

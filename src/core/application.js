@@ -10553,11 +10553,6 @@ function _renderAccountPage(acct){
       +'<button class="btn btn-secondary" style="font-size:11px;padding:3px 9px;margin-top:5px;color:var(--accent);" onclick="openRelist(\''+i._month+'\',\''+i.id+'\')">Relist</button></div></div>';
   }).join(''):'<div style="padding:14px;text-align:center;color:var(--muted);font-size:12px;">No returned stock</div>';
 
-  // "Mark all N unsettled as paid" — supplier accounts include unsold items in
-  // the count (debt is per-purchase, not per-sale). Consignment/hybrid still
-  // restrict to sold.
-  const unsettledCount=(isSupplierAcct?items:sold)
-    .filter(function(i){return _accountItemDebt(i)!==null&&!i.accountSettled;}).length;
   // Items with neither a % nor a fixed amount set — candidates for "apply default".
   const noSplitCount=items.filter(function(i){return i.accountSplitPercent==null&&i.accountPaidAmount==null;}).length;
   const _typeLabels={consignment:'Consignment',supplier:'Supplier',hybrid:'Hybrid'};
@@ -10573,50 +10568,15 @@ function _renderAccountPage(acct){
         +(acct.accountType==='consignment'?' \u00b7 costPrice auto-set to \u00a30 on assign':'')+'.</div>'
       : '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;">No default split set. Tap <strong style="color:var(--text);">Edit</strong> to set the arrangement.</div>';
 
-  // Select bar — always shown when in select mode. When 0 items selected we
-  // show a slim "select all / cancel" bar so the user doesn't have to hunt for
-  // Select all after tapping into select mode; once one item is picked the full
-  // action bar unlocks. Fixes the "no option to select all" report.
-  const primaryBulkBtn=isSupplierAcct
-    ? '<button class="btn btn-secondary" style="font-size:12px;" onclick="_acctBulkSetCost()">Set cost</button>'
-    : '<button class="btn btn-secondary" style="font-size:12px;" onclick="_acctBulkSetSplit()">Set split</button>';
-  let selBar='';
-  if(_acctSelectMode){
-    if(_acctSelected.size===0){
-      selBar='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;background:var(--surface2);border:1px dashed var(--accent);border-radius:10px;margin-bottom:12px;">'
-        +'<span style="font-size:12px;color:var(--text-secondary);flex:1;">Tap items to select \u2014 or:</span>'
-        +'<button class="btn btn-secondary" style="font-size:12px;color:var(--accent);border-color:var(--accent);" onclick="_acctSelectAll()">Select all ('+items.length+')</button>'
-        +'<button class="btn btn-secondary" style="font-size:12px;color:var(--text-secondary);" onclick="_acctToggleSelectMode()">Cancel</button>'
-      +'</div>';
-    } else {
-      selBar='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;background:var(--surface2);border:1px solid var(--accent);border-radius:10px;margin-bottom:12px;">'
-        +'<span style="font-size:13px;font-weight:700;color:var(--accent);flex:1 1 100%;">'+_acctSelected.size+' selected</span>'
-        +'<button class="btn btn-secondary" style="font-size:12px;" onclick="_acctBulkSettle()">'+(isSupplierAcct?'Settle selected':'Allocate & settle')+'</button>'
-        +'<button class="btn btn-secondary" style="font-size:12px;" onclick="_acctBulkUnsettle()">Mark unsettled</button>'
-        +primaryBulkBtn
-        +'<button class="btn btn-secondary" style="font-size:12px;color:var(--red);border-color:rgba(239,68,68,0.35);" onclick="_acctBulkRemoveFromAccount()">Remove</button>'
-        +'<button class="btn btn-secondary" style="font-size:12px;" onclick="_acctSelectAll()">All</button>'
-        +'<button class="btn btn-secondary" style="font-size:12px;color:var(--text-secondary);" onclick="_acctClearSelect()">Clear</button>'
-      +'</div>';
-    }
-  }
-
   const html='<div style="padding:16px 0 40px;">'
     +'<button class="btn btn-secondary" onclick="backToAccountsList()" style="margin-bottom:14px;">\u2190 Accounts</button>'
     +'<div class="page-header" style="margin-bottom:14px;">'
       +'<div><div class="page-title">'+esc(acct.name)+'</div>'
       +'<div style="display:flex;align-items:center;gap:6px;margin-top:4px;">'+_typeTag
       +(acct.notes?'<span style="font-size:12px;color:var(--text-secondary);">'+esc(acct.notes)+'</span>':'')+'</div></div>'
-      +'<div style="display:flex;gap:8px;">'
-        +'<button class="btn btn-secondary" style="font-size:12px;padding:6px 10px;" onclick="openEditAccount(\''+acct.id+'\')">Edit</button>'
-        +'<button class="btn btn-secondary" style="font-size:12px;padding:6px 10px;" onclick="openBulkAssignAccountModal(\''+acct.id+'\')">+ Add</button>'
-        +'<button class="btn btn-secondary" style="font-size:12px;padding:6px 10px;'+(_acctSelectMode?'color:var(--accent);border-color:var(--accent)':'')+'" onclick="_acctToggleSelectMode()">'+(_acctSelectMode?'\u2715 Done':'Select')+'</button>'
-      +'</div>'
     +'</div>'
     +defaultLine
-    +selBar
     +((!isSupplierAcct&&hasDefault&&noSplitCount>0&&!_acctSelectMode)?'<button class="btn btn-secondary" style="width:100%;margin-bottom:10px;" onclick="applyDefaultSplitToAll(\''+acct.id+'\')">Apply '+acct.defaultSplitPercent+'% to '+noSplitCount+' item'+(noSplitCount!==1?'s':'')+' with no split</button>':'')
-    +(unsettledCount>0&&!_acctSelectMode?'<button class="btn btn-primary" style="width:100%;margin-bottom:14px;" onclick="'+(isSupplierAcct?'settleAllForAccount(\''+acct.id+'\')':'_openConsignmentSettlementForAccount(\''+acct.id+'\')')+'">'+(isSupplierAcct?'Settle '+unsettledCount+' outstanding item'+(unsettledCount!==1?'s':''):'Allocate & settle '+unsettledCount+' item'+(unsettledCount!==1?'s':''))+'</button>':'')
     +_accountGroupHTML(acct,'sales','Sales',sold.length,soldRows,true)
     +_accountGroupHTML(acct,'listed','Listed stock',listedStock.length,listedRows,false)
     +_accountGroupHTML(acct,'unlisted','Unlisted · needs listing',unlistedStock.length,unlistedRows,false)
@@ -11125,7 +11085,7 @@ function renderAccountsPage(){
   _showRoutePending('accounts');
   if(window.__rtFeaturesPromise)window.__rtFeaturesPromise.then(function(){
     if(page.classList.contains('on')&&renderAccountsPage!==pendingRenderer){
-      renderAccountsPage();_clearRoutePending('accounts');
+      renderAccountsPage();_clearRoutePending(page);
     }
   });
 }

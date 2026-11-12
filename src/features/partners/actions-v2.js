@@ -79,43 +79,6 @@
     return {picked:picked,payable:payable,needsTerms:[],otherCount:Math.max(0,picked.length-payable.length),total:total};
   }
 
-  function hideLegacyPartnerControls(page){
-    // Retire the old page-wide settlement CTAs. Payment now lives per item or in
-    // selection mode, so KPIs never have a large settlement button attached.
-    page.querySelectorAll('button[onclick]').forEach(function(btn){
-      if(btn.closest('.rt-partner-v2-toolbar,.rt-partner-v2-selection'))return;
-      var action=String(btn.getAttribute('onclick')||'');
-      if((action.indexOf('_openConsignmentSettlementBuilder')!==-1||action.indexOf('settleAllForAccount')!==-1)&&!btn.closest('.account-group')){
-        btn.style.display='none';
-        btn.setAttribute('data-rt-partner-v2-hidden','settlement');
-      }
-    });
-
-    // Hide the original top Select control; the replacement sits beside Search
-    // immediately above the item groups.
-    page.querySelectorAll('button').forEach(function(btn){
-      if(btn.closest('.rt-partner-v2-toolbar,.rt-partner-v2-selection,.account-group'))return;
-      var action=String(btn.getAttribute('onclick')||'');
-      var text=String(btn.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
-      if(action.indexOf('_acctToggleSelectMode')!==-1||(text==='select'&&!btn.classList.contains('rt-partner-statement-btn'))){
-        btn.style.display='none';
-        btn.setAttribute('data-rt-partner-v2-hidden','select');
-      }
-    });
-
-    // The core selection bar is rendered high on the page. Hide only its own
-    // container; the new bar below carries the same workflow plus the live total.
-    var coreButtons=page.querySelectorAll('button[onclick*="_acctSelectAll"],button[onclick*="_acctBulkSettle"]');
-    coreButtons.forEach(function(btn){
-      if(btn.closest('.rt-partner-v2-selection'))return;
-      var bar=btn.parentElement;
-      if(bar&&!bar.closest('.account-group')){
-        bar.style.display='none';
-        bar.setAttribute('data-rt-partner-v2-hidden','selection-bar');
-      }
-    });
-  }
-
   function installStyles(){
     if(document.getElementById('rt-partner-actions-v2-style'))return;
     var style=document.createElement('style');
@@ -270,7 +233,6 @@
     if(!acct||!isAccountDetailPage(page))return;
     activeAccountId=acct.id;
     installStyles();
-    hideLegacyPartnerControls(page);
     var anchor=page.querySelector('.account-group');
     if(!anchor)return;
     var toolbar=buildToolbar(page,acct,anchor);
