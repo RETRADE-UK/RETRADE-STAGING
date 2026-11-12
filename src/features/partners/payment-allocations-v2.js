@@ -81,7 +81,7 @@
   function needsTerms(a,i){
     if(!i||i.accountSettled===true||i.scrappedAt||i.isReturned)return false;
     if(model(a,i)==='fixed_cost')return !hasFixedTerms(i);
-    return sold(i)&&!hasShareTerms(i);
+    return sold(i)&&!hasShareTerms(i)&&a.defaultSplitPercent==null;
   }
   function cashOutstanding(a,i){
     var owed=debt(a,i),paid=allocated(a,i.id,true);
@@ -132,6 +132,75 @@
     }
     var soldInfo=one('sold'),allInfo=one('all');
     return {soldAmount:soldInfo.amount,allAmount:allInfo.amount,soldNeedsTerms:soldInfo.terms,allNeedsTerms:allInfo.terms,soldCount:soldInfo.count,allCount:allInfo.count,soldPayable:soldInfo.payable,allPayable:allInfo.payable,soldAssigned:soldInfo.assigned,allAssigned:allInfo.assigned};
+  }
+
+  function partnerPosition(accountId){
+    var a=acct(accountId);
+    if(!a)return null;
+    var date=today(),paysOnSale=onSale(a),soldCount=0,unsoldCount=0;
+    var soldOutstanding=0,unsoldOutstanding=0,soldNeedsTerms=0,stockNeedsTerms=0;
+    // Only fixed amounts can become payable before a sale. The early-payment
+    // picker also offers these on when-sold accounts, where they are optional.
+    outstandingRows(a,'all').forEach(function(row){
+      if(row.kind==='terms'){
+        if(row.isSold)soldNeedsTerms++;else stockNeedsTerms++;
+        return;
+      }
+      if(!(row.outstanding>0))return;
+      if(row.isSold){soldOutstanding+=row.outstanding;soldCount++;}
+      else{unsoldOutstanding+=row.outstanding;unsoldCount++;}
+    });
+    var grossDue=round(soldOutstanding+(paysOnSale?0:unsoldOutstanding));
+    var plan=creditPlan(a,grossDue,date);
+    // Read only this account's sale snapshots. A fixed sale needs no profit
+    // breakdown, and a just-recorded sale is visible on the very next render.
+    var entries=itemsFor(a.id),saleIds=new Set(),grossEarned=0,heldStockOutstanding=0;
+    entries.forEach(function(entry){
+      var item=entry.item;
+      if(String(item.item||'').trim().toUpperCase()==='MONTH END')return;
+      _saleCycleNumbers(item).forEach(function(cycle){
+        var snapshot=_saleCycleSnapshot(item,cycle);
+        if(!snapshot||!snapshot.date||snapshot.date>date)return;
+        saleIds.add(String(item.id));
+        grossEarned+=_rtPartnerSaleEntitlement({item:item,sale:cycle,snapshot:snapshot},a);
+      });
+      // A customer return preserves the earned fixed payout. The payment
+      // picker excludes returned or disposed items until their status changes.
+      if((item.isReturned||item.scrappedAt)&&!item.accountSettled&&saleIds.has(String(item.id))&&model(a,item)==='fixed_cost'){
+        heldStockOutstanding+=cashOutstanding(a,item);
+      }
+    });
+    var earnedAdjustments=0;
+    _accountNonCashProfitCredits(null,date).events.forEach(function(e){
+      if(String(e.accountId)===String(a.id))earnedAdjustments+=e.amount;
+    });
+    var paid=0,paidIds=new Set(),hasEarlyOrUnallocatedPayments=false;
+    (a.settlements||[]).forEach(function(tx){
+      if(!tx||tx.paid!==true)return;
+      paid+=Number(tx.partnerAmount)||0;
+      var allocations=tx.items||[];
+      if(round(tx.partnerAmount)>txUsed(tx))hasEarlyOrUnallocatedPayments=true;
+      allocations.forEach(function(line){
+        if(!line||!(Number(line.amount)>0))return;
+        var id=String(line.id!=null?line.id:line.itemId);
+        paidIds.add(id);
+        if(!saleIds.has(id))hasEarlyOrUnallocatedPayments=true;
+      });
+    });
+    var hasLegacySettled=entries.some(function(entry){
+      return entry.item.accountSettled===true&&!paidIds.has(String(entry.item.id))&&debt(a,entry.item)>0;
+    });
+    return {
+      earned:round(grossEarned-earnedAdjustments),earnedAdjustments:round(earnedAdjustments),
+      paid:round(paid),due:plan.net,grossDue:grossDue,creditApplied:plan.credit,
+      soldOutstanding:round(soldOutstanding),unsoldOutstanding:round(unsoldOutstanding),
+      futureOutstanding:paysOnSale?round(unsoldOutstanding):0,paysOnSale:paysOnSale,
+      soldCount:soldCount,unsoldCount:unsoldCount,stockNeedsTerms:stockNeedsTerms,
+      dueCount:soldCount+(paysOnSale?0:unsoldCount),futureCount:paysOnSale?unsoldCount:0,
+      heldStockOutstanding:round(heldStockOutstanding),
+      dueNeedsTerms:soldNeedsTerms+(paysOnSale?0:stockNeedsTerms),futureNeedsTerms:paysOnSale?stockNeedsTerms:0,
+      hasEarlyOrUnallocatedPayments:hasEarlyOrUnallocatedPayments,hasLegacySettled:hasLegacySettled
+    };
   }
 
   function setFor(a){var k=String(a.id);if(!selected[k])selected[k]=new Set();return selected[k];}
@@ -293,6 +362,7 @@
   }
 
   // Both selection surfaces use this same eligibility/allocation owner.
+  window.__rtPartnerPosition=partnerPosition;
   window.__rtPartnerPaymentCandidates=function(accountId){var a=acct(accountId);return a?candidates(a):[];};
   window.__rtPartnerOutstandingSummary=function(accountId){var a=acct(accountId);return a?outstandingSummary(a):{soldAmount:0,allAmount:0,soldNeedsTerms:0,allNeedsTerms:0,soldCount:0,allCount:0};};
   window.__rtPartnerPaymentSelectionState=function(accountId,ids){

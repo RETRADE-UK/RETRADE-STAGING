@@ -12,7 +12,16 @@ function mockAuth(initialSession) {
   window.__fixtureSession = initialSession;
   window.__fixtureSignInCalls = 0;
   const listeners = [];
-  window.supabase = { createClient(url) { window.__fixtureClientUrl=url; return { auth: {
+  window.supabase = { createClient(url) { window.__fixtureClientUrl=url; return {
+    from(table) {
+      if (table !== 'account_adjustments') throw new Error('No fixture for table ' + table);
+      const query = {
+        select: () => query, eq: () => query, order: () => query,
+        then: (resolve, reject) => Promise.resolve({ data: [], error: null }).then(resolve, reject)
+      };
+      return query;
+    },
+    auth: {
     async getSession() { await new Promise(r => setTimeout(r, 100)); return { data: { session: window.__fixtureSession } }; },
     onAuthStateChange(fn) { listeners.push(fn); return { data: { subscription: { unsubscribe() {} } } }; },
     async signInWithPassword({ password }) {

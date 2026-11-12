@@ -53,26 +53,6 @@
     return !!(findBackControl(page)||page.querySelector('.account-group'));
   }
 
-  function accountItems(accountId){
-    var out=[];
-    try{
-      (typeof allDBKeys==='function'?allDBKeys():[]).forEach(function(month){
-        var rows=(typeof DB!=='undefined'&&DB&&Array.isArray(DB[month]))?DB[month]:[];
-        rows.forEach(function(item){
-          if(item&&String(item.accountId)===String(accountId))out.push({item:item,month:month});
-        });
-      });
-    }catch(_){}
-    return out;
-  }
-
-  function accountDebt(item){
-    if(!item||item.accountSettled===true)return 0;
-    try{if(typeof _accountItemDebt==='function')return Math.max(0,Number(_accountItemDebt(item))||0);}catch(_){}
-    try{if(typeof _accountItemOwed==='function')return Math.max(0,Number(_accountItemOwed(item))||0);}catch(_){}
-    return 0;
-  }
-
   function accountFromPage(page){
     var known=accountById(activeAccountId);if(known)return known;
     if(!page)return null;
@@ -138,36 +118,9 @@
     page.querySelectorAll('.rt-partner-statement-fallback').forEach(function(el){if(!el.children.length)el.remove();});
   }
 
-  function parsePounds(text){
-    var m=String(text||'').match(/£\s*(-?\d[\d,]*(?:\.\d{1,2})?)/);
-    if(!m)return null;
-    var n=Number(m[1].replace(/,/g,''));return isFinite(n)?n:null;
-  }
-
   function isBeforeAnchor(anchor,el){
     if(!anchor||!el)return true;
     return !!(el.compareDocumentPosition(anchor)&Node.DOCUMENT_POSITION_FOLLOWING);
-  }
-
-  function legacyMetric(page,anchor,re){
-    var candidates=page.querySelectorAll('.kpi-card,.stat-card,.metric-card,.summary-card,.kpi,.stat,.metric,.card,[class*="kpi"],[class*="summary"]');
-    var best=null,bestLen=Infinity;
-    for(var i=0;i<candidates.length;i++){
-      var el=candidates[i];
-      if(!isBeforeAnchor(anchor,el))continue;
-      if(el.closest('.account-group,.rt-partner-summary-v3,.rt-partner-v2-toolbar,.rt-partner-v2-selection'))continue;
-      var txt=compactText(el);if(!re.test(txt)||txt.length>360)continue;
-      var value=parsePounds(txt);if(value==null)continue;
-      if(txt.length<bestLen){best={value:value,text:txt,el:el};bestLen=txt.length;}
-    }
-    return best;
-  }
-
-  function captureLegacyPosition(page,anchor){
-    return {
-      remaining:legacyMetric(page,anchor,/\b(remaining|still possible|potential remaining|future profit)\b/i),
-      lifetime:legacyMetric(page,anchor,/\b(expected|estimated|projected|potential)\b[^£]{0,60}\b(profit|earnings?)\b|\b(profit|earnings?)\b[^£]{0,60}\b(expected|estimated|projected|potential)\b/i)
-    };
   }
 
   function hideLegacyKpis(page,anchor){
@@ -203,48 +156,103 @@
     }catch(_){return null;}
   }
 
-  function positionData(acct,legacy){
-    var items=accountItems(acct.id);
-    var outstanding=roundMoney(items.reduce(function(sum,e){return sum+accountDebt(e.item);},0));
-    var unpaidCount=items.filter(function(e){return accountDebt(e.item)>0;}).length;
-    var paid=0,paidCount=0;
-    (acct.settlements||[]).forEach(function(tx){
-      if(!tx||tx.paid!==true)return;
-      paid+=Number(tx.partnerAmount)||0;paidCount++;
+  function accountItems(id){var out=[];try{(typeof allDBKeys==='function'?allDBKeys():[]).forEach(function(month){((DB&&DB[month])||[]).forEach(function(i){if(i&&String(i.accountId)===String(id))out.push(i);});});}catch(_){}return out;}
+
+  function itemState(i){return String(i&&i.state||'').toLowerCase();}
+  function partsCost(i){try{if(typeof calcPartsCost==='function')return Number(calcPartsCost(i))||0;}catch(_){}return (Array.isArray(i&&i.parts)?i.parts:[]).reduce(function(s,p){return s+(Number(p&&p.cost)||0);},0);}
+  function accountTypeFor(i,a){try{if(typeof _itemAccountType==='function')return String(_itemAccountType(i)||'').toLowerCase();}catch(_){}return String((i&&i.accountType)||(a&&a.accountType)||'supplier').toLowerCase();}
+  function positiveFirst(){for(var i=0;i<arguments.length;i++){var n=Number(arguments[i]);if(isFinite(n)&&n>0)return n;}return 0;}
+  function potentialInfo(acct){
+    var total=0,priced=0,listed=0,unlisted=0;
+    accountItems(acct.id).forEach(function(item){
+      if(!item||item.scrappedAt||item.scrapped_at)return;
+      var state=itemState(item),price=state==='listed'?positiveFirst(item.salePrice,item.estSalePrice):state==='sourced'?positiveFirst(item.estSalePrice):0;if(!(price>0))return;
+      var revenue=price+(Number(item.postage)||0),shipping=Math.max(0,Number(item.shippingCost)||0),packaging=Math.max(0,Number(item.packagingCost)||0),listingFee=Math.max(0,Number(item.listingFee)||0),promoPct=Math.max(0,Number(item.promoPercent)||0);if(promoPct>1)promoPct/=100;
+      var parts=partsCost(item),type=accountTypeFor(item,acct),fixed=item.accountPaidAmount!=null&&item.accountPaidAmount!==''?Math.max(0,Number(item.accountPaidAmount)||0):null,purchase=type==='supplier'?(fixed!=null?fixed:Math.max(0,Number(item.costPrice)||0)):Math.max(0,Number(item.costPrice)||0),pool=revenue-purchase-shipping-packaging-listingFee-(price*promoPct)-parts,retrade=pool;
+      if(type!=='supplier'){var partner=0;if(fixed!=null)partner=fixed;else{var pct=item.accountSplitPercent!=null?Number(item.accountSplitPercent):Number(acct.defaultSplitPercent);if(isFinite(pct))partner=Math.max(0,pool)*Math.max(0,Math.min(100,pct))/100;}retrade=pool-partner;}
+      total+=Math.max(0,retrade);priced++;if(state==='listed')listed++;else unlisted++;
     });
-    paid=roundMoney(paid);
-    var earned=realizedRetradeProfit(acct);
-    var remaining=null,remainingNote='No reliable unsold-profit estimate available';
-    if(legacy&&legacy.remaining){
-      remaining=roundMoney(Math.max(0,legacy.remaining.value));
-      remainingNote='Estimated RETRADE profit still available';
-    }else if(legacy&&legacy.lifetime&&earned!=null){
-      remaining=roundMoney(Math.max(0,legacy.lifetime.value-earned));
-      remainingNote='Expected lifetime profit less profit already earned';
+    if(!priced)return {value:null,note:'No priced unsold items available for a reliable estimate'};
+    var note=listed&&unlisted?'Estimated RETRADE profit from '+listed+' listed + '+unlisted+' estimated unlisted item'+(unlisted===1?'':'s'):listed?'Estimated RETRADE profit from '+listed+' listed item'+(listed===1?'':'s')+' at current asking price'+(listed===1?'':'s'):'Estimated RETRADE profit from '+unlisted+' estimated unlisted item'+(unlisted===1?'':'s');
+    return {value:roundMoney(total),note:note};
+  }
+  function itemCount(count, singular, plural){
+    return count+' '+(count===1?singular:plural);
+  }
+
+  function metric(kind,label,value,note){
+    return '<div class="rt-position-metric" data-metric="'+kind+'">'+
+      '<dt>'+label+'</dt><dd class="rt-position-value">'+(value==null?'To confirm':money(value))+'</dd>'+
+      (note?'<dd class="rt-position-note">'+htmlEscape(note)+'</dd>':'')+'</div>';
+  }
+
+  function partnerFigures(p){
+    var dueNotes=[];
+    if(p.soldCount)dueNotes.push(itemCount(p.soldCount,'sold item','sold items'));
+    if(!p.paysOnSale&&p.unsoldCount)dueNotes.push(itemCount(p.unsoldCount,'item payable upfront','items payable upfront'));
+    if(p.creditApplied)dueNotes.push(money(p.grossDue)+' less '+money(p.creditApplied)+' in available credits');
+    if(p.dueNeedsTerms)dueNotes.push(itemCount(p.dueNeedsTerms,'payout','payouts')+' still to confirm');
+    if(p.heldStockOutstanding)dueNotes.push(money(p.heldStockOutstanding)+' on returned or written-off stock is held separately');
+    if(!dueNotes.length)dueNotes.push('No payment outstanding');
+    var paidNote=p.hasEarlyOrUnallocatedPayments?'Includes advance or unallocated payments':'';
+    var earnedNote=p.earnedAdjustments?'After '+money(p.earnedAdjustments)+' in adjustments':'Includes unpaid sales';
+    if(p.hasLegacySettled)paidNote+=(paidNote?' · ':'')+'Some earlier items were marked settled without a recorded payment';
+    var html='<dl class="rt-position-balances">'+
+      metric('due','Due now',!p.dueCount&&p.dueNeedsTerms?null:p.due,dueNotes.join(' · '))+
+      metric('earned','Earned from sales',p.earned,earnedNote)+
+      metric('paid','Paid to date',p.paid,paidNote)+'</dl>';
+    if(p.futureCount||p.futureNeedsTerms){
+      var note=itemCount(p.futureCount,'unsold item','unsold items')+' with an agreed payout';
+      if(!p.futureCount)note='Unsold stock';
+      if(p.futureNeedsTerms)note+=' · '+itemCount(p.futureNeedsTerms,'payout','payouts')+' to confirm';
+      html+='<dl class="rt-position-stock">'+metric('unsold','Payable when sold',p.futureCount?p.futureOutstanding:null,note)+'</dl>';
     }
-    return {earned:earned,remaining:remaining,remainingNote:remainingNote,outstanding:outstanding,unpaidCount:unpaidCount,paid:paid,paidCount:paidCount};
+    return html;
   }
 
-  function summaryCard(label,value,sub,kind){
-    return '<div class="rt-partner-summary-v3-card" data-kind="'+htmlEscape(kind||'')+'">'+
-      '<div class="rt-partner-summary-v3-label">'+htmlEscape(label)+'</div>'+
-      '<div class="rt-partner-summary-v3-value">'+(value==null?'—':htmlEscape(money(value)))+'</div>'+
-      '<div class="rt-partner-summary-v3-sub">'+htmlEscape(sub)+'</div></div>';
+  function internalResult(label,value,note,kind){
+    return '<div data-kind="'+kind+'"><span>'+label+'</span><strong class="rt-partner-summary-v3-value">'+
+      (value==null?'—':money(value))+'</strong><small class="rt-partner-summary-v3-sub">'+htmlEscape(note)+'</small></div>';
   }
 
-  function buildSummary(page,acct,anchor,legacy){
+  function buildSummary(page,acct,anchor){
     var old=page.querySelector('.rt-partner-summary-v3');if(old)old.remove();
-    var p=positionData(acct,legacy);
     var wrap=document.createElement('section');
-    wrap.className='rt-partner-summary-v3';
-    wrap.setAttribute('aria-label','Partner account position');
-    wrap.innerHTML='<div class="rt-partner-summary-v3-head"><div class="rt-partner-summary-v3-title">Account position</div><div class="rt-partner-summary-v3-note">RETRADE earnings and partner payments</div></div><div class="rt-partner-summary-v3-grid">'+
-      summaryCard('RETRADE earned',p.earned,'Realised profit after partner share and sale costs','earned')+
-      summaryCard('Potential remaining',p.remaining,p.remainingNote,'potential')+
-      summaryCard('Partner outstanding',p.outstanding,p.unpaidCount+' unpaid item'+(p.unpaidCount===1?'':'s')+' currently due','outstanding')+
-      summaryCard('Paid to partner',p.paid,p.paidCount+' completed payment'+(p.paidCount===1?'':'s')+' recorded','paid')+
-      '</div>';
+    wrap.className='rt-partner-summary-v3 rt-position';
+    wrap.setAttribute('aria-label','Partner balance');
+    wrap.innerHTML='<div class="rt-position-head"><h2>Partner balance</h2><button type="button" class="btn btn-secondary rt-show-partner" disabled>Show partner</button></div>'+
+      '<div class="rt-position-figures" aria-busy="true">Loading balance…</div>'+
+      '<details class="rt-retrade-results"><summary>RETRADE profit</summary><div class="rt-position-internal"></div></details>';
     anchor.parentNode.insertBefore(wrap,anchor);
+
+    // Account adjustments can arrive after the rest of the account. Keep the
+    // preview and the owner view on one completed, account-specific snapshot.
+    var figures=wrap.querySelector('.rt-position-figures'),button=wrap.querySelector('button');
+    function renderFigures(){
+      if(!wrap.isConnected)return;
+      var position=window.__rtPartnerPosition(acct.id);
+      var markup=partnerFigures(position);
+      figures.innerHTML=markup;
+      var potential=potentialInfo(acct);
+      wrap.querySelector('.rt-position-internal').innerHTML=
+        internalResult('Profit from sales',realizedRetradeProfit(acct),'After sale costs and the partner’s share','retrade')+
+        internalResult('Forecast profit',potential.value,potential.note,'potential');
+      figures.removeAttribute('aria-busy');
+      button.disabled=false;
+      button.addEventListener('click',function(){
+        var today=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+        openPanel(acct.name||'Partner account','<section class="rt-partner-readonly"><p class="rt-position-date">Partner balance · '+htmlEscape(today)+'</p>'+markup+'</section>');
+      });
+    }
+    function showError(){
+      figures.removeAttribute('aria-busy');
+      figures.textContent='Balance unavailable. Reopen this account to try again.';
+    }
+    if(window.__rtPartnerAdjustmentsLoaded()){
+      renderFigures();
+    }else{
+      window.__rtPartnerAdjustmentsEnsureLoaded(false).then(renderFigures).catch(showError);
+    }
   }
 
   function rowIdentity(row){
@@ -362,9 +370,8 @@
     pinStatement(page);
     var anchor=page.querySelector('.rt-partner-v2-toolbar')||page.querySelector('.account-group');
     if(anchor){
-      var legacy=captureLegacyPosition(page,anchor);
       hideLegacyKpis(page,anchor);
-      buildSummary(page,acct,anchor,legacy);
+      buildSummary(page,acct,anchor);
     }
     wireRowMenus(page,acct);
   }

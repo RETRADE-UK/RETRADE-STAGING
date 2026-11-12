@@ -7,6 +7,7 @@ const {open,settled}=require('./startup-browser.cjs');
  const browser=await(wk?webkit:chromium).launch({headless:true,...(!wk?{args:['--no-sandbox'],...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{})}:{})});
  try{
   const {page,context,errors}=await open(browser,{signedIn:true});await settled(page);
+  await page.clock.setFixedTime(new Date('2026-11-12T12:00:00Z'));
   await page.addScriptTag({url:'http://retrade.test/src/features/partners/statements-accounting-v3.js'});
   await page.evaluate(()=>{
    window.__auditItem=(id,extra={})=>Object.assign({id,item:'Synthetic '+id,state:'sold',dateSourced:'2026-07-01',dateListed:'2026-07-02',dateSold:'2026-07-05',costPrice:0,salePrice:100,salePlatform:'fb',defaultPlatform:'fb',soldOnPlatform:'fb',listingFee:0,postage:0,shippingCost:0,packagingCost:0,promoPercent:0,parts:[],returnHistory:[],refreshHistory:[]},extra);
@@ -58,10 +59,11 @@ const {open,settled}=require('./startup-browser.cjs');
    __auditSet([item],[account]);await __auditLoadCredits([]);const cashBefore=calcCashSummary().cashAvailable;
    const row={id:'credit',user_id:_currentUserId,account_id:'partner',date:'2026-08-15',kind:'partner_loss_contribution',status:'active',amount:20,item_allocations:[{item_id:'credited',amount:20}],applications:[{settlement_id:'paid',date:'2026-09-01',amount:20}]};
    await __auditLoadCredits([row,{...row,id:'void',amount:80,status:'void'},{...row,id:'other-user',user_id:'other',amount:90}]);
+   const position=__rtPartnerPosition('partner');
    const periods=[['2026-07-01','2026-07-31'],['2026-08-01','2026-08-31'],['2026-09-01','2026-09-30']];
    const views=periods.map(([from,to])=>{const p=_buildPnLSummary(from,to,''),s=__rtBuildPartnerStatementV3Adjusted('partner',{from,to,label:'test',slug:'test'});return {p:p.netProfit,credit:p.accountCreditProfit,statement:s.totals.retradeEarned,diff:s.totals.reconciliationDifference};});
    const all=calcYearlyStats('all'),tax=_buildTaxCashSummary('2026-07-01','2026-09-30',''),beforeDate=_accountNonCashProfitCredits(null,'2026-08-14'),onDate=_accountNonCashProfitCredits('2026-08-15','2026-08-15');
-   const result={cashBefore,cashAfter:calcCashSummary().cashAvailable,all:{profit:all.realisedProfit,revenue:all.totalRev,count:all.soldCount,credit:all.accountCreditProfit},item:calcNetProfit(item),views,tax:tax.netProfit,taxDetail:tax.cashDetail,beforeDate:beforeDate.amount,onDate:onDate.amount,events:onDate.events};
+   const result={partnerFigures:[position.earned,position.paid,position.due],cashBefore,cashAfter:calcCashSummary().cashAvailable,all:{profit:all.realisedProfit,revenue:all.totalRev,count:all.soldCount,credit:all.accountCreditProfit},item:calcNetProfit(item),views,tax:tax.netProfit,taxDetail:tax.cashDetail,beforeDate:beforeDate.amount,onDate:onDate.amount,events:onDate.events};
    // Payment timing cannot move a dated, agreed credit into another P&L period.
    account.settlements[0].paid=false;result.unpaidCredit=_accountNonCashProfitCredits().amount;
    DB['JUL-26'].push(__auditItem('own-stock',{costPrice:10,dateSold:null,dateSourced:'2026-09-01'}));DB={...DB};
@@ -75,6 +77,7 @@ const {open,settled}=require('./startup-browser.cjs');
    await __auditLoadCredits([{...row,status:'void',applications:[]}]);result.voidCredit=_accountNonCashProfitCredits().amount;
    return result;
   });
+  assert.deepEqual(credit.partnerFigures,[20,20,0],'A £40 entitlement settled with £20 cash and £20 credit is earned and paid at the net £20');
   assert.equal(credit.cashBefore,80);assert.equal(credit.cashAfter,80,'Noncash credit creates no cash receipt');
   assert.deepEqual(credit.all,{profit:80,revenue:100,count:1,credit:20});assert.equal(credit.item,80,'Linked item attribution and aggregate earnings agree');
   assert.deepEqual(credit.views,[{p:60,credit:0,statement:60,diff:0},{p:20,credit:20,statement:20,diff:0},{p:0,credit:0,statement:0,diff:0}]);

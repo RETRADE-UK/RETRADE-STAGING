@@ -9,6 +9,14 @@ async function openOutstanding(page){
  if(await page.locator('.rt-payalloc2').evaluate(e=>e.classList.contains('closed')))await page.locator('.rt-payalloc2-head').click();
 }
 
+async function assertPartnerFigures(view, expected){
+ for(const [metric,amount] of Object.entries(expected)){
+  const value=view.locator('[data-metric="'+metric+'"] .rt-position-value');
+  await value.waitFor();
+  assert.equal(await value.innerText(),amount,metric);
+ }
+}
+
 (async()=>{
  const browser=await (engine==='webkit'?webkit:chromium).launch({headless:true,...(engine==='chromium'?{args:['--no-sandbox'],...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{})}:{})});
  try{
@@ -16,6 +24,7 @@ async function openOutstanding(page){
   // either the Outstanding card or the account-page bulk selection bar.
   for(const mobile of [true,false])for(const surface of ['outstanding','bulk']){
    const {page,context,errors}=await open(browser,{signedIn:true,mobile});await settled(page);
+   await page.clock.setFixedTime(new Date('2026-11-12T12:00:00Z'));
    await page.evaluate(()=>{
     saveDB=()=>{};
     _accounts=[{id:'advance',name:'Synthetic advance partner',accountType:'consignment',arrangementModel:'profit_share',defaultSplitPercent:50,settlements:[]}];
@@ -53,8 +62,11 @@ async function openOutstanding(page){
    assert.equal(result.tx.partnerAmount,31.75);assert.equal(result.tx.items.length,9);assert.equal(result.tx.grossProfit,null);assert.equal(result.tx.yourAmount,0);
    assert(result.items.slice(0,9).every(i=>JSON.stringify(i)===JSON.stringify(['sourced',null,null,true])),'Paying keeps the stock unlisted and unsold');assert.equal(result.items[9][3],false);
    assert.equal(result.tax.cashGoodsPaid,9);assert.equal(result.tax.cashPartnerPaid,22.75);assert.equal(result.before.cashGoodsPaid+result.before.cashPartnerPaid,0);assert.equal(result.cash,31.75);assert.equal(result.eligible,0);
+   const advanceSummary=page.locator('#p-item .rt-partner-summary-v3');
+   await assertPartnerFigures(advanceSummary,{earned:'£0.00',paid:'£31.75',due:'£0.00'});
    if(surface==='bulk')assert.equal(result.selection,false);
    await page.evaluate(()=>{DB['OCT-26'][0].state='sold';DB['OCT-26'][0].dateSold='2026-10-16';_renderAccountPage(_accounts[0]);});
+   await assertPartnerFigures(advanceSummary,{earned:'£3.25',paid:'£31.75',due:'£0.00'});
    assert.equal(await page.evaluate(()=>__rtPartnerPaymentCandidates('advance').length),0,'A later sale does not create a second partner payment');
    assert.equal(await page.evaluate(()=>{const t=_buildTaxCashSummary('2026-04-06','2027-04-05','');return t.cashGoodsPaid+t.cashPartnerPaid;}),31.75,'An advance cost is deducted only once');
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert.deepEqual(errors,[]);
@@ -66,6 +78,7 @@ async function openOutstanding(page){
   // of a dead checkbox. Sold and all-stock outstanding totals are separate.
   for(const mobile of [true,false]){
    const {page,context,errors}=await open(browser,{signedIn:true,mobile});await settled(page);
+   await page.clock.setFixedTime(new Date('2026-11-12T12:00:00Z'));
    await page.evaluate(()=>{
     saveDB=()=>{};
     _accounts=[{id:'matt',name:"Matt's Drives",accountType:'consignment',arrangementModel:'fixed_cost',paymentTiming:'on_sale',paymentTerms:'on_sale',settlements:[]}];
@@ -82,6 +95,8 @@ async function openOutstanding(page){
    await openOutstanding(page);
 
    const soldScope=page.locator('[data-payalloc-scope="sold"]'),allScope=page.locator('[data-payalloc-scope="all"]');
+   const summary=page.locator('#p-item .rt-partner-summary-v3');
+   await assertPartnerFigures(summary,{earned:'£30.00',paid:'£0.00',due:'£30.00',unsold:'£12.00'});
    assert((await soldScope.innerText()).includes('£30.00'),'Sold total uses only known sold payouts');
    assert((await soldScope.innerText()).includes('2 need payout'));
    assert((await allScope.innerText()).includes('£42.00'),'All-stock total includes unsold fixed commitments');
@@ -125,11 +140,27 @@ async function openOutstanding(page){
    assert.equal(await page.locator('[data-payalloc-id="m-stock-known"]').count(),1);
    assert.equal(await page.locator('[data-payalloc-needs-terms="m-stock-missing"]').count(),1);
 
-   const breakdown=page.locator('.rt-partner-outstanding-breakdown');
-   await breakdown.waitFor();
-   const positionText=(await breakdown.innerText()).replace(/\s+/g,' ');
-   assert(positionText.includes('Sold outstanding £0.00'));
-   assert(positionText.includes('All stock £12.00'));
+   await assertPartnerFigures(summary,{earned:'£75.00',paid:'£75.00',due:'£0.00',unsold:'£12.00'});
+
+   // A later sale increases earned and due while the original payment stays visible.
+   await page.evaluate(()=>{
+    const sold={...DB['OCT-26'][3],id:'subsequent-sale',item:'Another drive',state:'sold',dateSold:'2026-10-17',partnerAgreedAmount:20,accountPaidAmount:20};
+    DB['OCT-26'].push(sold);
+    _renderAccountPage(_accounts[0]);
+   });
+   const figures={earned:'£95.00',paid:'£75.00',due:'£20.00',unsold:'£12.00'};
+   await assertPartnerFigures(summary,figures);
+   const records=await page.evaluate(()=>JSON.stringify([DB,_accounts]));
+   await page.getByRole('button',{name:'Show partner',exact:true}).click();
+   const partnerView=page.getByRole('dialog');
+   await assertPartnerFigures(partnerView,figures);
+   assert.equal(await partnerView.locator('.rt-retrade-results, [data-kind="potential"], [contenteditable=true], input, select, textarea').count(),0,'Partner view contains only partner figures and no edit fields');
+   await partnerView.getByRole('button',{name:'Close panel'}).click();
+   assert.equal(await page.evaluate(()=>JSON.stringify([DB,_accounts])),records,'Showing the partner their figures never modifies account records');
+   await page.evaluate(()=>{
+    _accounts[0].paymentTiming='upfront';_accounts[0].paymentTerms='upfront';_renderAccountPage(_accounts[0]);
+   });
+   await assertPartnerFigures(summary,{due:'£32.00',paid:'£75.00'});
 
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));assert.deepEqual(errors,[]);
    await context.close();console.log('PASS '+engine+" Matt-style sold/all-stock outstanding "+(mobile?'mobile':'desktop'));

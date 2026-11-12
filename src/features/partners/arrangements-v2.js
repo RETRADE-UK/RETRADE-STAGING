@@ -81,6 +81,16 @@
     }
     return 0;
   }
+  // One fixed payout per item, or the economic share allocated to this sale
+  // cycle by the profit engine. Statements and the account summary share this.
+  function saleEntitlement(event,account,breakdown){
+    if(event.isReturnAdjustment)return 0;
+    if(itemModel(event.item,account)==='fixed_cost'){
+      return Number(event.sale||1)===1?agreed(event.item,account):0;
+    }
+    return Math.max(0,Number((breakdown||_saleBreakdown(event)).partnerSplit)||0);
+  }
+
   function split(i,a){
     if(itemModel(i,a)!=='profit_share')return null;
     var n=i&&i.accountSplitPercent!=null?num(i.accountSplitPercent):null;
@@ -99,6 +109,7 @@
   window._rtArrangementForItem=itemModel;
   window._rtPartnerPaymentTiming=payTiming;
   window._rtPartnerAgreedAmount=agreed;
+  window._rtPartnerSaleEntitlement=saleEntitlement;
   window._rtPartnerSharePercent=split;
   window._rtArrangementLabel=label;
 
