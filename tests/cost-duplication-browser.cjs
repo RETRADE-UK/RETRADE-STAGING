@@ -17,6 +17,14 @@ const {open,settled}=require('./startup-browser.cjs');
           expenses:[{desc:'Parking',amount:4,date:'2026-04-19',audit:{source:'original'}}],sourcingRunId:'old-run',_cloudRevision:4}];
         DB.expenses=[{id:'original-exp',date:'2026-04-19',description:'Postage bags',amount:12,category:'Office Supplies',sourcingRunId:'old-run',_cloudRevision:3}];
         window.__original=JSON.stringify({trip:DB.trips[0],exp:DB.expenses[0]});
+        window.__costTrace=[];
+        for(const name of ['saveTrip','saveExpense','saveTripEdit','saveExpenseEdit','closePanel']){
+          const original=window[name];window[name]=function(...args){
+            __costTrace.push({name,title:document.getElementById('panel-title').textContent,meta:document.getElementById('slide-panel')._panelMeta,values:[...document.querySelectorAll('#panel-content input')].map(e=>[e.id||e.className,e.value])});
+            return original.apply(this,args);
+          };
+        }
+        document.addEventListener('click',e=>__costTrace.push({click:e.target.outerHTML.slice(0,250)}),true);
         window.__writes=0;saveDB=()=>{__writes++;const preview=_previewMode;_previewMode=false;_stageDurableOutboxNow();_previewMode=preview;};
         window.__baseline=()=>{_dbSnapshot=_dbFingerprint();_outboxSave({});};__baseline();
         COST_PERIOD='all';COST_CAT_FILTER='all';goToTab('expenses');
@@ -64,7 +72,7 @@ const {open,settled}=require('./startup-browser.cjs');
       assert.deepEqual(await page.evaluate(()=>Object.keys(_outboxRead())),['exp:'+expense.id]);await unchanged();
       await page.evaluate(id=>{__baseline();editExpense(DB.expenses.findIndex(e=>e.id===id));DB.expenses=JSON.parse(JSON.stringify(DB.expenses)).reverse();},expense.id);
       await page.locator('#exp-amt').fill('22');await submit('Update Expense');
-      assert.equal(await page.evaluate(id=>DB.expenses.find(e=>e.id===id).amount,expense.id),22);
+      assert.equal(await page.evaluate(id=>DB.expenses.find(e=>e.id===id).amount,expense.id),22,JSON.stringify(await page.evaluate(()=>({trace:__costTrace.slice(-12),records:DB.expenses,toast:document.getElementById('toast').textContent}))));
       assert.deepEqual(await page.evaluate(()=>Object.keys(_outboxRead())),['exp:'+expense.id]);await unchanged();
 
       // Both editor types refuse stale/deleted records or a changed user.
@@ -104,7 +112,7 @@ const {open,settled}=require('./startup-browser.cjs');
       await page.locator('.trip-extra-amt').fill('6');await submit('Duplicate Trip');
       await page.evaluate(()=>editTrip(DB.trips.length-1));
       await page.locator('.trip-extra-amt').fill('8');await submit('Update Trip');
-      assert.deepEqual(await page.evaluate(()=>({mileage:DB.trips.at(-1).mileage,rate:DB.trips.at(-1).ratePerMile,amount:DB.trips.at(-1).expenses[0].amount})),{mileage:0,rate:0,amount:8});
+      assert.deepEqual(await page.evaluate(()=>({mileage:DB.trips.at(-1).mileage,rate:DB.trips.at(-1).ratePerMile,amount:DB.trips.at(-1).expenses[0].amount})),{mileage:0,rate:0,amount:8},JSON.stringify(await page.evaluate(()=>({trace:__costTrace.slice(-14),records:DB.trips,toast:document.getElementById('toast').textContent})))) ;
 
       await page.evaluate(()=>duplicateExpense(DB.expenses.findIndex(e=>e.id==='original-exp')));
       for(const width of mobile?[320,390]:[1440]){
