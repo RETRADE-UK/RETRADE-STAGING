@@ -26,7 +26,7 @@ const {open,settled}=require('./startup-browser.cjs');
       // animation. Wait for that transition before typing, then verify the input.
       const fill=async(selector,value)=>{
         await page.waitForFunction(()=>document.getElementById('slide-panel').getAnimations({subtree:true}).every(a=>a.playState!=='running'));
-        const input=page.locator(selector);await input.fill(value);assert.equal(await input.inputValue(),value);
+        const input=page.locator(selector);await input.click();await input.fill(value);assert.equal(await input.inputValue(),value);
       };
       const submit=async label=>{await button(label).click();await page.waitForFunction(()=>!document.getElementById('slide-panel').classList.contains('on'));};
       const unchanged=async()=>assert(await page.evaluate(()=>__original===JSON.stringify({trip:DB.trips.find(t=>t.id==='original-trip'),exp:DB.expenses.find(e=>e.id==='original-exp')})),'Source records remain byte-for-byte unchanged');
