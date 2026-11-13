@@ -1,3 +1,23 @@
+# Independent cost duplicates — 13 November 2026
+
+Core opens trip and expense duplicates as unsaved forms with an explicit Duplicate
+button. Confirming creates a fresh ID through the existing add/save owner, copying
+only editable values and fresh trip extras. Today is the initial date; the run is
+None until explicitly selected, even with an active run. Cancel performs no write.
+
+Cost forms bind edits to a stable record ID and the signed-in owner. A reordered
+cloud snapshot cannot redirect a save to another entry; changed or deleted records
+require reopening. Selecting None is respected by add/edit forms. Trip editing also
+accepts extras-only trips, matching creation validation. Existing records are not
+rewritten or unlinked automatically. No database migration is required.
+
+Synthetic desktop/mobile Chromium and WebKit tests cover source immutability,
+new IDs and outbox isolation, cancellation, date/run selection, extras, validation,
+array replacement/reordering and stale/user-switch guards. Static generation:
+`20261113-independent-cost-duplicates` (staging adds `-staging`).
+
+---
+
 # Page modules — 12 November 2026
 
 The `20261112-page-modules` build (with `-staging` on staging) moves eight
