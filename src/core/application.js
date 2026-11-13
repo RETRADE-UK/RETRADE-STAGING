@@ -17233,7 +17233,7 @@ function duplicateExpense(idx){
   const e=(DB.expenses||[])[idx];if(!e)return;
   addExpense(true);
   const d=document.getElementById('exp-desc');if(d)d.value=e.description||'';
-  const c=document.getElementById('exp-cat');if(c&&e.category)c.value=e.category;
+  const c=document.getElementById('exp-cat');if(c&&e.category)c.value=_expenseCanonLabel(e.category);
   const a=document.getElementById('exp-amt');if(a)a.value=Number(e.amount)||'';
   _renderExpenseAmountHistory(e.description||'',e.amount);
   if(a){try{a.focus();a.select();}catch(e2){}}
