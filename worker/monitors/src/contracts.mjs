@@ -1,5 +1,6 @@
 /** Version 1 engine contract. Money is integer GBP pence; null means unknown. */
 import catalog from './catalog/canon-dslr.json' with { type: 'json' };
+import { parseVintedSearchUrl } from './search-link.mjs';
 export const canon = catalog;
 export const CONDITIONS = ['new', 'very_good', 'good', 'satisfactory'];
 
@@ -38,7 +39,8 @@ export function createRecipe(input = {}) {
   if (!isRecord(input)) throw new TypeError('Recipe must be an object');
   if (input.version !== undefined && input.version !== 1) throw new TypeError('Unsupported recipe version');
   if (input.benchmark !== undefined && typeof input.benchmark !== 'boolean') throw new TypeError('benchmark must be boolean');
-  const kind = input.kind ?? 'canon';
+  const linkSearch = input.searchUrl == null ? null : parseVintedSearchUrl(input.searchUrl);
+  const kind = input.kind ?? (linkSearch ? 'custom' : 'canon');
   if (!['canon', 'custom'].includes(kind)) throw new TypeError('Unknown recipe kind');
   const models = terms(input.models ?? [], 'models');
   if (kind === 'canon' && models.some(id => !canon.models.some(m => m.id === id))) throw new TypeError('Unknown Canon model');
@@ -46,9 +48,11 @@ export function createRecipe(input = {}) {
   if (conditions.some(c => !CONDITIONS.includes(c))) throw new TypeError('Unknown condition');
   const notifyLevels = terms(input.notifyLevels ?? [], 'notifyLevels');
   if (notifyLevels.some(c => !['buy', 'snipe', 'check', 'risky'].includes(c))) throw new TypeError('Unknown notification level');
-  const minPricePence = pence(input.minPricePence ?? 0, 'minPricePence', false);
-  const maxPricePence = pence(input.maxPricePence, 'maxPricePence');
+  const minPricePence = pence(input.minPricePence ?? linkSearch?.minPricePence ?? 0, 'minPricePence', false);
+  const maxPricePence = pence(input.maxPricePence === undefined ? linkSearch?.maxPricePence : input.maxPricePence, 'maxPricePence');
   if (maxPricePence !== null && maxPricePence < minPricePence) throw new TypeError('Invalid price range');
+  if (linkSearch && (minPricePence !== linkSearch.minPricePence || maxPricePence !== linkSearch.maxPricePence))
+    throw new TypeError('Recipe prices must match the saved search URL');
   const zeroReviews = input.zeroReviews ?? 'risky';
   if (!['risky', 'hide', 'allow'].includes(zeroReviews)) throw new TypeError('Unknown zero-review policy');
   const minReviews = input.minReviews ?? 5;
@@ -73,13 +77,15 @@ export function createRecipe(input = {}) {
     version: 1, kind, benchmark: input.benchmark ?? false, models,
     customModels: terms(input.customModels ?? [], 'customModels'),
     searchTerms: terms(input.searchTerms ?? [], 'searchTerms'),
+    ...(linkSearch ? { searchUrl: linkSearch.originalUrl } : {}),
     minPricePence, maxPricePence, conditions, rejectTerms, titleRejectTerms,
     modelMaxPricePence: Object.freeze({...modelMaxPricePence}), setupRequired: input.setupRequired ?? false, bundleMode, kitAllowancePence,
     warningTerms: terms(input.warningTerms ?? [], 'warningTerms'),
     minProfitPence: pence(input.minProfitPence ?? 4000, 'minProfitPence', false),
     minRoiPercent, minReviews, minRating, zeroReviews, notifyLevels
   };
-  if (!recipe.setupRequired && !recipe.models.length && !recipe.customModels.length) throw new TypeError('Select at least one model or custom model');
+  if (linkSearch && recipe.searchTerms.length) throw new TypeError('Use a search URL or search terms, not both');
+  if (!recipe.setupRequired && !linkSearch && !recipe.models.length && !recipe.customModels.length) throw new TypeError('Select at least one model or custom model');
   if (recipe.benchmark && (conditions.length || rejectTerms.length || titleRejectTerms.length || Object.keys(modelMaxPricePence).length || bundleMode !== 'any' || kitAllowancePence || zeroReviews === 'hide' || notifyLevels.length)) {
     throw new TypeError('Benchmark must accept all conditions, warn instead of reject/hide, and remain feed-only');
   }
@@ -93,3 +99,4 @@ export function canonBenchmark() {
     warningTerms: ['spares', 'parts only', 'not working', 'faulty', 'broken', 'untested',
       'water damage', 'sensor damaged', 'sensor fault', 'shutter fault', 'no charger', 'charger missing', 'no battery'] });
 }
+

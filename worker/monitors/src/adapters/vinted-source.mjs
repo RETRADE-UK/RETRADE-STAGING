@@ -1,6 +1,8 @@
 /** Experimental read-only source. Transport must be injected explicitly.
  * No sign-in, challenge handling, automatic retries or deployment entry point. */
 import { createRecipe, pence } from '../contracts.mjs';
+import { buildVintedSearchParams } from '../search-link.mjs';
+import { recipeSourceQueries } from '../recipe-source.mjs';
 import { ProviderContractError, parseSearchPage, mergeListing } from './vinted-normalize.mjs';
 import { PUBLIC_AGENT, publicCookieHeader, acceptPublicCookies, validatePublicSession } from './vinted-public-session.mjs';
 
@@ -83,7 +85,7 @@ export function validateAccessToken(value) {
 }
 
 /** @param {{ request: (url: URL, options: RequestInit) => Promise<Response>, now?: () => number, timeoutMs?: number, maxBytes?: number, accessToken?: string|null }} options */
-export function createVintedSource({ request, now = Date.now, timeoutMs = 10000, maxBytes = 1000000, accessToken = null, userAgent = 'RETRADE-Monitor/1.2', publicSession = null } = {}) {
+export function createVintedSource({ request, now = Date.now, timeoutMs = 10000, maxBytes = 1000000, accessToken = null, userAgent = 'RETRADE-Monitor/1.2', publicSession = null, candidateLinkSearch = false } = {}) {
   if (typeof request !== 'function') throw new TypeError('Explicit request transport required');
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000) throw new TypeError('Invalid timeout');
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 5000000) throw new TypeError('Invalid response bound');
@@ -96,17 +98,29 @@ export function createVintedSource({ request, now = Date.now, timeoutMs = 10000,
   if (typeof userAgent !== 'string' || !/^[\x20-\x7e]{10,512}$/.test(userAgent)) throw new TypeError('Invalid user agent');
   return {
     /** @param {{ searchText: string, minPricePence?: number, maxPricePence?: number|null, page?: number, perPage?: number, signal?: AbortSignal }} input */
-    async searchPage({ searchText, minPricePence = 0, maxPricePence = null, page = 1, perPage = 50, signal } = {}) {
-      if (typeof searchText !== 'string' || !searchText.trim() || searchText.length > 200) throw new TypeError('Search text required');
-      pence(minPricePence, 'minPricePence', false); pence(maxPricePence, 'maxPricePence');
-      if (maxPricePence !== null && maxPricePence < minPricePence) throw new TypeError('Invalid price range');
+    async searchPage({ searchText, minPricePence, maxPricePence, linkSearch = null, page = 1, perPage = 50, signal } = {}) {
+      let params;
+      if (linkSearch !== null) {
+        // Candidate serialization is covered by fixtures, not provider acceptance.
+        // No current service entry point opts into this capability.
+        if (candidateLinkSearch !== true) throw new SourceError('link_search_unverified');
+        if (searchText !== undefined || minPricePence !== undefined || maxPricePence !== undefined)
+          throw new TypeError('URL search scope must not be overridden by legacy fields');
+        params = buildVintedSearchParams(linkSearch, { page, perPage });
+      } else {
+        if (typeof searchText !== 'string' || !searchText.trim() || searchText.length > 200) throw new TypeError('Search text required');
+        if (minPricePence === undefined) minPricePence = 0;
+        if (maxPricePence === undefined) maxPricePence = null;
+        pence(minPricePence, 'minPricePence', false); pence(maxPricePence, 'maxPricePence');
+        if (maxPricePence !== null && maxPricePence < minPricePence) throw new TypeError('Invalid price range');
+        params = new URLSearchParams({ search_text: searchText.trim(), price_from: (minPricePence / 100).toFixed(2),
+          currency: 'GBP', order: 'newest_first', page, per_page: perPage });
+        if (maxPricePence !== null) params.set('price_to', (maxPricePence / 100).toFixed(2));
+      }
       if (!Number.isSafeInteger(page) || page < 1 || page > 100 || !Number.isSafeInteger(perPage) || perPage < 1 || perPage > 100) throw new TypeError('Invalid pagination');
       if (signal?.aborted) throw new SourceError('cancelled');
       const url = publicSession ? new URL('https://api.vinted.co.uk/svc-catalogue/items') : new URL(VINTED_CATALOG_PATH, 'https://www.vinted.co.uk');
-      const params = { search_text: searchText.trim(), price_from: (minPricePence / 100).toFixed(2),
-        currency: 'GBP', order: 'newest_first', page, per_page: perPage };
-      if (maxPricePence !== null) params.price_to = (maxPricePence / 100).toFixed(2);
-      for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
+      url.search = params.toString();
       const controller = new AbortController();
       let timer, onAbort;
       const aborted = new Promise((_, reject) => {
@@ -159,20 +173,21 @@ export function createVintedSource({ request, now = Date.now, timeoutMs = 10000,
 
 /** Bounded overlapping catalog scan, not a persistent scheduler. Partial coverage
  * is explicit; a caller must not establish a baseline from an incomplete scan. */
-export async function scanCatalog({ source, recipe: input, maxPages = 2, perPage = 50, maxRequests = 6, knownIds = new Set(), signal }) {
+export async function scanCatalog({ source, recipe: input, maxPages = 2, perPage = 50, maxRequests = 6, knownIds = new Set(), signal, candidateLinkSearch = false, priceScope = null }) {
   const recipe = createRecipe(input);
   if (!Number.isSafeInteger(maxPages) || maxPages < 1 || maxPages > 10 || !Number.isSafeInteger(maxRequests) || maxRequests < 1 || maxRequests > 30) throw new TypeError('Invalid scan budget');
   if (!Number.isSafeInteger(perPage) || perPage < 1 || perPage > 100) throw new TypeError('Invalid page size');
-  if (!recipe.searchTerms.length) throw new TypeError('Source search terms required');
+  if (recipe.searchUrl && candidateLinkSearch !== true) throw new SourceError('link_search_unverified');
+  const queries = recipeSourceQueries(recipe, { priceScope });
   const candidates = new Map(); let requests = 0;
   const incomplete = [];
-  for (const searchText of recipe.searchTerms) {
+  for (const query of queries) {
+    const searchText = query.linkSearch ? '[saved URL]' : query.searchText;
     for (let page = 1; page <= maxPages; page++) {
       if (signal?.aborted) throw new SourceError('cancelled');
       if (requests >= maxRequests) { incomplete.push({ searchText, reason: 'request_budget' }); break; }
       requests++;
-      const result = await source.searchPage({ searchText, minPricePence: recipe.minPricePence,
-        maxPricePence: recipe.maxPricePence, page, perPage, signal });
+      const result = await source.searchPage({ ...query, page, perPage, signal });
       if (!Array.isArray(result.listings) || !Number.isSafeInteger(result.rawCount) || result.rawCount < result.listings.length || result.rawCount > perPage) throw new ProviderContractError('Invalid source page result');
       for (const listing of result.listings) {
         const previous = candidates.get(listing.id);
@@ -190,3 +205,4 @@ export async function scanCatalog({ source, recipe: input, maxPages = 2, perPage
   }
   return { listings: [...candidates.values()], requests, incomplete, coverageComplete: incomplete.length === 0 };
 }
+

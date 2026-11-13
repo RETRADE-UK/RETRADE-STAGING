@@ -2,15 +2,23 @@
 import { createRecipe } from './contracts.mjs';
 import { createVintedSource, validateAccessToken } from './adapters/vinted-source.mjs';
 import { matchListing } from './engine/match.mjs';
+import { recipeSourceQueries, recipeSourceKey } from './recipe-source.mjs';
 
-export async function checkSession({ request, accessToken, publicSession=null, recipe: input, searchText, userAgent, sourceRecipe=null, now = Date.now }) {
-  if(!publicSession) validateAccessToken(accessToken);
+export async function checkSession({ request, accessToken, publicSession=null, recipe: input, searchText, userAgent, sourceRecipe=null, now = Date.now, candidateLinkSearch = false }) {
   const recipe = createRecipe(input);
-  if (!recipe.searchTerms.includes(searchText)) throw new TypeError('Choose a saved search from this monitor.');
+  if (recipe.searchUrl && candidateLinkSearch !== true)
+    return { status: 'source_unverified', httpStatus: null, items: [], received: 0, retryAt: null };
+  if(!publicSession) validateAccessToken(accessToken);
+  if (recipe.searchUrl ? searchText !== undefined : !recipe.searchTerms.includes(searchText))
+    throw new TypeError('Choose a saved search from this monitor.');
+  const scope = sourceRecipe ? createRecipe(sourceRecipe) : recipe;
+  if (recipe.searchUrl && recipeSourceKey(scope) !== recipeSourceKey(recipe))
+    throw new TypeError('Diagnostic scope must use the saved URL filters');
+  const query = recipe.searchUrl ? recipeSourceQueries(recipe, { priceScope: scope })[0]
+    : { searchText, minPricePence: scope.minPricePence, maxPricePence: scope.maxPricePence };
   try {
-    const scope=sourceRecipe || recipe;
-    const page = await createVintedSource({ request, ...(publicSession?{publicSession}:{accessToken,userAgent}), now, timeoutMs: 10000 })
-      .searchPage({ searchText, minPricePence: scope.minPricePence, maxPricePence: scope.maxPricePence, perPage: publicSession?50:20 });
+    const page = await createVintedSource({ request, ...(publicSession?{publicSession}:{accessToken,userAgent}), now, timeoutMs: 10000, candidateLinkSearch })
+      .searchPage({ ...query, perPage: publicSession?50:20 });
     // New/unknown provider shapes must not count as a working connection.
     if (page.listings.some(l => !l.title || !l.url || l.currency !== 'GBP' || l.itemPricePence === null)
       || (publicSession && recipe.conditions.length && page.listings.length && page.listings.every(l=>l.condition===null)))
@@ -32,6 +40,7 @@ export async function checkSession({ request, accessToken, publicSession=null, r
 }
 
 export const sessionMessages = Object.freeze({
+  source_unverified: 'URL catalogue filters are not verified for this source yet. No request was made.',
   sample_received: 'Vinted returned listing data. Matching sample results are saved in History. Background monitoring is still off until continuous access is verified.',
   empty: 'Vinted returned an empty results page. This does not prove the session works; no listings were saved.',
   access_rejected: 'Vinted rejected search access (401). This does not prove that the token expired. The connection method needs review; repeatedly replacing tokens is not a fix.',
@@ -42,3 +51,4 @@ export const sessionMessages = Object.freeze({
   timeout: 'Vinted did not respond in time. No listings were saved.',
   unavailable: 'The Vinted check could not complete. No listings were saved.',
 });
+
