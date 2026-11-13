@@ -16780,7 +16780,8 @@ function _runDropdownHTML(fieldId, currentRunId){
     return (b.dateStarted||'').localeCompare(a.dateStarted||'');
   });
   if(!runs.length) return '';
-  const defVal=currentRunId||(_activeSourcingRun?_activeSourcingRun.id:'');
+  // An explicit empty selection means None, even while a run is active.
+  const defVal=currentRunId==null?(_activeSourcingRun?_activeSourcingRun.id:''):currentRunId;
   let opts='<option value="">None</option>';
   runs.forEach(function(r){
     const label=r.status==='active'?'\u25cf '+r.name+' (active)':r.name+' ('+r.dateStarted+')';
@@ -16864,24 +16865,45 @@ function duplicateTrip(idx){
   const trips=DB.trips||[];
   const t=trips[idx];
   if(!t)return;
-  const allNames=trips.map(function(x){return x.description||'';});
-  const newName=_nextDupeName(allNames,t.description||'Sourcing trip');
-  const copy=Object.assign({},t,{
-    id:_newId('trip'),
-    description:newName,
-    date:_canonicalLinkedDate(t.sourcingRunId,new Date().toISOString().split('T')[0]),
-    expenses:Array.isArray(t.expenses)?t.expenses.map(function(e){return Object.assign({},e);}):[]
-  });
-  trips.splice(idx+1,0,copy);
-  DB.trips=trips;
-  saveDB();
-  renderExpenses();
-  const newIdx=trips.indexOf(copy);
-  if(newIdx!==-1)editTrip(newIdx);
+  // Keep the copy in the form until confirmed. Only editable values are
+  // carried over; identity, run links and sync metadata belong to the source.
+  addTrip(true);
+  document.getElementById('trip-desc').value=_nextDupeName(trips.map(x=>x.description||''),t.description||'Sourcing trip');
+  document.getElementById('trip-miles').value=t.mileage??'';
+  document.getElementById('trip-rate').value=t.ratePerMile??0.45;
+  document.getElementById('trip-extras-list').innerHTML=(Array.isArray(t.expenses)&&t.expenses.length?t.expenses:[{}])
+    .map((e,i)=>_tripExtraRowHTML(i,e.desc,e.amount)).join('');
 }
 
+// Bind a mounted form to its owner and stable record ID. Sync can replace or
+// reorder arrays while the panel is open; an array index is not an identity.
+function _bindCostForm(kind,mode,record){
+  document.getElementById('slide-panel')._panelMeta={type:'cost-form',kind,
+    context:{owner:_currentUserId,mode,id:record&&record.id,json:record?JSON.stringify(record):null}};
+}
+function _costFormContext(kind,editing){
+  const panel=document.getElementById('slide-panel'),meta=panel?._panelMeta;
+  const context=panel?.classList.contains('on')&&meta?.type==='cost-form'&&meta.kind===kind?meta.context:null;
+  if(!context||context.owner!==_currentUserId||(context.mode==='edit')!==editing){
+    toast('Reopen this form before saving.','error');return null;
+  }
+  return context;
+}
+function _costFormRecordIndex(kind){
+  const context=_costFormContext(kind,true);if(!context)return -1;
+  const records=kind==='trip'?(DB.trips||[]):(DB.expenses||[]);
+  const matches=records.filter(record=>record.id===context.id);
+  if(!context.id||matches.length!==1||JSON.stringify(matches[0])!==context.json){
+    toast('This entry changed. Reopen it to review the latest details.','error');return -1;
+  }
+  return records.indexOf(matches[0]);
+}
+function _costFormRunId(kind){
+  const select=document.getElementById(kind+'-run-id');
+  return select?(select.value||null):null;
+}
 
-function addTrip(){
+function addTrip(duplicating=false){
   const html=`
     <div class="fg">
       <label>Date</label>
@@ -16908,14 +16930,17 @@ function addTrip(){
       </div>
     </details>
     ${_tripExtrasHTML([])}
-    ${_runDropdownHTML('trip-run-id',null)}
-    <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveTrip()">Save Trip</button>
+    ${_runDropdownHTML('trip-run-id',duplicating?'':null)}
+    <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveTrip()">${duplicating?'Duplicate Trip':'Save Trip'}</button>
   `;
-  openPanel('Log Trip',html);
+  openPanel(duplicating?'Duplicate Trip':'Log Trip',html);
+  _bindCostForm('trip',duplicating?'duplicate':'add');
+  _syncLinkedDateField(document.getElementById('trip-run-id'),'trip-date');
   const _d=document.getElementById('trip-desc');if(_d)_d.focus();
 }
 
 function saveTrip(){
+  const context=_costFormContext('trip',false);if(!context)return;
   // Validation: mileage must be positive UNLESS the trip has extras logged
   // (e.g. a parking- or entry-fee-only trip with no driving). Rate non-negative.
   const miles=parseFloat(document.getElementById('trip-miles').value);
@@ -16932,7 +16957,7 @@ function saveTrip(){
     try{document.getElementById('trip-rate').focus();}catch(e){}
     return;
   }
-  const runId=(document.getElementById('trip-run-id')?.value)||(_activeSourcingRun?_activeSourcingRun.id:null)||null;
+  const runId=_costFormRunId('trip');
   const trip={
     id:_newId('trip'),
     date:_canonicalLinkedDate(runId,document.getElementById('trip-date').value),
@@ -16946,11 +16971,11 @@ function saveTrip(){
   DB.trips.push(trip);
   saveDB();
   closePanel();
-  toast('Trip logged');
+  toast(context.mode==='duplicate'?'Trip duplicated':'Trip logged');
   renderExpenses();
 }
 
-function addExpense(){
+function addExpense(duplicating=false){
   const html=`
     <div class="fg">
       <label>Date</label>
@@ -16972,14 +16997,17 @@ function addExpense(){
       <input type="number" id="exp-amt" step="0.01" min="0" placeholder="0.00" inputmode="decimal">
       <div id="exp-amount-history" class="expense-amount-history"></div>
     </div>
-    ${_runDropdownHTML('exp-run-id',null)}
-    <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveExpense()">Save Expense</button>
+    ${_runDropdownHTML('exp-run-id',duplicating?'':null)}
+    <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveExpense()">${duplicating?'Duplicate Expense':'Save Expense'}</button>
   `;
-  openPanel('Add Expense',html);
+  openPanel(duplicating?'Duplicate Expense':'Add Expense',html);
+  _bindCostForm('exp',duplicating?'duplicate':'add');
+  _syncLinkedDateField(document.getElementById('exp-run-id'),'exp-date');
   const _d=document.getElementById('exp-desc');if(_d)_d.focus();
 }
 
 function saveExpense(){
+  const context=_costFormContext('exp',false);if(!context)return;
   // Validation: description required, amount must be positive
   const desc=(document.getElementById('exp-desc').value||'').trim();
   const amt=parseFloat(document.getElementById('exp-amt').value);
@@ -16993,7 +17021,7 @@ function saveExpense(){
     try{document.getElementById('exp-amt').focus();}catch(e){}
     return;
   }
-  const runId=(document.getElementById('exp-run-id')?.value)||(_activeSourcingRun?_activeSourcingRun.id:null)||null;
+  const runId=_costFormRunId('exp');
   const exp={
     id:_newId('exp'),
     date:_canonicalLinkedDate(runId,document.getElementById('exp-date').value),
@@ -17006,7 +17034,7 @@ function saveExpense(){
   DB.expenses.push(exp);
   saveDB();
   closePanel();
-  toast('Expense saved');
+  toast(context.mode==='duplicate'?'Expense duplicated':'Expense saved');
   if(document.getElementById('p-cash')?.classList.contains('on'))renderCash();else renderExpenses();
 }
 
@@ -17016,19 +17044,23 @@ function editTrip(idx){
     <div class="fg"><label>Date</label><input type="date" id="trip-date" value="${_canonicalLinkedDate(t.sourcingRunId,t.date)}" ${t.sourcingRunId?'readonly aria-readonly="true"':''}></div>
     <div class="fg"><label>Description</label><input type="text" id="trip-desc" value="${esc(t.description||'')}"></div>
     <div class="fg"><label>Mileage</label><input type="number" id="trip-miles" step="0.1" min="0" value="${t.mileage||''}"></div>
-    <div class="fg"><label>Rate per mile (£)</label><input type="number" id="trip-rate" step="0.01" min="0" value="${t.ratePerMile||0.45}"></div>
+    <div class="fg"><label>Rate per mile (£)</label><input type="number" id="trip-rate" step="0.01" min="0" value="${t.ratePerMile??0.45}"></div>
     ${_tripExtrasHTML(Array.isArray(t.expenses)?t.expenses:[])}
-    ${_runDropdownHTML('trip-run-id',t.sourcingRunId||null)}
-    <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveTripEdit(${idx})">Update Trip</button>
-    <button class="btn btn-secondary danger" style="width:100%;margin-top:8px" onclick="deleteTrip(${idx})">Delete Trip</button>
+    ${_runDropdownHTML('trip-run-id',t.sourcingRunId||'')}
+    <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveTripEdit()">Update Trip</button>
+    <button class="btn btn-secondary danger" style="width:100%;margin-top:8px" onclick="deleteTrip(_costFormRecordIndex('trip'))">Delete Trip</button>
   `);
+  _bindCostForm('trip','edit',t);
+  _syncLinkedDateField(document.getElementById('trip-run-id'),'trip-date');
 }
-function saveTripEdit(idx){
+function saveTripEdit(){
+  const idx=_costFormRecordIndex('trip');if(idx<0)return;
   const trips=DB.trips||[];if(!trips[idx])return;
   const miles=parseFloat(document.getElementById('trip-miles').value);
   const rate=parseFloat(document.getElementById('trip-rate').value);
-  if(!isFinite(miles)||miles<=0){
-    toast('Mileage must be a positive number','error');
+  const extras=_readTripExtras();
+  if((!isFinite(miles)||miles<=0)&&!extras.some(e=>e.amount>0)){
+    toast('Add mileage or at least one trip expense','error');
     try{document.getElementById('trip-miles').focus();}catch(e){}
     return;
   }
@@ -17039,13 +17071,13 @@ function saveTripEdit(idx){
   }
   const existingId = trips[idx].id || (_newId('trip'));
   const runId=(document.getElementById('trip-run-id')?.value)||null;
-  trips[idx]={
+  trips[idx]={...trips[idx],
     id:existingId,
     date:_canonicalLinkedDate(runId,document.getElementById('trip-date').value),
     description:document.getElementById('trip-desc').value,
-    mileage:miles,
+    mileage:isFinite(miles)&&miles>0?miles:0,
     ratePerMile:rate,
-    expenses:_readTripExtras().map(function(x){return Object.assign({},x,runId?{date:_canonicalLinkedDate(runId)}:{});}),
+    expenses:extras.map(function(x){return Object.assign({},x,runId?{date:_canonicalLinkedDate(runId)}:{});}),
     sourcingRunId:runId
   };
   // E34 — capture BEFORE closePanel(), which resets this as a safety net for
@@ -17061,7 +17093,11 @@ function saveTripEdit(idx){
   if(document.getElementById('p-cash')?.classList.contains('on'))renderCash();else renderExpenses();
 }
 async function deleteTrip(idx){
+  const record=(DB.trips||[])[idx];if(!record)return;
+  const owner=_currentUserId,snapshot=JSON.stringify(record);
   if(!await showConfirm('Delete this trip?','This sourcing trip will be permanently removed.'))return;
+  idx=(DB.trips||[]).findIndex(t=>t.id===record.id);
+  if(owner!==_currentUserId||idx<0||JSON.stringify(DB.trips[idx])!==snapshot)return;
   const _overheadReturnId=_runOverheadReturnId; // capture before any fn that could reset it
   (DB.trips=DB.trips||[]).splice(idx,1);saveDB();closePanel();toast('Trip deleted');
   if(_overheadReturnId){
@@ -17182,25 +17218,28 @@ function editExpense(idx){
     <div class="fg"><label>Description</label><input type="text" id="exp-desc" value="${esc(e.description||'')}"></div>
     <div class="fg"><label>Category</label><select id="exp-cat">${_expenseCatOptionsHTML(e.category||'')}</select></div>
     <div class="fg"><label>Amount (£)</label><input type="number" id="exp-amt" step="0.01" min="0" value="${e.amount||''}"></div>
-    ${_runDropdownHTML('exp-run-id',e.sourcingRunId||null)}
-    <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveExpenseEdit(${idx})">Update Expense</button>
-    <button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="duplicateExpense(${idx})">Duplicate &mdash; new entry, today's date</button>
-    <button class="btn btn-secondary danger" style="width:100%;margin-top:8px" onclick="deleteExpense(${idx})">Delete Expense</button>
+    ${_runDropdownHTML('exp-run-id',e.sourcingRunId||'')}
+    <button class="btn btn-primary" style="width:100%;margin-top:16px" onclick="saveExpenseEdit()">Update Expense</button>
+    <button class="btn btn-secondary" style="width:100%;margin-top:8px" onclick="duplicateExpense(_costFormRecordIndex('exp'))">Duplicate &mdash; new entry, today's date</button>
+    <button class="btn btn-secondary danger" style="width:100%;margin-top:8px" onclick="deleteExpense(_costFormRecordIndex('exp'))">Delete Expense</button>
   `);
+  _bindCostForm('exp','edit',e);
+  _syncLinkedDateField(document.getElementById('exp-run-id'),'exp-date');
 }
 // Duplicate opens the ADD panel (so save creates a new row) prefilled from the
 // source expense, with today's date and no sourcing-run link carried over — a
 // repeat spend belongs to today, not to the original run.
 function duplicateExpense(idx){
   const e=(DB.expenses||[])[idx];if(!e)return;
-  addExpense();
+  addExpense(true);
   const d=document.getElementById('exp-desc');if(d)d.value=e.description||'';
-  const c=document.getElementById('exp-cat');if(c&&e.category)c.value=e.category;
+  const c=document.getElementById('exp-cat');if(c&&e.category)c.value=_expenseCanonLabel(e.category);
   const a=document.getElementById('exp-amt');if(a)a.value=Number(e.amount)||'';
   _renderExpenseAmountHistory(e.description||'',e.amount);
   if(a){try{a.focus();a.select();}catch(e2){}}
 }
-function saveExpenseEdit(idx){
+function saveExpenseEdit(){
+  const idx=_costFormRecordIndex('exp');if(idx<0)return;
   const expenses=DB.expenses||[];if(!expenses[idx])return;
   const desc=(document.getElementById('exp-desc').value||'').trim();
   const amt=parseFloat(document.getElementById('exp-amt').value);
@@ -17216,7 +17255,7 @@ function saveExpenseEdit(idx){
   }
   const existingId = expenses[idx].id || (_newId('exp'));
   const runId=(document.getElementById('exp-run-id')?.value)||null;
-  expenses[idx]={id:existingId,date:_canonicalLinkedDate(runId,document.getElementById('exp-date').value),description:desc,category:document.getElementById('exp-cat').value,amount:amt,sourcingRunId:runId};
+  expenses[idx]={...expenses[idx],id:existingId,date:_canonicalLinkedDate(runId,document.getElementById('exp-date').value),description:desc,category:document.getElementById('exp-cat').value,amount:amt,sourcingRunId:runId};
   const _overheadReturnId=_runOverheadReturnId; // capture before closePanel resets it
   DB.expenses=expenses;saveDB();closePanel();toast('Expense updated');
   if(_overheadReturnId){
@@ -17226,7 +17265,11 @@ function saveExpenseEdit(idx){
   if(document.getElementById('p-cash')?.classList.contains('on'))renderCash();else renderExpenses();
 }
 async function deleteExpense(idx){
+  const record=(DB.expenses||[])[idx];if(!record)return;
+  const owner=_currentUserId,snapshot=JSON.stringify(record);
   if(!await showConfirm('Delete this expense?','This expense will be permanently removed.'))return;
+  idx=(DB.expenses||[]).findIndex(e=>e.id===record.id);
+  if(owner!==_currentUserId||idx<0||JSON.stringify(DB.expenses[idx])!==snapshot)return;
   const _overheadReturnId=_runOverheadReturnId; // capture before saveDB/toast
   (DB.expenses=DB.expenses||[]).splice(idx,1);saveDB();closePanel();toast('Expense deleted');
   if(_overheadReturnId){
