@@ -13920,19 +13920,33 @@ function _monthEventKey(ev){
 }
 function _monthEventSelected(ev){return !!(ev&&ev.item&&(SELECTED_ITEMS.has(_monthEventKey(ev))||SELECTED_ITEMS.has(ev.item.id)));}
 function _selectedMonthEvents(){return (window.__monthItems||[]).filter(_monthEventSelected);}
-function _saleBulkUndoReason(ev){
+function _saleBulkUndoReason(ev){return _saleChangeReason(ev,'undo');}
+function _saleChangeReason(ev,action,allowedBundle){
   if(!ev||ev.isReturnAdjustment)return 'Refunds and returns must be reviewed on the item page.';
   const rec=_findItemRecordById(ev.item.id),i=rec&&rec.item,n=Number(ev.sale)||1;
   if(!i)return 'The item is no longer available.';
-  if(_activeJobLotMembership(i.id)||_itemHasGroupedSale(i))return 'Grouped sales must be reversed from their order page.';
+  const cycle=_saleCycleSnapshot(i,n);
+  if(_activeJobLotMembership(i.id)||(action==='undo'?_itemHasGroupedSale(i):cycle&&cycle.bundleId&&cycle.bundleId!==allowedBundle))return 'Manage grouped sales from their order page.';
+  if(action!=='undo'&&(i.refreshHistory||[]).some(h=>Number(h.saleNo||1)===n&&(h.type==='verified_sale_fees'||(h.type==='verified_cash_events'&&h.mode==='replace'&&h.status==='active'))))return 'This sale is linked to a verified marketplace statement.';
   if((_saleReconciliations||[]).some(function(r){return r.attachedItemId===i.id||r.targetSaleItemId===i.id||(r.resultingAllocation||[]).some(function(a){return a.itemId===i.id;});}))return 'Reconciled sales must be reviewed on the item or order page.';
-  if(i.accountSettled||_hasSettlementHistoryForItem(i.id))return 'Review the recorded partner allocation or payment on the item page first.';
+  if((action==='undo'||_fixedAccountAmount(i)==null)&&(i.accountSettled||_hasSettlementHistoryForItem(i.id)))return 'Review the recorded partner allocation or payment on the item page first.';
   if(i.scrappedAt||i.isReturned)return 'Returned or archived items must be reviewed on the item page.';
   const current=i.resaleSalePrice&&i.resaleDateSold?_currentResaleSaleNo(i):i.dateSold?1:0;
-  if(n!==current)return 'Only the latest completed sale can be undone. Open older sales on the item page.';
+  if(n!==current)return 'Select the latest completed sale for each item.';
   if((i.returnHistory||[]).some(function(r){return (Number(r.saleNo)||1)===n;}))return 'This sale has a refund or return. Review it on the item page first.';
-  const cycle=_saleCycleSnapshot(i,n);
-  if(!cycle||cycle.date!==ev.saleDate||cycle.price!==ev.salePrice)return 'The sale changed. Refresh the selection before continuing.';
+  if(!cycle||cycle.date!==ev.saleDate||cycle.price!==ev.salePrice||(ev.snapshot&&ev.snapshot.platformId!==cycle.platformId))return 'The sale changed. Refresh the selection before continuing.';
+  return '';
+}
+function _recordedBundleReason(events){
+  if(events.length<2)return 'Select at least two sold items from one order.';
+  const first=events[0],ids=new Set();
+  for(const ev of events){
+    const reason=_saleChangeReason(ev,'bundle');
+    if(reason)return reason;
+    if(ids.has(ev.item.id))return 'Select one sale per item.';
+    ids.add(ev.item.id);
+    if(ev.saleDate!==first.saleDate||ev.snapshot.platformId!==first.snapshot.platformId)return 'Select sales from the same date and platform.';
+  }
   return '';
 }
 function _bulkActionButton(ctx,action,label,ico,extra){
@@ -13953,10 +13967,10 @@ function _bulkSelectionToolbarHTML(ctx){
       +_bulkActionButton(ctx,'bundle','Bundle sale','sold')+_bulkActionButton(ctx,'joblot','Create Job Lot','joblot'))
       +(typeof openPurchaseLink==='function'?_bulkActionButton(ctx,'purchase','Link purchase','expense'):'')
       +(onHand?'':_bulkActionButton(ctx,'duplicate','Duplicate to stock','dupe'))
-    :'<p class="bulk-action-hint" data-month-selection-hint hidden></p>';
+    :_bulkActionButton(ctx,'bundle','Bundle sales','sold')+'<p class="bulk-action-hint" data-month-selection-hint hidden></p>';
   return '<button type="button" class="sel-check" role="checkbox" aria-label="Select all shown" aria-checked="false" onclick="'+(stock?'selectAllStockVisible()':'selectAllMonth()')+'"><span class="sel-check-box" aria-hidden="true"></span><span data-'+ctx+'-selection-count role="status">Select all</span></button>'
     +'<div class="bulk-primary-actions">'+primary+'</div>'
-    +'<details class="bulk-actions-menu'+(stock?'':' bulk-mobile-menu')+'" ontoggle="_positionBulkMenu(this)"><summary class="bulk-ctrl" onclick="_toggleBulkMenu(event,this)"><span class="bulk-more-label">More</span><span class="bulk-actions-label">Actions</span><span aria-hidden="true">⌄</span></summary><div class="bulk-actions-popover"><div class="bulk-mobile-actions">'+primary+'</div>'+more+'</div></details>'
+    +'<details class="bulk-actions-menu" ontoggle="_positionBulkMenu(this)"><summary class="bulk-ctrl" onclick="_toggleBulkMenu(event,this)"><span class="bulk-more-label">More</span><span class="bulk-actions-label">Actions</span><span aria-hidden="true">⌄</span></summary><div class="bulk-actions-popover"><div class="bulk-mobile-actions">'+primary+'</div>'+more+'</div></details>'
     +'<button type="button" class="sel-exit" onclick="'+(stock?'toggleStockSelection()':'toggleSelectionMode()')+'">Done</button>';
 }
 function _toggleBulkMenu(event,summary){
@@ -14008,8 +14022,14 @@ function _refreshMonthSelection(){
   if(box){box.classList.toggle('all',all);box.classList.toggle('some',!all&&selected.length>0);box.textContent=all?'✓':selected.length?'−':'';}
   const count=page.querySelector('[data-month-selection-count]');if(count)count.textContent=selected.length?selected.length+' selected':'Select all';
   const undo=selected.some(function(ev){return !_saleBulkUndoReason(ev);}),reason=selected.length&&!undo?_saleBulkUndoReason(selected[0]):'';
-  page.querySelectorAll('[data-month-action]').forEach(function(el){el.disabled=_selectionActionPending||!(el.dataset.monthAction==='undo'?undo:selected.length);el.title=el.dataset.monthAction==='undo'?reason:'';});
-  const hint=page.querySelector('[data-month-selection-hint]');if(hint){hint.textContent=reason;hint.hidden=!reason;}
+  const bundleReason=_recordedBundleReason(selected);
+  page.querySelectorAll('[data-month-action]').forEach(function(el){
+    const action=el.dataset.monthAction;
+    el.disabled=_selectionActionPending||(action==='bundle'?!!bundleReason:action==='undo'?!undo:!selected.length);
+    el.title=action==='bundle'?bundleReason:action==='undo'?reason:'';
+  });
+  const hint=page.querySelector('[data-month-selection-hint]');
+  if(hint){hint.textContent=selected.length>1&&bundleReason?'Bundle sales · '+bundleReason:reason;hint.hidden=!hint.textContent;}
   _paintSelBar('month');
 }
 function _selectedBulkRecords(ctx){
@@ -14059,7 +14079,14 @@ async function runSelectionAction(ctx,action){
   _closeBulkMenus();_selectionActionPending=true;_refreshStockSelection();_refreshMonthSelection();
   try{
     if(action==='duplicate')return await _duplicateSelectedStock(ctx);
-    if(ctx==='month'){if(action==='undo')return await _undoSelectedSales();return;}
+    if(ctx==='month'){
+      if(action==='undo')return await _undoSelectedSales();
+      if(action==='bundle'){
+        if(typeof openRecordedBundle==='function')openRecordedBundle();
+        else toast('Bundle tools are loading. Try again in a moment.','err');
+      }
+      return;
+    }
     if(action==='list')return openStockBulkList();
     if(action==='withdraw')return await withdrawSelectedStock();
     if(action==='sold'){
@@ -14921,7 +14948,8 @@ function _bundleSummary(bid){
   const its=_bundleItems(bid);
   let revenue=0,cost=0,profit=0,shipping=0;
   its.forEach(function(i){
-    revenue+=_bundleMemberSalePrice(i,bid)+_bundleMemberPostage(i,bid);
+    const cycle=_bundleMemberCycle(i,bid);
+    revenue+=cycle.price+_sellerPostageIncome(cycle.platformId,cycle.postage);
     cost+=(i.costPrice||0)+calcPartsCost(i);
     shipping+=_bundleMemberShipping(i,bid);
     profit+=_bundleMemberProfit(i,bid);

@@ -74,7 +74,7 @@
     var its=itemsFor(bid),out={items:its,sale:0,postage:0,receipts:0,fees:0,listing:0,promo:0,shipping:0,packaging:0,cost:0,parts:0,partner:0,saleLegNet:0,profit:0,date:'',ref:'',platform:''};
     its.forEach(function(i){
       var cyc=cycleFor(i,bid);if(!cyc)return;
-      out.sale+=num(cyc.price);out.postage+=num(cyc.postage);out.shipping+=num(cyc.shipping);
+      out.sale+=num(cyc.price);out.postage+=_sellerPostageIncome(cyc.platformId,cyc.postage);out.shipping+=num(cyc.shipping);
       if(!out.date)out.date=cyc.date||'';if(!out.ref)out.ref=cyc.bundleRef||'';
       if(!out.platform)out.platform=cyc.platformId||cyc.platform||((num(cyc.saleNo)||1)>=2?i.resalePlatform:(i.soldOnPlatform||i.salePlatform||i.defaultPlatform))||'';
       try{
@@ -139,7 +139,7 @@
       +'<div class="rt-bop-kpis"><div class="rt-bop-kpi"><small>Gross receipts</small><strong>'+money(b.receipts)+'</strong></div><div class="rt-bop-kpi"><small>Your profit</small><strong style="color:'+(b.profit>=0?'var(--green)':'var(--red)')+'">'+(b.profit>=0?'+':'')+money(b.profit)+'</strong></div><div class="rt-bop-kpi"><small>Margin</small><strong>'+(b.margin==null?'—':b.margin.toFixed(1)+'%')+'</strong></div><div class="rt-bop-kpi"><small>Items</small><strong>'+b.items.length+'</strong></div></div>'
       +'<div class="rt-bop-card"><div class="rt-bop-card-title">Transaction &amp; joined P&amp;L</div>'+details+'</div>'
       +'<div class="rt-bop-card"><div class="rt-bop-card-title">Items in this order</div>'+members+'</div>'
-      +'<div class="rt-bop-actions"><button class="btn btn-secondary" onclick="openBundleOrderEdit(\''+quote(bid)+'\')">Edit order / item prices</button><button class="btn btn-secondary" style="color:var(--warn)" onclick="reverseBundleOrder(\''+quote(bid)+'\')">Reverse order</button></div>';
+      +'<div class="rt-bop-actions"><button class="btn btn-secondary" onclick="openBundleOrderEdit(\''+quote(bid)+'\')">Edit order / item prices</button><button class="btn btn-secondary" style="color:var(--warn)" onclick="reverseBundleOrder(\''+quote(bid)+'\')">'+(String(bid).startsWith('joined_')?'Separate sales':'Reverse order')+'</button></div>';
   }
 
   window.openBundlePage=function(bid){
@@ -289,13 +289,13 @@
 
   window.renderBundleSaleRow=function(bid,members){
     injectStyles();bid=String(bid||'');bundleRowMembers.set(bid,(members||[]).slice());
-    var rev=0,profit=0,date='';(members||[]).forEach(function(ev){var post=((num(ev.sale)||1)>=2&&ev.item)?num(ev.item.resalePostage!=null?ev.item.resalePostage:ev.item.postage):num(ev.item&&ev.item.postage);rev+=num(ev.salePrice)+post;profit+=num(ev.profit);if(!date&&ev.saleDate)date=ev.saleDate;});
+    var rev=0,profit=0,date='';(members||[]).forEach(function(ev){var cycle=ev.snapshot||cycleFor(ev.item,bid);rev+=num(ev.salePrice)+(cycle?_sellerPostageIncome(cycle.platformId,cycle.postage):0);profit+=num(ev.profit);if(!date&&ev.saleDate)date=ev.saleDate;});
     var count=(members||[]).length,first=(members&&members[0]&&members[0].item)||{},ref=typeof _eventBundleRef==='function'?_eventBundleRef((members&&members[0])||{}):'',allSel=typeof _bundleAllSelected==='function'?_bundleAllSelected(bid):false,margin=rev>0?profit/rev*100:null,isOpen=expandedBundles.has(bid);
     var disclosure='<button class="rt-bundle-disclosure'+(isOpen?' expanded':'')+'" onclick="event.stopPropagation();toggleBundleSalesRow(\''+quote(bid)+'\')" aria-label="'+(isOpen?'Collapse':'Expand')+' bundle" aria-expanded="'+(isOpen?'true':'false')+'"><svg viewBox="0 0 16 16" fill="none"><path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
     var selection=typeof SELECTION_MODE!=='undefined'&&SELECTION_MODE;
     var left=selection?'<div class="rt-bundle-leftslot">'+disclosure+'<label class="item-checkbox-left" onclick="event.stopPropagation()"><input type="checkbox" '+(allSel?'checked':'')+' onchange="_toggleBundleSelect(\''+quote(bid)+'\')" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;margin-right:4px"></label></div>':'<div class="rt-bundle-leftslot">'+disclosure+'<div class="status-dot sold"></div></div>';
     var click=selection?'onclick="_toggleBundleSelect(\''+quote(bid)+'\')"':'onclick="openBundlePage(\''+quote(bid)+'\')"';
-    var dd='<div class="ddwrap" id="bundle-row-dd-'+html(bid)+'"><button class="ddbtn" aria-label="Bundle actions" onclick="event.stopPropagation();toggleDD(\'bundle-row-dd-'+quote(bid)+'\')" title="Actions">⋮</button><div class="ddmenu"><button onclick="event.stopPropagation();openBundlePage(\''+quote(bid)+'\')">'+icon('fullpage',14)+' Open order</button><button onclick="event.stopPropagation();openBundleOrderEdit(\''+quote(bid)+'\')">'+icon('edit',14)+' Edit order / prices</button><button onclick="event.stopPropagation();reverseBundleOrder(\''+quote(bid)+'\')" style="color:var(--warn)">'+icon('revert',14)+' Reverse order</button></div></div>';
+    var dd='<div class="ddwrap" id="bundle-row-dd-'+html(bid)+'"><button class="ddbtn" aria-label="Bundle actions" onclick="event.stopPropagation();toggleDD(\'bundle-row-dd-'+quote(bid)+'\')" title="Actions">⋮</button><div class="ddmenu"><button onclick="event.stopPropagation();openBundlePage(\''+quote(bid)+'\')">'+icon('fullpage',14)+' Open order</button><button onclick="event.stopPropagation();openBundleOrderEdit(\''+quote(bid)+'\')">'+icon('edit',14)+' Edit order / prices</button><button onclick="event.stopPropagation();reverseBundleOrder(\''+quote(bid)+'\')" style="color:var(--warn)">'+icon('revert',14)+' '+(String(bid).startsWith('joined_')?'Separate sales':'Reverse order')+'</button></div></div>';
     var row='<div data-sale-bundle="'+html(bid)+'" class="item-row bundle-row" data-rt-bundle-id="'+html(bid)+'" '+click+'><div class="item-main"><div class="item-row-inner">'+left+'<div class="item-row-body"><div class="item-row-name">'+html(first.item||'Bundle')+(count>1?' <span style="color:var(--text-secondary);font-weight:600">+ '+(count-1)+' more</span>':'')+'</div><div class="item-row-meta"><span class="item-badge sold">SOLD</span><span class="item-badge bundle">≋ BUNDLE</span>'+(date?'<span class="item-row-meta-sep">·</span><span>sold '+html(date)+'</span>':'')+(ref?'<span class="item-row-meta-sep">·</span><span>'+html(ref)+'</span>':'')+'</div></div><div class="item-row-right"><div class="item-row-price">'+money(rev)+'</div><div class="item-row-profit '+(profit>=0?'pos':'neg')+'">'+money(profit)+'</div>'+(margin!=null?'<div class="item-row-roi">'+margin.toFixed(1)+'% margin</div>':'')+'</div></div></div><div class="item-actions">'+dd+'</div></div>';
     return row+(isOpen?childRows(bid,members||[]):'');
   };

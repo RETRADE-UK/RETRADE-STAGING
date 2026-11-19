@@ -60,6 +60,7 @@
     items.forEach(function(i){
       var cyc=cycleFor(i,bid);if(!cyc)return;
       out.sale+=num(cyc.price);out.postage+=num(cyc.postage);out.shipping+=num(cyc.shipping);
+      out.receipts+=num(cyc.price)+_sellerPostageIncome(cyc.platformId,cyc.postage);
       if(!out.date)out.date=cyc.date||'';if(!out.ref)out.ref=cyc.bundleRef||'';if(!out.totalField)out.totalField=num(cyc.bundleTotal);
       if(!out.platform)out.platform=cyc.platformId||cyc.platform||((Number(cyc.saleNo)||1)>=2?i.resalePlatform:(i.soldOnPlatform||i.salePlatform||i.defaultPlatform))||'';
       try{
@@ -69,7 +70,7 @@
       }catch(_e){}
       try{out.profit+=typeof _bundleMemberProfit==='function'?num(_bundleMemberProfit(i,bid)):0;}catch(_e2){}
     });
-    out.sale=+out.sale.toFixed(2);out.postage=+out.postage.toFixed(2);out.receipts=+(out.sale+out.postage).toFixed(2);out.shipping=+out.shipping.toFixed(2);
+    out.sale=+out.sale.toFixed(2);out.postage=+out.postage.toFixed(2);out.receipts=+out.receipts.toFixed(2);out.shipping=+out.shipping.toFixed(2);
     ['fees','listing','promo','packaging','cost','parts','partner','saleLegNet','profit'].forEach(function(k){out[k]=+out[k].toFixed(2);});
     out.returnImpact=+(out.profit-out.saleLegNet).toFixed(2);out.margin=out.receipts>0?+(out.profit/out.receipts*100).toFixed(1):null;
     return out;
@@ -158,7 +159,51 @@
     keys.forEach(function(k){restoreKey(live,before,k);});
   }
 
+  function saveRecordedGroup(items,update){
+    const original=items.map(clone);
+    try{
+      update();
+      // Group membership must be complete before any order fee is calculated.
+      items.forEach(i=>{i.grossProfit=calcGrossProfit(i);});
+      saveDB();
+    }catch(error){
+      items.forEach((item,k)=>{
+        Object.keys(item).forEach(key=>{if(!has(original[k],key))delete item[key];});
+        Object.assign(item,original[k]);
+      });
+      throw error;
+    }
+  }
+
+  async function separateRecordedSales(bid){
+    const items=itemsFor(bid),owner=_currentUserId;
+    const reviewed=items.map(i=>{
+      const cycle=cycleFor(i,bid),record=liveRec(i.id);
+      const joined=(i.refreshHistory||[]).find(h=>h.type==='joined_sale'&&h.bundleId===bid);
+      return {record,cycle,joined,before:JSON.stringify(record.item),
+        ev:{item:record.item,sale:cycle.saleNo,saleDate:cycle.date,salePrice:cycle.price}};
+    });
+    const blocked=()=>reviewed.some(r=>!r.joined||r.joined.members!==reviewed.length||r.joined.saleNo!==r.cycle.saleNo||_saleChangeReason(r.ev,'separate',bid));
+    if(reviewed.length<2||blocked()){toast('Review the order membership, payments and return history before separating these sales.','err');return;}
+    if(!await showConfirm('Separate bundle sales?','Keep all '+items.length+' items sold and restore their original individual delivery costs.',{okLabel:'Separate sales'}))return;
+    if(owner!==_currentUserId||itemsFor(bid).length!==reviewed.length||reviewed.some(r=>JSON.stringify((liveRec(r.ev.item.id)||{}).item)!==r.before)||blocked()){toast('The order changed. Reopen it before separating the sales.','err');return;}
+    const live=reviewed.map(r=>liveRec(r.ev.item.id).item);
+    try{
+      saveRecordedGroup(live,()=>{
+        applyListingPlan(items,bid,{mode:'separate'});
+        live.forEach((item,k)=>{
+          const {cycle,joined}=reviewed[k];
+          if(cycle.saleNo===1)Object.assign(item,{bundleId:null,bundleRef:null,bundleTotal:null,shippingCost:joined.shipping});
+          else Object.assign(item,{resaleBundleId:null,resaleBundleRef:null,resaleBundleTotal:null,resaleShippingCost:joined.shipping});
+          item.refreshHistory=item.refreshHistory.filter(h=>h.type!=='joined_sale'||h.bundleId!==bid);
+        });
+      });
+    }catch(error){toast('The sales could not be separated. Review the order and try again.','err');return;}
+    closeBundlePage();renderMonth();toast('Bundle separated · '+items.length+' individual sales');
+  }
+
   window.reverseBundleOrder=async function(bid){
+    if(String(bid).startsWith('joined_'))return separateRecordedSales(bid);
     var plan=reversePlan(bid);if(!plan.ok){toast(plan.reason||'This bundle cannot be reversed safely.','err');return;}
     var b=bundleBreakdown(bid),ref=b.ref||'this bundle';
     var ok=await showConfirm('Reverse bundle order?',e(ref)+' will be reversed as one order. All '+plan.items.length+' items will return to their exact pre-sale Listed state, including the original asking prices. The bundle link will be removed from every member.',{icon:'info',okLabel:'Reverse order',danger:false});
@@ -216,6 +261,57 @@
   window._rtBundleSaleReallocate=function(v){
     var total=Math.max(0,num(v)),xs=Array.from(document.querySelectorAll('.rt-bo-share')),weights=xs.map(function(x){return Math.max(0,num(x.dataset.ask));}),shares=typeof _bundleSplit==='function'?_bundleSplit(total,weights):[];
     xs.forEach(function(x,idx){x.value=num(shares[idx]).toFixed(2);});_rtBundleSaleRecalc();
+  };
+
+  // Join existing sale cycles in place. Capture the review by ID so a sync or
+  // account switch cannot redirect the delivery allocation to different sales.
+  window.openRecordedBundle=function(){
+    const events=_selectedMonthEvents(),reason=_recordedBundleReason(events);
+    if(reason){toast(reason,'err');return;}
+    const owner=_currentUserId;
+    const reviewed=events.map(ev=>{
+      const record=liveRec(ev.item.id),cycle=_saleCycleSnapshot(record.item,ev.sale);
+      return {ev,cycle,month:record.month,before:JSON.stringify(record.item)};
+    });
+    const total=+reviewed.reduce((sum,r)=>sum+r.cycle.price,0).toFixed(2);
+    const buyerPostage=reviewed.reduce((sum,r)=>sum+r.cycle.postage,0);
+    const oldDelivery=reviewed.reduce((sum,r)=>sum+r.cycle.shipping,0);
+    const lines=reviewed.map(({ev,cycle})=>'<div class="rt-bo-tr"><span>'+e(ev.item.item)+'</span><strong>'+money(cycle.price)+'</strong></div>').join('');
+    openPanel('Bundle sales','<form id="recorded-bundle-form"><div class="rt-bo-card"><div class="rt-bo-card-title">'+events.length+' sold items · '+e(events[0].saleDate)+'</div>'+lines
+      +'<div class="rt-bo-tr total"><span>Item sale total</span><strong>'+money(total)+'</strong></div>'
+      +'<div class="rt-bo-tr"><span>Buyer postage recorded</span><strong>'+money(buyerPostage)+'</strong></div>'
+      +'<div class="rt-bo-tr"><span>Current delivery costs</span><strong>'+money(oldDelivery)+'</strong></div></div>'
+      +'<div class="fg"><label for="recorded-bundle-delivery">Your bundle delivery cost (£)</label><input id="recorded-bundle-delivery" type="number" inputmode="decimal" min="0" step="0.01" required aria-describedby="recorded-bundle-help"><small id="recorded-bundle-help">This replaces the delivery costs above. Enter 0 for free delivery or collection.</small></div>'
+      +'<p role="alert" class="bulk-action-hint"></p><div class="rt-bo-actions"><button type="button" class="btn btn-secondary" onclick="closePanel()">Cancel</button><button type="submit" class="btn btn-primary">Create bundle sale</button></div></form>');
+    const form=document.getElementById('recorded-bundle-form'),input=form.querySelector('input');
+    form.onsubmit=function(event){
+      event.preventDefault();
+      if(!form.isConnected||form.querySelector('[type="submit"]').disabled)return;
+      const shipping=input.valueAsNumber;
+      if(!input.reportValidity()||!Number.isSafeInteger(Math.round(shipping*100)))return;
+      const records=reviewed.map(r=>liveRec(r.ev.item.id));
+      const selected=new Set(_selectedMonthEvents().map(_monthEventKey));
+      if(owner!==_currentUserId||selected.size!==reviewed.length||reviewed.some((r,k)=>!selected.has(_monthEventKey(r.ev))||!records[k]||r.month!==records[k].month||JSON.stringify(records[k].item)!==r.before)||_recordedBundleReason(events)){
+        form.querySelector('[role="alert"]').textContent='The selected sales changed. Close this form and review the selection again.';return;
+      }
+      const shares=_bundleSplit(shipping,reviewed.map(r=>r.cycle.price)),bid=_newId('joined');
+      const ref='BDL-'+events[0].saleDate.replace(/-/g,'').slice(2)+'-'+records.length;
+      const button=form.querySelector('[type="submit"]');button.disabled=true;
+      try{
+        const items=records.map(r=>r.item);
+        saveRecordedGroup(items,()=>items.forEach((item,k)=>{
+          const cycle=reviewed[k].cycle;
+          const joined={type:'joined_sale',bundleId:bid,saleNo:cycle.saleNo,members:items.length,shipping:cycle.shipping};
+          item.refreshHistory=(item.refreshHistory||[]).concat(joined);
+          if(cycle.saleNo===1)Object.assign(item,{bundleId:bid,bundleRef:ref,bundleTotal:total,shippingCost:shares[k]});
+          else Object.assign(item,{resaleBundleId:bid,resaleBundleRef:ref,resaleBundleTotal:total,resaleShippingCost:shares[k]});
+        }));
+      }catch(error){
+        button.disabled=false;form.querySelector('[role="alert"]').textContent='The bundle could not be saved. Review the sales and try again.';
+        console.error('[RETRADE bundle sales]',error);return;
+      }
+      SELECTED_ITEMS.clear();SELECTION_MODE=false;closePanel();renderMonth();openBundlePage(bid);
+    };
   };
 
   window.openBundleSaleModal=function(){
@@ -324,7 +420,7 @@
   };
 
   window.renderBundleSaleRow=function(bid,members){
-    var rev=0,profit=0,date='';members.forEach(function(ev){var post=((num(ev.sale)||1)>=2&&ev.item)?num(ev.item.resalePostage!=null?ev.item.resalePostage:ev.item.postage):num(ev.item&&ev.item.postage);rev+=num(ev.salePrice)+post;profit+=num(ev.profit);if(!date&&ev.saleDate)date=ev.saleDate;});
+    var rev=0,profit=0,date='';members.forEach(function(ev){var cycle=ev.snapshot||cycleFor(ev.item,bid);rev+=num(ev.salePrice)+(cycle?_sellerPostageIncome(cycle.platformId,cycle.postage):0);profit+=num(ev.profit);if(!date&&ev.saleDate)date=ev.saleDate;});
     var count=members.length,first=(members[0]&&members[0].item)||{},ref=typeof _eventBundleRef==='function'?_eventBundleRef(members[0]||{}):'',allSel=typeof _bundleAllSelected==='function'?_bundleAllSelected(bid):false,margin=rev>0?profit/rev*100:null;
     var left=SELECTION_MODE?'<label class="item-checkbox-left" onclick="event.stopPropagation()"><input type="checkbox" '+(allSel?'checked':'')+' onchange="_toggleBundleSelect(\''+q(bid)+'\')" style="width:16px;height:16px;accent-color:var(--accent);cursor:pointer;margin-right:4px"></label>':'<div class="status-dot sold"></div>';
     var click=SELECTION_MODE?'onclick="_toggleBundleSelect(\''+q(bid)+'\')"':'onclick="openBundlePage(\''+q(bid)+'\')"';
