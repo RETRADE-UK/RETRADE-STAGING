@@ -1949,7 +1949,7 @@ function _loadDiagnosticFixtures(kind){
   const file=kind==='preview'?'src/features/diagnostics/preview-fixtures.js':'src/features/diagnostics/accounting-fixtures.js';
   if(_diagnosticLoads[file])return _diagnosticLoads[file];
   _diagnosticLoads[file]=new Promise(function(resolve,reject){
-    const script=document.createElement('script');script.src='./'+file+'?v='+window.__rtBuildId;
+    const script=document.createElement('script');script.src='/'+file+'?v='+window.__rtBuildId;
     script.onload=resolve;script.onerror=function(){script.remove();delete _diagnosticLoads[file];reject(new Error('Diagnostic files could not load. Please try again.'));};
     document.head.appendChild(script);
   });
@@ -1973,7 +1973,7 @@ const ALLOW_SCHEMA_FALLBACK = PREVIEW_MODE_ENABLED;
 // stay outside the service worker; only same-origin app-shell assets are cached.
 if(!PREVIEW_MODE_ENABLED && 'serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
   function registerStaticWorker(){
-    navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(function(reg){try{reg.update();}catch(e){}}).catch(function(err){console.warn('[RETRADE] service worker registration failed:',err&&err.message);});
+    navigator.serviceWorker.register('/sw.js',{updateViaCache:'none'}).then(function(reg){try{reg.update();}catch(e){}}).catch(function(err){console.warn('[RETRADE] service worker registration failed:',err&&err.message);});
   }
   // The core is intentionally deferred past the welcome; load may have fired.
   if(document.readyState==='complete')registerStaticWorker();
@@ -2203,7 +2203,23 @@ function _pwMeter(inputId, wrapId){
   if(bar){ bar.style.width=st.pct+'%'; bar.style.background=st.color; }
   if(lbl){ lbl.textContent=st.label; lbl.style.color=st.color; }
 }
+function _routedAuthPage(){
+  return document.documentElement.hasAttribute('data-workspace-routes');
+}
+function _authRouteName(){
+  return _routedAuthPage() && /^\/signup(?:\/|$)/.test(location.pathname) ? 'signup' : 'login';
+}
+function _writeWorkspaceRoute(name, push){
+  if(!_routedAuthPage())return;
+  const path='/'+name+'/';
+  if(location.pathname!==path)history[push ? 'pushState' : 'replaceState'](null,'',path);
+  document.title=({login:'Log in',signup:'Create your account',dashboard:'Dashboard'})[name]+' · RETRADE';
+}
+function _authCallbackURL(){
+  return window.location.origin+(_routedAuthPage()?'/login/':window.location.pathname);
+}
 function showSignupScreen(){
+  _writeWorkspaceRoute('signup',true);
   var ov=document.getElementById('auth-overlay'); if(ov)ov.style.display='flex';
   _setAuthScreen('signup');
   var err=document.getElementById('signup-error'); if(err)err.style.display='none';
@@ -2221,7 +2237,7 @@ async function doSignUp(){
   if(_pwStrength(p1).score<2){return fail('That password is too weak — make it longer, or add numbers and symbols.');}
   if(p1!==p2){return fail('The two passwords do not match.');}
   errEl.style.display='none'; btn.style.display='none'; ldEl.style.display='block';
-  var res; try{ res=await _sb.auth.signUp({email:email, password:p1, options:{data:{full_name:name, business_name:biz}, emailRedirectTo: window.location.origin+window.location.pathname}}); }catch(e){ res={error:{message:'Network error — please try again.'}}; }
+  var res; try{ res=await _sb.auth.signUp({email:email, password:p1, options:{data:{full_name:name, business_name:biz}, emailRedirectTo: _authCallbackURL()}}); }catch(e){ res={error:{message:'Network error — please try again.'}}; }
   ldEl.style.display='none'; btn.style.display='block';
   if(res && res.error){
     var raw=(res.error.message||'').toLowerCase(); var msg=(res.error.message||'Could not create the account. Please try again.');
@@ -2327,6 +2343,7 @@ function showForgotPassword(){
 }
 
 function showLoginScreen(){
+  _writeWorkspaceRoute('login',true);
   _setAuthScreen('login');
   // Gate: hide dev bypass button unless this is a dev build
   const _pb = document.getElementById('preview-btn');
@@ -2373,7 +2390,7 @@ async function doResetPassword(){
   btn.style.display = 'none';
   ldEl.style.display = 'block';
   const {error} = await _sb.auth.resetPasswordForEmail(email, {
-    redirectTo: window.location.origin + window.location.pathname
+    redirectTo: _authCallbackURL()
   });
   ldEl.style.display = 'none';
   btn.style.display = 'block';
@@ -5728,7 +5745,7 @@ function renderMonitors(){
   if(!_currentUserId){page.textContent='Sign in to use monitors.';return;}
   const uid=_currentUserId;
   if(!_monitorLoad){
-    _monitorLoad=['src/features/monitors/cloud.js','src/features/monitors/page.js'].reduce(function(p,file){return p.then(function(){return new Promise(function(resolve,reject){const s=document.createElement('script');s.src='./'+file+'?v='+window.__rtBuildId;s.onload=resolve;s.onerror=function(){s.remove();reject(new Error('Monitor page failed to load. Try again.'));};document.head.appendChild(s);});});},Promise.resolve()).catch(function(e){_monitorLoad=null;throw e;});
+    _monitorLoad=['src/features/monitors/cloud.js','src/features/monitors/page.js'].reduce(function(p,file){return p.then(function(){return new Promise(function(resolve,reject){const s=document.createElement('script');s.src='/'+file+'?v='+window.__rtBuildId;s.onload=resolve;s.onerror=function(){s.remove();reject(new Error('Monitor page failed to load. Try again.'));};document.head.appendChild(s);});});},Promise.resolve()).catch(function(e){_monitorLoad=null;throw e;});
   }
   _monitorLoad.then(function(){if(page.classList.contains('on')&&_currentUserId===uid)window.RETRADE_MONITORS.mount({root:page,client:_sb,userId:uid});}).catch(function(e){if(page.classList.contains('on'))page.textContent=e.message;});
 }
@@ -21492,14 +21509,22 @@ function _neutralizeAuthInputs(){
   forms.forEach(function(form){form.remove();});
 }
 function _restoreAuthInputs(){
-  _setAuthScreen('login');
+  const name=_authRouteName();
+  _writeWorkspaceRoute(name,false);
+  _setAuthScreen(name);
 }
-_setAuthScreen('login');
+_setAuthScreen(_authRouteName());
+if(_routedAuthPage())window.addEventListener('popstate',function(){
+  if(_pwRecovery)return;
+  if(_currentUserId)_writeWorkspaceRoute('dashboard',false);
+  else _restoreAuthInputs();
+});
 
 (async function boot(){
   const overlay = document.getElementById('auth-overlay');
 
   const showApp=function(){
+    _writeWorkspaceRoute('dashboard',false);
     if(overlay.style.display==='flex' && document.documentElement.classList.contains('rt-app-cold')){
       overlay.classList.add('rt-auth-leaving');
       setTimeout(function(){overlay.style.display='none';overlay.classList.remove('rt-auth-leaving');},280);

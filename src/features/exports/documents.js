@@ -76,7 +76,7 @@
         resolve(canvas.toDataURL('image/png'));
       }catch(err){reject(err);}};
       img.onerror=function(){reject(new Error('Could not load the PDF logo. Please try again.'));};
-      img.src='./assets/brand/pdf-logo-dark-v1.png';
+      img.src='/assets/brand/pdf-logo-dark-v1.png';
     }).catch(function(err){logoPromise=null;throw err;});
     return logoPromise;
   }

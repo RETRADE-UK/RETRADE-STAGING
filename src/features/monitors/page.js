@@ -817,7 +817,7 @@
       }
       if (action === "test-local") {
         if(permission!=='granted')throw new Error('Enable notifications on this device first.');
-        await reg.showNotification('RETRADE · Screen test',{body:'Your device accepted a local notification.',tag:'monitor-local-'+Date.now(),icon:'assets/icons/app-180.png'});
+        await reg.showNotification('RETRADE · Screen test',{body:'Your device accepted a local notification.',tag:'monitor-local-'+Date.now(),icon:'/assets/icons/app-180.png'});
         message('Your device accepted the display request. Check Notification Centre if no banner appeared.');return;
       }
       if (action === "test" || action === "test-all") {

@@ -1,15 +1,3 @@
-# Staging landing-page review — 19 November 2026
-
-The app and developer login open at the root. The independent marketing preview
-at `/start/` includes its recorded dark-theme tours and a local sample sign-up
-flow at `/start/#signup`. `RT_ASSETS.landingReview` owns its public file list.
-These files are excluded from the application shell cache and lazy loaders.
-
-The recording workflow generates fresh review assets from the hosted test
-account. The served snapshot can be reproduced with the marketing commands in
-`marketing/launch/README.md`. Publishing a reviewed cut alongside the app
-keeps normal staging builds independent of the recorder and its test account.
-
 # Recorded sales bundles — 19 November 2026
 
 Sales selection routes Bundle sales to the existing bundle order module. It joins
@@ -1056,3 +1044,9 @@ and 1440px, checking boundaries, totals, blank days, losses, bar gaps, label bou
 selection persistence, hover, drill-downs and switching between daily periods.
 Cache generation: `20261016-dashboard-14-days` (staging adds `-staging`).
 
+
+### Public URLs on staging
+
+The Pages build publishes the public product tour from `marketing/landing/index.html` at `/`. The login, signup and dashboard directories share the existing workspace shell. Native authentication owns the route transitions, and the service worker keeps the public page and the workspace in separate cache entries. Installed apps open `/dashboard/`. The previous `/start/` links and authentication callbacks sent to the old root still resolve.
+
+Tour assets are allowlisted in `config/assets.js`. To refresh the eight screenshots, run `node marketing/landing/capture.cjs` with Playwright Chromium, Python and Pillow installed. It uses the normal developer sign-in on the staging domain, seeds the mixed haul in the anonymous example account and captures four real dark-mode screens in two viewport sizes. An optional `RETRADE_TEST_STATE` path outside the checkout lets successive captures reuse that account.

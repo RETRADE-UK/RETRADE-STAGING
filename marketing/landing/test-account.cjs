@@ -15,7 +15,8 @@ async function enter(browser, options={}) {
     ...options,...(state&&fs.existsSync(state)?{storageState:state}:{})});
   const page=await context.newPage();
   page.setDefaultTimeout(60000);
-  await page.goto(origin,{waitUntil:'domcontentloaded',timeout:90000});
+  const login=await page.goto(origin+'/login/',{waitUntil:'domcontentloaded',timeout:90000});
+  if(login.status()===404)await page.goto(origin,{waitUntil:'domcontentloaded',timeout:90000});
   await Promise.race([page.locator('#p-summary.on:visible').waitFor(),page.locator('#staging-dev-btn:visible').waitFor()]);
   if(await page.locator('#staging-dev-btn:visible').count()) await page.locator('#staging-dev-btn').click();
   await page.waitForFunction(()=>window.__rtLaunchSettled&&window.__rtFeaturesReady&&document.querySelector('#p-summary.on')&&typeof _currentUserId!=='undefined'&&_currentUserId,null,{timeout:120000});

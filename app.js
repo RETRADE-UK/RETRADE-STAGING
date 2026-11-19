@@ -24,7 +24,7 @@
   document.documentElement.classList.add('rt-app-cold','rt-motion-prep');
 
   if(!document.getElementById('rt-skeleton-motion-polish-1512')){
-    var skelCss=document.createElement('link');skelCss.id='rt-skeleton-motion-polish-1512';skelCss.rel='stylesheet';skelCss.href='./assets/styles/loading.css?v='+v;document.head.appendChild(skelCss);
+    var skelCss=document.createElement('link');skelCss.id='rt-skeleton-motion-polish-1512';skelCss.rel='stylesheet';skelCss.href='/assets/styles/loading.css?v='+v;document.head.appendChild(skelCss);
   }
 
   if(!document.getElementById('rt-motion-preflight')){
@@ -58,7 +58,7 @@
 
   function append(src,priority,onload,onerror){
     var s=document.createElement('script');
-    s.src=src+'?v='+v;
+    s.src=src.slice(1)+'?v='+v;
     s.async=false;
     try{s.fetchPriority=priority||'auto';}catch(_){}
     if(onload)s.onload=onload;
@@ -135,7 +135,7 @@
      shield/wordmark choreography. Parsing the shared core on the same main thread as
      that animation can compete for its frames on desktop hard refresh. */
   var corePreload=document.createElement('link');
-  corePreload.rel='preload';corePreload.as='script';corePreload.href='./src/core/application.js?v='+v;
+  corePreload.rel='preload';corePreload.as='script';corePreload.href='/src/core/application.js?v='+v;
   document.head.appendChild(corePreload);
   var elapsed=performance.now()-(window.__rtLaunchSourceAt||0);
   var reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;

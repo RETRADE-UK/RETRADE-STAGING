@@ -165,15 +165,15 @@ html.rt-auth-bridge #auth-screen-login .rt-auth-brand{visibility:hidden}
 <!-- V2 Session 1 — JetBrains Mono (Inter is already loaded above with the full weight range V2 needs) -->
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <!-- V2 Session 4a: Chart.js removed — dashboard chart is hand-rolled SVG -->
-<link rel="stylesheet" href="./assets/styles/application.css?v=20261119-bundle-recorded-sales-staging">
-<link rel="stylesheet" href="./assets/styles/tax.css?v=20261119-bundle-recorded-sales-staging">
-<link rel="stylesheet" href="./assets/styles/item.css?v=20261119-bundle-recorded-sales-staging">
-<link rel="stylesheet" href="./assets/styles/sales.css?v=20261119-bundle-recorded-sales-staging">
-<link rel="stylesheet" href="./assets/styles/status.css?v=20261119-bundle-recorded-sales-staging">
-<link rel="stylesheet" href="./assets/styles/responsive.css?v=20261119-bundle-recorded-sales-staging">
-<link rel="stylesheet" href="./assets/styles/workspaces.css?v=20261119-bundle-recorded-sales-staging">
-<link rel="stylesheet" href="./assets/styles/monitors.css?v=20261119-bundle-recorded-sales-staging">
-<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./assets/styles/loading.css?v=20261119-bundle-recorded-sales-staging">
+<link rel="stylesheet" href="./assets/styles/application.css?v=20261119-public-tour-routes">
+<link rel="stylesheet" href="./assets/styles/tax.css?v=20261119-public-tour-routes">
+<link rel="stylesheet" href="./assets/styles/item.css?v=20261119-public-tour-routes">
+<link rel="stylesheet" href="./assets/styles/sales.css?v=20261119-public-tour-routes">
+<link rel="stylesheet" href="./assets/styles/status.css?v=20261119-public-tour-routes">
+<link rel="stylesheet" href="./assets/styles/responsive.css?v=20261119-public-tour-routes">
+<link rel="stylesheet" href="./assets/styles/workspaces.css?v=20261119-public-tour-routes">
+<link rel="stylesheet" href="./assets/styles/monitors.css?v=20261119-public-tour-routes">
+<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./assets/styles/loading.css?v=20261119-public-tour-routes">
 
 
 
@@ -995,6 +995,12 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
      beat it; worse, the shorthand also reset background-image to none, so the
      stylesheet's ambient gradients never rendered at all. Same lesson as 7C's
      overlay opacity: colour lives in CSS, only `display` stays inline. -->
+<style>
+html[data-workspace-routes] #auth-overlay{overflow-y:auto;overscroll-behavior:contain}
+html[data-workspace-routes] #auth-overlay>form{flex-shrink:0;margin-block:auto}
+html[data-workspace-routes] #auth-screen-signup .auth-home{display:block;text-align:center;margin-top:15px;font-size:13px;color:var(--text-secondary)}
+@media(max-width:600px){html[data-workspace-routes] #auth-overlay{padding:14px!important}html[data-workspace-routes] #auth-screen-signup{padding:22px!important}}
+</style>
 <div id="auth-overlay" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;padding:24px;" data-theme="dark">
 
   <!-- SIGN IN SCREEN -->
@@ -1059,20 +1065,21 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
         </div>
       </div>
       <div style="font-size:20px;font-weight:700;letter-spacing:-0.02em;">Create your account</div>
-      <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">Start tracking your reselling business</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">Record your first item and see what it earns after costs.</div>
     </div>
     <div id="signup-error" style="display:none;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;"></div>
     <div style="margin-bottom:12px;"><label for="signup-name" style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Full name</label>
       <input id="signup-name" name="signup-name" type="text" autocomplete="name" placeholder="Jane Smith" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></div>
     <div style="margin-bottom:12px;"><label for="signup-business" style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Business name <span style="text-transform:none;font-weight:500;opacity:.7;">(optional)</span></label>
-      <input id="signup-business" name="signup-business" type="text" autocomplete="organization" placeholder="Smith Resale" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></div>
+      <input id="signup-business" name="signup-business" type="text" autocomplete="organization" placeholder="Your shop name" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></div>
     <div style="margin-bottom:12px;"><label for="signup-email" style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Email</label>
       <input id="signup-email" name="username" type="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email" placeholder="you@example.com" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></div>
     <div style="margin-bottom:12px;"><label for="signup-pass" style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Password</label>
       <div style="position:relative"><input id="signup-pass" name="signup-pass" type="password" autocomplete="new-password" placeholder="••••••••" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" oninput="_pwMeter('signup-pass','signup-str')"><button type="button" tabindex="-1" onclick="_pwToggle('signup-pass',this)" aria-label="Show password" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-secondary);cursor:pointer;padding:2px;line-height:0;display:flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div><div id="signup-str" style="display:none;margin-top:8px;"><div style="height:5px;border-radius:3px;background:var(--surface2);overflow:hidden;"><div id="signup-str-bar" style="height:100%;width:0%;transition:width .2s ease,background .2s;"></div></div><div id="signup-str-lbl" style="font-size:11px;margin-top:5px;font-weight:600;"></div></div></div>
     <div style="margin-bottom:20px;"><label for="signup-pass2" style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Confirm password</label>
       <div style="position:relative"><input id="signup-pass2" name="signup-pass2" type="password" autocomplete="new-password" placeholder="••••••••" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"><button type="button" tabindex="-1" onclick="_pwToggle('signup-pass2',this)" aria-label="Show password" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-secondary);cursor:pointer;padding:2px;line-height:0;display:flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
-    <button type="submit" id="signup-btn" style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">Create Account</button>
+    <button type="submit" id="signup-btn" style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">Create free account</button>
+    <a class="auth-home" href="/" style="display:block;text-align:center;margin-top:14px;color:var(--text-secondary);font-size:13px">Back to RETRADE</a>
     <div id="signup-loading" style="display:none;text-align:center;margin-top:12px;font-size:13px;color:var(--text-secondary);">Creating account…</div>
   </form>
 
@@ -1131,13 +1138,13 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 
 </div>
 
-<script src="./config/assets.js?v=20261119-bundle-recorded-sales-staging"></script>
-<script src="./src/platform/local-recovery.js?v=20261119-bundle-recorded-sales-staging"></script>
-<script src="./src/domain/accounting-engine.js?v=20261119-bundle-recorded-sales-staging"></script>
-<script src="./src/domain/report-engine.js?v=20261119-bundle-recorded-sales-staging"></script>
-<script src="./src/platform/view-loader.js?v=20261119-bundle-recorded-sales-staging"></script>
+<script src="./config/assets.js?v=20261119-public-tour-routes"></script>
+<script src="./src/platform/local-recovery.js?v=20261119-public-tour-routes"></script>
+<script src="./src/domain/accounting-engine.js?v=20261119-public-tour-routes"></script>
+<script src="./src/domain/report-engine.js?v=20261119-public-tour-routes"></script>
+<script src="./src/platform/view-loader.js?v=20261119-public-tour-routes"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.js" integrity="sha384-OUpie84zd1LdwNlK9uJJQRwab0BLqo3eKYKFh7hSVL58FSk7wPp2l0kfUMIIoaQd" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="./app.js?v=20261119-bundle-recorded-sales-staging"></script>
+<script src="./app.js?v=20261119-public-tour-routes"></script>
 
 <!-- RETRADE dashboard spacing cleanup: mobile/tablet/narrow-desktop rhythm v3 - 2026-06-29 -->
 <section id="rt-sync-details" aria-label="Cloud sync details" tabindex="-1" hidden>
