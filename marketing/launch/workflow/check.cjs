@@ -27,7 +27,15 @@ async function check() {
       await page.waitForFunction(()=>document.getElementById('haul-film').currentTime>0.3,null,{timeout:10000});
       const media=await page.locator('video').evaluate(v=>({width:v.videoWidth,height:v.videoHeight,duration:v.duration}));
       assert.ok(media.duration>12 && media.duration<70,'Unexpected recording length');
-      assert.equal(media.width<media.height,width<=690,'Wrong recording orientation');
+      assert.deepEqual([media.width,media.height],width<=690?[1080,1920]:[1600,960],'Incorrect tour master');
+      const luma=await page.locator('video').evaluate(v=>{
+        const canvas=document.createElement('canvas');canvas.width=64;canvas.height=64;
+        const ctx=canvas.getContext('2d');ctx.drawImage(v,0,0,64,64);
+        const rgba=ctx.getImageData(0,0,64,64).data;
+        let sum=0;for(let i=0;i<rgba.length;i+=4)sum+=0.2126*rgba[i]+0.7152*rgba[i+1]+0.0722*rgba[i+2];
+        return sum/(rgba.length/4);
+      });
+      assert.ok(luma<85,'Light theme visible in the recording');
       await page.locator('video').evaluate(v=>v.pause());
       await page.locator('.haul summary').click();
       assert.equal(await page.locator('.haul tbody tr').count(),6);

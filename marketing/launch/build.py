@@ -7,10 +7,12 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
+from workflow.tour_film import render
 import tempfile
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parent
 SCREENS = {
@@ -42,7 +44,10 @@ def build_page(target, recordings, stats, examples, scratch):
         screens[key]=item
         buttons.append(f'<button type="button" class="pick" aria-pressed="{str(key=="finds").lower()}" data-key="{key}"><strong>{html.escape(name)}</strong><span>{html.escape(caption)}</span></button>')
     # The poster and clip switch together on layout changes. Video bytes remain local to this HTML.
-    films={mode:{'poster':screens['finds']['mobile' if mode=='mobile' else 'src'],'src':as_data(recordings/(mode+'.mp4'))} for mode in ['mobile','desktop']}
+    films = {}
+    for mode in ['mobile','desktop']:
+        master = render(mode, recordings, stats, ROOT/'assets', scratch)
+        films[mode] = {'poster': as_data(scratch/(mode+'-poster.webp')), 'src': as_data(master)}
     actual={r['item']:r for r in stats['rows']}
     if len(examples)!=6 or set(actual)!={x['item'] for x in examples}: raise ValueError('The captured haul and the marketing examples must match.')
     rows=[]
@@ -67,39 +72,6 @@ def build_links(target, landing):
             pairs=dict(parse_qsl(dest.query));pairs.update({'utm_'+k:v for k,v in row.items()})
             writer.writerow([row[k] for k in ('source','medium','campaign','content')]+[urlunsplit(dest._replace(query=urlencode(pairs)))])
 
-def film(target, recording, stats, scratch):
-    duration=float(subprocess.check_output(['ffprobe','-v','error','-show_entries','format=duration','-of','csv=p=0',str(recording)],text=True))
-    navy='#101826'; gold='#f2b33d'; white='#f7f5ee'; muted='#acb9c8'
-    def font(size,bold=False):
-        return ImageFont.truetype('DejaVuSans-Bold.ttf' if bold else 'DejaVuSans.ttf',size)
-    indexed={r['item']:r for r in stats['rows']}
-    jacket=indexed['Levi’s denim trucker jacket'];game=indexed['Mario Kart 8 Deluxe, cartridge only']
-    phases=[(0,'Sunday at the car boot',f"{money(stats['spend'])} spent on six finds"),
-            (.095,'Inside the sourcing run','Six finds. Three ways to sell.'),
-            (.245,'Vinted · denim jacket',f"{money(jacket['sale'])} sold / {money(jacket['net'])} profit"),
-            (.455,'Inside the sourcing run','Now open the game sale'),
-            (.565,'eBay · Mario Kart',f"{money(game['sale'])} sold / {money(game['net'])} profit"),
-            (.79,'All six sales',f"{money(stats['revenue'])} sold / {money(stats['profit'])} profit")]
-    timing=[]
-    for n,(t,kicker,heading) in enumerate(phases):
-        image=Image.new('RGB',(720,1280),navy); draw=ImageDraw.Draw(image)
-        draw.text((52,32),kicker.upper(),font=font(18,True),fill=gold,anchor='lt')
-        draw.text((49,69),heading,font=font(38,True),fill=white,anchor='lt')
-        draw.rounded_rectangle((79,148,641,1172),radius=12,fill='#344050')
-        mark=Image.open(ROOT/'assets/mark.png').convert('RGBA');mark.thumbnail((28,33))
-        image.paste(mark,(52,1197),mark)
-        draw.text((90,1205),'RETRADE',font=font(23,True),fill=white,anchor='lt')
-        draw.text((667,1209),'START FREE · RETRADE-UK.COM' if n==len(phases)-1 else 'UK RESELLERS',font=font(15,True),fill=gold,anchor='rt')
-        draw.text((53,1244),'Product demo with example sales',font=font(17),fill=muted,anchor='lt')
-        filename=f'caption-{n}.png'; image.save(scratch/filename)
-        end=phases[n+1][0] if n+1<len(phases) else 1
-        timing.extend(["file '"+filename+"'",'duration '+str((end-t)*duration)])
-    timing.append("file 'caption-"+str(len(phases)-1)+".png'")
-    concat=scratch/'caption-list.txt'; concat.write_text('\n'.join(timing)+'\n')
-    subprocess.run(['ffmpeg','-hide_banner','-loglevel','error','-y','-f','concat','-safe','0','-i',str(concat),'-i',str(recording),
-                    '-filter_complex','[0:v]fps=25[bg];[1:v]scale=550:1016:flags=lanczos[phone];[bg][phone]overlay=85:152:shortest=1,format=yuv420p[out]',
-                    '-map','[out]','-c:v','libx264','-threads','2','-preset','fast','-crf','18','-movflags','+faststart',str(target)],check=True)
-
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--output',type=Path,default=ROOT/'output')
@@ -110,7 +82,6 @@ def main():
     recordings.mkdir(exist_ok=True)
     if opts.refresh or not (recordings/'results.json').exists():
         # Switch only after both recordings finish so an interrupted run never mixes two captures.
-        import shutil
         with tempfile.TemporaryDirectory(dir=ROOT) as new:
             subprocess.run(['node',str(ROOT/'workflow/record.cjs'),new],check=True)
             for src in Path(new).iterdir(): shutil.copy2(src,recordings/src.name)
@@ -120,7 +91,7 @@ def main():
         scratch=Path(td)
         build_page(scratch/'RETRADE-launch-preview.html',recordings,stats,examples,scratch)
         build_links(scratch/'campaign-links.csv',opts.landing)
-        film(scratch/'RETRADE-car-boot-haul.mp4',recordings/'mobile.mp4',stats,scratch)
+        shutil.copyfile(scratch/'mobile.mp4',scratch/'RETRADE-car-boot-haul.mp4')
         for name in ['RETRADE-launch-preview.html','campaign-links.csv','RETRADE-car-boot-haul.mp4']:
             os.replace(scratch/name,opts.output/name)
     print('Built the recorded staging tour, page and campaign links.')

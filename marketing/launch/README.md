@@ -18,3 +18,23 @@ python marketing/launch/workflow/web_assets.py marketing/launch/output/RETRADE-l
 ```
 
 The sign-up form demonstrates registration and email confirmation with sample details. Campaign links default to a proposed /start/ route and can be pointed at a published campaign URL with --landing. Build output and credentials do not belong in Git.
+
+
+## Staging review route
+
+Open https://test.retrade-uk.com/start/ for the reviewed landing page and
+https://test.retrade-uk.com/start/#signup for sample registration. The staging
+app and developer account stay at the root. Capture uses the app's native dark
+preference, high-density frames, and chapter markers from the actual interactions.
+The page plays the portrait or desktop edit appropriate to its viewport.
+
+To update the served snapshot, export the approved build from the repository root:
+
+```sh
+python marketing/launch/workflow/web_assets.py marketing/launch/output/RETRADE-launch-preview.html start
+npm run build
+```
+
+Commit the refreshed start directory with the source change. The filenames are
+stable, and the generated page versions each media URL by content. The staging
+Pages deployment checks the page and both videos before uploading them.

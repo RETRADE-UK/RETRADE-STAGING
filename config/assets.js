@@ -3,6 +3,22 @@
 globalThis.RT_ASSETS = Object.freeze({
   "build": "20261119-bundle-recorded-sales-staging",
   "environment": "staging",
+  "landingReview": [
+    "start/index.html",
+    "start/media/finds-desktop.webp",
+    "start/media/finds-mobile.webp",
+    "start/media/game-desktop.webp",
+    "start/media/game-mobile.webp",
+    "start/media/haul-desktop.webp",
+    "start/media/haul-mobile.webp",
+    "start/media/jacket-desktop.webp",
+    "start/media/jacket-mobile.webp",
+    "start/media/mark.svg",
+    "start/media/tour-desktop-poster.webp",
+    "start/media/tour-desktop.mp4",
+    "start/media/tour-mobile-poster.webp",
+    "start/media/tour-mobile.mp4"
+  ],
   "entry": [
     "src/platform/local-recovery.js",
     "src/domain/accounting-engine.js",

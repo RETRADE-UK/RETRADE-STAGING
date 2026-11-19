@@ -35,6 +35,9 @@ jobs:
           set -euo pipefail
           node scripts/check-assets.cjs
           node scripts/build-site.cjs
+          test -s _site/start/index.html
+          test -s _site/start/media/tour-mobile.mp4
+          test -s _site/start/media/tour-desktop.mp4
           test -f _site/src/core/application.js
           test -f _site/src/platform/staging-binding.js
           test ! -d _site/experiments

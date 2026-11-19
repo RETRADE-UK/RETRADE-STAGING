@@ -31,8 +31,26 @@ jobs:
         with:
           python-version: '3.12'
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - name: Select Chromium
+        shell: bash
+        run: |
+          if command -v google-chrome >/dev/null; then
+            echo "CHROMIUM_EXECUTABLE=$(command -v google-chrome)" >> "$GITHUB_ENV"
+          else
+            npx playwright install --with-deps chromium
+          fi
+      - name: Prepare video renderer
+        shell: bash
+        run: |
+          if ! command -v ffmpeg >/dev/null; then
+            python -m pip install imageio-ffmpeg==0.6.0
+            mkdir -p "$RUNNER_TEMP/launch-bin"
+            ln -s "$(python -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())')" "$RUNNER_TEMP/launch-bin/ffmpeg"
+            echo "$RUNNER_TEMP/launch-bin" >> "$GITHUB_PATH"
+          fi
+          if ! test -r /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf; then
+            sudo apt-get install -y --no-install-recommends fonts-dejavu-core
+          fi
       - run: python -m pip install -r marketing/launch/requirements.txt
       - run: python marketing/launch/workflow/check_report.py
       - name: Generate page and creator clip

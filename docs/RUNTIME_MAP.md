@@ -1,3 +1,15 @@
+# Staging landing-page review — 19 November 2026
+
+The app and developer login open at the root. The independent marketing preview
+at `/start/` includes its recorded dark-theme tours and a local sample sign-up
+flow at `/start/#signup`. `RT_ASSETS.landingReview` owns its public file list.
+These files are excluded from the application shell cache and lazy loaders.
+
+The recording workflow generates fresh review assets from the hosted test
+account. The served snapshot can be reproduced with the marketing commands in
+`marketing/launch/README.md`. Publishing a reviewed cut alongside the app
+keeps normal staging builds independent of the recorder and its test account.
+
 # Recorded sales bundles — 19 November 2026
 
 Sales selection routes Bundle sales to the existing bundle order module. It joins
