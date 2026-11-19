@@ -2,7 +2,11 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const root=path.resolve(__dirname,'..'),core=fs.readFileSync(path.join(root,'src/core/application.js'),'utf8');
 function take(name){const m=new RegExp('^function '+name+'\\(', 'm').exec(core);assert(m,name);return core.slice(m.index,core.indexOf('\n}',m.index)+2);}
-const noop=()=>{},c={console,Date,Math,JSON,Array,Object,Set,Map,Number,String,isFinite,setTimeout:noop,addEventListener:noop,document:{getElementById:()=>null},DB:{'OCT-26':[],trips:[],expenses:[],cashLedger:[]},_accounts:[],PLATFORMS:{ebay:{},ebay_biz:{},vinted:{pattern:'seller_receives'},fb:{pattern:'seller_receives'}},EBAY_BIZ_FVF:{Other:.129},DEFAULT_PLATFORM:'ebay_biz',allDBKeys:()=>['OCT-26'],saveDB:noop,_itemPlatform:i=>i.defaultPlatform||'ebay_biz',_s1Platform:i=>i.salePlatform||i.defaultPlatform||'ebay_biz',_listingFeeFor:p=>p==='ebay_biz'?.36:0,toast:noop,_currentUserId:'synthetic'};c.window=c;vm.createContext(c);
+// Read-only cash reports accrue through today. Pin the fixture before its next renewal.
+class FixtureDate extends Date {
+  constructor(...args){super(...(args.length?args:['2026-11-01T12:00:00Z']));}
+}
+const noop=()=>{},c={console,Date:FixtureDate,Math,JSON,Array,Object,Set,Map,Number,String,isFinite,setTimeout:noop,addEventListener:noop,document:{getElementById:()=>null},DB:{'OCT-26':[],trips:[],expenses:[],cashLedger:[]},_accounts:[],PLATFORMS:{ebay:{},ebay_biz:{},vinted:{pattern:'seller_receives'},fb:{pattern:'seller_receives'}},EBAY_BIZ_FVF:{Other:.129},DEFAULT_PLATFORM:'ebay_biz',allDBKeys:()=>['OCT-26'],saveDB:noop,_itemPlatform:i=>i.defaultPlatform||'ebay_biz',_s1Platform:i=>i.salePlatform||i.defaultPlatform||'ebay_biz',_listingFeeFor:p=>p==='ebay_biz'?.36:0,toast:noop,_currentUserId:'synthetic'};c.window=c;vm.createContext(c);
 vm.runInContext(fs.readFileSync(path.join(root,'src/domain/accounting-engine.js'),'utf8'),c);vm.runInContext(take('_rowToItem'),c);c._cashLedger=()=>[];
 vm.runInContext(fs.readFileSync(path.join(root,'src/features/cashflow/liabilities.js'),'utf8'),c);
 vm.runInContext(fs.readFileSync(path.join(root,'src/domain/relist-fees.js'),'utf8'),c);

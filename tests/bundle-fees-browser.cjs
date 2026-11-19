@@ -92,6 +92,61 @@ const {open,settled}=require('./startup-browser.cjs');
    const bid=DB['OCT-26'][0].bundleId;showConfirm=async()=>true;await reverseBundleOrder(bid);
    return DB['OCT-26'].every(i=>i.state==='listed'&&!i.dateSold&&!i.bundleId&&i.listingFee===.09&&i.salePrice===54.99);
   }),true,'Reversal preserves incurred shared listing fees');
+  // Combine recorded sales through the real Sales toolbar, including a resale.
+  await page.evaluate(()=>{
+   closePanel();resetBundle();const [a,b]=DB['OCT-26'];DB['OCT-26']=[a,b];
+   for(const i of [a,b])Object.assign(i,{bundleId:null,bundleRef:null,bundleTotal:null,postage:2,shippingCost:3.25});
+   b.dateSold=null;b.resaleSalePrice=45;b.resaleDateSold=a.dateSold;b.resaleShippingCost=4;b.resalePostage=2;b.resalePlatform='ebay_biz';
+   b.returnHistory=[{id:'previous',type:'full_seller',saleNo:1,refundAmount:45,loggedAt:'2026-10-07',_dateSoldAtReturn:'2026-10-06',_salePriceAtReturn:45,_platformAtReturn:'ebay_biz',_relistedAt:'2026-10-09'}];
+   window.beforeHistory=JSON.stringify(b.returnHistory);
+   SELECTED_MONTH='OCT-26';MONTHLY_VIEW='detail';MONTH_FILTER='all';MONTH_SEARCH='';SELECTION_MODE=false;SELECTED_ITEMS.clear();
+   window.dispatchEvent(new Event('retrade:data-ready'));goToTab('monthly');SELECTED_MONTH='OCT-26';renderMonth();
+  });
+  await page.locator('#p-monthly .select-toggle').click();
+  const checkSale=(id,n)=>page.locator('[data-sale-key="'+id+'|s%3A'+n+'"] input').check();
+  await checkSale('a',1);
+  const bundleAction=page.locator('[data-month-action="bundle"]');
+  assert(await bundleAction.isDisabled());
+  await checkSale('b',2);
+  async function review(){
+   await page.locator('#p-monthly .bulk-actions-menu summary').click();
+   await bundleAction.click();
+  }
+  await review();
+  const form=page.locator('#recorded-bundle-form');
+  assert.equal(await form.locator('input').count(),1);
+  assert.match(await form.innerText(),/£90\.00/);assert.match(await form.innerText(),/£7\.25/);
+  await form.getByRole('button',{name:'Cancel'}).click();
+  assert.equal(await page.evaluate(()=>DB['OCT-26'][0].bundleId),null);
+  await review();
+  const delivery=page.getByLabel('Your bundle delivery cost (£)');
+  await delivery.fill('3.555');assert.equal(await delivery.evaluate(el=>el.checkValidity()),false);
+  await delivery.fill('3.55');
+  await page.evaluate(()=>{DB['OCT-26'][0].shippingCost=3.35;});
+  await form.getByRole('button',{name:'Create bundle sale'}).click();
+  assert.match(await form.getByRole('alert').innerText(),/changed/);
+  assert.equal(await page.evaluate(()=>DB['OCT-26'][1].resaleBundleId),undefined);
+  await form.getByRole('button',{name:'Cancel'}).click();
+  await review();await delivery.fill('3.55');
+  await form.getByRole('button',{name:'Create bundle sale'}).click();
+  await page.waitForFunction(()=>!!document.querySelector('#panel-content .rt-bop-hero'));
+  assert.equal(await page.locator('#p-monthly [data-sale-bundle]').count(),1);
+  const result=await page.evaluate(()=>{
+   const [a,b]=DB['OCT-26'],bid=a.bundleId,sa=_saleCycleSnapshot(a,1),sb=_saleCycleSnapshot(b,2);
+   const summary=_bundleSummary(bid),events=_tradingCashEventsAll().events.filter(e=>e.date===a.dateSold);
+   const sum=type=>Math.round(events.filter(e=>e.type===type).reduce((s,e)=>s+e.amount,0)*100);
+   return {same:bid===b.resaleBundleId,total:a.bundleTotal,items:summary.count,receipts:summary.revenue,shipping:summary.shipping,
+    split:[sa.shipping,sb.shipping].sort(),cashReceipts:sum('sale_receipt'),cashDelivery:sum('shipping'),
+    fees:sum('platform_fee'),grossProfit:a.grossProfit===calcGrossProfit(a)&&b.grossProfit===calcGrossProfit(b),
+    previous:JSON.stringify(b.returnHistory)===beforeHistory,persisted:_rowToItem(_itemToRow(b,'OCT-26')).resaleBundleId===bid};
+  });
+  assert.equal(result.same,true);assert.equal(result.items,2);assert.equal(result.total,90);assert.equal(result.receipts,94);
+  assert.equal(result.shipping,3.55);assert.deepEqual(result.split,[1.77,1.78]);assert.equal(result.cashReceipts,9400);assert.equal(result.cashDelivery,355);
+  assert.equal(result.fees,Math.round(await page.evaluate(()=>{const [a,b]=DB['OCT-26'];return 100*(calcPlatformBPF(a,45,2,'ebay_biz',1)+calcPlatformBPF(b,45,2,'ebay_biz',2));})));
+  assert(result.grossProfit&&result.previous&&result.persisted);
+  await page.locator('#panel-content').getByRole('button',{name:'Separate sales',exact:true}).click();
+  await page.waitForFunction(()=>!DB['OCT-26'][0].bundleId);
+  assert.deepEqual(await page.evaluate(()=>DB['OCT-26'].map(i=>[i.state,i.resaleDateSold?i.resaleShippingCost:i.shippingCost])),[['sold',3.35],['sold',4]]);
   assert.deepEqual(errors,[]);await context.close();
  }
  console.log('PASS shared order fees, listing allocation/edit/free/persistence, supplier zero conflict, inherited profit share, dashboard/cash reconciliation, bands and return/resale');

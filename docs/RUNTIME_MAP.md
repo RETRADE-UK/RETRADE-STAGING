@@ -1,3 +1,13 @@
+# Recorded sales bundles — 19 November 2026
+
+Sales selection routes Bundle sales to the existing bundle order module. It joins
+the selected live sale cycles, preserves actual receipts and listing fees, and
+allocates the seller's new delivery cost by sold price using the existing penny
+split. The accounting engine reads the grouped cycles for fees, profit and cash.
+Each member stores its original delivery cost in refresh history so Separate sales
+can restore the individual sales. Both actions use the normal item save and sync
+path. There is no database migration.
+
 # Independent cost duplicates — 13 November 2026
 
 Core opens trip and expense duplicates as unsaved forms with an explicit Duplicate
