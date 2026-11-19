@@ -147,6 +147,14 @@ const {open,settled}=require('./startup-browser.cjs');
   await page.locator('#panel-content').getByRole('button',{name:'Separate sales',exact:true}).click();
   await page.waitForFunction(()=>!DB['OCT-26'][0].bundleId);
   assert.deepEqual(await page.evaluate(()=>DB['OCT-26'].map(i=>[i.state,i.resaleDateSold?i.resaleShippingCost:i.shippingCost])),[['sold',3.35],['sold',4]]);
+  await page.evaluate(()=>{
+   const [a,b]=DB['OCT-26'];a.bundleId=b.resaleBundleId='fee-test';a.bundleTotal=b.resaleBundleTotal=90;
+   a.salePlatform=b.resalePlatform='depop';
+  });
+  assert.equal(await page.evaluate(()=>DB['OCT-26'].reduce((p,i,k)=>p+Math.round(100*calcPlatformBPF(i,45,2,'depop',k+1)),0)),303,'A single processing fee on the £94 order');
+  assert.equal(await page.evaluate(()=>{
+   const [a,b]=DB['OCT-26'];a.salePlatform=b.resalePlatform='vinted';return _bundleSummary('fee-test').revenue;
+  }),90,'Postage collected by the platform is excluded from seller receipts');
   assert.deepEqual(errors,[]);await context.close();
  }
  console.log('PASS shared order fees, listing allocation/edit/free/persistence, supplier zero conflict, inherited profit share, dashboard/cash reconciliation, bands and return/resale');

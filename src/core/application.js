@@ -14948,7 +14948,8 @@ function _bundleSummary(bid){
   const its=_bundleItems(bid);
   let revenue=0,cost=0,profit=0,shipping=0;
   its.forEach(function(i){
-    revenue+=_bundleMemberSalePrice(i,bid)+_bundleMemberPostage(i,bid);
+    const cycle=_bundleMemberCycle(i,bid);
+    revenue+=cycle.price+_sellerPostageIncome(cycle.platformId,cycle.postage);
     cost+=(i.costPrice||0)+calcPartsCost(i);
     shipping+=_bundleMemberShipping(i,bid);
     profit+=_bundleMemberProfit(i,bid);

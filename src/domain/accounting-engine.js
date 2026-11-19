@@ -1711,7 +1711,21 @@ function calcPlatformBPF(item,salePrice,buyerPostage,platformOverride,saleNo){
     case 'ebay':      return calcEbayBPF(salePrice);
     case 'ebay_biz':  return _ebaySaleFeeComponents(item,salePrice,post,saleNo).total;
     case 'vinted':    return calcVintedBPF(item,salePrice);
-    case 'depop':     return calcDepopBPF(item,salePrice,post);
+    case 'depop': {
+      const cycle=item&&_saleCycleSnapshot(item,saleNo||1);
+      if(cycle&&cycle.bundleId&&cycle.price===salePrice&&cycle.postage===post){
+        const members=_bundleItems(cycle.bundleId).map(i=>({id:i.id,cycle:_bundleMemberCycle(i,cycle.bundleId)}))
+          .filter(m=>m.cycle.platformId===p).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+        const index=members.findIndex(m=>m.id===item.id);
+        const prices=members.reduce((sum,m)=>sum+m.cycle.price,0);
+        if(index>=0&&members.length>1&&Math.abs(prices-cycle.bundleTotal)<0.005){
+          const weights=members.map(m=>m.cycle.price+m.cycle.postage);
+          const fee=calcDepopBPF(item,weights.reduce((sum,v)=>sum+v,0),0);
+          return _bundleSplit(fee,weights)[index];
+        }
+      }
+      return calcDepopBPF(item,salePrice,post);
+    }
     case 'fb':        return calcFbBPF(item,salePrice);
     case 'amazon_uk': return calcAmazonUKBPF(item,salePrice);
     default:          return calcEbayBPF(salePrice+post);

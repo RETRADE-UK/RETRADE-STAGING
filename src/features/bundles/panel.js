@@ -74,7 +74,7 @@
     var its=itemsFor(bid),out={items:its,sale:0,postage:0,receipts:0,fees:0,listing:0,promo:0,shipping:0,packaging:0,cost:0,parts:0,partner:0,saleLegNet:0,profit:0,date:'',ref:'',platform:''};
     its.forEach(function(i){
       var cyc=cycleFor(i,bid);if(!cyc)return;
-      out.sale+=num(cyc.price);out.postage+=num(cyc.postage);out.shipping+=num(cyc.shipping);
+      out.sale+=num(cyc.price);out.postage+=_sellerPostageIncome(cyc.platformId,cyc.postage);out.shipping+=num(cyc.shipping);
       if(!out.date)out.date=cyc.date||'';if(!out.ref)out.ref=cyc.bundleRef||'';
       if(!out.platform)out.platform=cyc.platformId||cyc.platform||((num(cyc.saleNo)||1)>=2?i.resalePlatform:(i.soldOnPlatform||i.salePlatform||i.defaultPlatform))||'';
       try{
@@ -289,7 +289,7 @@
 
   window.renderBundleSaleRow=function(bid,members){
     injectStyles();bid=String(bid||'');bundleRowMembers.set(bid,(members||[]).slice());
-    var rev=0,profit=0,date='';(members||[]).forEach(function(ev){var post=((num(ev.sale)||1)>=2&&ev.item)?num(ev.item.resalePostage!=null?ev.item.resalePostage:ev.item.postage):num(ev.item&&ev.item.postage);rev+=num(ev.salePrice)+post;profit+=num(ev.profit);if(!date&&ev.saleDate)date=ev.saleDate;});
+    var rev=0,profit=0,date='';(members||[]).forEach(function(ev){var cycle=ev.snapshot||cycleFor(ev.item,bid);rev+=num(ev.salePrice)+(cycle?_sellerPostageIncome(cycle.platformId,cycle.postage):0);profit+=num(ev.profit);if(!date&&ev.saleDate)date=ev.saleDate;});
     var count=(members||[]).length,first=(members&&members[0]&&members[0].item)||{},ref=typeof _eventBundleRef==='function'?_eventBundleRef((members&&members[0])||{}):'',allSel=typeof _bundleAllSelected==='function'?_bundleAllSelected(bid):false,margin=rev>0?profit/rev*100:null,isOpen=expandedBundles.has(bid);
     var disclosure='<button class="rt-bundle-disclosure'+(isOpen?' expanded':'')+'" onclick="event.stopPropagation();toggleBundleSalesRow(\''+quote(bid)+'\')" aria-label="'+(isOpen?'Collapse':'Expand')+' bundle" aria-expanded="'+(isOpen?'true':'false')+'"><svg viewBox="0 0 16 16" fill="none"><path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
     var selection=typeof SELECTION_MODE!=='undefined'&&SELECTION_MODE;
