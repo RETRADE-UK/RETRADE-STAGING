@@ -24,7 +24,7 @@
         if(error){script.remove();reject(error);}else resolve();
       }
       script.id='rt-view-'+key;
-      script.src='./'+definition.file+'?v='+encodeURIComponent(assets.build);
+      script.src='/'+definition.file+'?v='+encodeURIComponent(assets.build);
       script.async=false;
       script.onload=function(){finish(ready(key)?null:new Error('View did not initialise: '+key));};
       script.onerror=function(){finish(new Error('View could not load: '+key));};

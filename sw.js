@@ -5,7 +5,7 @@ const BUILD=ASSETS.build;
 const CACHE_PREFIX='retrade-static-';
 const CACHE_NAME=CACHE_PREFIX+BUILD;
 const SCRIPTS=['app.js','config/assets.js'].concat(ASSETS.entry,ASSETS.bindings,[ASSETS.launch,ASSETS.core],ASSETS.critical,ASSETS.deferred,ASSETS.lazy);
-const SHELL=['index.html','manifest.webmanifest'].concat(ASSETS.styles,ASSETS.icons);
+const SHELL=['index.html','dashboard/index.html','manifest.webmanifest'].concat(ASSETS.styles,ASSETS.icons);
 const STATIC_SET=new Set(SCRIPTS.concat(SHELL,ASSETS.launchImages,ASSETS.images||[]));
 const VERSIONED_SET=new Set(SCRIPTS.concat(ASSETS.styles));
 const SCOPE=new URL(self.registration.scope);
@@ -45,20 +45,20 @@ function warmRuntime(){
   warming=warmPaths(paths).finally(()=>{warming=null;});
   return warming;
 }
-async function navigationResponse(request,event){
+async function navigationResponse(request,event,documentPath){
   const cache=await caches.open(CACHE_NAME);
   const network=(async()=>{
     try{
       const response=await fetch(request);
       if(!response||!response.ok)return null;
-      try{await cache.put(cacheKey('index.html'),response.clone());}catch(_){}
+      try{await cache.put(cacheKey(documentPath),response.clone());}catch(_){}
       return response;
     }catch(_){return null;}
   })();
   event.waitUntil(network.then(()=>{}));
   const early=await Promise.race([network,new Promise(resolve=>setTimeout(()=>resolve(null),900))]);
   if(early)return early;
-  return (await cache.match(cacheKey('index.html')))||(await network)||new Response('<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RETRADE · Offline</title><body style="background:#0f1724;color:#fff;font:18px system-ui;padding:10vh 24px"><h1>RETRADE</h1><p>Your workspace isn’t available offline yet. Reconnect, then try again.</p><button onclick="location.reload()">Try again</button></body></html>',{status:503,headers:{'Content-Type':'text/html; charset=utf-8'}});
+  return (await cache.match(cacheKey(documentPath)))||(await network)||new Response('<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RETRADE · Offline</title><body style="background:#0f1724;color:#fff;font:18px system-ui;padding:10vh 24px"><h1>RETRADE</h1><p>Your workspace isn’t available offline yet. Reconnect, then try again.</p><button onclick="location.reload()">Try again</button></body></html>',{status:503,headers:{'Content-Type':'text/html; charset=utf-8'}});
 }
 self.addEventListener('install',event=>{
   event.waitUntil((async()=>{
@@ -90,8 +90,12 @@ self.addEventListener('fetch',event=>{
   const url=new URL(request.url);
   if(url.origin!==SCOPE.origin||!url.pathname.startsWith(SCOPE.pathname))return;
   const path=url.pathname.slice(SCOPE.pathname.length);
-  if(request.mode==='navigate'&&(path===''||path==='index.html')){
-    event.respondWith(navigationResponse(request,event));return;
+  if(request.mode==='navigate'){
+    const isHome=path===''||path==='index.html';
+    const isWorkspace=/^(login|signup|dashboard)(\/|\/index\.html)?$/.test(path);
+    if(isHome||isWorkspace){
+      event.respondWith(navigationResponse(request,event,isHome?'index.html':'dashboard/index.html'));return;
+    }
   }
   const legacy=ASSETS.legacy[path];
   if(!STATIC_SET.has(path)&&!legacy)return;

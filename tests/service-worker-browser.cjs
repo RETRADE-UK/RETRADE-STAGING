@@ -11,7 +11,7 @@ const {mockAuth,fixture,settled}=require('./startup-browser.cjs');
   if(url.pathname==='/legacy-test.html'){res.setHeader('Content-Type','text/html');return res.end('<title>Upgrade test</title>');}
   if(url.pathname==='/sw.js'&&legacy){res.setHeader('Content-Type','text/javascript');return res.end(fs.readFileSync(path.join(root,'tests/fixtures/legacy-service-worker.js')));}
   if(legacy){res.setHeader('Content-Type',url.pathname.endsWith('.js')?'text/javascript':'text/html');return res.end(url.pathname.endsWith('.js')?'/* legacy cached asset */':'<!doctype html><title>Legacy</title>');}
-  const file=path.join(root,url.pathname==='/'?'index.html':decodeURIComponent(url.pathname));
+  const file=path.join(root,['/','/dashboard/index.html'].includes(url.pathname)?'index.html':decodeURIComponent(url.pathname));
   if(!file.startsWith(root+path.sep)||!fs.existsSync(file)){misses.push(url.pathname);res.statusCode=404;return res.end('Missing');}
   res.setHeader('Content-Type',({'.html':'text/html','.js':'text/javascript','.css':'text/css','.png':'image/png','.webmanifest':'application/manifest+json'})[path.extname(file)]||'text/plain');
   if(url.pathname==='/'+assets.core)return res.end(fs.readFileSync(file,'utf8')+fixture);

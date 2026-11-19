@@ -1,7 +1,8 @@
 {
   "name": "RETRADE",
   "short_name": "RETRADE",
-  "start_url": "./",
+  "id": "./",
+  "start_url": "./dashboard/",
   "scope": "./",
   "display": "standalone",
   "background_color": "#0f1724",

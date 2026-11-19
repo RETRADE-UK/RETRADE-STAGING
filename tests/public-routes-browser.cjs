@@ -1,0 +1,78 @@
+/* Exercise the Pages artifact and the app's real auth controls with isolated fixtures. */
+const assert = require('node:assert/strict');
+const path = require('node:path');
+const fs = require('node:fs');
+const {execFileSync} = require('node:child_process');
+const {chromium, webkit} = require('playwright');
+const {mockAuth, fixture} = require('./startup-browser.cjs');
+const root = path.resolve(__dirname, '..');
+const site = path.join(root, '_site');
+const origin = 'http://retrade.test';
+const types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', '.webp':'image/webp', '.png':'image/png', '.svg':'image/svg+xml', '.webmanifest':'application/manifest+json'};
+
+(async function () {
+  execFileSync(process.execPath, ['scripts/build-site.cjs'], {cwd: root});
+  const isWebKit = process.argv.includes('--webkit');
+  const browser = await (isWebKit ? webkit : chromium).launch({
+    headless:true, executablePath:isWebKit ? undefined : process.env.CHROMIUM_EXECUTABLE
+  });
+  try {
+    const context = await browser.newContext({viewport:{width:1370,height:850}, reducedMotion:'reduce', serviceWorkers:'block'});
+    const missing = [];
+    await context.route('**/*', async route => {
+      const url = new URL(route.request().url());
+      if (url.pathname.includes('/supabase-js@')) {
+        return route.fulfill({contentType:'text/javascript',body:'('+mockAuth.toString()+')(null);'});
+      }
+      if (url.origin !== origin) return route.abort();
+      const file = path.join(site,url.pathname + (url.pathname.endsWith('/') ? 'index.html' : ''));
+      if (!fs.existsSync(file)) {
+        missing.push(url.pathname);
+        return route.fulfill({status:404,body:'Missing asset'});
+      }
+      const ext = path.extname(file);
+      let body = fs.readFileSync(file);
+      if (ext === '.html') body = body.toString().replace(/ integrity="[^"]*"/g,'');
+      if (url.pathname === '/src/core/application.js') body = body.toString() + fixture;
+      return route.fulfill({contentType:types[ext],body});
+    });
+    const page = await context.newPage();
+    await page.goto(origin + '/');
+    assert.match(await page.locator('h1').innerText(), /on every flip/);
+    assert.equal(await page.locator('video').count(),0);
+    assert.equal(await page.locator('.story').count(),4);
+    for (const id of ['sourcing','stock','sale','dashboard']) {
+      await page.locator('.jump a[href="#'+id+'"]').click();
+      await page.waitForFunction(id => document.querySelector('.pane.current')?.classList.contains(id), id);
+      assert(await page.locator('.pane.current').evaluate(img => img.decode().then(()=>img.naturalWidth>0)));
+    }
+    await page.setViewportSize({width:390,height:844});
+    await page.waitForFunction(()=>!document.documentElement.classList.contains('sticky-tour'));
+    await page.locator('#stock figure').scrollIntoViewIfNeeded();
+    assert(await page.locator('#stock figure img').evaluate(img=>img.decode().then(()=>img.currentSrc.endsWith('stock-phone.webp'))));
+    assert(await page.evaluate(()=>document.documentElement.scrollWidth===innerWidth));
+    await page.goto(origin+'/signup/');
+    const signup=page.locator('#auth-screen-signup');
+    await signup.waitFor({state:'visible'});
+    await page.reload();
+    await signup.waitFor({state:'visible'});
+    await signup.getByRole('button',{name:'Back to sign in'}).click();
+    await page.waitForURL('**/login/');
+    await page.goBack();
+    await signup.waitFor({state:'visible'});
+    await page.goto(origin+'/dashboard/');
+    await page.waitForURL('**/login/');
+    await page.locator('#auth-email').fill('ui@example.test');
+    await page.locator('#auth-pass').fill('test-password');
+    await page.locator('#auth-btn').click();
+    await page.waitForURL('**/dashboard/');
+    await page.locator('#p-summary.on').waitFor({state:'visible'});
+    await page.goto(origin+'/?code=synthetic-callback');
+    await page.waitForURL('**/login/?code=synthetic-callback');
+    await page.goto(origin+'/start/?utm_source=review#tour');
+    await page.waitForURL('**/?utm_source=review#tour');
+    assert.deepEqual(missing,[]);
+    await context.close();
+    console.log('PASS public tour, mobile screens, sign-up history, dashboard guard, sign-in and legacy links');
+  } finally { await browser.close(); }
+})().catch(error=>{console.error(error);process.exitCode=1});

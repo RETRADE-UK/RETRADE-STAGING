@@ -35,6 +35,9 @@ jobs:
           set -euo pipefail
           node scripts/check-assets.cjs
           node scripts/build-site.cjs
+          for route in login signup dashboard start; do test -s "_site/$route/index.html"; done
+          test -s _site/assets/landing/sourcing-phone.webp
+          grep -q 'id="tour-title"' _site/index.html
           test -f _site/src/core/application.js
           test -f _site/src/platform/staging-binding.js
           test ! -d _site/experiments

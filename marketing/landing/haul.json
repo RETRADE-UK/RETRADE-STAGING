@@ -1,0 +1,8 @@
+[
+ {"item":"Levi’s denim trucker jacket","category":"Clothing & Fashion","platform":"vinted","cost":5.00,"price":24.00,"pack":0.35,"ship":0},
+ {"item":"Roald Dahl paperback bundle, 10 books","category":"Books","platform":"vinted","cost":3.00,"price":12.00,"pack":0.55,"ship":0},
+ {"item":"Mario Kart 8 Deluxe, cartridge only","category":"Video Games & Consoles","platform":"ebay_biz","cost":8.00,"price":19.00,"pack":0.25,"ship":2.10},
+ {"item":"Denby stoneware side plates, set of four","category":"Home & Garden","platform":"fb","cost":6.00,"price":28.00,"pack":0,"ship":0},
+ {"item":"adidas Gazelle suede trainers","category":"Clothing & Fashion","platform":"vinted","cost":9.00,"price":30.00,"pack":0.45,"ship":0},
+ {"item":"LEGO City fire station, used and complete","category":"Toys & Games","platform":"ebay_biz","cost":10.00,"price":32.00,"pack":0.75,"ship":3.50}
+]

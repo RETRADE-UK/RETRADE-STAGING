@@ -1,7 +1,7 @@
 /* Runtime asset contract. Ordered classic scripts: do not alphabetise.
  * Shared by the browser loader, service worker and validation tools. */
 globalThis.RT_ASSETS = Object.freeze({
-  "build": "20261119-bundle-recorded-sales-staging",
+  "build": "20261119-public-tour-routes",
   "environment": "staging",
   "entry": [
     "src/platform/local-recovery.js",
@@ -85,6 +85,20 @@ globalThis.RT_ASSETS = Object.freeze({
     "assets/styles/responsive.css",
     "assets/styles/workspaces.css",
     "assets/styles/monitors.css"
+  ],
+  "landing": [
+    "assets/landing/dashboard-phone.webp",
+    "assets/landing/dashboard.webp",
+    "assets/landing/entry.js",
+    "assets/landing/landing.css",
+    "assets/landing/mark.svg",
+    "assets/landing/sale-phone.webp",
+    "assets/landing/sale.webp",
+    "assets/landing/sourcing-phone.webp",
+    "assets/landing/sourcing.webp",
+    "assets/landing/stock-phone.webp",
+    "assets/landing/stock.webp",
+    "assets/landing/tour.js"
   ],
   "images": [
     "assets/brand/pdf-logo-dark-v1.png"

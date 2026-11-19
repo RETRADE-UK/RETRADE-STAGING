@@ -1044,3 +1044,9 @@ and 1440px, checking boundaries, totals, blank days, losses, bar gaps, label bou
 selection persistence, hover, drill-downs and switching between daily periods.
 Cache generation: `20261016-dashboard-14-days` (staging adds `-staging`).
 
+
+### Public URLs on staging
+
+The Pages build publishes the public product tour from `marketing/landing/index.html` at `/`. The login, signup and dashboard directories share the existing workspace shell. Native authentication owns the route transitions, and the service worker keeps the public page and the workspace in separate cache entries. Installed apps open `/dashboard/`. The previous `/start/` links and authentication callbacks sent to the old root still resolve.
+
+Tour assets are allowlisted in `config/assets.js`. To refresh the eight screenshots, run `node marketing/landing/capture.cjs` with Playwright Chromium, Python and Pillow installed. It uses the normal developer sign-in on the staging domain, seeds the mixed haul in the anonymous example account and captures four real dark-mode screens in two viewport sizes. An optional `RETRADE_TEST_STATE` path outside the checkout lets successive captures reuse that account.
