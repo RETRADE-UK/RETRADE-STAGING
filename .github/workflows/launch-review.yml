@@ -1,0 +1,54 @@
+name: Record and check RETRADE launch assets
+on:
+  workflow_dispatch:
+    inputs:
+      refresh:
+        description: Record a fresh developer test session
+        type: boolean
+        default: true
+  workflow_run:
+    workflows: ["Deploy RETRADE staging to GitHub Pages"]
+    types: [completed]
+    branches: [main]
+  pull_request:
+    paths: ['marketing/launch/**', '.github/workflows/launch-review.yml']
+permissions:
+  contents: read
+jobs:
+  review:
+    if: >-
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - run: python -m pip install -r marketing/launch/requirements.txt
+      - run: python marketing/launch/workflow/check_report.py
+      - name: Generate page and creator clip
+        env:
+          RECORD: ${{ github.event_name == 'workflow_run' || (github.event_name == 'workflow_dispatch' && inputs.refresh) }}
+        run: |
+          if [ "$RECORD" = "true" ]; then
+            python marketing/launch/build.py --refresh --output launch-review
+          else
+            python marketing/launch/build.py --output launch-review
+          fi
+      - run: python marketing/launch/workflow/web_assets.py launch-review/RETRADE-launch-preview.html launch-review/web
+      - name: Check real playback and registration preview
+        run: node marketing/launch/workflow/check.cjs launch-review/RETRADE-launch-preview.html . launch-review/checks
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retrade-launch-review
+          path: launch-review
+          retention-days: 7
