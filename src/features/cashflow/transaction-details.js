@@ -29,7 +29,7 @@
         return '<button type="button" class="btn btn-secondary rt-transaction-item" data-cash-purchase-item="'+index+'"><span class="rt-transaction-item-name">'+e(item.item||'Untitled item')+'<small>'+e([item.gid,item.state].filter(Boolean).join(' · '))+'</small></span><span class="rt-transaction-item-cost">'+e(fmt(item.costPrice||0))+'<small>View item →</small></span></button>';
       }).join('')+'</section>';
       actionLabel='View purchase';action=function(){openPurchaseGroup(movement.purchaseGroupId,returnToTransaction);};
-      explanation='One purchase, with its cost allocated across separate stock items.';
+      explanation='One purchase, with its cost allocated across separate stock items.'+(movement.dateEstimated?' This payment date uses the sourced date as an estimate for at least one item.':'');
     }else if(movement.editableId){
       actionLabel='Edit entry';action=function(){editCashMove(movement.editableId);};
       explanation='This is a manually recorded cash movement.';

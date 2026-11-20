@@ -10097,7 +10097,7 @@ function openStockQuickAdd(accountId){
   _sqaSessionCount=0;
   const today=new Date().toISOString().split('T')[0];
   const html=`
-    ${!_quickAddAccountId?'<button type="button" class="btn btn-secondary" style="margin-bottom:16px" onclick="openNewPurchase()">One purchase · multiple items</button>':''}
+    ${!_quickAddAccountId?'<button type="button" class="btn btn-secondary" style="margin-bottom:16px" onclick="_openStockPurchaseAction(\'new\')">One purchase · multiple items</button>':''}
     ${_quickAddAccountBanner(_quickAddAccountId)}
     ${_quickAddPartnerPickerHTML()}
     <div class="fg">
@@ -13982,7 +13982,8 @@ function _bulkSelectionToolbarHTML(ctx){
   const more=stock
     ?(unlisted?_bulkActionButton(ctx,'joblot','Create Job Lot','joblot'):'')+(onHand?'':_bulkActionButton(ctx,'list','List items','list')+'<select aria-label="Change platform for selected stock" class="bulk-ctrl bulk-plat-sel" data-stock-action="platform" data-source="stock" disabled><option value="">🏪 Platform</option>'+Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){return '<option value="'+p.id+'">'+p.short+'</option>';}).join('')+'</select>'
       +_bulkActionButton(ctx,'bundle','Bundle sale','sold')+_bulkActionButton(ctx,'joblot','Create Job Lot','joblot'))
-      +(typeof openPurchaseLink==='function'?_bulkActionButton(ctx,'purchase','Link purchase','expense'):'')
+      +_bulkActionButton(ctx,'purchase','Assign to payment','expense')
+      +_bulkActionButton(ctx,'splitPurchase','Split purchase','dupe')
       +(onHand?'':_bulkActionButton(ctx,'duplicate','Duplicate to stock','dupe'))
     :_bulkActionButton(ctx,'bundle','Bundle sales','sold')+'<p class="bulk-action-hint" data-month-selection-hint hidden></p>';
   return '<button type="button" class="sel-check" role="checkbox" aria-label="Select all shown" aria-checked="false" onclick="'+(stock?'selectAllStockVisible()':'selectAllMonth()')+'"><span class="sel-check-box" aria-hidden="true"></span><span data-'+ctx+'-selection-count role="status">Select all</span></button>'
@@ -14117,7 +14118,8 @@ async function runSelectionAction(ctx,action){
     const caps=_stockSelectionCapabilities();if(!caps[action])return;
     if(action==='bundle')openBundleSaleModal();
     else if(action==='joblot')openCreateJobLotFromSelection();
-    else if(action==='purchase'&&typeof openPurchaseLink==='function')openPurchaseLink();
+    else if(action==='purchase')_openStockPurchaseAction('link',Array.from(STOCK_SELECTED));
+    else if(action==='splitPurchase')_openStockPurchaseAction('split',Array.from(STOCK_SELECTED));
   }catch(error){toast('The action could not finish saving. Check sync status before retrying.','err');console.error('[bulk action]',error);}
   finally{_selectionActionPending=false;_refreshStockSelection();_refreshMonthSelection();}
 }
@@ -14338,10 +14340,22 @@ function openStockBulkList(){
   refresh();get(0,'price').focus();
 }
 
+function _openStockPurchaseAction(action,ids){
+  const fn=action==='new'?window.openNewPurchase:action==='split'?window.openPurchaseSplit:window.openPurchaseLink;
+  if(typeof fn!=='function'){toast('Purchase tools are loading. Try again in a moment.','err');return;}
+  if(action==='new')return fn();
+  const selected=Array.isArray(ids)?ids:ids?[ids]:[];
+  return action==='split'?fn(selected[0]):fn(selected);
+}
+function _stockPurchaseSplitAvailable(item){
+  if(typeof window.purchaseCanSplit==='function')return window.purchaseCanSplit(item);
+  return !!item&&!item.accountId&&!item.scrappedAt&&!item.isReturned&&!item.dateSold&&!item.resaleDateSold&&!item.resaleSalePrice
+    &&['sourced','listed'].includes(item.state)&&!_itemHasPriorFullReturn(item)&&!_itemHasGroupedSale(item)&&!_activeJobLotMembership(item.id);
+}
 function _stockSelectionCapabilities(){
   const rows=[...STOCK_SELECTED].map(function(id){const r=_findItemRecordById(id);return r&&r.item;}).filter(Boolean);
   const listed=rows.length>0&&rows.every(function(i){return _canWithdrawStock(i)&&!_itemHasPriorFullReturn(i);});
-  return {list:rows.some(function(i){return !_bulkListReason(i);}),sold:listed,bundle:listed&&rows.length>1,platform:rows.length>0&&rows.every(_canWithdrawStock),purchase:rows.length>0,duplicate:rows.length>0,
+  return {list:rows.some(function(i){return !_bulkListReason(i);}),sold:listed,bundle:listed&&rows.length>1,platform:rows.length>0&&rows.every(_canWithdrawStock),purchase:rows.length>0,splitPurchase:rows.length===1&&_stockPurchaseSplitAvailable(rows[0]),duplicate:rows.length>0,
     joblot:rows.length>0&&rows.every(function(i){return _canAddToJobLot(i);}),
     withdraw:rows.some(_canWithdrawStock)};
 }
@@ -15464,10 +15478,15 @@ function renderStockRow(m,i){
   const _sm=SELECTION_MODE,_si=SELECTED_ITEMS;
   SELECTION_MODE=STOCK_SELECTION_MODE;SELECTED_ITEMS=STOCK_SELECTED;
   // Override toggleSelect click to use stock version
-  const html=renderItemRow(m,i)
+  let html=renderItemRow(m,i)
     .replace(/onchange="toggleSelect\(/g,'onchange="toggleStockSelect(')
     .replace(/onclick="toggleSelect\(/g,'onclick="toggleStockSelect(');
   SELECTION_MODE=_sm;SELECTED_ITEMS=_si;
+  if(!i.accountId){
+    const payment='<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');_openStockPurchaseAction(\'link\',[\''+i.id+'\'])">'+icon('expense',14)+' Assign to payment</button>';
+    const split=_stockPurchaseSplitAvailable(i)?'<button onclick="event.stopPropagation();toggleDD(\'dd-'+i.id+'\');_openStockPurchaseAction(\'split\',[\''+i.id+'\'])">'+icon('dupe',14)+' Split purchase</button>':'';
+    html=html.replace('<div class="ddmenu">','<div class="ddmenu">'+payment+split);
+  }
   return html.replace('<div ', '<div data-stock-item="'+esc(i.id)+'" ');
 }
 
@@ -19364,106 +19383,20 @@ function _renderRecentlyDeletedSection(){
     +'</div>';
 }
 
-// ── SPLIT A MULTI-BUY LOT INTO N UNITS ──────────────────────────────────────
-// Oskar logs a bundle (e.g. 2x monitor for £25) as ONE line, then wants N
-// separate sellable units. Split divides the cost (and estSalePrice) evenly
-// across N — unit 1 = this item re-priced, units 2..N = fresh listing copies.
-// Cost-neutral: Σ unit costs == original (odd pennies land on unit 1). Only
-// for a live UNSOLD item; no realised/tax math is touched. (Duplicate copies
-// an item as-is; Split divides a lot — two distinct actions.)
+// Purchase splitting is owned by src/features/purchases/groups.js.
+// Legacy entry points remain as dispatchers for existing item links.
 function _splitStripSuffix(name){ const mm=(name||'').match(/^(.+?) - (\d+)$/); return mm?mm[1]:(name||''); }
 function _splitPennies(totalPence,n){
   const base=Math.floor(totalPence/n); let rem=totalPence-base*n; const out=[];
   for(let k=0;k<n;k++)out.push(base+(k<rem?1:0));
   return out;
 }
-function _splitReadN(){
-  let n=parseInt(((document.getElementById('split-n')||{}).value),10);
-  if(!(n>=2))n=2; if(n>50)n=50; return n;
-}
 function openSplitModal(m,id){
-    if(_jobLotActionGuard(id))return;
-    const i=(DB[m]||[]).find(function(x){return x.id===id;});
-    if(!i)return;
-    if(_itemHasPriorFullReturn(i)||_itemHasGroupedSale(i)){toast('Items with sale or return history can’t be split because that would rewrite historical cost basis','err');return;}
-  const cost=Number(i.costPrice)||0, est=Number(i.estSalePrice)||0;
-  const html=''
-    +'<div class="item-full-section" style="margin-bottom:14px">'
-      +'<div class="item-full-section-title">Lot</div>'
-      +'<div style="font-weight:600;font-size:15px">'+esc(i.item||'Untitled')+'</div>'
-      +'<div style="font-size:13px;color:var(--muted);margin-top:4px">'+fmt(cost)+' cost'+(est>0?' \u00b7 '+fmt(est)+' est sale':'')+' total</div>'
-    +'</div>'
-    +'<div class="fg"><label>How many units in this lot?</label>'
-      +'<input id="split-n" type="number" inputmode="numeric" min="2" max="50" step="1" value="2" oninput="_inventorySplitPreview(\''+m+'\',\''+id+'\')"></div>'
-    +'<div id="split-preview" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px 13px;font-size:13px;margin-bottom:14px"></div>'
-    +'<div style="font-size:12.5px;color:var(--text-secondary);line-height:1.5;margin-bottom:14px">Splits this one line into N separate units, dividing the cost'+(est>0?' and estimate':'')+' evenly. Use this when you logged a multi-buy as a single item. (To copy an item as-is instead, use Duplicate.)</div>'
-    +'<div style="display:flex;gap:8px">'
-      +'<button class="btn btn-primary" style="flex:1" onclick="confirmSplit(\''+m+'\',\''+id+'\')">Split into units</button>'
-      +'<button class="btn btn-secondary" onclick="closePanel()">Cancel</button>'
-    +'</div>';
-  openPanel('Split into units',html);
-  _inventorySplitPreview(m,id);
-}
-function _inventorySplitPreview(m,id){
-  const i=(DB[m]||[]).find(function(x){return x.id===id;}); if(!i)return;
-  const el=document.getElementById('split-preview'); if(!el)return;
-  const n=_splitReadN();
-  const cParts=_splitPennies(Math.round((Number(i.costPrice)||0)*100),n);
-  const est=Math.round((Number(i.estSalePrice)||0)*100);
-  const eParts=est>0?_splitPennies(est,n):null;
-  const even=cParts.every(function(x){return x===cParts[0];})&&(!eParts||eParts.every(function(x){return x===eParts[0];}));
-  let txt='<span style="font-weight:600">'+n+' units</span> \u2014 each: <span style="font-weight:700">'+fmt(cParts[0]/100)+'</span> cost';
-  if(eParts)txt+=' \u00b7 <span style="font-weight:700">'+fmt(eParts[0]/100)+'</span> est sale';
-  if(!even)txt+='<div style="color:var(--muted);font-size:11.5px;margin-top:3px">Odd pennies go on unit 1 so the total stays exact.</div>';
-  el.innerHTML=txt;
+  return _openStockPurchaseAction('split',[id]);
 }
 function confirmSplit(m,id){
-    if(_jobLotActionGuard(id))return;
-    const i=(DB[m]||[]).find(function(x){return x.id===id;}); if(!i)return;
-    if(_itemHasPriorFullReturn(i)||_itemHasGroupedSale(i)||!['sourced','listed'].includes(_itemLifecycleState(i))){toast('Only never-sold active inventory can be split','err');return;}
-  const n=_splitReadN();
-  const cParts=_splitPennies(Math.round((Number(i.costPrice)||0)*100),n);
-  const hasEst=(Number(i.estSalePrice)||0)>0;
-  const eParts=hasEst?_splitPennies(Math.round((Number(i.estSalePrice)||0)*100),n):null;
-  const rootId=i.parentId||i.id;
-  const baseName=i.baseName||_splitStripSuffix(i.item);
-  // Splitting an owned purchase preserves one acquisition across its units.
-  if(!i.accountId){
-    if(!i.purchaseGroupId){i.purchaseGroupId=_newId('purchase');i.purchaseGroupName=i.item||'Split purchase';}
-    i.dateSourced=i.dateSourced||i.dateListed||null;
-  }
-  // unit 1 = the original, re-priced to its share
-  i.costPrice=cParts[0]/100;
-  if(hasEst)i.estSalePrice=eParts[0]/100;
-  i.parentId=rootId; i.baseName=baseName;
-  if((i.copySeq||1)===1){ i.copySeq=1; i.item=baseName; }
-  // highest existing seq in this lot, so new units continue the numbering
-  let startSeq=1;
-  (DB[m]||[]).forEach(function(x){ const s=(typeof x.copySeq==='number')?x.copySeq:1; if((x.id===rootId||x.parentId===rootId)&&s>startSeq)startSeq=s; });
-  for(let k=1;k<n;k++){
-    const copy=JSON.parse(JSON.stringify(i));
-    copy.id=_newId('spl');
-    copy.gid='R-'+String(getNextGID()).padStart(4,'0');
-    copy.dateSold=null;copy.grossProfit=null;copy.isReturned=false;
-    copy.resaleSalePrice=null;copy.resaleDateSold=null;copy.resaleGrossProfit=null;
-    copy.soldOnPlatform=null;copy.resalePlatform=null;copy.resaleListingFee=0;
-    delete copy.scrappedAt;delete copy.scrapReason;delete copy.scrapNote;
-    copy.returnHistory=[];delete copy.returnData;
-    copy.accountSettled=false;
-    copy.costPrice=cParts[k]/100;
-    if(hasEst)copy.estSalePrice=eParts[k]/100;
-    copy.parentId=rootId; copy.baseName=baseName;
-    copy.copySeq=startSeq+k; copy.item=baseName+' - '+(startSeq+k);
-    if(copy.state==='listed'){ copy.dateListed=new Date().toISOString().split('T')[0]; _stampListingFee(copy); }
-    DB[m].push(copy);
-  }
-  saveDB();
-  closePanel();
-  toast('Split into '+n+' units');
-  const cur=document.querySelector('.page.on');
-  if(cur&&cur.id==='p-item'){renderItemPage(m,id);return;}
-  SELECTED_MONTH=m;
-  if(typeof renderStock==='function')renderStock();
+  // Old callbacks must open the current review instead of cloning stock directly.
+  return openSplitModal(m,id);
 }
 
 function confirmDupeItem(m,id){

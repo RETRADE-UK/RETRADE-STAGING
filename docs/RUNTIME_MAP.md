@@ -1,3 +1,23 @@
+# Stock purchase actions — 20 November 2026
+
+`src/features/purchases/groups.js` owns shared purchase creation, payment assignment
+and splitting one purchase into separate stock items. Stock selection and item
+menus call this owner through stable core dispatchers. The old quantity-split
+entry points open the current purchase review; they no longer clone parts,
+listing charges or partner amounts. Core retains the normal item save/outbox,
+revision guard and database mapper. Purchase links are cleared on duplication.
+
+Cashflow groups acquisition outflows only by purchase identity and resolved
+payment date. Per-item costs continue to own profit and tax calculations. A
+mixed recorded/estimated group keeps its estimated-date flag, and transaction
+details reopen the same live payment breakdown after inspecting an item.
+The generation is `20261120-stock-purchases` (staging adds `-staging`).
+
+The existing additive `20260928222715_purchase_groups.sql` migration was already
+present in staging and was applied to live on 20 November 2026. The two nullable
+identity columns and the existing nullable stock payment date were verified;
+no business rows, costs, policies or date values were rewritten.
+
 # Recorded sales bundles — 19 November 2026
 
 Sales selection routes Bundle sales to the existing bundle order module. It joins

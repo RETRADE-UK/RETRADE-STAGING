@@ -295,7 +295,7 @@ window.__rtRegisterView("stock", {
             <div class="ddmenu" style="right:0;min-width:160px;">
               <button onclick="toggleDD('dd-stock-add');openQuickAdd()">${icon('list',14)} List Item</button>
               <button onclick="toggleDD('dd-stock-add');openStockQuickAdd()">${icon('cat_other',14)} Add to Stock</button>
-              <button onclick="toggleDD('dd-stock-add');openNewPurchase()">One purchase · multiple items</button>
+              <button onclick="toggleDD('dd-stock-add');_openStockPurchaseAction('new')">One purchase · multiple items</button>
               <button onclick="toggleDD('dd-stock-add');openNewJobLot()" style="color:var(--purple)">${icon('joblot',14)} New Job Lot</button>
             </div>
           </div>

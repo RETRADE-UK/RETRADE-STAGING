@@ -398,16 +398,29 @@
 .rt #p-item .rt-account-workspace .metric-inline.rt-partner-v3-row{padding-right:44px!important}
 .rt #p-item .rt-account-workspace .rt-partner-v3-row .metric-k{white-space:normal!important;overflow-wrap:anywhere}
 
-/* Separate listings sharing an acquisition. */
-.purchase-line{padding:14px 0;border-bottom:1px solid var(--border);display:grid;grid-template-columns:minmax(0,1fr) 140px;gap:10px;}
-.purchase-line .fg{min-width:0;margin:0}.purchase-line input{width:100%;box-sizing:border-box}.purchase-line>button{grid-column:1/-1;justify-self:start;}
-.purchase-actions,.purchase-member{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.purchase-member>button:first-child{flex:1;min-width:0;white-space:normal;text-align:left;overflow-wrap:anywhere}
+/* Separate listings sharing one purchase payment. */
+.purchase-line{padding:16px 0;border-bottom:1px solid var(--border);display:grid;grid-template-columns:minmax(0,1fr) minmax(120px,.65fr);gap:12px;min-width:0}
+.purchase-line h3{grid-column:1/-1;font-size:15px;font-weight:600;margin:0 0 2px}
+.purchase-line .fg{min-width:0;margin:0}
+.purchase-line input,.purchase-line select{width:100%;min-width:0;max-width:100%;box-sizing:border-box;font-size:16px}
+.purchase-line>button{grid-column:1/-1;justify-self:start;min-height:44px}
+.purchase-line>button[hidden]{display:none}
+.purchase-actions,.purchase-member{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
+.purchase-actions>.btn{min-height:44px;white-space:normal}
+.purchase-member>button:first-child{flex:1;min-width:0;white-space:normal;text-align:left;overflow-wrap:anywhere}
 .purchase-item-link{margin:8px 0 16px;max-width:100%;white-space:normal;overflow-wrap:anywhere}
 .purchase-item-nav{display:flex;align-items:center;gap:8px;width:100%;margin-bottom:14px}
 .purchase-item-nav>button{margin:0!important;min-height:44px}
 .purchase-item-nav>button:first-child{flex:0 0 auto}
 .purchase-item-nav>.purchase-item-link{display:block;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
-@media(max-width:340px){.purchase-line{grid-template-columns:minmax(0,1fr)} }
+.purchase-review{padding:0;margin:16px 0;list-style:none}
+.purchase-review li{display:flex;gap:16px;justify-content:space-between;align-items:start;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px}
+.purchase-review li>span{min-width:0;overflow-wrap:anywhere}
+.purchase-review strong{flex-shrink:0;font-variant-numeric:tabular-nums}
+.purchase-summary{padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+#purchase-error{color:var(--red);font-size:14px;line-height:1.5}
+#purchase-existing,#purchase-paid-date,#purchase-name,#purchase-split-name{min-width:0;max-width:100%;font-size:16px;box-sizing:border-box}
+@media(max-width:480px){.purchase-line{grid-template-columns:minmax(0,1fr)}.purchase-actions>.btn-primary{flex:1 1 auto}}
 
 /* Expense month disclosures: totals remain visible; search/selection reveal all. */
 .rt #p-expenses .cost-month-heading{flex:1;min-width:0;text-align:left;}
