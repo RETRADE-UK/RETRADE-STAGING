@@ -1,7 +1,7 @@
 /* Runtime asset contract. Ordered classic scripts: do not alphabetise.
  * Shared by the browser loader, service worker and validation tools. */
 globalThis.RT_ASSETS = Object.freeze({
-  "build": "20261119-public-tour-routes",
+  "build": "20261120-two-landing-concepts",
   "environment": "staging",
   "entry": [
     "src/platform/local-recovery.js",
@@ -88,6 +88,8 @@ globalThis.RT_ASSETS = Object.freeze({
   ],
   "landing": [
     "assets/landing/capture-manifest.json",
+    "assets/landing/concepts.css",
+    "assets/landing/concepts.js",
     "assets/landing/dashboard-phone.webp",
     "assets/landing/dashboard-preview.webp",
     "assets/landing/dashboard.webp",

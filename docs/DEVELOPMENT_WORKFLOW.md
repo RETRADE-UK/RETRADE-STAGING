@@ -122,3 +122,9 @@ Do not merge one project into another simply to share unfinished work. Rebase/me
 ## Direct-main exception
 
 Direct writes to `main` should be treated as an emergency exception only. Repository protection should be configured to require pull requests, block force-pushes and block deletion of `main`.
+
+## 20 November 2026 — two public landing concepts
+
+The root landing page is unchanged. Two independent public comparison pages are generated from `marketing/landing/landing1.html` and `marketing/landing/landing2.html` to `/landing1/` (open editorial vertical reveal) and `/landing2/` (scroll-and-click illustrative demo). They share `assets/landing/concepts.css` and `concepts.js`, with assets declared in `config/assets.js`. The comparison pages are noindex, use only static real-app screenshots made from the offline synthetic fixture, and never load staging auth, persistence, or production data. Full-screen captures remain on the existing allowlist. Interactions live only in the page and reset on reload. Full keyboard, mobile, reduced-motion and no-JS checks live in `tests/landing-concepts-browser.cjs` (the `test:landing` script).
+
+The existing root, /login/, /signup/ and /dashboard/ routes are unchanged. To remove the experiment, revert its PR, preserving the original landing tour. GitHub Pages upload now assigns an artifact name by run attempt and pauses before deploy to avoid index visibility and duplicate-asset errors seen on previous retries.
