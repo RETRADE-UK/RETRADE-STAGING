@@ -37,7 +37,7 @@ h1 em,.finish em{font:italic 1.03em/.98 Georgia,serif;letter-spacing:-.065em;col
 .hero-image-glow{position:absolute;z-index:-1;inset:6% 4% -12%;background:#506d9c42;filter:blur(100px);border-radius:50%;pointer-events:none}
 .visual-open{display:block;width:100%;padding:0;background:none;border:0;position:relative;text-align:left}
 .visual-open img{display:block;width:100%;height:auto;aspect-ratio:16/10;object-fit:contain;filter:drop-shadow(0 28px 55px #000a);border-radius:11px}
-.hero-open img{mask-image:linear-gradient(to bottom,#000 0%,#000 82%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 82%,transparent 100%)}
+.hero-open img{mask-image:none;-webkit-mask-image:none}
 .hero-stamp{display:inline-flex;position:absolute;left:50%;bottom:2%;transform:translateX(-50%);white-space:nowrap;padding:8px 16px;border:1px solid #626f7f5c;background:#0c1421db;backdrop-filter:blur(12px);border-radius:100px;font-size:10px;font-weight:700;letter-spacing:.08em;color:#c4ceda}
 .hero-stamp span{padding-inline:9px;color:var(--gold)}
 .channels{border-block:1px solid #ffffff0d;background:#070d15}
@@ -62,7 +62,8 @@ h1 em,.finish em{font:italic 1.03em/.98 Georgia,serif;letter-spacing:-.065em;col
 .feature .visual-open img{width:100%;aspect-ratio:16/10;object-fit:contain;mix-blend-mode:lighten;mask-image:linear-gradient(to bottom,#000 0%,#000 93%,#000d 100%);-webkit-mask-image:linear-gradient(to bottom,#000 0%,#000 93%,#000d 100%)}
 .image-caption{display:block;margin-top:6px;text-align:right;font-size:10px;letter-spacing:.12em;color:#91a0b2;font-weight:700}
 .image-caption span{color:var(--gold)}
-.journey-nav{position:fixed;z-index:15;right:clamp(10px,1.65vw,30px);top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px}
+.journey-nav{opacity:0;pointer-events:none;transition:opacity .22s ease;position:fixed;z-index:15;right:clamp(10px,1.65vw,30px);top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:8px}
+body.tour-active .journey-nav{opacity:1;pointer-events:auto}
 .journey-nav a{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:8px 2px;border-radius:7px;color:#7a879a;font-size:11px;letter-spacing:.05em;transition:color .2s}
 .journey-nav a:hover,.journey-nav a[aria-current=step]{color:var(--gold)}
 .journey-label{opacity:0;transform:translateX(8px);transition:opacity .2s,transform .2s;pointer-events:none}
