@@ -39,6 +39,8 @@ const contentType={'.html':'text/html','.js':'text/javascript','.css':'text/css'
         if(width!==768){
           await page.screenshot({path:'/tmp/landing-scroll-concept'+variant+'-'+(isWebKit?'webkit':'chromium')+'-'+width+'-hero.png'});
         }
+        await page.locator('#sourcing').scrollIntoViewIfNeeded();
+        await page.waitForTimeout(180);
         await page.locator('.journey-nav a[href="#sale"]').click();
         await page.waitForTimeout(100);
         assert.equal(await page.evaluate(()=>location.hash),'#sale');
