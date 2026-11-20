@@ -24,6 +24,7 @@
   let idleTimer = 0;
   let idleY = scrollY;
   let keyboardInput = false;
+  let interruptedGesture = false;
   let measuring = false;
   let pending = false;
   let touching = false;
@@ -112,6 +113,7 @@
     clearTimeout(timer);
     clearTimeout(idleTimer);
     pending = false;
+    interruptedGesture = false;
     cancelMotion();
     idleY = scrollY;
   }
@@ -143,6 +145,8 @@
     if (!pending || touching || pointing || keys.size || motion) return;
     const remaining = quietTime - (performance.now() - Math.max(lastInput, lastScroll));
     if (remaining > 0) { timer = setTimeout(settle, remaining); return; }
+    const interrupted = interruptedGesture;
+    interruptedGesture = false;
     pending = false; // A correction must never schedule another correction.
     idleY = scrollY;
     if (reduced.matches || document.hidden || (window.visualViewport && Math.abs(visualViewport.scale - 1) > 0.01)) return;
@@ -159,7 +163,15 @@
     let chosen = nearest(y);
     if (chosen.distance < 1) return;
     const origin = nearest(startY);
-    if (origin.distance < 12 && chosen.stop === origin.stop && Math.abs(travel) >= (keyboardInput ? 2 : Math.max(44, viewportHeight() * 0.06))) {
+    const threshold = keyboardInput ? 2 : Math.max(44, viewportHeight() * 0.06);
+    if (interrupted && Math.abs(travel) >= threshold && Math.sign(chosen.target - y) !== Math.sign(travel)) {
+      // A new, deliberate gesture wins over the animation it interrupted.
+      const next = travel > 0
+        ? stops.find(stop => stop.from > y)
+        : [...stops].reverse().find(stop => stop.to < y);
+      if (!next) return;
+      chosen = {stop:next, target:travel > 0 ? next.from : next.to};
+    } else if (origin.distance < 12 && chosen.stop === origin.stop && Math.abs(travel) >= threshold) {
       const next = stops[stops.indexOf(origin.stop) + Math.sign(travel)];
       if (!next) return;
       chosen = {stop:next, target:travel > 0 ? next.from : next.to};
@@ -177,7 +189,10 @@
     clearTimeout(idleTimer);
     // Passive input may arrive after the compositor has already scrolled.
     // Preserve the last quiet position instead of guessing from wheel deltas.
-    if (!pending) startY = interrupted ? animatedY : idleY;
+    if (!pending) {
+      startY = interrupted ? animatedY : idleY;
+      interruptedGesture = interrupted;
+    }
     pending = true;
     keyboardInput = fromKeyboard;
     lastInput = now;
@@ -226,7 +241,11 @@
   }
   addEventListener('touchend', endTouch, {passive:true});
   addEventListener('touchcancel', event => { endTouch(event); cancel(); }, {passive:true});
-  addEventListener('pointerdown', event => { pointing = event.pointerType !== 'touch'; cancel(); }, {passive:true});
+  addEventListener('pointerdown', event => {
+    pointing = event.pointerType !== 'touch';
+    // touchstart captures and cancels the animation before any native pan.
+    if (pointing) cancel();
+  }, {passive:true});
   addEventListener('pointerup', () => {
     if (pointing && !pending) idleY = scrollY;
     pointing = false;

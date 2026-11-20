@@ -214,6 +214,29 @@ async function gestureChecks(browser) {
     await rest(page);
     await assertChapter(page, 'sale');
 
+    const sale = await geometry(page, 'sale');
+    const nextCentre = sale.story.absoluteTop + (sale.story.height - sale.height) / 2;
+    const chapterGap = nextCentre - centre;
+    // A small second gesture must win even while the previous chapter remains
+    // geometrically nearest. Observe real intermediate positions with rAF.
+    await position(page, centre);
+    await wheel(page, 120);
+    await page.waitForFunction(({from,gap}) => scrollY > from + gap * 0.18 && scrollY < from + gap * 0.27,
+      {from:centre,gap:chapterGap}, {polling:'raf'});
+    await page.mouse.wheel(0, 120);
+    await rest(page);
+    await assertChapter(page, 'sale');
+
+    // Reverse late in the same correction, when a nearest-only choice would
+    // otherwise send the reader forward against their new upward input.
+    await position(page, centre);
+    await wheel(page, 120);
+    await page.waitForFunction(({from,gap}) => scrollY > from + gap * 0.70 && scrollY < from + gap * 0.88,
+      {from:centre,gap:chapterGap}, {polling:'raf'});
+    await page.mouse.wheel(0, -120);
+    await rest(page);
+    await assertChapter(page, 'stock');
+
     await position(page, centre + 280);
     await wheel(page, 25);
     const releasedAt = await page.evaluate(() => scrollY);
@@ -294,6 +317,32 @@ async function touchChecks(browser) {
     await rest(page);
     await assertChapter(page, 'stock');
     assert.equal(await page.locator('.pane').count(), 4, 'Changing breakpoints must not duplicate screenshots');
+    if (!isWebKit) {
+      // The resized touch-capable viewport now has well-separated desktop
+      // chapters. Interrupt an early correction, hold, then continue by touch.
+      g = await geometry(page, 'stock');
+      const next = await geometry(page, 'sale');
+      const from = g.story.absoluteTop + (g.story.height - g.height) / 2;
+      const destination = next.story.absoluteTop + (next.story.height - next.height) / 2;
+      const gap = destination - from;
+      const cdp = await run.context.newCDPSession(page);
+      await wheel(page, 80);
+      await page.waitForFunction(({from,gap}) => scrollY > from + gap * 0.18 && scrollY < from + gap * 0.25,
+        {from,gap}, {polling:'raf'});
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchStart', touchPoints:[{x:400,y:400}]});
+      await page.waitForTimeout(60);
+      const heldAt = await page.evaluate(() => scrollY);
+      await page.waitForTimeout(350);
+      assert(Math.abs(await page.evaluate(() => scrollY) - heldAt) <= 3,
+        'A new finger must interrupt correction and hold the page still');
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchMove', touchPoints:[{x:400,y:300}]});
+      await page.waitForTimeout(300);
+      assert(await page.evaluate(() => scrollY) > heldAt + 50, 'Native touch must move the interrupted page');
+      await cdp.send('Input.dispatchTouchEvent', {type:'touchEnd', touchPoints:[]});
+      await rest(page);
+      await assertChapter(page, 'sale');
+      await cdp.detach();
+    }
     await run.finish('touch-and-resize');
     console.log('PASS landing', engine, isWebKit ? 'mobile viewport wheel' : 'native touch/held-finger', 'and breakpoint changes');
   } catch (error) {
