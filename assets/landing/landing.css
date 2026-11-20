@@ -12,3 +12,19 @@
 
 .nav-actions>a,.brand,.button{white-space:nowrap}.enlarge{display:block;width:fit-content;margin:8px 14px 10px auto;color:var(--muted);font-size:12px}.enlarge:hover{color:var(--gold)}
 @media(max-width:359px){.nav-actions{gap:10px}.nav-start span{display:none}.brand{font-size:17px}.brand img{width:20px}.nav-actions{font-size:12px}}
+
+
+/* Gentle chapter landing: native momentum stays in control on both devices.
+   Proximity only settles near a chapter, unlike mandatory full-page snapping. */
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-snap-type: y proximity; scroll-padding-top: clamp(12px, 3vh, 32px); }
+  .hero, .tour-heading, .closing { scroll-snap-align: start; }
+  .story { scroll-snap-align: start; scroll-snap-stop: normal; }
+  @media (min-width: 900px) and (min-height: 540px) {
+    /* The copy is vertically centred beside the sticky screenshot. */
+    .sticky-tour .story { scroll-snap-align: center; }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-snap-type: none; scroll-behavior: auto; }
+}
