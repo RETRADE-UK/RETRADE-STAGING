@@ -45,7 +45,8 @@ async function geometry(page, id) {
       stage:box(document.querySelector('.stage-inner')),
       active:document.querySelector('.jump a[aria-current]')?.getAttribute('href'),
       pane:document.querySelector('.pane.current')?.className,
-      overflow:document.documentElement.scrollWidth - innerWidth
+      overflow:document.documentElement.scrollWidth - innerWidth,
+      probe:window.__landingProbe, inputEvents:window.__landingInput
     };
   }, id);
 }
@@ -101,7 +102,18 @@ async function open(browser, width, height, {reduced = false, delayed = false, h
       return route.fulfill({status:404, body:'Missing landing test asset'});
     }
     if (path.extname(filename) === '.webp') await imageGate;
-    return route.fulfill({contentType:types[path.extname(filename)] || 'application/octet-stream', body:fs.readFileSync(filename)});
+    let body = fs.readFileSync(filename);
+    if (url.pathname === '/assets/landing/tour.js') body = body.toString().replace('function settle() {', 'function settle() { window.__landingProbe = {pending,touching,pointing,keys:keys.size,motion,startY,y:scrollY,lastInput,lastScroll,now:performance.now(),reduced:reduced.matches,hidden:document.hidden,scale:window.visualViewport?.scale,collapsed:getSelection()?.isCollapsed};');
+    return route.fulfill({contentType:types[path.extname(filename)] || 'application/octet-stream', body});
+  });
+  await context.addInitScript(() => {
+    window.__landingInput = [];
+    for (const type of ['wheel','scroll','touchstart','touchend','pointerdown','pointerup','focusin','click','resize','pageshow','blur']) {
+      addEventListener(type, event => {
+        window.__landingInput.push({type,y:scrollY,t:performance.now(),delta:event.deltaY,hidden:document.hidden,scale:visualViewport?.scale});
+        if (window.__landingInput.length > 20) window.__landingInput.shift();
+      }, {passive:true});
+    }
   });
   const page = await context.newPage();
   page.setDefaultTimeout(6500);
