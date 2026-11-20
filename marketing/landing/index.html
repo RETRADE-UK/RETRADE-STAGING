@@ -8,8 +8,8 @@
   <title>RETRADE · Stock and profit tracking for UK resellers</title>
   <script src="/assets/landing/entry.js"></script>
   <link rel="icon" href="/assets/icons/app-32.png">
-  <link rel="stylesheet" href="/assets/landing/landing.css">
-  <script defer src="/assets/landing/tour.js"></script>
+  <link rel="stylesheet" href="/assets/landing/landing.css?v=20261120-smooth-tour">
+  <script defer src="/assets/landing/tour.js?v=20261120-smooth-tour"></script>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
@@ -27,7 +27,7 @@
       </div>
       <figure class="hero-preview">
         <figcaption><span><i></i> Inside RETRADE</span><span>Dashboard</span></figcaption>
-        <picture><source media="(max-width:600px)" srcset="/assets/landing/dashboard-phone.webp"><img src="/assets/landing/dashboard.webp" fetchpriority="high" width="1830" height="1140" alt="RETRADE dashboard in dark mode showing revenue, profit and a 30-day sales chart."></picture>
+        <picture><source media="(max-width:600px)" srcset="/assets/landing/dashboard-phone.webp" width="975" height="1650"><img src="/assets/landing/dashboard.webp" fetchpriority="high" width="1830" height="1140" alt="RETRADE dashboard in dark mode showing revenue, profit and a 30-day sales chart."></picture>
       </figure>
     </div></section>
     <div class="scope"><div class="wrap"><span>Track sales across</span><b>eBay</b><b>Vinted</b><b>Facebook Marketplace</b><b>Local collection</b></div></div>
@@ -36,30 +36,38 @@
       <nav class="jump" aria-label="Product tour chapters"><a href="#sourcing">Sourcing</a><a href="#stock">Stock room</a><a href="#sale">Sale breakdown</a><a href="#dashboard">Dashboard</a></nav>
       <div class="chapters">
         <div class="stories">
-          <article class="story" id="sourcing" data-screen="sourcing">
+          <article class="story" id="sourcing" data-screen="sourcing" tabindex="-1">
+            <div class="story-copy">
             <p class="kicker">Sourcing runs</p><h3>See what a morning’s buying brought in.</h3>
             <p>Keep the denim jacket, paperback bundle, trainers and toys together as one car boot run. See how much of that spend you’ve earned back as each item sells.</p>
             <div class="evidence"><strong>£41 <small>spent</small></strong><span aria-hidden="true">→</span><strong>£145 <small>in sales</small></strong></div>
-            <figure><picture><source media="(max-width:600px)" srcset="/assets/landing/sourcing-phone.webp"><img src="/assets/landing/sourcing.webp" alt="Sunday car boot finds with six sold items, recovered spend and £87.71 net profit." loading="lazy"></picture></figure>
+            </div>
+            <figure><picture><source media="(max-width:600px)" srcset="/assets/landing/sourcing-phone.webp" width="975" height="1650"><img src="/assets/landing/sourcing.webp" width="1830" height="1140" decoding="async" alt="Sunday car boot finds with six sold items, recovered spend and £87.71 net profit." loading="lazy"></picture></figure>
           </article>
-          <article class="story" id="stock" data-screen="stock">
+          <article class="story" id="stock" data-screen="stock" tabindex="-1">
+            <div class="story-copy">
             <p class="kicker">Stock room</p><h3>Keep track of what’s still on the shelf.</h3>
             <p>A casserole dish, a game cartridge and a corduroy overshirt can all share a shelf. Search the haul, check what’s listed and see the asking price beside each item.</p>
-            <figure><picture><source media="(max-width:600px)" srcset="/assets/landing/stock-phone.webp"><img src="/assets/landing/stock.webp" alt="Stock Room filtered to five listed items, including a casserole dish, books and a wooden railway set." loading="lazy"></picture></figure>
+            </div>
+            <figure><picture><source media="(max-width:600px)" srcset="/assets/landing/stock-phone.webp" width="975" height="1650"><img src="/assets/landing/stock.webp" width="1830" height="1140" decoding="async" alt="Stock Room filtered to five listed items, including a casserole dish, books and a wooden railway set." loading="lazy"></picture></figure>
           </article>
-          <article class="story" id="sale" data-screen="sale">
+          <article class="story" id="sale" data-screen="sale" tabindex="-1">
+            <div class="story-copy">
             <p class="kicker">Sale breakdown</p><h3>See where the sale price went.</h3>
             <p>That Mario Kart cartridge sold for £19. Take off the £8 purchase, fees, postage and packaging, and RETRADE shows the profit on that one sale.</p>
             <div class="evidence"><strong>£19 <small>sale</small></strong><span aria-hidden="true">→</span><strong>£5.47 <small>profit</small></strong></div>
-            <figure><picture><source media="(max-width:600px)" srcset="/assets/landing/sale-phone.webp"><img src="/assets/landing/sale.webp" alt="Actual RETRADE item breakdown with marketplace fees, postage, packaging, item cost and £5.47 profit." loading="lazy"></picture></figure>
+            </div>
+            <figure><picture><source media="(max-width:600px)" srcset="/assets/landing/sale-phone.webp" width="895" height="1293"><img src="/assets/landing/sale.webp" width="644" height="863" decoding="async" alt="Actual RETRADE item breakdown with marketplace fees, postage, packaging, item cost and £5.47 profit." loading="lazy"></picture></figure>
           </article>
-          <article class="story" id="dashboard" data-screen="dashboard">
+          <article class="story" id="dashboard" data-screen="dashboard" tabindex="-1">
+            <div class="story-copy">
             <p class="kicker">Dashboard</p><h3>Step back and see the whole month.</h3>
             <p>Compare revenue with gross profit over the last 30 days. Spot your busy selling days and see how much margin the whole stock mix is returning.</p>
-            <figure><picture><source media="(max-width:600px)" srcset="/assets/landing/dashboard-phone.webp"><img src="/assets/landing/dashboard.webp" alt="Thirty-day dashboard with sales, profit, margin and daily bars." loading="lazy"></picture></figure>
+            </div>
+            <figure><picture><source media="(max-width:600px)" srcset="/assets/landing/dashboard-phone.webp" width="975" height="1650"><img src="/assets/landing/dashboard.webp" width="1830" height="1140" decoding="async" alt="Thirty-day dashboard with sales, profit, margin and daily bars." loading="lazy"></picture></figure>
           </article>
         </div>
-        <div class="stage" aria-hidden="true"><div class="stage-inner">
+        <div class="stage"><div class="stage-inner">
           <div class="stage-title"><span><i></i> Example workspace</span><span data-caption>Sourcing runs</span></div>
           <div class="screens"></div>
           <a class="enlarge" href="/assets/landing/sourcing.webp" target="_blank" rel="noopener" data-full aria-label="Open sourcing runs screenshot at full size">View full screen <span aria-hidden="true">↗︎</span></a>
