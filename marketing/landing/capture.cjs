@@ -184,6 +184,10 @@ async function capture(page, view, mobile, base) {
         throw new Error('Capture would clip ' + selector + ': ' + JSON.stringify(rect.toJSON()));
       }
       return { selector, text: element.innerText.trim(),
+        inputs: [...element.querySelectorAll('input,select')].map(input => ({
+          type: input.tagName.toLowerCase(), name: input.getAttribute('aria-label') || input.className,
+          value: input.value, text: input.tagName === 'SELECT' ? input.selectedOptions[0]?.textContent.trim() : null
+        })),
         bounds: { x: rounded(rect.x), y: rounded(rect.y), width: rounded(rect.width), height: rounded(rect.height) } };
     });
     const heading = document.querySelector(title);
@@ -241,7 +245,9 @@ async function take(browser, mobile) {
       openItemPage(ref.month, ref.id);
     });
     const receipt = await page.locator('#p-item .ip-section-pnl').innerText();
-    assert(receipt.includes('£5.47') && receipt.includes('£19.00'), 'Real sale receipt reconciles to the selected item');
+    assert(receipt.includes('£5.47'), 'Real sale profit reconciles to the selected item');
+    assert.equal(Number(await page.locator('#p-item .ip-section-pnl .rcpt-s1-price-input').inputValue()),
+      metrics.sale.breakdown.salePrice, 'The real editable sale price reconciles to the selected item');
     captures.push(await capture(page, 'sale', mobile, viewport));
     assert.deepEqual(state.errors, [], 'App must render without JavaScript errors');
     assert.deepEqual(state.missingAssets, [], 'All local app assets must be present');
