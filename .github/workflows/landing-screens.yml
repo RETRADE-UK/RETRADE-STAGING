@@ -1,0 +1,35 @@
+name: Landing product screens
+
+on:
+  pull_request:
+    paths:
+      - 'marketing/landing/**'
+      - '.github/workflows/landing-screens.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+        timeout-minutes: 15
+      - run: python3 -m pip install --disable-pip-version-check Pillow
+      - name: Capture complete product views with isolated example records
+        run: node marketing/landing/capture.cjs /tmp/retrade-landing-captures
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: landing-product-screens
+          path: /tmp/retrade-landing-captures/
+          if-no-files-found: warn
+          retention-days: 7
