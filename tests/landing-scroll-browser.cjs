@@ -84,7 +84,7 @@ async function selected(page, id) {
       Number(getComputedStyle(panel).opacity) >= 0.99 &&
       [...panel.getAnimations(), ...(indicator ? indicator.getAnimations() : [])]
         .every(animation => animation.playState !== 'running' && !animation.pending) &&
-      tab && tab.getAttribute('aria-selected') === 'true';
+      tab && tab.getAttribute('aria-current') === 'step';
   }, id);
 }
 
@@ -92,16 +92,7 @@ async function activate(page, id) {
   await page.locator('.jump a[href="#' + id + '"]').click();
   await selected(page, id);
   await rest(page);
-}
-
-async function position(page, top) {
-  await page.evaluate(top => scrollTo({top,behavior:'instant'}), top);
-  await rest(page, 220);
-}
-
-async function deckTop(page) {
-  const top = await page.locator('.tour-deck').evaluate(el => el.getBoundingClientRect().top + scrollY);
-  await position(page, top - 12);
+  await selected(page, id);
 }
 
 async function decodeImages(page) {
@@ -123,24 +114,27 @@ async function geometry(page, id) {
     const image = panel.querySelector('.screen-image');
     const controls = document.querySelector('.tour-controls');
     const imageStyle = getComputedStyle(image);
+    const deck = document.querySelector('.tour-deck');
     return {
       y:scrollY, width:innerWidth, height:innerHeight,
       overflow:document.documentElement.scrollWidth-innerWidth,
+      pinned:deck.classList.contains('tour-pinned'), stage:rect(deck.querySelector('.tour-stage')),
+      step:parseFloat(getComputedStyle(deck).getPropertyValue('--tour-step')),
       controls:rect(controls), controlsPosition:getComputedStyle(controls).position,
       indicator:rect(document.querySelector('.tab-indicator')),
       copy:rect(panel.querySelector('.story-copy')), figure:rect(panel.querySelector('.product-screen')),
       canvas:rect(panel.querySelector('.screen-canvas')), image:rect(image),
       currentSrc:image.currentSrc, naturalWidth:image.naturalWidth, naturalHeight:image.naturalHeight,
       objectFit:imageStyle.objectFit,
-      active:document.querySelector('.jump [aria-selected="true"]')?.getAttribute('href'),
+      active:document.querySelector('.jump [aria-current="step"]')?.getAttribute('href'),
       panels:[...document.querySelectorAll('.story')].map(el => ({
         id:el.id, hidden:el.hidden, inert:el.inert, ariaHidden:el.getAttribute('aria-hidden'),
         role:el.getAttribute('role'), labelledBy:el.getAttribute('aria-labelledby'),
-        opacity:Number(getComputedStyle(el).opacity)
+        opacity:Number(getComputedStyle(el).opacity), visibility:getComputedStyle(el).visibility
       })),
       tabs:[...document.querySelectorAll('.jump a')].map(el => ({
         href:el.getAttribute('href'), id:el.id, role:el.getAttribute('role'),
-        selected:el.getAttribute('aria-selected'), tabIndex:el.tabIndex,
+        selected:el.getAttribute('aria-selected'), current:el.getAttribute('aria-current'), tabIndex:el.tabIndex,
         controls:el.getAttribute('aria-controls'), box:rect(el)
       })),
       count:document.querySelector('[data-slide-count]')?.textContent.trim(),
@@ -149,28 +143,41 @@ async function geometry(page, id) {
   }, id);
 }
 
-async function assertSlide(page, id, {fitsDesktop = false} = {}) {
+async function assertSlide(page, id, {fitsViewport = false} = {}) {
   await selected(page,id);
   const g = await geometry(page,id);
   const index = ids.indexOf(id);
   assert(g.overflow <= 1, 'No document horizontal overflow: ' + JSON.stringify(g));
   assert.equal(g.active, '#' + id, 'Selected stage must match the visible product screen');
-  assert.equal(g.panels.filter(panel => !panel.hidden).length, 1, 'Exactly one product panel may remain displayed');
+  assert.equal(g.panels.filter(panel => !panel.hidden).length, g.pinned ? 1 : ids.length,
+    'Pinned mode shows one stage; the short-viewport fallback keeps every stage readable');
   for (const panel of g.panels) {
-    assert.equal(panel.role, 'tabpanel');
-    assert.equal(panel.labelledBy, 'tab-' + panel.id);
-    assert.equal(panel.hidden, panel.id !== id, 'Inactive panels must be removed from layout');
-    assert.equal(panel.inert, panel.id !== id, 'Inactive panels must not retain focusable controls');
+    if (g.pinned) {
+      assert.equal(panel.role, 'tabpanel');
+      assert.equal(panel.labelledBy, 'tab-' + panel.id);
+      assert.equal(panel.hidden, panel.id !== id, 'Inactive stages must be hidden');
+      assert.equal(panel.inert, panel.id !== id, 'Inactive panels must not retain focusable controls');
+      assert.equal(panel.visibility === 'hidden',panel.id !== id,
+        'Space reserved for another slide must not expose a second screenshot');
+    } else {
+      assert(!panel.hidden && !panel.inert && panel.visibility !== 'hidden',
+        'A short viewport must have access to all chapter content');
+    }
   }
-  assert.equal(g.tabs.filter(tab => tab.selected === 'true').length, 1);
-  assert.equal(g.tabs.filter(tab => tab.tabIndex === 0).length, 1, 'The stage rail needs one keyboard entry point');
+  assert.equal(g.tabs.filter(tab => tab.current === 'step').length, 1);
+  if (g.pinned) {
+    assert.equal(g.tabs.filter(tab => tab.selected === 'true').length, 1);
+    assert.equal(g.tabs.filter(tab => tab.tabIndex === 0).length, 1, 'The stage rail needs one keyboard entry point');
+  }
   for (const tab of g.tabs) {
-    assert.equal(tab.role, 'tab');
-    assert.equal(tab.controls, tab.href.slice(1));
+    if (g.pinned) {
+      assert.equal(tab.role, 'tab');
+      assert.equal(tab.controls, tab.href.slice(1));
+    }
     assert(tab.box.width >= 43 && tab.box.height >= 43, 'Stage controls need comfortable touch targets: ' + JSON.stringify(tab));
     assert(tab.box.left >= -1 && tab.box.right <= g.width + 1, 'Every stage must remain selectable on narrow layouts');
   }
-  const activeTab = g.tabs.find(tab => tab.selected === 'true').box;
+  const activeTab = g.tabs.find(tab => tab.current === 'step').box;
   assert(g.indicator && Math.abs(g.indicator.left-activeTab.left) <= 3 &&
     Math.abs(g.indicator.top-activeTab.top) <= 3 && Math.abs(g.indicator.width-activeTab.width) <= 3 &&
     Math.abs(g.indicator.height-activeTab.height) <= 3,
@@ -182,26 +189,30 @@ async function assertSlide(page, id, {fitsDesktop = false} = {}) {
 
   assert(g.naturalWidth > 0 && g.naturalHeight > 0, 'A product image must load before it is reviewed');
   const file = path.basename(new URL(g.currentSrc).pathname);
-  if (g.width <= 600) assert.equal(file,id+'-phone.webp','Phone layouts need the complete phone capture');
-  if (g.width >= 900) assert.equal(file,id+'.webp','Desktop layouts need the complete desktop capture');
+  assert.equal(file,id+'.webp','The compact overview uses the complete desktop capture at every width');
   const record = captureManifest.captures.find(capture => capture.file === file);
   assert(record, 'The visible product image must be a verified complete capture: ' + file);
   assert.equal(g.naturalWidth, record.width);
   assert.equal(g.naturalHeight, record.height);
   assert.equal(record.view, id, 'The screenshot and its selected stage must agree');
-  assert.notEqual(g.objectFit, 'cover', 'Product screens must never be cropped to fill their frame');
+  assert.equal(g.objectFit, 'contain', 'Product screens must be contained without cropping');
+  assert(Math.abs(g.canvas.width / g.canvas.height - 1.6) < 0.025,
+    'Every screenshot needs the same landscape presentation shape: ' + JSON.stringify(g.canvas));
+  assert(g.figure.width <= 652 && g.canvas.height <= 408,
+    'Product screenshots must stay compact, including long dashboard and sale captures: ' + JSON.stringify(g.figure));
   assert(g.image.left >= g.canvas.left - 2 && g.image.right <= g.canvas.right + 2 &&
     g.image.top >= g.canvas.top - 2 && g.image.bottom <= g.canvas.bottom + 2,
   'The screenshot must fit inside its presentation frame: ' + JSON.stringify(g));
-  if (!['contain','scale-down'].includes(g.objectFit)) {
-    assert(Math.abs(g.image.width / g.image.height - g.naturalWidth / g.naturalHeight) < 0.025,
-      'A naturally sized screenshot must keep its complete aspect ratio');
-  }
-  if (fitsDesktop && g.width >= 900) {
+  if (fitsViewport && g.pinned) {
+    assert(g.stage.top >= -1 && g.stage.bottom <= g.height + 2 &&
+      Math.abs(g.stage.top - (g.height - g.stage.height) / 2) <= 3,
+      'The complete pinned presentation should sit neatly in the middle of the viewport: ' + JSON.stringify(g.stage));
     assert(g.figure.top >= g.controls.bottom - 2 && g.figure.bottom <= g.height + 2,
-      'The complete desktop product frame must fit below the persistent controls: ' + JSON.stringify(g));
+      'The complete product frame must fit below the persistent controls: ' + JSON.stringify(g));
     assert(g.copy.top >= g.controls.bottom - 2 && g.copy.bottom <= g.height + 2,
-      'Desktop copy must fit alongside its screen: ' + JSON.stringify(g));
+      'The active stage copy must remain fully in the viewport: ' + JSON.stringify(g));
+    assert(g.controls.top >= -1 && g.controls.bottom <= g.height,
+      'Stage navigation must remain in the viewport throughout the pinned reveal');
   }
   return g;
 }
@@ -232,6 +243,12 @@ async function open(browser, width, height, {reduced = false, delayed = false, h
   });
   if (!noJS) await context.addInitScript(() => {
     window.__landingInput = [];
+    const nativeScrollTo = window.scrollTo;
+    window.scrollTo = function(...args) {
+      window.__landingInput.push({type:'scrollTo',y:scrollY,t:performance.now(),args});
+      if (window.__landingInput.length > 16) window.__landingInput.shift();
+      return nativeScrollTo.apply(window,args);
+    };
     for (const type of ['wheel','scroll','pointerdown','pointerup','pointercancel','touchstart','touchend','focusin','click','resize','popstate']) {
       addEventListener(type, event => {
         window.__landingInput.push({type,y:scrollY,t:performance.now(),x:event.clientX,delta:event.deltaY,key:event.key});
@@ -263,7 +280,7 @@ async function check(browser, width, height, name, work, options = {}) {
     console.log('PASS landing', engine, name);
   } catch (error) {
     const state = await run.page.evaluate(() => ({
-      y:scrollY, hash:location.hash, active:document.querySelector('.jump [aria-selected="true"]')?.getAttribute('href'),
+      y:scrollY, hash:location.hash, active:document.querySelector('.jump [aria-current="step"]')?.getAttribute('href'),
       panels:[...document.querySelectorAll('.story')].map(el=>({id:el.id,hidden:el.hidden,inert:el.inert})),
       events:window.__landingInput
     })).catch(() => ({}));
@@ -282,10 +299,20 @@ async function layoutChecks(browser) {
       assert.equal(await page.evaluate(() => scrollY), 0, 'An untouched landing page must start at the top');
       const review = width === 390 || width === 1440;
       if (review) await page.screenshot({path:'/tmp/landing-scroll-' + engine + '-' + width + 'x' + height + '-hero.png'});
+      let firstFrame;
       for (const id of ids) {
         await activate(page,id);
-        await deckTop(page);
-        await assertSlide(page,id,{fitsDesktop:true});
+        const g = await assertSlide(page,id,{fitsViewport:true});
+        if (width !== 320) assert(g.pinned,'The complete tour should fit and pin at ordinary phone, tablet and desktop sizes');
+        if (!firstFrame) firstFrame = g;
+        for (const key of ['canvas','figure']) {
+          for (const size of ['width','height']) {
+            assert(Math.abs(g[key][size] - firstFrame[key][size]) <= 2,
+              'Every stage must use an identically sized screenshot frame: ' + JSON.stringify({width,height,id,key,size,first:firstFrame[key],actual:g[key]}));
+          }
+        }
+        if (g.pinned) assert(Math.abs(g.figure.top-firstFrame.figure.top) <= 3,
+          'The screenshot position must stay steady as the story changes: ' + JSON.stringify({first:firstFrame.figure,actual:g.figure}));
         if (review) await page.screenshot({path:'/tmp/landing-scroll-' + engine + '-' + width + 'x' + height + '-' + id + '.png'});
       }
       await page.locator('[data-prev]').click();
@@ -294,6 +321,71 @@ async function layoutChecks(browser) {
       await page.locator('[data-next]').click();
       await selected(page,'dashboard');
       await assertSlide(page,'dashboard');
+    });
+  }
+}
+
+async function activeId(page) {
+  return (await page.locator('.jump [aria-current="step"]').getAttribute('href')).slice(1);
+}
+
+async function wheelUntil(page, id, direction) {
+  for (let attempt = 0; attempt < 12; attempt++) {
+    if (await activeId(page) === id) {
+      await selected(page,id);
+      return assertSlide(page,id,{fitsViewport:true});
+    }
+    await page.mouse.wheel(0,140 * direction);
+    await rest(page,240);
+    await assertSlide(page,await activeId(page),{fitsViewport:true});
+  }
+  throw new Error('Native scrolling did not reveal ' + id + ' in the expected direction');
+}
+
+async function revealChecks(browser) {
+  for (const [width,height] of [[390,844],[1440,900]]) {
+    await check(browser,width,height,'native-scroll-reveal-' + width,async page => {
+      await activate(page,'sourcing');
+      const first = await assertSlide(page,'sourcing',{fitsViewport:true});
+      assert(first.pinned,'The normal phone and desktop tour must support the pinned scroll reveal');
+      await page.mouse.move(Math.round(width * .6),Math.round(height * .7));
+
+      // Real wheel input must move the document through the story, while its
+      // frame stays fixed and completely visible between transition points.
+      const y = await page.evaluate(() => scrollY);
+      await page.mouse.wheel(0,90);
+      const paused = await rest(page);
+      assert(paused > y + 60,'Scrolling must remain native rather than being swallowed by a slideshow');
+      const held = await assertSlide(page,'sourcing',{fitsViewport:true});
+      assert(Math.abs(held.figure.top-first.figure.top) <= 2 && Math.abs(held.controls.top-first.controls.top) <= 2,
+        'A partial scroll must keep the full product presentation and stage rail fixed');
+      await page.waitForTimeout(500);
+      assert(Math.abs(await page.evaluate(() => scrollY)-paused) <= 1,
+        'The reveal must not pull the page to a different position after scrolling stops');
+
+      for (const id of ['stock','sale','dashboard']) {
+        const g = await wheelUntil(page,id,1);
+        assert(Math.abs(g.figure.top-first.figure.top) <= 3 && Math.abs(g.figure.height-first.figure.height) <= 2,
+          'Scrolling to a new stage must preserve the same screenshot frame');
+      }
+      for (const id of ['sale','stock','sourcing']) await wheelUntil(page,id,-1);
+
+      // A tab jump must update the physical scroll position too, so continuing
+      // either way from it reveals adjacent stages instead of reverting.
+      await activate(page,'sale');
+      await wheelUntil(page,'dashboard',1);
+      await activate(page,'sale');
+      await wheelUntil(page,'stock',-1);
+
+      await page.mouse.wheel(0,await page.evaluate(() => document.documentElement.scrollHeight));
+      await rest(page);
+      const footer = await page.locator('footer').evaluate(el => {
+        const box = el.getBoundingClientRect();
+        return {top:box.top,bottom:box.bottom,height:innerHeight};
+      });
+      assert(footer.top >= -1 && footer.bottom <= footer.height + 3,
+        'Native scrolling must leave the tour and reach the full footer: ' + JSON.stringify(footer));
+      assert.equal(await activeId(page),'dashboard','Leaving the tour must finish at its last stage without wrapping');
     });
   }
 }
@@ -333,27 +425,14 @@ async function keyboardChecks(browser) {
     assert.equal(await page.evaluate(() => document.activeElement.id),'tab-sourcing',
       'A newly disabled Previous button must transfer focus to the selected stage');
 
-    await deckTop(page);
+    await rest(page);
+    await page.locator('#sourcing').evaluate(el => el.focus({preventScroll:true}));
     const before = await page.evaluate(() => scrollY);
-    await page.mouse.move(1000,600);
-    await page.mouse.wheel(0,165);
+    await page.keyboard.press('PageDown');
     const after = await rest(page);
-    assert(after > before + 100, 'Vertical wheel input must remain native page scrolling');
-    assert.equal(await page.locator('.jump [aria-selected="true"]').getAttribute('href'), '#sourcing',
-      'Vertical scrolling must not silently advance a slide');
-    await page.locator('#sourcing').focus();
-    await rest(page);
-    await page.mouse.move(1000,600);
-    await page.mouse.wheel(0,await page.evaluate(() => document.documentElement.scrollHeight));
-    await rest(page);
-    const footer = await page.locator('footer').evaluate(el => {
-      const box = el.getBoundingClientRect();
-      return {top:box.top,bottom:box.bottom,height:innerHeight};
-    });
-    assert(footer.top >= -1 && footer.bottom <= footer.height + 3,
-      'Native wheel scrolling must reach the full footer: ' + JSON.stringify(footer));
-    assert.equal(await page.locator('.jump [aria-selected="true"]').getAttribute('href'),'#sourcing',
-      'Scrolling past the tour must preserve the selected stage');
+    assert(after > before + 100,'Page Down must retain native scrolling through the tour');
+    assert.notEqual(await activeId(page),'sourcing','Native keyboard scrolling must reveal a later stage');
+    await assertSlide(page,await activeId(page),{fitsViewport:true});
   });
 }
 
@@ -384,13 +463,16 @@ async function navigationChecks(browser) {
     },{hash:'#stock'});
   }
   await check(browser,390,844,'image-viewer',async page => {
-    await activate(page,'sale');
-    const src = await page.locator('#sale .screen-image').evaluate(image => image.currentSrc);
+    // Open the destination image as soon as its control is actionable. Waiting
+    // for the page scroll first would miss a tab-jump/viewer interruption race.
+    await page.locator('#tab-sale').click();
+    const src = new URL(await page.locator('#sale .product-screen').getAttribute('data-phone-src'),origin).href;
+    assert(src.includes('sale-phone.webp'),'The phone viewer needs the complete phone capture, separate from its compact overview');
     await page.locator('#sale .enlarge').click();
     await page.locator('#screen-viewer[open]').waitFor({state:'visible'});
     await page.waitForFunction(() => {const image=document.querySelector('#screen-viewer img');return image.complete && image.naturalWidth > 0;});
     const displayed = await page.locator('#screen-viewer img').evaluate(image => ({src:image.currentSrc || image.src,complete:image.complete,width:image.naturalWidth}));
-    assert.equal(displayed.src,src,'Full-screen viewing must open the complete current responsive capture');
+    assert.equal(displayed.src,src,'Full-screen viewing on a phone must open the complete phone capture');
     assert(displayed.complete && displayed.width > 0,'The full-screen capture must load');
     assert(await page.locator('[data-close-viewer]').isVisible(),'The image viewer needs a visible close control');
     const viewerScroll = await page.locator('#screen-viewer .viewer-content').evaluate(el => {
@@ -400,6 +482,7 @@ async function navigationChecks(browser) {
     assert(viewerScroll > 0,'The complete sale screen must remain scrollable in the phone viewer');
     await page.keyboard.press('Escape');
     await page.locator('#screen-viewer[open]').waitFor({state:'hidden'});
+    await rest(page);
     await assertSlide(page,'sale');
     assert(await page.locator('#sale .enlarge').evaluate(el => el === document.activeElement),
       'Closing the image viewer must return focus to its opener');
@@ -424,18 +507,18 @@ async function navigationChecks(browser) {
 async function touchChecks(browser) {
   await check(browser,390,844,'touch-and-sticky-controls',async (page,run) => {
     await activate(page,'sourcing');
-    const imageTop = await page.locator('#sourcing .screen-canvas').evaluate(el => el.getBoundingClientRect().top + scrollY);
-    await position(page,imageTop - 210);
-    const beforeId = await page.locator('.jump [aria-selected="true"]').getAttribute('href');
+    await assertSlide(page,'sourcing',{fitsViewport:true});
     if (!isWebKit) {
       const cdp = await run.context.newCDPSession(page);
       const touch = (type,points) => cdp.send('Input.dispatchTouchEvent',{type,touchPoints:points});
-      await touch('touchStart',[{x:330,y:450}]);
+      const image = await page.locator('#sourcing .screen-canvas').boundingBox();
+      const touchY = Math.round(image.y+image.height/2);
+      await touch('touchStart',[{x:330,y:touchY}]);
       for (const x of [285,240,195,150,105,60]) {
-        await touch('touchMove',[{x,y:452}]);
+        await touch('touchMove',[{x,y:touchY+2}]);
         await page.waitForTimeout(20);
       }
-      assert.equal(await page.locator('.jump [aria-selected="true"]').getAttribute('href'),beforeId,
+      assert.equal(await activeId(page),'sourcing',
         'A held horizontal gesture must not advance before it finishes');
       // Exercise mixed keyboard/assistive focus and touch without scrolling
       // away from the native gesture's target before its release.
@@ -448,43 +531,46 @@ async function touchChecks(browser) {
         'Completing a swipe must move outgoing-panel focus into the new panel');
       assert.equal(await page.locator('#screen-viewer[open]').count(),0,'A swipe must not open the screenshot viewer');
 
-      const stockTop = await page.locator('#stock .screen-canvas').evaluate(el => el.getBoundingClientRect().top + scrollY);
-      await position(page,stockTop - 210);
-      await touch('touchStart',[{x:330,y:450}]);
-      await touch('touchMove',[{x:250,y:450}]);
+      const stockImage = await page.locator('#stock .screen-canvas').boundingBox();
+      const stockY = Math.round(stockImage.y+stockImage.height/2);
+      await touch('touchStart',[{x:330,y:stockY}]);
+      await touch('touchMove',[{x:250,y:stockY}]);
       await touch('touchCancel',[]);
       await rest(page);
       await assertSlide(page,'stock');
 
-      const before = await page.evaluate(() => scrollY);
-      await touch('touchStart',[{x:195,y:670}]);
-      for (const y of [620,570,520,470,420,370]) {
-        await touch('touchMove',[{x:197,y}]);
-        await page.waitForTimeout(20);
+      let swipes = 0;
+      while (await activeId(page) === 'stock' && swipes++ < 5) {
+        const before = await page.evaluate(() => scrollY);
+        const panel = await page.locator('#stock').boundingBox();
+        const startY = Math.round(Math.min(730,panel.y+panel.height-20));
+        await touch('touchStart',[{x:195,y:startY}]);
+        for (const dy of [50,100,150,200,250,300]) {
+          await touch('touchMove',[{x:197,y:startY-dy}]);
+          await page.waitForTimeout(20);
+        }
+        // A short hold removes fling momentum; this measures ordinary touch
+        // reading input rather than racing past the whole pinned section.
+        await page.waitForTimeout(220);
+        await touch('touchEnd',[]);
+        const after = await rest(page);
+        assert(after > before + 150,'A vertical swipe must natively scroll through the reveal');
+        await assertSlide(page,await activeId(page),{fitsViewport:true});
       }
-      // End a deliberate reading gesture without a high-velocity fling past
-      // the entire tour; native scrolling is measured before any page exit.
-      await page.waitForTimeout(250);
-      await touch('touchEnd',[]);
-      const after = await rest(page);
-      assert(after > before + 100,'A vertical swipe over the product image must scroll the page naturally');
-      await assertSlide(page,'stock');
+      await assertSlide(page,'sale',{fitsViewport:true});
+      assert.equal(await page.locator('#screen-viewer[open]').count(),0,'Vertical scrolling must not accidentally open a screenshot');
       await cdp.detach();
     } else {
-      const before = await page.evaluate(() => scrollY);
       await page.mouse.move(195,450);
-      await page.mouse.wheel(0,220);
-      const after = await rest(page);
-      assert(after > before + 150,'Native vertical scrolling must work in a narrow WebKit viewport');
-      assert.equal(await page.locator('.jump [aria-selected="true"]').getAttribute('href'),beforeId);
+      await wheelUntil(page,'stock',1);
     }
     const controls = await page.locator('.tour-controls').evaluate(el => {
       const r=el.getBoundingClientRect();
-      return {top:r.top,bottom:r.bottom,height:innerHeight,position:getComputedStyle(el).position};
+      return {top:r.top,bottom:r.bottom,height:innerHeight,position:getComputedStyle(document.querySelector('.tour-stage')).position};
     });
-    assert.equal(controls.position,'sticky','Stage navigation must stay with the slide');
-    assert(controls.top >= -1 && controls.top <= 20 && controls.bottom < controls.height,
-      'The persistent stage controls must remain visible while reading a tall phone screen: ' + JSON.stringify(controls));
+    assert.equal(controls.position,'sticky','The complete tour stage must stay pinned together');
+    assert(controls.top >= -1 && controls.bottom < controls.height,
+      'The persistent stage controls must remain visible while scrolling through the phone tour: ' + JSON.stringify(controls));
     await activate(page,'dashboard');
     const atEnd = await page.locator('.jump [aria-selected="true"]').getAttribute('href');
     await page.mouse.wheel(0,180);
@@ -511,6 +597,9 @@ async function reducedMotionChecks(browser) {
     const after = await rest(page);
     assert(after > before + 95,'Reduced motion retains ordinary vertical page scrolling');
     await assertSlide(page,'sale');
+    await wheelUntil(page,'dashboard',1);
+    const activeAnimations = await page.locator('#dashboard').evaluate(el => el.getAnimations().filter(animation => animation.playState === 'running').length);
+    assert.equal(activeAnimations,0,'Native scrolling in reduced-motion mode must reveal the next stage without an entrance animation');
   },{reduced:true});
 }
 
@@ -541,6 +630,19 @@ async function slowImageChecks(browser) {
 }
 
 async function fallbackChecks(browser) {
+  await check(browser,720,360,'short-viewport-reading',async page => {
+    assert(!(await page.locator('.tour-deck').evaluate(el => el.classList.contains('tour-pinned'))),
+      'A short viewport must use readable native sections when the complete presentation cannot fit');
+    for (const id of ids) {
+      await activate(page,id);
+      await assertSlide(page,id);
+      const heading = await page.locator('#'+id+' h3').boundingBox();
+      const controls = await page.locator('.tour-controls').boundingBox();
+      assert(heading && controls && heading.y >= controls.y+controls.height-2 && heading.y < 360,
+        'Fallback stage navigation must expose the selected heading beneath the rail: ' + JSON.stringify({id,heading,controls}));
+      assert(await page.locator('#'+id+' .enlarge').isVisible(),'The complete image remains reachable in the short-viewport fallback');
+    }
+  });
   for (const width of [390,1440]) {
     await check(browser,width,844,'no-script-' + width,async page => {
       for (const id of ids) {
@@ -567,6 +669,7 @@ async function fallbackChecks(browser) {
   });
   try {
     await layoutChecks(browser);
+    await revealChecks(browser);
     await keyboardChecks(browser);
     await navigationChecks(browser);
     await touchChecks(browser);

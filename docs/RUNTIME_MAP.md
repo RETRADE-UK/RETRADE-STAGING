@@ -1057,33 +1057,45 @@ account, saved session or database is used. Full page headings and the complete
 sale breakdown must fit the capture viewport. The script writes PNGs, WebPs and
 a manifest containing their dimensions, hashes, measured content and actual app
 calculations. Review the captures before replacing the public WebPs and manifest;
-update the HTML image dimensions, desktop frame ratios and image version together.
+update the HTML image dimensions and image version together. Preview frames retain
+their shared presentation ratio independently of the original capture dimensions.
 The Landing product screens workflow publishes the capture artifact for this review.
 
 
-### Landing product slides — 20 November 2026
+### Landing scroll reveal and stage navigation — 20 November 2026
 
-`assets/landing/tour.js` owns one active product slide, its matching tab, progress
-indicator and full-screen image viewer. The persistent stage rail, Previous/Next,
-manual keyboard tabs and horizontal touch swipes select explicit stages. There is
-no document-scroll settling or vertical-wheel interception. Inactive panels are
-hidden and inert; incoming panels use a short entrance transition, skipped for
-reduced motion. Native vertical scrolling handles the page and tall phone images.
-Chapter links and history restore the matching stage. No scrolling library loads.
+`assets/landing/tour.js` maps native document scrolling to four product stages
+inside one sticky presentation. The track gives each stage a reading interval,
+including the final Dashboard stage. The stage rail, Previous/Next, manual keyboard
+tabs and horizontal touch swipes navigate to corresponding positions in that same
+track. A click moves directly to its stage position while the product content
+uses a soft entrance transition; fresh wheel, touch or page-key input stays native. There
+is no wheel interception, delayed scroll correction or external scrolling library.
 
-Each slide owns its actual responsive picture; there is no cloned desktop stage.
-Desktop frames follow the complete image ratio within a viewport height limit,
-avoiding crops and wide empty gutters. Phone images retain their natural aspect
-ratio and full height. The native image dialog opens
-the selected picture and returns focus to its trigger when dismissed.
-The hero uses a bounded overview frame at every width, preserving the full
-dashboard without allowing a long capture to stretch the page introduction.
+Overlaid panels reserve the largest copy height and a common screenshot position.
+The complete presentation is vertically centred while pinned. Scroll destinations
+read the current document origin instead of relying on an initial cached offset.
+Inactive stages are hidden, inert and visually hidden while retaining grid space.
+If the complete stage does not fit a short or zoomed viewport, the controller
+releases the pin and exposes all chapters in natural flow with sticky navigation
+links. Resizing preserves progress only when the reader is already in the tour.
+Chapter links and browser history restore both stage and scroll position. Reduced
+motion skips entrance animations and smooth navigation.
+
+Every preview uses a compact 16:10 canvas and contains the complete desktop
+capture without cropping. Identical frame dimensions replace per-image ratios,
+including on phones; the very tall phone captures would be unreadable as overview
+thumbnails. The full-screen dialog uses each figure's `data-phone-src` at phone
+widths and its desktop original otherwise. It preserves full-size vertical reading,
+resets to the top on reopening, and returns focus when dismissed. The hero uses
+the same bounded landscape shape. There is no cloned product stage.
 
 The landing HTML reserves capture dimensions and versions the CSS/JS with
-`20261120-slide-tour` and pictures with `20261120-full-screens`. These files remain
+`20261120-scroll-reveal` and pictures with `20261120-full-screens`. These files remain
 outside the application's service-worker static cache, so this does not rotate
-the app asset generation. `tests/landing-scroll-browser.cjs` covers the carousel
-in Chromium and WebKit, touch input, persistent controls, keyboard/history,
-reduced motion, delayed images and the no-JavaScript fallback. It also checks the
+the app asset generation. `tests/landing-scroll-browser.cjs` covers actual native
+wheel/touch progression and reversal in Chromium and WebKit, consistent frame
+geometry, click-to-scroll synchronization, persistent controls, keyboard/history,
+reduced motion, delayed images and short-viewport/no-JavaScript fallbacks. It checks the
 published image hashes and complete-content proof against the capture manifest.
 CI emits desktop and mobile screenshots for visual review.
