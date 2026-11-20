@@ -1049,14 +1049,20 @@ Cache generation: `20261016-dashboard-14-days` (staging adds `-staging`).
 
 The Pages build publishes the public product tour from `marketing/landing/index.html` at `/`. The login, signup and dashboard directories share the existing workspace shell. Native authentication owns the route transitions, and the service worker keeps the public page and the workspace in separate cache entries. Installed apps open `/dashboard/`. The previous `/start/` links and authentication callbacks sent to the old root still resolve.
 
-Tour assets are allowlisted in `config/assets.js`. To refresh the eight screenshots,
+Tour assets are allowlisted in `config/assets.js`. To refresh the product screenshots,
 run `node marketing/landing/capture.cjs /tmp/retrade-landing-captures` with Playwright
 Chromium, Python and Pillow installed. The real app renders a deterministic local
 fixture from `capture-fixture.cjs`; external networking is mocked or blocked and no
 account, saved session or database is used. Full page headings and the complete
 sale breakdown must fit the capture viewport. The script writes PNGs, WebPs and
 a manifest containing their dimensions, hashes, measured content and actual app
-calculations. Review the captures before replacing the public WebPs and manifest;
+calculations. Schema 3 separates eight complete desktop/phone originals, four
+1600×1000 desktop overviews and one actual receipt-element detail. The wide
+overviews use the real desktop breakpoint, with the Dashboard chart and categories
+beside one another. The sale overview uses the app's existing receipt disclosure
+in its collapsed state; a separate expanded receipt capture makes every cost and
+the final profit readable. No product controls, rows or values are fabricated.
+Review the captures before replacing the public WebPs and manifest;
 update the HTML image dimensions and image version together. Preview frames retain
 their shared presentation ratio independently of the original capture dimensions.
 The Landing product screens workflow publishes the capture artifact for this review.
@@ -1069,7 +1075,9 @@ inside one sticky presentation. The track gives each stage a reading interval,
 including the final Dashboard stage. The stage rail, Previous/Next, manual keyboard
 tabs and horizontal touch swipes navigate to corresponding positions in that same
 track. A click moves directly to its stage position while the product content
-uses a soft entrance transition; fresh wheel, touch or page-key input stays native. There
+uses a 44px vertical entrance in the corresponding direction; fresh wheel, touch
+or page-key input stays native. The tab selection changes without a lateral sweep,
+and the previous/next controls use up/down arrows. There
 is no wheel interception, delayed scroll correction or external scrolling library.
 
 Overlaid panels reserve the largest copy height and a common screenshot position.
@@ -1082,20 +1090,26 @@ links. Resizing preserves progress only when the reader is already in the tour.
 Chapter links and browser history restore both stage and scroll position. Reduced
 motion skips entrance animations and smooth navigation.
 
-Every preview uses a compact 16:10 canvas and contains the complete desktop
-capture without cropping. Identical frame dimensions replace per-image ratios,
-including on phones; the very tall phone captures would be unreadable as overview
-thumbnails. The full-screen dialog uses each figure's `data-phone-src` at phone
-widths and its desktop original otherwise. It preserves full-size vertical reading,
-resets to the top on reopening, and returns focus when dismissed. The hero uses
-the same bounded landscape shape. There is no cloned product stage.
+Every preview uses a compact 16:10 canvas filled by a separately captured wide
+desktop overview. The original tall page is not squeezed into a thumbnail.
+Frame dimensions remain identical across stages and on phones. The sale frame's
+Item page/Breakdown controls switch between its true overview and the complete
+receipt detail without moving or resizing the frame. They are hidden without JS.
+The full-screen dialog opens the link's complete original, or each figure's
+`data-phone-src` on phones; it never accidentally reuses the smaller preview.
+It preserves full-size vertical reading, resets to the top on reopening, and
+returns focus when dismissed. The hero uses the same bounded landscape shape
+and can also open the complete Dashboard. There is no cloned product stage.
 
 The landing HTML reserves capture dimensions and versions the CSS/JS with
-`20261120-scroll-reveal` and pictures with `20261120-full-screens`. These files remain
+`20261120-readable-tour`, also used for the new preview/detail images. Complete
+originals retain `20261120-full-screens`. These files remain
 outside the application's service-worker static cache, so this does not rotate
 the app asset generation. `tests/landing-scroll-browser.cjs` covers actual native
 wheel/touch progression and reversal in Chromium and WebKit, consistent frame
 geometry, click-to-scroll synchronization, persistent controls, keyboard/history,
-reduced motion, delayed images and short-viewport/no-JavaScript fallbacks. It checks the
+reduced motion, delayed images and short-viewport/no-JavaScript fallbacks. It also
+checks actual vertical animation keyframes, hero viewer focus, receipt view
+switching and original-versus-preview URLs. It checks the
 published image hashes and complete-content proof against the capture manifest.
 CI emits desktop and mobile screenshots for visual review.

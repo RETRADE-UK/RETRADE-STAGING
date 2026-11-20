@@ -23,9 +23,19 @@ function captureChecks() {
   const filename = path.join(root, 'assets/landing/capture-manifest.json');
   assert(fs.existsSync(filename), 'The refreshed product captures need their reproducible capture manifest');
   const manifest = JSON.parse(fs.readFileSync(filename, 'utf8'));
-  assert.equal(manifest.schemaVersion, 2, 'Use the complete-screen capture format');
+  assert.equal(manifest.schemaVersion, 3, 'Use the separate preview and complete-screen capture format');
   assert.equal(manifest.label, 'Example workspace', 'Marketing screenshots must identify their illustrative data');
-  assert.equal(manifest.captures.length, 8, 'Each feature needs one desktop and one phone capture');
+  assert.equal(manifest.captures.filter(capture => capture.role === 'full').length,8,
+    'Each feature needs complete desktop and phone captures');
+  assert.equal(manifest.captures.filter(capture => capture.role === 'preview').length,4,
+    'Each feature needs a separately composed landscape preview');
+  const details = manifest.captures.filter(capture => capture.role === 'detail');
+  assert.equal(details.length,1,'The sale receipt needs its own readable detail capture');
+  assert.equal(details[0].file,'sale-detail.webp');
+  assert.equal(details[0].view,'sale');
+  assert.equal(manifest.captures.length,13,'Every capture must have a known presentation role');
+  assert.equal(new Set(manifest.captures.map(capture => capture.file)).size,manifest.captures.length,
+    'Capture filenames must be unique');
   assert.equal(manifest.origin,origin,'Captures must come from the isolated local app');
   assert.equal(manifest.externalNetwork,'blocked','The capture must exclude external data and writes');
   const business = manifest.metrics.current;
@@ -33,19 +43,28 @@ function captureChecks() {
   assert(business.soldCount >= 50 && business.soldCount <= 65,'The monthly sale count must match the modest example');
   assert(business.margin >= 35 && business.margin <= 45,'The example should show a healthy, credible gross margin');
   assert(business.refundRate > 0 && business.refundRate <= 3,'The example refund rate must stay small and non-zero');
-  for (const id of ids) {
-    for (const phone of [false,true]) {
-      const file = id + (phone ? '-phone' : '') + '.webp';
-      const capture = manifest.captures.find(record => record.file === file);
-      assert(capture, 'Missing capture record for ' + file);
+  for (const capture of manifest.captures) {
+      const file = capture.file;
+      assert(ids.includes(capture.view),'Every capture must belong to a product stage: ' + file);
       const bytes = fs.readFileSync(path.join(site,'assets/landing',file));
       assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),capture.sha256,
         'Published image bytes must match the verified complete capture: ' + file);
       assert(capture.width > 0 && capture.height > 0, 'Capture dimensions must be recorded: ' + file);
       assert(capture.viewport.width > 0 && capture.viewport.height > 0, 'Capture viewport must be recorded: ' + file);
       assert(capture.title && capture.title.trim().length > 2, 'The product page title must be recorded: ' + file);
-      assert.equal(capture.proof.fullHeading, true, 'The app heading must be inside the original capture: ' + file);
-      if (id === 'sale') assert.equal(capture.proof.fullBreakdown, true, 'Sale captures must include the complete breakdown');
+      if (capture.role !== 'detail') assert.equal(capture.proof.fullHeading,true,
+        'The app heading must be inside the capture: ' + file);
+      if (capture.view === 'sale' && capture.role !== 'preview') assert.equal(capture.proof.fullBreakdown,true,
+        'Original sale and receipt-detail captures must include the complete breakdown');
+      if (capture.role === 'detail') {
+        assert.equal(capture.captureMode,'element','Receipt detail must be a real captured app element');
+        assert(capture.sourceBounds.width > 0 && capture.sourceBounds.height > 0,
+          'The original receipt element must have measured dimensions');
+        assert(capture.proof.profitText.includes('£5.47'),'The receipt must retain the actual example profit');
+        assert(capture.proof.text.includes('Item cost') && capture.proof.text.includes('Packaging'),
+          'The detail must include the real receipt costs');
+        continue;
+      }
       assert(capture.proof.requiredElements.length >= 1, 'Capture proof needs measured product content: ' + file);
       for (const element of capture.proof.requiredElements) {
         const b = element.bounds;
@@ -55,7 +74,20 @@ function captureChecks() {
           b.y + b.height <= capture.viewport.height + 1,
         'Original capture clips a required element: ' + JSON.stringify({file,element,viewport:capture.viewport}));
       }
+  }
+  for (const id of ids) {
+    for (const phone of [false,true]) {
+      const file = id + (phone ? '-phone' : '') + '.webp';
+      const capture = manifest.captures.find(record => record.file === file);
+      assert(capture && capture.role === 'full','Missing complete original: ' + file);
     }
+    const preview = manifest.captures.find(record => record.file === id+'-preview.webp');
+    assert(preview && preview.role === 'preview','Missing composed product preview: ' + id);
+    assert(Math.abs(preview.width/preview.height-1.6)<.01,
+      'Preview captures must fill the common 16:10 frame without letterboxing: ' + id);
+    assert(preview.viewport.width >= 1400,'Product previews must use the real desktop layout: ' + id);
+    if (id === 'dashboard') assert.equal(preview.proof.desktopColumns,true,
+      'The dashboard preview must keep the real desktop chart and categories side by side');
   }
   return manifest;
 }
@@ -103,6 +135,64 @@ async function decodeImages(page) {
   });
 }
 
+async function assertOriginalViewer(page,figureSelector,phone) {
+  const figure = page.locator(figureSelector);
+  const trigger = figure.locator('[data-open-screen]').first();
+  const href = phone ? await figure.getAttribute('data-phone-src') : await trigger.getAttribute('href');
+  const expected = new URL(href,origin).href;
+  assert(!expected.includes('-preview.webp'),'Full-screen controls must retain the original capture');
+  await trigger.click();
+  await page.locator('#screen-viewer[open]').waitFor({state:'visible'});
+  await page.waitForFunction(() => {
+    const image=document.querySelector('#screen-viewer img');
+    return image.complete && image.naturalWidth > 0;
+  });
+  const actual = await page.locator('#screen-viewer img').evaluate(image => image.currentSrc || image.src);
+  assert.equal(actual,expected,'Opening a compact overview must load the complete original: ' + figureSelector);
+  assert.equal(await page.locator('[data-view-original]').getAttribute('href'),expected,
+    'The original-image link must use the same complete capture as the viewer');
+  await page.keyboard.press('Escape');
+  await page.locator('#screen-viewer[open]').waitFor({state:'hidden'});
+  assert(await trigger.evaluate(element => element === document.activeElement),
+    'Closing a screenshot must return focus to its visible opener: ' + figureSelector);
+}
+
+async function assertSaleDetail(page,width,height) {
+  const figure = page.locator('#sale .product-screen');
+  const overview = figure.locator('[data-screen-view="overview"]');
+  const detail = figure.locator('[data-screen-view="detail"]');
+  assert.equal(await overview.getAttribute('aria-pressed'),'true');
+  assert.equal(await detail.getAttribute('aria-pressed'),'false');
+  const before = await geometry(page,'sale');
+  const expected = new URL(await figure.getAttribute('data-detail-src'),origin).href;
+  await detail.click();
+  await page.waitForFunction(src => {
+    const image=document.querySelector('#sale .screen-image');
+    return image.complete && image.naturalWidth > 0 && (image.currentSrc || image.src) === src;
+  },expected);
+  assert.equal(await detail.getAttribute('aria-pressed'),'true');
+  assert.equal(await overview.getAttribute('aria-pressed'),'false');
+  const after = await geometry(page,'sale');
+  const record = captureManifest.captures.find(capture => capture.file === 'sale-detail.webp');
+  assert.equal(after.naturalWidth,record.width);
+  assert.equal(after.naturalHeight,record.height);
+  assert.equal(after.objectFit,'contain','The detail must keep every receipt row visible');
+  for (const key of ['figure','canvas']) {
+    for (const dimension of ['top','left','width','height']) {
+      assert(Math.abs(before[key][dimension]-after[key][dimension])<=2,
+        'Changing to the receipt detail must keep the same frame: ' + JSON.stringify({key,dimension,before:before[key],after:after[key]}));
+    }
+  }
+  await page.screenshot({path:'/tmp/landing-scroll-' + engine + '-' + width + 'x' + height + '-sale-detail.png'});
+  await assertOriginalViewer(page,'#sale .product-screen',width <= 600);
+  await overview.click();
+  await page.waitForFunction(() => {
+    const image=document.querySelector('#sale .screen-image');
+    return image.complete && image.naturalWidth > 0 && image.currentSrc.includes('/sale-preview.webp');
+  });
+  await assertSlide(page,'sale',{fitsViewport:true});
+}
+
 async function geometry(page, id) {
   return page.evaluate(id => {
     const rect = element => {
@@ -122,6 +212,7 @@ async function geometry(page, id) {
       step:parseFloat(getComputedStyle(deck).getPropertyValue('--tour-step')),
       controls:rect(controls), controlsPosition:getComputedStyle(controls).position,
       indicator:rect(document.querySelector('.tab-indicator')),
+      indicatorTransition:getComputedStyle(document.querySelector('.tab-indicator')).transitionProperty,
       copy:rect(panel.querySelector('.story-copy')), figure:rect(panel.querySelector('.product-screen')),
       canvas:rect(panel.querySelector('.screen-canvas')), image:rect(image),
       currentSrc:image.currentSrc, naturalWidth:image.naturalWidth, naturalHeight:image.naturalHeight,
@@ -182,6 +273,8 @@ async function assertSlide(page, id, {fitsViewport = false} = {}) {
     Math.abs(g.indicator.top-activeTab.top) <= 3 && Math.abs(g.indicator.width-activeTab.width) <= 3 &&
     Math.abs(g.indicator.height-activeTab.height) <= 3,
   'The moving highlight must stay aligned with the selected stage: ' + JSON.stringify({indicator:g.indicator,activeTab}));
+  assert(!g.indicatorTransition.split(',').some(property => /^(all|transform|translate|left|width)$/.test(property.trim())),
+    'Changing stages must not sweep the highlight sideways: ' + g.indicatorTransition);
   const count = g.count.match(/(\d+)\s*(?:\/|of)\s*(\d+)/i);
   assert(count && Number(count[1]) === index + 1 && Number(count[2]) === 4, 'The slide count must match the selected stage: ' + g.count);
   assert.equal(await page.locator('[data-prev]').isDisabled(), index === 0);
@@ -189,7 +282,7 @@ async function assertSlide(page, id, {fitsViewport = false} = {}) {
 
   assert(g.naturalWidth > 0 && g.naturalHeight > 0, 'A product image must load before it is reviewed');
   const file = path.basename(new URL(g.currentSrc).pathname);
-  assert.equal(file,id+'.webp','The compact overview uses the complete desktop capture at every width');
+  assert.equal(file,id+'-preview.webp','The compact overview needs its readable landscape capture at every width');
   const record = captureManifest.captures.find(capture => capture.file === file);
   assert(record, 'The visible product image must be a verified complete capture: ' + file);
   assert.equal(g.naturalWidth, record.width);
@@ -243,6 +336,16 @@ async function open(browser, width, height, {reduced = false, delayed = false, h
   });
   if (!noJS) await context.addInitScript(() => {
     window.__landingInput = [];
+    window.__landingMotion = [];
+    const nativeAnimate = Element.prototype.animate;
+    Element.prototype.animate = function(...args) {
+      const animation = nativeAnimate.apply(this,args);
+      if (this.classList.contains('story')) {
+        window.__landingMotion.push({id:this.id,keyframes:animation.effect.getKeyframes()});
+        if (window.__landingMotion.length > 24) window.__landingMotion.shift();
+      }
+      return animation;
+    };
     const nativeScrollTo = window.scrollTo;
     window.scrollTo = function(...args) {
       window.__landingInput.push({type:'scrollTo',y:scrollY,t:performance.now(),args});
@@ -297,8 +400,19 @@ async function layoutChecks(browser) {
   for (const [width,height] of sizes) {
     await check(browser,width,height,width + 'x' + height,async page => {
       assert.equal(await page.evaluate(() => scrollY), 0, 'An untouched landing page must start at the top');
+      const hero = await page.locator('.hero-preview .screen-image').evaluate(image => ({
+        src:image.currentSrc || image.src,width:image.naturalWidth,height:image.naturalHeight
+      }));
+      const heroRecord = captureManifest.captures.find(capture => capture.file === 'dashboard-preview.webp');
+      assert.equal(path.basename(new URL(hero.src).pathname),'dashboard-preview.webp',
+        'The first graphic must show the wide desktop dashboard preview rather than a shrunken full-page capture');
+      assert.equal(hero.width,heroRecord.width);
+      assert.equal(hero.height,heroRecord.height);
       const review = width === 390 || width === 1440;
-      if (review) await page.screenshot({path:'/tmp/landing-scroll-' + engine + '-' + width + 'x' + height + '-hero.png'});
+      if (review) {
+        await page.screenshot({path:'/tmp/landing-scroll-' + engine + '-' + width + 'x' + height + '-hero.png'});
+        await assertOriginalViewer(page,'.hero-preview',width <= 600);
+      }
       let firstFrame;
       for (const id of ids) {
         await activate(page,id);
@@ -314,6 +428,7 @@ async function layoutChecks(browser) {
         if (g.pinned) assert(Math.abs(g.figure.top-firstFrame.figure.top) <= 3,
           'The screenshot position must stay steady as the story changes: ' + JSON.stringify({first:firstFrame.figure,actual:g.figure}));
         if (review) await page.screenshot({path:'/tmp/landing-scroll-' + engine + '-' + width + 'x' + height + '-' + id + '.png'});
+        if (review && id === 'sale') await assertSaleDetail(page,width,height);
       }
       await page.locator('[data-prev]').click();
       await selected(page,'sale');
@@ -327,6 +442,24 @@ async function layoutChecks(browser) {
 
 async function activeId(page) {
   return (await page.locator('.jump [aria-current="step"]').getAttribute('href')).slice(1);
+}
+
+async function assertVerticalMotion(page,id,direction) {
+  const motion = await page.evaluate(id => {
+    const record = [...window.__landingMotion].reverse().find(entry => entry.id === id);
+    if (!record) return null;
+    return record.keyframes.map(frame => {
+      const matrix = new DOMMatrix(frame.transform || 'none');
+      return {x:matrix.m41,y:matrix.m42,opacity:Number(frame.opacity)};
+    });
+  },id);
+  assert(motion && motion.length >= 2,'Changing stages must visibly reveal the next vertical chapter: ' + id);
+  assert(motion.every(frame => Math.abs(frame.x) < .01),
+    'The product content must never travel sideways: ' + JSON.stringify({id,motion}));
+  assert(motion[0].y * direction >= 24,
+    'Forward chapters must enter from below and previous chapters from above: ' + JSON.stringify({id,direction,motion}));
+  assert(Math.abs(motion.at(-1).y) < .01 && motion.at(-1).opacity === 1,
+    'The vertical reveal must settle into the fixed reading position: ' + JSON.stringify({id,motion}));
 }
 
 async function wheelUntil(page, id, direction) {
@@ -365,16 +498,22 @@ async function revealChecks(browser) {
 
       for (const id of ['stock','sale','dashboard']) {
         const g = await wheelUntil(page,id,1);
+        await assertVerticalMotion(page,id,1);
         assert(Math.abs(g.figure.top-first.figure.top) <= 3 && Math.abs(g.figure.height-first.figure.height) <= 2,
           'Scrolling to a new stage must preserve the same screenshot frame');
       }
-      for (const id of ['sale','stock','sourcing']) await wheelUntil(page,id,-1);
+      for (const id of ['sale','stock','sourcing']) {
+        await wheelUntil(page,id,-1);
+        await assertVerticalMotion(page,id,-1);
+      }
 
       // A tab jump must update the physical scroll position too, so continuing
       // either way from it reveals adjacent stages instead of reverting.
       await activate(page,'sale');
+      await assertVerticalMotion(page,'sale',1);
       await wheelUntil(page,'dashboard',1);
       await activate(page,'sale');
+      await assertVerticalMotion(page,'sale',-1);
       await wheelUntil(page,'stock',-1);
 
       await page.mouse.wheel(0,await page.evaluate(() => document.documentElement.scrollHeight));

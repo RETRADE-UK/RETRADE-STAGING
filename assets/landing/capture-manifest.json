@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "fixtureVersion": "example-workspace-2026-11-v2",
   "asOf": "2026-11-20T12:00:00.000Z",
   "label": "Example workspace",
@@ -109,6 +109,7 @@
       "png": "dashboard.png",
       "view": "dashboard",
       "device": "desktop",
+      "role": "full",
       "width": 1860,
       "height": 2766,
       "title": "Dashboard",
@@ -126,6 +127,7 @@
         "fullBreakdown": null,
         "fullViewport": true,
         "clearOfFloatingControls": true,
+        "desktopColumns": null,
         "requiredElements": [
           {
             "selector": "#p-summary .summary-title",
@@ -455,10 +457,352 @@
       "sha256": "727fdbb89f60de79aa7f35d88e19e766e0649762fc246567b12fb1e9030a8870"
     },
     {
+      "file": "dashboard-preview.webp",
+      "png": "dashboard-preview.png",
+      "view": "dashboard",
+      "device": "desktop",
+      "role": "preview",
+      "width": 2400,
+      "height": 1500,
+      "title": "Dashboard",
+      "viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "deviceScaleFactor": 1.5,
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "proof": {
+        "fullHeading": true,
+        "fullBreakdown": null,
+        "fullViewport": true,
+        "clearOfFloatingControls": true,
+        "desktopColumns": true,
+        "requiredElements": [
+          {
+            "selector": "#p-summary .summary-title",
+            "text": "Dashboard",
+            "inputs": [],
+            "bounds": {
+              "x": 268,
+              "y": 28,
+              "width": 1127,
+              "height": 37.39
+            }
+          },
+          {
+            "selector": "#p-summary .summary-kpis-v3",
+            "text": "GROSS REVENUE\n£1,977.00\n▲ 11%\nvs prev 30 days\nGROSS PROFIT\n£808.23\n▲ 21%\nvs prev 30 days\nGROSS MARGIN\n41%\n▲ 3.2pp\nvs prev 30 days\n · 86% ROI\nREFUND RATE\n1.7%\n▼ 0.2pp\nvs prev 30 days",
+            "inputs": [],
+            "bounds": {
+              "x": 268,
+              "y": 105.58,
+              "width": 1304,
+              "height": 117
+            }
+          },
+          {
+            "selector": "#p-summary .summary-chart-card",
+            "text": "GROSS REVENUE & PROFIT OVER TIME\nGross Revenue\nGross Profit\nRefunds\n£0\n£25\n£50\n£75\n£100\n10/22\n10/27\n11/1\n11/6\n11/11\n11/16\n11/20",
+            "inputs": [],
+            "bounds": {
+              "x": 268,
+              "y": 238.58,
+              "width": 754,
+              "height": 341.39
+            }
+          },
+          {
+            "selector": "#p-summary .summary-categories",
+            "text": "TOP CATEGORIES\n5 CATEGORIES\nClothing & Fashion\n40%\nHome & Garden\n25%\nToys & Games\n16%\nVideo Games & Consoles\n13%\nBooks\n5%",
+            "inputs": [],
+            "bounds": {
+              "x": 1038,
+              "y": 238.58,
+              "width": 534,
+              "height": 341.39
+            }
+          },
+          {
+            "selector": "#p-summary .summary-snapshot",
+            "text": "SNAPSHOT\nPER SALE · LAST 30 DAYS\nAVERAGE SALE PRICE\n£34.09\nAVERAGE BUY PRICE\n£17.19\nAVERAGE GROSS PROFIT\n£13.93",
+            "inputs": [],
+            "bounds": {
+              "x": 268,
+              "y": 595.97,
+              "width": 1304,
+              "height": 170.58
+            }
+          }
+        ],
+        "floatingControls": [
+          {
+            "selector": "#fab-dial .fab-main",
+            "bounds": {
+              "x": 1524,
+              "y": 924,
+              "width": 52,
+              "height": 52
+            }
+          }
+        ]
+      },
+      "renderedDashboard": [
+        {
+          "key": "sum-m-rev",
+          "value": 1977,
+          "text": "£1,977.00",
+          "visible": false,
+          "inViewport": false
+        },
+        {
+          "key": "sum-m-gp",
+          "value": 808.23,
+          "text": "£808.23",
+          "visible": false,
+          "inViewport": false
+        },
+        {
+          "key": "sum-m-margin",
+          "value": 40.9,
+          "text": "41%",
+          "visible": false,
+          "inViewport": false
+        },
+        {
+          "key": "sum-rev",
+          "value": 1977,
+          "text": "£1,977.00",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-gp",
+          "value": 808.23,
+          "text": "£808.23",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-margin",
+          "value": 40.9,
+          "text": "41%",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-refund",
+          "value": 1.7241379310344827,
+          "text": "1.7%",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-catpct-0",
+          "value": 40,
+          "text": "40%",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-catpct-1",
+          "value": 25,
+          "text": "25%",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-catpct-2",
+          "value": 16,
+          "text": "16%",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-catpct-3",
+          "value": 13,
+          "text": "13%",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-catpct-4",
+          "value": 5,
+          "text": "5%",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-inv-value",
+          "value": 99,
+          "text": "£99.00",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-inv-count",
+          "value": 8,
+          "text": "8",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-inv-listed",
+          "value": 53,
+          "text": "53",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-age-fresh",
+          "value": 5,
+          "text": "5",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-age-maturing",
+          "value": 0,
+          "text": "0",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-age-slow",
+          "value": 0,
+          "text": "0",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-age-stale",
+          "value": 0,
+          "text": "0",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-flip-0",
+          "value": 22,
+          "text": "£22.00",
+          "visible": true,
+          "inViewport": false
+        },
+        {
+          "key": "sum-flip-1",
+          "value": 20.55,
+          "text": "£20.55",
+          "visible": true,
+          "inViewport": false
+        },
+        {
+          "key": "sum-flip-2",
+          "value": 20,
+          "text": "£20.00",
+          "visible": true,
+          "inViewport": false
+        },
+        {
+          "key": "sum-flip-3",
+          "value": 20,
+          "text": "£20.00",
+          "visible": true,
+          "inViewport": false
+        },
+        {
+          "key": "sum-flip-4",
+          "value": 20,
+          "text": "£20.00",
+          "visible": true,
+          "inViewport": false
+        },
+        {
+          "key": "sum-flip-5",
+          "value": 20,
+          "text": "£20.00",
+          "visible": true,
+          "inViewport": false
+        },
+        {
+          "key": "sum-snap-avgsale",
+          "value": 34.08620689655172,
+          "text": "£34.09",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-snap-avgbuy",
+          "value": 17.189655172413794,
+          "text": "£17.19",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-snap-avgprofit",
+          "value": 13.934999999999997,
+          "text": "£13.93",
+          "visible": true,
+          "inViewport": true
+        },
+        {
+          "key": "sum-vel-avgdays",
+          "value": 6,
+          "text": "6d",
+          "visible": true,
+          "inViewport": false
+        },
+        {
+          "key": "sum-vel-sellthrough",
+          "value": 92,
+          "text": "92%",
+          "visible": true,
+          "inViewport": false
+        },
+        {
+          "key": "sum-velcat-0",
+          "value": 96,
+          "text": "96%",
+          "visible": true,
+          "inViewport": false
+        },
+        {
+          "key": "sum-velcat-1",
+          "value": 93,
+          "text": "93%",
+          "visible": true,
+          "inViewport": false
+        },
+        {
+          "key": "sum-velcat-2",
+          "value": 90,
+          "text": "90%",
+          "visible": true,
+          "inViewport": false
+        },
+        {
+          "key": "sum-velcat-3",
+          "value": 90,
+          "text": "90%",
+          "visible": true,
+          "inViewport": false
+        }
+      ],
+      "baseViewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "captureMode": "viewport",
+      "bytes": 127704,
+      "sha256": "03b1fb2611a89641c6ee50b7e09ffc94f67d58b3a2a9c9c60f9bd069dd157f89"
+    },
+    {
       "file": "stock.webp",
       "png": "stock.png",
       "view": "stock",
       "device": "desktop",
+      "role": "full",
       "width": 1860,
       "height": 1383,
       "title": "Stock",
@@ -476,6 +820,7 @@
         "fullBreakdown": null,
         "fullViewport": true,
         "clearOfFloatingControls": true,
+        "desktopColumns": null,
         "requiredElements": [
           {
             "selector": "#p-stock .page-title",
@@ -533,10 +878,91 @@
       "sha256": "30a2f999301cc95e0662811e64eb1f6a26c835d62a2191450cf7c8f4ef3cd8d1"
     },
     {
+      "file": "stock-preview.webp",
+      "png": "stock-preview.png",
+      "view": "stock",
+      "device": "desktop",
+      "role": "preview",
+      "width": 2400,
+      "height": 1500,
+      "title": "Stock",
+      "viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "deviceScaleFactor": 1.5,
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "proof": {
+        "fullHeading": true,
+        "fullBreakdown": null,
+        "fullViewport": true,
+        "clearOfFloatingControls": true,
+        "desktopColumns": null,
+        "requiredElements": [
+          {
+            "selector": "#p-stock .page-title",
+            "text": "Stock",
+            "inputs": [],
+            "bounds": {
+              "x": 268,
+              "y": 28,
+              "width": 1039.91,
+              "height": 37.39
+            }
+          },
+          {
+            "selector": "#p-stock .stock-kpis",
+            "text": "CAPITAL IN LISTINGS\n£28.00\n£99.00 asking · 254% markup\nESTIMATED PROFIT\n£56.71\n203% ROI if sold\nAGED CAPITAL\n£0\nNone stale — all moving\nSELL- THROUGH\n96%\n6d avg to sell",
+            "inputs": [],
+            "bounds": {
+              "x": 268,
+              "y": 108.39,
+              "width": 1304,
+              "height": 117.13
+            }
+          },
+          {
+            "selector": "#stock-list",
+            "text": "Blue enamel casserole dish\nLISTED\neBay Biz\n·\n2026-11-14 · 6d\n·\nEX-STOCK-1\n£22.00\n+£7.73\n⋮\nCorduroy overshirt\nLISTED\nVinted\n·\n2026-11-11 · 9d\n·\nEX-STOCK-2\n£18.00\n+£14.00\n⋮\nMario Party Superstars cartridge\nLISTED\neBay Biz\n·\n2026-11-08 · 12d\n·\nEX-STOCK-3\n£23.00\n+£7.98\n⋮\nWooden railway starter set\nLISTED\nFB\n·\n2026-11-05 · 15d\n·\nEX-STOCK-4\n£24.00\n+£18.00\n⋮\nAgatha Christie paperback bundle\nLISTED\nVinted\n·\n2026-11-02 · 18d\n·\nEX-STOCK-5\n£12.00\n+£9.00\n⋮",
+            "inputs": [],
+            "bounds": {
+              "x": 268,
+              "y": 381.52,
+              "width": 1304,
+              "height": 382
+            }
+          }
+        ],
+        "floatingControls": [
+          {
+            "selector": "#fab-dial .fab-main",
+            "bounds": {
+              "x": 1524,
+              "y": 924,
+              "width": 52,
+              "height": 52
+            }
+          }
+        ]
+      },
+      "renderedDashboard": null,
+      "baseViewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "captureMode": "viewport",
+      "bytes": 107634,
+      "sha256": "62971aa31effe321a1bcbc21a5f605ad487a314e9fad911aef9229328f022e07"
+    },
+    {
       "file": "sourcing.webp",
       "png": "sourcing.png",
       "view": "sourcing",
       "device": "desktop",
+      "role": "full",
       "width": 1860,
       "height": 1350,
       "title": "Sunday car boot finds",
@@ -554,6 +980,7 @@
         "fullBreakdown": null,
         "fullViewport": true,
         "clearOfFloatingControls": true,
+        "desktopColumns": null,
         "requiredElements": [
           {
             "selector": "#p-item .page-title",
@@ -600,10 +1027,80 @@
       "sha256": "81b7a5efd23b6b4753a031c5bdf305cf499e26d301d84ab558eddcbba5bb1b87"
     },
     {
+      "file": "sourcing-preview.webp",
+      "png": "sourcing-preview.png",
+      "view": "sourcing",
+      "device": "desktop",
+      "role": "preview",
+      "width": 2400,
+      "height": 1500,
+      "title": "Sunday car boot finds",
+      "viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "deviceScaleFactor": 1.5,
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "proof": {
+        "fullHeading": true,
+        "fullBreakdown": null,
+        "fullViewport": true,
+        "clearOfFloatingControls": true,
+        "desktopColumns": null,
+        "requiredElements": [
+          {
+            "selector": "#p-item .page-title",
+            "text": "Sunday car boot finds",
+            "inputs": [],
+            "bounds": {
+              "x": 324,
+              "y": 98,
+              "width": 1123.44,
+              "height": 26.39
+            }
+          },
+          {
+            "selector": "#p-item .item-full-page",
+            "text": "← Sourcing\nSunday car boot finds\nCommunity car boot · 2026-11-01 — ended 2026-11-01 · 2h 0m\nEnded\nExample workspace · mixed Sunday haul.\nEdit\n+ Expense\n+ Trip\nDelete\nRUN PROFIT (CLOSED)\n£87.71\n6 sold · £87.71 realised\n213.9% ROI on £41.00\nPER HOUR\n£44\n2.0h on run\nPER MILE\n—\nNo miles logged\nAVG AGE\n—\nAll sold\nCAPITAL RECOVERED\n£145 / £41\n100% back\nPIPELINE\n6 sold\nItems sourced\nSelect\n+ Add existing\nSOLD (6)\nLevi’s denim trucker jacket\n£5.00 cost · sold £24.00\n£18.65\nRoald Dahl paperback bundle, 10 books\n£3.00 cost · sold £12.00\n£8.45\nMario Kart 8 Deluxe, cartridge only\n£8.00 cost · sold £19.00\n£5.47\nDenby stoneware side plates, set of four\n£6.00 cost · sold £28.00\n£22.00\nadidas Gazelle suede trainers\n£9.00 cost · sold £30.00\n£20.55\nLEGO City fire station, used and complete\n£10.00 cost · sold £32.00\n£12.59",
+            "inputs": [],
+            "bounds": {
+              "x": 300,
+              "y": 28,
+              "width": 1240,
+              "height": 764.02
+            }
+          }
+        ],
+        "floatingControls": [
+          {
+            "selector": "#fab-dial .fab-main",
+            "bounds": {
+              "x": 1524,
+              "y": 924,
+              "width": 52,
+              "height": 52
+            }
+          }
+        ]
+      },
+      "renderedDashboard": null,
+      "baseViewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "captureMode": "viewport",
+      "bytes": 108146,
+      "sha256": "735098563e10f68945b9b0c52b1036a912bd8b3214e507082c85782f98e7dc7c"
+    },
+    {
       "file": "sale.webp",
       "png": "sale.png",
       "view": "sale",
       "device": "desktop",
+      "role": "full",
       "width": 1860,
       "height": 2241,
       "title": "Mario Kart 8 Deluxe, cartridge only",
@@ -621,6 +1118,7 @@
         "fullBreakdown": true,
         "fullViewport": true,
         "clearOfFloatingControls": true,
+        "desktopColumns": null,
         "requiredElements": [
           {
             "selector": "#p-item .ip-title",
@@ -840,10 +1338,196 @@
       "sha256": "b3081edc939fb91e7b3025b2e14b3a9e467b0d8e0f5e927ad1efdaa86ab0ee67"
     },
     {
+      "file": "sale-detail.webp",
+      "png": "sale-detail.png",
+      "view": "sale",
+      "device": "desktop",
+      "role": "detail",
+      "width": 881,
+      "height": 861,
+      "title": "Mario Kart 8 Deluxe, cartridge only",
+      "viewport": {
+        "width": 1600,
+        "height": 1172
+      },
+      "deviceScaleFactor": 1.5,
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "sourceBounds": {
+        "x": 929,
+        "y": 570.546875,
+        "width": 587,
+        "height": 573.34375
+      },
+      "proof": {
+        "fullHeading": false,
+        "fullBreakdown": true,
+        "fullViewport": false,
+        "clearOfFloatingControls": true,
+        "text": "Profit breakdown\n£5.47\n▾\nSold on\neBay UK (Private)\neBay UK (Business)\nVinted\nDepop\nFacebook Marketplace\nAmazon UK\nSale price\n£\n+ Buyer postage\n+£\neBay FVF (Biz · 9.9%)\n−£2.82\nListing fee\n−£\nShipping cost (you pay)\n−£\nPackaging\n−£0.25\nItem cost\n−£8.00\nYour profit / loss\n£5.47",
+        "profitText": "Your profit / loss\n£5.47"
+      },
+      "baseViewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "captureMode": "element",
+      "bytes": 26680,
+      "sha256": "e3f424f8c61c23f7c7ea71202d9c3f041bfc15ab04bb0276c944559e29fbb0d4"
+    },
+    {
+      "file": "sale-preview.webp",
+      "png": "sale-preview.png",
+      "view": "sale",
+      "device": "desktop",
+      "role": "preview",
+      "width": 2400,
+      "height": 1500,
+      "title": "Mario Kart 8 Deluxe, cartridge only",
+      "viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "deviceScaleFactor": 1.5,
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "proof": {
+        "fullHeading": true,
+        "fullBreakdown": false,
+        "fullViewport": true,
+        "clearOfFloatingControls": true,
+        "desktopColumns": null,
+        "requiredElements": [
+          {
+            "selector": "#p-item .ip-title",
+            "text": "Mario Kart 8 Deluxe, cartridge only",
+            "inputs": [],
+            "bounds": {
+              "x": 320,
+              "y": 114,
+              "width": 1196,
+              "height": 42.39
+            }
+          },
+          {
+            "selector": "#p-item .ip-topbar",
+            "text": "Back\nReturn\nMore actions\nMario Kart 8 Deluxe, cartridge only\nEX-HAUL-3\nNOV-26\nSOLD\neBay Biz",
+            "inputs": [],
+            "bounds": {
+              "x": 324,
+              "y": 52,
+              "width": 1192,
+              "height": 137.78
+            }
+          },
+          {
+            "selector": "#p-item .ip-tokens",
+            "text": "SALE PRICE\n£19.00\n Sold · locked\nITEM COST\n£8.00\nPurchase + parts · edit costs\nBOOST %\n0%\nTap to edit · Fee: £0.00\nNET PROFIT\n£5.47\n28.8% margin · after fees",
+            "inputs": [],
+            "bounds": {
+              "x": 324,
+              "y": 209.78,
+              "width": 1192,
+              "height": 119.78
+            }
+          },
+          {
+            "selector": "#p-item .ip-postage-row",
+            "text": "Postage\nCustom amounts\nClear postage amounts\nYou pay\nBuyer pays",
+            "inputs": [
+              {
+                "type": "select",
+                "name": "",
+                "value": "",
+                "text": "Custom amounts"
+              },
+              {
+                "type": "input",
+                "name": "",
+                "value": "2.1",
+                "text": null
+              },
+              {
+                "type": "input",
+                "name": "",
+                "value": "0",
+                "text": null
+              }
+            ],
+            "bounds": {
+              "x": 324,
+              "y": 347.56,
+              "width": 1192,
+              "height": 204.98
+            }
+          },
+          {
+            "selector": "#p-item .ip-cost-card",
+            "text": "Cost & profit\nOwn stock · change owner\nItem cost (£)\n\nYour purchase amount. Parts are shown separately in the breakdown.\n\nParts and selling costs are separate.\n\nSave costs & terms",
+            "inputs": [
+              {
+                "type": "select",
+                "name": "",
+                "value": "",
+                "text": "Own stock — no partner"
+              },
+              {
+                "type": "input",
+                "name": "",
+                "value": "8",
+                "text": null
+              }
+            ],
+            "bounds": {
+              "x": 324,
+              "y": 570.55,
+              "width": 587,
+              "height": 321.78
+            }
+          },
+          {
+            "selector": "#p-item .ip-section-pnl .ip-section-header",
+            "text": "Profit breakdown\n£5.47\n▾",
+            "inputs": [],
+            "bounds": {
+              "x": 930,
+              "y": 571.55,
+              "width": 585,
+              "height": 55.59
+            }
+          }
+        ],
+        "floatingControls": [
+          {
+            "selector": "#fab-dial .fab-main",
+            "bounds": {
+              "x": 1524,
+              "y": 924,
+              "width": 52,
+              "height": 52
+            }
+          }
+        ]
+      },
+      "renderedDashboard": null,
+      "baseViewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "captureMode": "viewport",
+      "bytes": 91056,
+      "sha256": "a74e4aba296c37979c8b2dff54b67d90c0cc4d95a2e85f26e8b63c050242bf73"
+    },
+    {
       "file": "dashboard-phone.webp",
       "png": "dashboard-phone.png",
       "view": "dashboard",
       "device": "mobile",
+      "role": "full",
       "width": 780,
       "height": 5220,
       "title": "Dashboard",
@@ -861,6 +1545,7 @@
         "fullBreakdown": null,
         "fullViewport": true,
         "clearOfFloatingControls": true,
+        "desktopColumns": null,
         "requiredElements": [
           {
             "selector": "#p-summary .summary-title",
@@ -1181,6 +1866,7 @@
       "png": "stock-phone.png",
       "view": "stock",
       "device": "mobile",
+      "role": "full",
       "width": 780,
       "height": 2196,
       "title": "Stock",
@@ -1198,6 +1884,7 @@
         "fullBreakdown": null,
         "fullViewport": true,
         "clearOfFloatingControls": true,
+        "desktopColumns": null,
         "requiredElements": [
           {
             "selector": "#p-stock .page-title",
@@ -1268,6 +1955,7 @@
       "png": "sourcing-phone.png",
       "view": "sourcing",
       "device": "mobile",
+      "role": "full",
       "width": 780,
       "height": 2548,
       "title": "Sunday car boot finds",
@@ -1285,6 +1973,7 @@
         "fullBreakdown": null,
         "fullViewport": true,
         "clearOfFloatingControls": true,
+        "desktopColumns": null,
         "requiredElements": [
           {
             "selector": "#p-item .page-title",
@@ -1344,6 +2033,7 @@
       "png": "sale-phone.png",
       "view": "sale",
       "device": "mobile",
+      "role": "full",
       "width": 780,
       "height": 3648,
       "title": "Mario Kart 8 Deluxe, cartridge only",
@@ -1361,6 +2051,7 @@
         "fullBreakdown": true,
         "fullViewport": true,
         "clearOfFloatingControls": true,
+        "desktopColumns": null,
         "requiredElements": [
           {
             "selector": "#p-item .ip-title",

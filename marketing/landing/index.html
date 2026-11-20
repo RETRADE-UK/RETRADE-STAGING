@@ -8,8 +8,8 @@
   <title>RETRADE · Stock and profit tracking for UK resellers</title>
   <script src="/assets/landing/entry.js"></script>
   <link rel="icon" href="/assets/icons/app-32.png">
-  <link rel="stylesheet" href="/assets/landing/landing.css?v=20261120-scroll-reveal">
-  <script defer src="/assets/landing/tour.js?v=20261120-scroll-reveal"></script>
+  <link rel="stylesheet" href="/assets/landing/landing.css?v=20261120-readable-tour">
+  <script defer src="/assets/landing/tour.js?v=20261120-readable-tour"></script>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
@@ -25,9 +25,10 @@
         <p class="intro">From a £3 book bundle to a rail of vintage jackets, track what you bought, where it sold and what you kept after costs.</p>
         <div class="actions"><a class="button" href="/signup/">Start tracking for free <span aria-hidden="true">↗</span></a><a class="tour-link" href="#tour">Explore the app <span aria-hidden="true">↓</span></a></div>
       </div>
-      <figure class="hero-preview">
+      <figure class="hero-preview" data-screen-title="Dashboard" data-phone-src="/assets/landing/dashboard-phone.webp?v=20261120-full-screens">
         <figcaption><span><i></i> Inside RETRADE</span><span>Example dashboard</span></figcaption>
-        <picture><img src="/assets/landing/dashboard.webp?v=20261120-full-screens" fetchpriority="high" width="1860" height="2766" alt="RETRADE dashboard in dark mode with illustrative sales, profit and a 30-day sales chart."></picture>
+        <a class="hero-screen" data-open-screen href="/assets/landing/dashboard.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="Expand dashboard preview"><picture><img class="screen-image" src="/assets/landing/dashboard-preview.webp?v=20261120-readable-tour" fetchpriority="high" width="2400" height="1500" alt="RETRADE desktop dashboard with example revenue, profit, margin and returns above the sales chart and stock categories."></picture></a>
+        <div class="hero-preview-action"><span>Illustrative data</span><a class="enlarge" data-open-screen href="/assets/landing/dashboard.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="View dashboard preview full screen">View full screen <span aria-hidden="true">↗</span></a></div>
       </figure>
     </div></section>
     <div class="scope"><div class="wrap"><span>Track sales across</span><b>eBay</b><b>Vinted</b><b>Facebook Marketplace</b><b>Local collection</b></div></div>
@@ -45,8 +46,8 @@
           </nav>
           <div class="slide-actions" hidden>
             <span class="slide-count" data-slide-count>1 / 4</span>
-            <button type="button" class="slide-arrow" data-prev aria-label="Previous slide"><span aria-hidden="true">←</span></button>
-            <button type="button" class="slide-arrow" data-next aria-label="Next slide"><span aria-hidden="true">→</span></button>
+            <button type="button" class="slide-arrow" data-prev aria-label="Previous slide"><span aria-hidden="true">↑</span></button>
+            <button type="button" class="slide-arrow" data-next aria-label="Next slide"><span aria-hidden="true">↓</span></button>
           </div>
         </div>
         <p class="sr-only" data-slide-status aria-live="polite" aria-atomic="true"></p>
@@ -61,7 +62,7 @@
           <figure class="product-screen" data-phone-src="/assets/landing/sourcing-phone.webp?v=20261120-full-screens">
             <div class="screen-heading"><span><i></i> Example workspace</span><span>Sourcing runs</span></div>
             <a class="screen-canvas" data-open-screen href="/assets/landing/sourcing.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="Expand sourcing screenshot">
-              <picture><img class="screen-image" src="/assets/landing/sourcing.webp?v=20261120-full-screens" width="1860" height="1350" decoding="async" loading="eager" alt="Complete sourcing run, including its title, six sold items and £87.71 profit." draggable="false"></picture>
+              <picture><img class="screen-image" src="/assets/landing/sourcing-preview.webp?v=20261120-readable-tour" width="2400" height="1500" decoding="async" loading="eager" alt="Wide sourcing run overview with its title, six sold items and £87.71 profit." draggable="false"></picture>
             </a>
             <figcaption><span>Illustrative data</span><a class="enlarge" data-open-screen href="/assets/landing/sourcing.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="View sourcing screenshot full screen">View full screen <span aria-hidden="true">↗</span></a></figcaption>
           </figure>
@@ -76,7 +77,7 @@
           <figure class="product-screen" data-phone-src="/assets/landing/stock-phone.webp?v=20261120-full-screens">
             <div class="screen-heading"><span><i></i> Example workspace</span><span>Stock room</span></div>
             <a class="screen-canvas" data-open-screen href="/assets/landing/stock.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="Expand stock room screenshot">
-              <picture><img class="screen-image" src="/assets/landing/stock.webp?v=20261120-full-screens" width="1860" height="1383" decoding="async" loading="lazy" alt="Complete Stock Room page with its heading, filters and five listed example items." draggable="false"></picture>
+              <picture><img class="screen-image" src="/assets/landing/stock-preview.webp?v=20261120-readable-tour" width="2400" height="1500" decoding="async" loading="lazy" alt="Wide Stock Room overview with its heading, filters and five listed example items." draggable="false"></picture>
             </a>
             <figcaption><span>Illustrative data</span><a class="enlarge" data-open-screen href="/assets/landing/stock.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="View stock room screenshot full screen">View full screen <span aria-hidden="true">↗</span></a></figcaption>
           </figure>
@@ -88,12 +89,12 @@
             <p>That Mario Kart cartridge sold for £19. Follow the purchase, fees, postage and packaging through to the profit you keep.</p>
             <div class="evidence"><strong>£19 <small>sale</small></strong><span aria-hidden="true">→</span><strong>£5.47 <small>profit</small></strong></div>
           </div>
-          <figure class="product-screen" data-phone-src="/assets/landing/sale-phone.webp?v=20261120-full-screens">
+          <figure class="product-screen" data-phone-src="/assets/landing/sale-phone.webp?v=20261120-full-screens" data-preview-src="/assets/landing/sale-preview.webp?v=20261120-readable-tour" data-detail-src="/assets/landing/sale-detail.webp?v=20261120-readable-tour" data-detail-alt="Complete profit breakdown for Mario Kart 8 Deluxe: £19 sale, fees, postage, packaging, £8 purchase cost and £5.47 profit.">
             <div class="screen-heading"><span><i></i> Example workspace</span><span>Sale breakdown</span></div>
             <a class="screen-canvas" data-open-screen href="/assets/landing/sale.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="Expand sale breakdown screenshot">
-              <picture><img class="screen-image" src="/assets/landing/sale.webp?v=20261120-full-screens" width="1860" height="2241" decoding="async" loading="lazy" alt="Mario Kart item page with the full item title and complete sale, fee, postage, packaging, cost and profit breakdown." draggable="false"></picture>
+              <picture><img class="screen-image" src="/assets/landing/sale-preview.webp?v=20261120-readable-tour" width="2400" height="1500" decoding="async" loading="lazy" alt="Mario Kart 8 Deluxe item page with its full title, sale and profit totals, postage and purchase costs." draggable="false"></picture>
             </a>
-            <figcaption><span>Illustrative data</span><a class="enlarge" data-open-screen href="/assets/landing/sale.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="View sale breakdown screenshot full screen">View full screen <span aria-hidden="true">↗</span></a></figcaption>
+            <figcaption><span data-screen-static-label>Illustrative data</span><div class="screen-views" role="group" aria-label="Sale screenshot view" hidden><button type="button" data-screen-view="overview" aria-pressed="true">Item page</button><button type="button" data-screen-view="detail" aria-pressed="false">Breakdown</button></div><a class="enlarge" data-open-screen href="/assets/landing/sale.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="View sale breakdown screenshot full screen">View full screen <span aria-hidden="true">↗</span></a></figcaption>
           </figure>
         </article>
         <article class="story" id="dashboard" data-screen="dashboard">
@@ -106,13 +107,13 @@
           <figure class="product-screen" data-phone-src="/assets/landing/dashboard-phone.webp?v=20261120-full-screens">
             <div class="screen-heading"><span><i></i> Example workspace</span><span>Dashboard</span></div>
             <a class="screen-canvas" data-open-screen href="/assets/landing/dashboard.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="Expand dashboard screenshot">
-              <picture><img class="screen-image" src="/assets/landing/dashboard.webp?v=20261120-full-screens" width="1860" height="2766" decoding="async" loading="lazy" alt="Complete example dashboard with a modest month of sales, healthy profit and a low refund rate." draggable="false"></picture>
+              <picture><img class="screen-image" src="/assets/landing/dashboard-preview.webp?v=20261120-readable-tour" width="2400" height="1500" decoding="async" loading="lazy" alt="Wide desktop dashboard with a modest month of sales, healthy profit, low returns, the sales chart and category breakdown." draggable="false"></picture>
             </a>
             <figcaption><span>Illustrative data</span><a class="enlarge" data-open-screen href="/assets/landing/dashboard.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="View dashboard screenshot full screen">View full screen <span aria-hidden="true">↗</span></a></figcaption>
           </figure>
         </article>
         </div>
-        <p class="tour-help"><span class="help-desktop">Scroll down to explore · or choose a stage above.</span><span class="help-mobile">Scroll down to explore · tap a stage or swipe sideways.</span></p>
+        <p class="tour-help"><span class="help-desktop">Scroll down to explore · or choose a stage above.</span><span class="help-mobile">Scroll down to explore · or tap a stage above.</span></p>
         </div>
       </div>
     </section>

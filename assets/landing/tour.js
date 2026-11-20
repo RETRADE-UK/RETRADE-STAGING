@@ -82,10 +82,13 @@
     if (announce) status.textContent = tabs[current].getAttribute('aria-label') + ', stage ' + (current + 1) + ' of ' + panels.length + '.';
     placeIndicator();
     if (layout.pinned && animate && old !== current && !reduced.matches && panels[current].animate) {
+      // Follow the page's vertical direction. The larger, still restrained
+      // reveal reads as the next chapter below (or the previous one above),
+      // without moving the screenshot sideways or driving the native scroll.
       const motion = panels[current].animate([
-        {opacity:0, transform:'translate3d(0,' + (current > old ? 12 : -12) + 'px,0)'},
+        {opacity:0, transform:'translate3d(0,' + (current > old ? 44 : -44) + 'px,0)'},
         {opacity:1, transform:'translate3d(0,0,0)'}
-      ], {duration:300, easing:'cubic-bezier(.22,.61,.36,1)'});
+      ], {duration:400, easing:'cubic-bezier(.22,.61,.36,1)'});
       animation = motion;
       motion.onfinish = () => { if (animation === motion) animation = null; };
     }
@@ -257,27 +260,51 @@
     if (performance.now() < suppressClickUntil) { event.preventDefault(); event.stopPropagation(); }
   }, true);
 
+  document.querySelectorAll('figure[data-detail-src]').forEach(figure => {
+    const image = figure.querySelector('.screen-image');
+    const choices = [...figure.querySelectorAll('[data-screen-view]')];
+    const overviewAlt = image.alt;
+    const group = figure.querySelector('.screen-views');
+    const staticLabel = figure.querySelector('[data-screen-static-label]');
+    if (group) group.hidden = false;
+    if (staticLabel) staticLabel.hidden = true;
+    choices.forEach(choice => choice.addEventListener('click', () => {
+      const detail = choice.dataset.screenView === 'detail';
+      const src = detail ? figure.dataset.detailSrc : figure.dataset.previewSrc;
+      if (!src) return;
+      image.src = src;
+      image.alt = detail ? figure.dataset.detailAlt || overviewAlt : overviewAlt;
+      choices.forEach(button => button.setAttribute('aria-pressed', String(button === choice)));
+    }));
+  });
+
   function openScreen(event) {
     if (event.button || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || !viewer.showModal) return;
+    const trigger = event.currentTarget;
+    const figure = trigger.closest('figure');
+    const image = figure && figure.querySelector('.screen-image');
+    if (!image) return;
     event.preventDefault();
     if (navigation) {
       const top = navigation.top;
       stopNavigation();
       scrollTo({top, behavior:'instant'});
     }
-    const panel = event.currentTarget.closest('.story');
-    const image = panel.querySelector('.screen-image');
-    const phone = panel.querySelector('.product-screen').dataset.phoneSrc;
-    viewerImage.src = innerWidth <= 600 && phone ? phone : image.currentSrc || image.src;
+    const panel = trigger.closest('.story');
+    const phone = figure.dataset.phoneSrc;
+    // Preview captures are deliberately composed for their compact frames.
+    // The link always keeps the complete original for full-screen reading.
+    viewerImage.src = innerWidth <= 600 && phone ? phone : trigger.href;
     viewerImage.alt = image.alt;
-    viewerTitle.textContent = tabs[panels.indexOf(panel)].getAttribute('aria-label');
+    viewerTitle.textContent = figure.dataset.screenTitle ||
+      (panel && tabs[panels.indexOf(panel)].getAttribute('aria-label')) || 'Product screen';
     viewerOriginal.href = viewerImage.src;
-    returnFocus = event.currentTarget;
+    returnFocus = trigger;
     viewer.showModal();
     viewer.querySelector('.viewer-content').scrollTop = 0;
     root.classList.add('screen-open');
   }
-  deck.querySelectorAll('[data-open-screen]').forEach(link => link.addEventListener('click', openScreen));
+  document.querySelectorAll('[data-open-screen]').forEach(link => link.addEventListener('click', openScreen));
   viewer.querySelector('[data-close-viewer]').addEventListener('click', () => viewer.close());
   viewer.addEventListener('click', event => {
     if (event.target !== viewer) return;
@@ -286,7 +313,8 @@
   });
   viewer.addEventListener('close', () => {
     root.classList.remove('screen-open');
-    if (returnFocus && returnFocus.isConnected && panels[current].contains(returnFocus) && !returnFocus.closest('[hidden]')) returnFocus.focus({preventScroll:true});
+    const openerPanel = returnFocus && returnFocus.closest('.story');
+    if (returnFocus && returnFocus.isConnected && (!openerPanel || openerPanel === panels[current]) && !returnFocus.closest('[hidden]')) returnFocus.focus({preventScroll:true});
     else tabs[current].focus({preventScroll:true});
     returnFocus = null;
     scheduleScroll();
