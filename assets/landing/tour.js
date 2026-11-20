@@ -170,8 +170,14 @@
     lastHash = location.hash;
     const index = panels.findIndex(panel => '#' + panel.id === location.hash);
     if (index >= 0) {
+      const keepViewerFocus = viewer.open;
       select(index, {animate:false, announce:false});
-      requestAnimationFrame(() => alignDeck(true));
+      requestAnimationFrame(() => {
+        alignDeck(true);
+        // WebKit can clear focus during same-document history restoration.
+        // Wait until the revealed panel is laid out, and preserve modal focus.
+        if (current === index && !keepViewerFocus && !viewer.open) panels[index].focus({preventScroll:true});
+      });
     } else if (!location.hash || location.hash === '#tour') {
       select(0, {animate:false, announce:false});
     }
