@@ -1,299 +1,200 @@
-/* Native scrolling while a gesture is active; one gentle correction on release.
- * Inline screenshots and ordinary anchors remain usable without JavaScript. */
-(function () {
+/* One explicit slide at a time. Vertical page scrolling always stays native. */
+(() => {
+  'use strict';
   const root = document.documentElement;
-  const stories = [...document.querySelectorAll('.story')];
-  const container = document.querySelector('.screens');
-  const caption = document.querySelector('[data-caption]');
-  const full = document.querySelector('[data-full]');
-  const links = [...document.querySelectorAll('.jump a')];
-  if (!container || !stories.length) return;
-
-  const desktop = matchMedia('(min-width: 900px) and (min-height: 540px)');
+  const deck = document.querySelector('.tour-deck');
+  if (!deck) return;
+  const rail = deck.querySelector('.jump');
+  const tabs = [...rail.querySelectorAll('a')];
+  const panels = [...deck.querySelectorAll('.story')];
+  const previous = deck.querySelector('[data-prev]');
+  const next = deck.querySelector('[data-next]');
+  const count = deck.querySelector('[data-slide-count]');
+  const status = deck.querySelector('[data-slide-status]');
+  const indicator = rail.querySelector('.tab-indicator');
+  const viewport = deck.querySelector('.slides');
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
-  const panes = [];
-  const keys = new Set();
-  const scrollKeys = new Set(['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', ' ']);
-  const quietTime = 180;
-  let stops = [];
-  let current = -1;
-  let frame = 0;
-  let motion = 0;
-  let animatedY = scrollY;
-  let timer = 0;
-  let idleTimer = 0;
-  let idleY = scrollY;
-  let keyboardInput = false;
-  let interruptedGesture = false;
-  let measuring = false;
-  let pending = false;
-  let touching = false;
-  let pointing = false;
-  let startY = scrollY;
-  let lastInput = 0;
-  let lastScroll = 0;
-  let width = innerWidth;
+  const viewer = document.getElementById('screen-viewer');
+  const viewerImage = viewer.querySelector('img');
+  const viewerTitle = viewer.querySelector('#viewer-title');
+  const viewerOriginal = viewer.querySelector('[data-view-original]');
+  let current = 0;
+  let animation = null;
+  let gesture = null;
+  let suppressClickUntil = 0;
+  let returnFocus = null;
+  let lastHash = location.hash;
 
-  function viewportHeight() {
-    return window.visualViewport ? visualViewport.height : innerHeight;
+  function focusTab(index) {
+    tabs.forEach((tab, i) => { tab.tabIndex = i === index ? 0 : -1; });
   }
-  function nearest(y) {
-    let best;
-    for (const stop of stops) {
-      const target = Math.max(stop.from, Math.min(stop.to, y));
-      const distance = Math.abs(target - y);
-      if (!best || distance < best.distance) best = {stop, target, distance};
+  function placeIndicator() {
+    const parent = rail.getBoundingClientRect();
+    const active = tabs[current].getBoundingClientRect();
+    indicator.style.width = active.width + 'px';
+    indicator.style.transform = 'translateX(' + (active.left - parent.left - rail.clientLeft) + 'px)';
+  }
+  function alignDeck(instant = false) {
+    const inset = innerWidth <= 600 ? 8 : 12;
+    const top = Math.max(0, deck.getBoundingClientRect().top + scrollY - inset);
+    if (Math.abs(top - scrollY) > 2) {
+      scrollTo({top, behavior:instant || reduced.matches ? 'instant' : 'smooth'});
     }
-    return best;
   }
-  function setCurrent(index) {
-    if (index === current) return;
+  function select(index, {history = false, align = false, animate = true, announce = true} = {}) {
+    if (index < 0 || index >= panels.length) return;
+    const old = current;
+    const focused = document.activeElement;
+    const focusInOutgoing = old !== index && panels[old].contains(focused);
     current = index;
-    panes.forEach((pane, i) => {
-      pane.classList.toggle('current', index === i);
-      pane.setAttribute('aria-hidden', String(index !== i));
+    if (animation) { animation.cancel(); animation = null; }
+    panels.forEach((panel, i) => {
+      const active = i === current;
+      panel.hidden = !active;
+      panel.inert = !active;
+      panel.setAttribute('aria-hidden', String(!active));
+      tabs[i].setAttribute('aria-selected', String(active));
+      if (active) tabs[i].setAttribute('aria-current', 'step');
+      else tabs[i].removeAttribute('aria-current');
     });
-    links.forEach((link, i) => {
-      if (index === i) link.setAttribute('aria-current', 'step');
-      else link.removeAttribute('aria-current');
-    });
-    const label = stories[index].querySelector('.kicker').textContent;
-    caption.textContent = label;
-    full.href = stories[index].querySelector('img').src;
-    full.setAttribute('aria-label', 'Open ' + label.toLowerCase() + ' screenshot at full size');
-  }
-  function measure() {
-    const height = viewportHeight();
-    const inset = Math.max(16, Math.min(28, height * 0.03));
-    const available = height - inset * 2;
-    const limit = Math.max(0, root.scrollHeight - innerHeight);
-    const next = [];
-    function add(index, from, to = from) {
-      next.push({index, from:Math.max(0, Math.min(limit, from)), to:Math.max(0, Math.min(limit, to))});
+    focusTab(current);
+    previous.disabled = current === 0;
+    next.disabled = current === panels.length - 1;
+    if (focusInOutgoing) panels[current].focus({preventScroll:true});
+    else if ((focused === previous && previous.disabled) || (focused === next && next.disabled)) {
+      tabs[current].focus({preventScroll:true});
     }
-    stories.forEach((story, index) => {
-      const copy = story.querySelector('.story-copy').getBoundingClientRect();
-      const top = copy.top + scrollY;
-      if (desktop.matches && copy.height <= available) {
-        add(index, top + copy.height / 2 - height / 2);
-      } else {
-        // Oversized copy is a readable interval, never a forced jump past text.
-        add(index, top - inset, top - inset + Math.max(0, copy.height - available));
-        if (!desktop.matches) {
-          const figure = story.querySelector('figure').getBoundingClientRect();
-          if (figure.bottom - copy.top > available) {
-            const figureTop = figure.top + scrollY;
-            if (figure.height > available) {
-              add(index, figureTop - inset, figureTop + figure.height - height + inset);
-            } else {
-              add(index, figureTop + figure.height / 2 - height / 2);
-            }
-          }
-        }
-      }
-    });
-    stops = next.sort((a, b) => a.from - b.from);
-  }
-  function update() {
-    frame = 0;
-    if (measuring) { measure(); measuring = false; }
-    const active = nearest(scrollY);
-    if (active) setCurrent(active.stop.index);
-  }
-  function requestUpdate(remeasure = false) {
-    measuring = measuring || remeasure;
-    if (!frame) frame = requestAnimationFrame(update);
-  }
-  function cancelMotion() {
-    cancelAnimationFrame(motion);
-    motion = 0;
-    root.classList.remove('tour-settling');
-  }
-  function cancel() {
-    clearTimeout(timer);
-    clearTimeout(idleTimer);
-    pending = false;
-    interruptedGesture = false;
-    cancelMotion();
-    idleY = scrollY;
-  }
-  function moveTo(target) {
-    cancel();
-    const from = scrollY;
-    animatedY = from;
-    const distance = target - from;
-    if (Math.abs(distance) < 1) return;
-    if (reduced.matches) {
-      scrollTo({top:target, behavior:'instant'});
-      return;
+    count.textContent = (current + 1) + ' / ' + panels.length;
+    if (announce) status.textContent = tabs[current].getAttribute('aria-label') + ', slide ' + (current + 1) + ' of ' + panels.length + '.';
+    if (history && location.hash !== '#' + panels[current].id) {
+      window.history.pushState(null, '', '#' + panels[current].id);
+      lastHash = location.hash;
     }
-    const duration = Math.min(460, 240 + Math.abs(distance) * 0.22);
-    const began = performance.now();
-    root.classList.add('tour-settling');
-    function step(now) {
-      const progress = Math.min(1, (now - began) / duration);
-      // Smooth acceleration and deceleration; new input cancels the next frame.
-      const eased = progress * progress * (3 - 2 * progress);
-      scrollTo({top:from + distance * eased, behavior:'instant'});
-      animatedY = scrollY;
-      if (progress < 1) motion = requestAnimationFrame(step);
-      else { motion = 0; idleY = scrollY; root.classList.remove('tour-settling'); }
+    placeIndicator();
+    // Only the incoming panel exists in the interaction/accessibility tree.
+    if (animate && old !== current && !reduced.matches && panels[current].animate) {
+      const motion = panels[current].animate([
+        {opacity:0, transform:'translate3d(' + (current > old ? 16 : -16) + 'px,0,0)'},
+        {opacity:1, transform:'translate3d(0,0,0)'}
+      ], {duration:320, easing:'cubic-bezier(.22,.61,.36,1)'});
+      animation = motion;
+      motion.onfinish = () => { if (animation === motion) animation = null; };
     }
-    motion = requestAnimationFrame(step);
-  }
-  function settle() {
-    if (!pending || touching || pointing || keys.size || motion) return;
-    const remaining = quietTime - (performance.now() - Math.max(lastInput, lastScroll));
-    if (remaining > 0) { timer = setTimeout(settle, remaining); return; }
-    const interrupted = interruptedGesture;
-    interruptedGesture = false;
-    pending = false; // A correction must never schedule another correction.
-    idleY = scrollY;
-    if (reduced.matches || document.hidden || (window.visualViewport && Math.abs(visualViewport.scale - 1) > 0.01)) return;
-    if (getSelection() && !getSelection().isCollapsed) return;
-    measure();
-    const y = scrollY;
-    const travel = y - startY;
-    const first = stops[0];
-    const last = stops[stops.length - 1];
-    const entry = Math.min(140, viewportHeight() * 0.18);
-    if (!first || Math.abs(travel) < 2 || y < first.from - entry || y > last.to + entry) return;
-    // Release the first/last frame in the direction the reader is leaving.
-    if ((y < first.from && travel < 0) || (y > last.to && travel > 0)) return;
-    let chosen = nearest(y);
-    if (chosen.distance < 1) return;
-    const origin = nearest(startY);
-    const threshold = keyboardInput ? 2 : Math.max(44, viewportHeight() * 0.06);
-    if (interrupted && Math.abs(travel) >= threshold && Math.sign(chosen.target - y) !== Math.sign(travel)) {
-      // A new, deliberate gesture wins over the animation it interrupted.
-      const next = travel > 0
-        ? stops.find(stop => stop.from > y)
-        : [...stops].reverse().find(stop => stop.to < y);
-      if (!next) return;
-      chosen = {stop:next, target:travel > 0 ? next.from : next.to};
-    } else if (origin.distance < 12 && chosen.stop === origin.stop && Math.abs(travel) >= threshold) {
-      const next = stops[stops.indexOf(origin.stop) + Math.sign(travel)];
-      if (!next) return;
-      chosen = {stop:next, target:travel > 0 ? next.from : next.to};
-    }
-    moveTo(chosen.target);
-  }
-  function schedule() {
-    clearTimeout(timer);
-    if (pending) timer = setTimeout(settle, quietTime);
-  }
-  function input(fromKeyboard = false) {
-    const now = performance.now();
-    const interrupted = !!motion;
-    cancelMotion();
-    clearTimeout(idleTimer);
-    // Passive input may arrive after the compositor has already scrolled.
-    // Preserve the last quiet position instead of guessing from wheel deltas.
-    if (!pending) {
-      startY = interrupted ? animatedY : idleY;
-      interruptedGesture = interrupted;
-    }
-    pending = true;
-    keyboardInput = fromKeyboard;
-    lastInput = now;
-    schedule();
-  }
-  function layout() {
-    if (desktop.matches && !panes.length) {
-      for (const story of stories) {
-        const image = story.querySelector('img').cloneNode();
-        image.className = 'pane ' + story.dataset.screen;
-        image.loading = 'eager';
-        image.decoding = 'async';
-        container.append(image);
-        panes.push(image);
-      }
-      current = -1;
-    }
-    root.classList.toggle('sticky-tour', desktop.matches);
-    requestUpdate(true);
+    if (align) alignDeck();
   }
 
-  addEventListener('scroll', () => {
-    requestUpdate();
-    if (motion) return;
-    lastScroll = performance.now();
-    if (pending) schedule();
-    else {
-      clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => { idleY = scrollY; }, quietTime);
-    }
-  }, {passive:true});
-  addEventListener('wheel', event => {
-    if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) { cancel(); return; }
-    if (event.deltaY) input();
-  }, {passive:true});
-  addEventListener('touchstart', event => {
-    touching = true;
-    if (event.touches.length === 1) input();
-    else cancel();
-  }, {passive:true});
-  addEventListener('touchmove', () => { lastInput = performance.now(); }, {passive:true});
-  function endTouch(event) {
-    touching = event.touches.length > 0;
-    lastInput = performance.now();
-    schedule();
-  }
-  addEventListener('touchend', endTouch, {passive:true});
-  addEventListener('touchcancel', event => { endTouch(event); cancel(); }, {passive:true});
-  addEventListener('pointerdown', event => {
-    pointing = event.pointerType !== 'touch';
-    // touchstart captures and cancels the animation before any native pan.
-    if (pointing) cancel();
-  }, {passive:true});
-  addEventListener('pointerup', () => {
-    if (pointing && !pending) idleY = scrollY;
-    pointing = false;
-    schedule();
-  }, {passive:true});
-  addEventListener('pointercancel', () => { pointing = false; }, {passive:true});
-  addEventListener('keydown', event => {
-    const editing = event.target.closest('input,textarea,select,[contenteditable="true"]');
-    if (scrollKeys.has(event.key) && !editing && !event.altKey && !event.ctrlKey && !event.metaKey) {
-      keys.add(event.key);
-      input(true);
-    } else cancel();
+  rail.setAttribute('role', 'tablist');
+  tabs.forEach((tab, index) => {
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-controls', panels[index].id);
+    panels[index].setAttribute('role', 'tabpanel');
+    panels[index].setAttribute('aria-labelledby', tab.id);
+    panels[index].tabIndex = 0;
+    tab.addEventListener('click', event => {
+      if (event.button || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+      event.preventDefault();
+      select(index, {history:true, align:true});
+    });
+    tab.addEventListener('keydown', event => {
+      let destination = index;
+      if (event.key === 'ArrowRight') destination = (index + 1) % tabs.length;
+      else if (event.key === 'ArrowLeft') destination = (index + tabs.length - 1) % tabs.length;
+      else if (event.key === 'Home') destination = 0;
+      else if (event.key === 'End') destination = tabs.length - 1;
+      else if (event.key === ' ') {
+        event.preventDefault();
+        select(index, {history:true, align:true});
+        return;
+      } else return;
+      event.preventDefault();
+      focusTab(destination);
+      tabs[destination].focus({preventScroll:true});
+    });
   });
-  addEventListener('keyup', event => {
-    if (keys.delete(event.key)) { lastInput = performance.now(); schedule(); }
+  rail.addEventListener('focusout', event => {
+    if (!rail.contains(event.relatedTarget)) focusTab(current);
   });
-  addEventListener('blur', () => { keys.clear(); touching = pointing = false; cancel(); });
-  addEventListener('resize', () => {
-    if (width !== innerWidth || motion) cancel();
-    width = innerWidth;
-    requestUpdate(true);
-  });
-  if (window.visualViewport) visualViewport.addEventListener('resize', () => requestUpdate(true));
-  addEventListener('pageshow', () => { cancel(); requestUpdate(true); });
-  addEventListener('popstate', cancel);
-  addEventListener('hashchange', cancel);
-  document.addEventListener('visibilitychange', cancel);
-  document.addEventListener('focusin', cancel);
-  document.addEventListener('click', cancel);
-  reduced.addEventListener('change', cancel);
-  desktop.addEventListener('change', () => { cancel(); layout(); });
-  links.forEach((link, index) => link.addEventListener('click', event => {
-    if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  previous.addEventListener('click', () => select(current - 1, {history:true, align:true}));
+  next.addEventListener('click', () => select(current + 1, {history:true, align:true}));
+
+  // A horizontal gesture changes one slide. Pan-y and pinch zoom stay native.
+  viewport.addEventListener('pointerdown', event => {
+    if (!event.isPrimary || !['touch', 'pen'].includes(event.pointerType)) { gesture = null; return; }
+    gesture = {id:event.pointerId, x:event.clientX, y:event.clientY};
+  }, {passive:true});
+  viewport.addEventListener('pointerup', event => {
+    const start = gesture;
+    gesture = null;
+    if (!start || start.id !== event.pointerId) return;
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    if (Math.abs(dx) < 48 || Math.abs(dx) <= Math.abs(dy) * 1.25) return;
+    suppressClickUntil = performance.now() + 450;
+    select(current + (dx < 0 ? 1 : -1), {history:true, align:true});
+  }, {passive:true});
+  viewport.addEventListener('pointercancel', () => { gesture = null; }, {passive:true});
+  viewport.addEventListener('click', event => {
+    if (performance.now() < suppressClickUntil) { event.preventDefault(); event.stopPropagation(); }
+  }, true);
+
+  function openScreen(event) {
+    if (event.button || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || !viewer.showModal) return;
     event.preventDefault();
-    event.stopPropagation();
-    measure();
-    const stop = stops.find(stop => stop.index === index);
-    if (location.hash !== link.hash) history.pushState(null, '', link.hash);
-    stories[index].focus({preventScroll:true});
-    moveTo(stop.from);
-  }));
-  if ('ResizeObserver' in window) {
-    const observer = new ResizeObserver(() => requestUpdate(true));
-    stories.forEach(story => observer.observe(story));
+    const panel = event.currentTarget.closest('.story');
+    const image = panel.querySelector('.screen-image');
+    viewerImage.src = image.currentSrc || image.src;
+    viewerImage.alt = image.alt;
+    viewerTitle.textContent = tabs[panels.indexOf(panel)].getAttribute('aria-label');
+    viewerOriginal.href = viewerImage.src;
+    returnFocus = event.currentTarget;
+    viewer.showModal();
+    viewer.querySelector('.viewer-content').scrollTop = 0;
+    root.classList.add('screen-open');
   }
-  document.querySelectorAll('.hero img,.story img').forEach(image => image.addEventListener('load', () => requestUpdate(true)));
-  layout();
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistration('/').then(reg => reg && reg.update()).catch(() => {});
+  deck.querySelectorAll('[data-open-screen]').forEach(link => link.addEventListener('click', openScreen));
+  viewer.querySelector('[data-close-viewer]').addEventListener('click', () => viewer.close());
+  viewer.addEventListener('click', event => {
+    if (event.target !== viewer) return;
+    const box = viewer.getBoundingClientRect();
+    if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) viewer.close();
+  });
+  viewer.addEventListener('close', () => {
+    root.classList.remove('screen-open');
+    if (returnFocus && returnFocus.isConnected && !returnFocus.closest('[hidden]')) returnFocus.focus({preventScroll:true});
+    else tabs[current].focus({preventScroll:true});
+    returnFocus = null;
+  });
+
+  function restoreHash() {
+    if (lastHash === location.hash) return;
+    lastHash = location.hash;
+    const index = panels.findIndex(panel => '#' + panel.id === location.hash);
+    if (index >= 0) {
+      const keepViewerFocus = viewer.open;
+      select(index, {animate:false, announce:false});
+      requestAnimationFrame(() => {
+        alignDeck(true);
+        // WebKit can clear focus during same-document history restoration.
+        // Wait until the revealed panel is laid out, and preserve modal focus.
+        if (current === index && !keepViewerFocus && !viewer.open) panels[index].focus({preventScroll:true});
+      });
+    } else if (!location.hash || location.hash === '#tour') {
+      select(0, {animate:false, announce:false});
+    }
   }
+  addEventListener('popstate', restoreHash);
+  addEventListener('hashchange', restoreHash);
+  addEventListener('resize', placeIndicator, {passive:true});
+  addEventListener('blur', () => { gesture = null; });
+  reduced.addEventListener('change', () => {
+    if (animation) { animation.cancel(); animation = null; }
+  });
+  if ('ResizeObserver' in window) new ResizeObserver(placeIndicator).observe(rail);
+
+  root.classList.add('tour-ready');
+  deck.querySelector('.slide-actions').hidden = false;
+  indicator.hidden = false;
+  const initial = panels.findIndex(panel => '#' + panel.id === location.hash);
+  select(initial >= 0 ? initial : 0, {animate:false, announce:false});
+  if (initial >= 0) requestAnimationFrame(() => requestAnimationFrame(() => alignDeck(true)));
 })();

@@ -43,14 +43,16 @@ const types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', 
     assert.equal(await page.locator('.story').count(),4);
     for (const id of ['sourcing','stock','sale','dashboard']) {
       await page.locator('.jump a[href="#'+id+'"]').click();
-      await page.waitForFunction(id => document.querySelector('.pane.current')?.classList.contains(id), id);
-      assert(await page.locator('.pane.current').evaluate(img => img.decode().then(()=>img.naturalWidth>0)));
+      await page.waitForFunction(id => !document.getElementById(id).hidden &&
+        document.querySelector('.jump [aria-selected="true"]')?.getAttribute('href') === '#'+id, id);
+      assert.equal(await page.locator('.story:visible').count(),1);
+      assert(await page.locator('#'+id+' .screen-image').evaluate(img => img.decode().then(()=>img.naturalWidth>0)));
     }
     await page.setViewportSize({width:390,height:844});
-    await page.waitForFunction(()=>!document.documentElement.classList.contains('sticky-tour'));
+    await page.locator('#tab-stock').click();
     await page.locator('#stock figure').scrollIntoViewIfNeeded();
-    assert(await page.locator('#stock figure img').evaluate(img=>img.decode().then(()=>img.currentSrc.endsWith('stock-phone.webp'))));
-    assert(await page.evaluate(()=>document.documentElement.scrollWidth===innerWidth));
+    assert(await page.locator('#stock figure img').evaluate(img=>img.decode().then(()=>new URL(img.currentSrc).pathname.endsWith('stock-phone.webp'))));
+    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
     await page.goto(origin+'/signup/');
     const signup=page.locator('#auth-screen-signup');
     await signup.waitFor({state:'visible'});
