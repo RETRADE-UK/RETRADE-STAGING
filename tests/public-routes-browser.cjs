@@ -51,7 +51,7 @@ const types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', 
     await page.setViewportSize({width:390,height:844});
     await page.locator('#tab-stock').click();
     await page.locator('#stock figure').scrollIntoViewIfNeeded();
-    assert(await page.locator('#stock figure img').evaluate(img=>img.decode().then(()=>new URL(img.currentSrc).pathname.endsWith('stock.webp'))));
+    assert(await page.locator('#stock figure img').evaluate(img=>img.decode().then(()=>new URL(img.currentSrc).pathname.endsWith('stock-preview.webp'))));
     assert.match(await page.locator('#stock figure').getAttribute('data-phone-src'),/stock-phone\.webp/);
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
     await page.goto(origin+'/signup/');
