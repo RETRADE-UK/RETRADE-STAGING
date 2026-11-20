@@ -15,3 +15,11 @@ WHERE table_schema = 'public'
   AND table_name = 'items'
   AND column_name = 'purchase_paid_date';
 ```
+
+`20260928222715_purchase_groups.sql` is the existing staging purchase-identity
+migration, promoted to live on 20 November 2026. Both environments were verified
+to expose nullable text `purchase_group_id` / `purchase_group_name` and nullable
+date `purchase_paid_date`. This additive migration does not backfill or alter
+business rows or RLS policies. Purchase identity is protected by the existing
+item ownership and revision controls; cloud sync must report a missing identity
+column instead of silently dropping it.
