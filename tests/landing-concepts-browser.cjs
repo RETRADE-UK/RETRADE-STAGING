@@ -36,11 +36,17 @@ const contentType={'.html':'text/html','.js':'text/javascript','.css':'text/css'
         assert.equal(await page.locator('.journey-nav a').count(),4);
         const noOverflow=await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2);
         assert(noOverflow,'No horizontal overflow at '+width+' variant '+variant);
+        if(width!==768){
+          await page.screenshot({path:'/tmp/landing-scroll-concept'+variant+'-'+(isWebKit?'webkit':'chromium')+'-'+width+'-hero.png'});
+        }
         await page.locator('.journey-nav a[href="#sale"]').click();
         await page.waitForTimeout(100);
         assert.equal(await page.evaluate(()=>location.hash),'#sale');
         const example=await page.locator('#sale .visual-open img').evaluate(async img=>{await img.decode();return img.naturalWidth>1000;});
         assert(example,'Actual desktop screenshot must decode');
+        if(width!==768){
+          await page.screenshot({path:'/tmp/landing-scroll-concept'+variant+'-'+(isWebKit?'webkit':'chromium')+'-'+width+'-sale.png'});
+        }
         await page.locator('#sale .visual-open').click();
         await page.locator('#image-dialog[open]').waitFor();
         assert(await page.locator('#image-dialog img').evaluate(async img=>{await img.decode();return img.naturalWidth>500;}));
