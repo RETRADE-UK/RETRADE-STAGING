@@ -8,14 +8,14 @@
   <title>RETRADE · Stock and profit tracking for UK resellers</title>
   <script src="/assets/landing/entry.js"></script>
   <link rel="icon" href="/assets/icons/app-32.png">
-  <link rel="stylesheet" href="/assets/landing/landing.css?v=20261120-smooth-tour">
-  <script defer src="/assets/landing/tour.js?v=20261120-smooth-tour"></script>
+  <link rel="stylesheet" href="/assets/landing/landing.css?v=20261120-slide-tour">
+  <script defer src="/assets/landing/tour.js?v=20261120-slide-tour"></script>
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
   <header class="mast"><nav class="wrap" aria-label="Main navigation">
     <a class="brand" href="/" aria-label="RETRADE home"><img src="/assets/landing/mark.svg" width="30" height="35" alt="">RE<span>TRADE</span></a>
-    <div class="nav-actions"><a class="nav-tour" href="#tour">Product tour</a><a href="/login/">Log in</a><a class="nav-start" href="/signup/">Sign up free <span aria-hidden="true">↗︎</span></a></div>
+    <div class="nav-actions"><a class="nav-tour" href="#tour">Product tour</a><a href="/login/">Log in</a><a class="nav-start" href="/signup/">Sign up free <span aria-hidden="true">↗</span></a></div>
   </nav></header>
   <main id="main">
     <section class="hero"><div class="wrap hero-grid">
@@ -23,59 +23,104 @@
         <p class="kicker"><i></i> Built for UK resellers</p>
         <h1>Know what you <em>make</em> on every flip.</h1>
         <p class="intro">From a £3 book bundle to a rail of vintage jackets, track what you bought, where it sold and what you kept after costs.</p>
-        <div class="actions"><a class="button" href="/signup/">Start tracking for free <span aria-hidden="true">↗︎</span></a><a class="tour-link" href="#tour">Explore the app <span aria-hidden="true">↓</span></a></div>
+        <div class="actions"><a class="button" href="/signup/">Start tracking for free <span aria-hidden="true">↗</span></a><a class="tour-link" href="#tour">Explore the app <span aria-hidden="true">↓</span></a></div>
       </div>
       <figure class="hero-preview">
-        <figcaption><span><i></i> Inside RETRADE</span><span>Dashboard</span></figcaption>
-        <picture><source media="(max-width:600px)" srcset="/assets/landing/dashboard-phone.webp" width="975" height="1650"><img src="/assets/landing/dashboard.webp" fetchpriority="high" width="1830" height="1140" alt="RETRADE dashboard in dark mode showing revenue, profit and a 30-day sales chart."></picture>
+        <figcaption><span><i></i> Inside RETRADE</span><span>Example dashboard</span></figcaption>
+        <picture><img src="/assets/landing/dashboard.webp?v=20261120-full-screens" fetchpriority="high" width="1860" height="2766" alt="RETRADE dashboard in dark mode with illustrative sales, profit and a 30-day sales chart."></picture>
       </figure>
     </div></section>
     <div class="scope"><div class="wrap"><span>Track sales across</span><b>eBay</b><b>Vinted</b><b>Facebook Marketplace</b><b>Local collection</b></div></div>
     <section class="tour wrap" id="tour" aria-labelledby="tour-title">
-      <div class="tour-heading"><p class="kicker"><i></i> Product tour</p><h2 id="tour-title">From the car boot<br>to the <em>bottom line.</em></h2><p>Follow a mixed haul through an example RETRADE workspace.</p></div>
-      <nav class="jump" aria-label="Product tour chapters"><a href="#sourcing">Sourcing</a><a href="#stock">Stock room</a><a href="#sale">Sale breakdown</a><a href="#dashboard">Dashboard</a></nav>
-      <div class="chapters">
-        <div class="stories">
-          <article class="story" id="sourcing" data-screen="sourcing" tabindex="-1">
-            <div class="story-copy">
-            <p class="kicker">Sourcing runs</p><h3>See what a morning’s buying brought in.</h3>
+      <div class="tour-heading"><p class="kicker"><i></i> Product tour</p><h2 id="tour-title">From the car boot<br>to the <em>bottom line.</em></h2><p>Follow a mixed haul through a small reseller’s example workspace.</p></div>
+      <div class="tour-deck" aria-label="RETRADE product tour">
+        <div class="tour-controls">
+          <nav class="jump" aria-label="Product tour stages">
+            <span class="tab-indicator" aria-hidden="true" hidden></span>
+          <a id="tab-sourcing" href="#sourcing" aria-label="Sourcing">Sourcing</a>
+          <a id="tab-stock" href="#stock" aria-label="Stock room"><span class="tab-long">Stock room</span><span class="tab-short">Stock</span></a>
+          <a id="tab-sale" href="#sale" aria-label="Sale breakdown"><span class="tab-long">Sale breakdown</span><span class="tab-short">Sale</span></a>
+          <a id="tab-dashboard" href="#dashboard" aria-label="Dashboard">Dashboard</a>
+          </nav>
+          <div class="slide-actions" hidden>
+            <span class="slide-count" data-slide-count>1 / 4</span>
+            <button type="button" class="slide-arrow" data-prev aria-label="Previous slide"><span aria-hidden="true">←</span></button>
+            <button type="button" class="slide-arrow" data-next aria-label="Next slide"><span aria-hidden="true">→</span></button>
+          </div>
+        </div>
+        <p class="sr-only" data-slide-status aria-live="polite" aria-atomic="true"></p>
+        <div class="slides">
+        <article class="story" id="sourcing" data-screen="sourcing">
+          <div class="story-copy">
+            <p class="kicker"><span class="chapter-number">01</span> Sourcing runs</p>
+            <h3>See what a morning’s buying brought in.</h3>
             <p>Keep the denim jacket, paperback bundle, trainers and toys together as one car boot run. See how much of that spend you’ve earned back as each item sells.</p>
             <div class="evidence"><strong>£41 <small>spent</small></strong><span aria-hidden="true">→</span><strong>£145 <small>in sales</small></strong></div>
-            </div>
-            <figure><picture><source media="(max-width:600px)" srcset="/assets/landing/sourcing-phone.webp" width="975" height="1650"><img src="/assets/landing/sourcing.webp" width="1830" height="1140" decoding="async" alt="Sunday car boot finds with six sold items, recovered spend and £87.71 net profit." loading="lazy"></picture></figure>
-          </article>
-          <article class="story" id="stock" data-screen="stock" tabindex="-1">
-            <div class="story-copy">
-            <p class="kicker">Stock room</p><h3>Keep track of what’s still on the shelf.</h3>
-            <p>A casserole dish, a game cartridge and a corduroy overshirt can all share a shelf. Search the haul, check what’s listed and see the asking price beside each item.</p>
-            </div>
-            <figure><picture><source media="(max-width:600px)" srcset="/assets/landing/stock-phone.webp" width="975" height="1650"><img src="/assets/landing/stock.webp" width="1830" height="1140" decoding="async" alt="Stock Room filtered to five listed items, including a casserole dish, books and a wooden railway set." loading="lazy"></picture></figure>
-          </article>
-          <article class="story" id="sale" data-screen="sale" tabindex="-1">
-            <div class="story-copy">
-            <p class="kicker">Sale breakdown</p><h3>See where the sale price went.</h3>
-            <p>That Mario Kart cartridge sold for £19. Take off the £8 purchase, fees, postage and packaging, and RETRADE shows the profit on that one sale.</p>
+          </div>
+          <figure class="product-screen">
+            <div class="screen-heading"><span><i></i> Example workspace</span><span>Sourcing runs</span></div>
+            <a class="screen-canvas" data-open-screen href="/assets/landing/sourcing.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="Expand sourcing screenshot">
+              <picture><source media="(max-width:600px)" srcset="/assets/landing/sourcing-phone.webp?v=20261120-full-screens" width="780" height="2548"><img class="screen-image" src="/assets/landing/sourcing.webp?v=20261120-full-screens" width="1860" height="1350" decoding="async" loading="eager" alt="Complete sourcing run, including its title, six sold items and £87.71 profit." draggable="false"></picture>
+            </a>
+            <figcaption><span>Illustrative data</span><a class="enlarge" data-open-screen href="/assets/landing/sourcing.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="View sourcing screenshot full screen">View full screen <span aria-hidden="true">↗</span></a></figcaption>
+          </figure>
+        </article>
+        <article class="story" id="stock" data-screen="stock">
+          <div class="story-copy">
+            <p class="kicker"><span class="chapter-number">02</span> Stock room</p>
+            <h3>Keep track of what’s still on the shelf.</h3>
+            <p>A casserole dish, a game cartridge and a corduroy overshirt can all share a shelf. Check what’s listed and see the asking price beside each item.</p>
+
+          </div>
+          <figure class="product-screen">
+            <div class="screen-heading"><span><i></i> Example workspace</span><span>Stock room</span></div>
+            <a class="screen-canvas" data-open-screen href="/assets/landing/stock.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="Expand stock room screenshot">
+              <picture><source media="(max-width:600px)" srcset="/assets/landing/stock-phone.webp?v=20261120-full-screens" width="780" height="2196"><img class="screen-image" src="/assets/landing/stock.webp?v=20261120-full-screens" width="1860" height="1383" decoding="async" loading="lazy" alt="Complete Stock Room page with its heading, filters and five listed example items." draggable="false"></picture>
+            </a>
+            <figcaption><span>Illustrative data</span><a class="enlarge" data-open-screen href="/assets/landing/stock.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="View stock room screenshot full screen">View full screen <span aria-hidden="true">↗</span></a></figcaption>
+          </figure>
+        </article>
+        <article class="story" id="sale" data-screen="sale">
+          <div class="story-copy">
+            <p class="kicker"><span class="chapter-number">03</span> Sale breakdown</p>
+            <h3>See where the sale price went.</h3>
+            <p>That Mario Kart cartridge sold for £19. Follow the full breakdown from purchase cost through fees, postage and packaging to the profit you keep.</p>
             <div class="evidence"><strong>£19 <small>sale</small></strong><span aria-hidden="true">→</span><strong>£5.47 <small>profit</small></strong></div>
-            </div>
-            <figure><picture><source media="(max-width:600px)" srcset="/assets/landing/sale-phone.webp" width="895" height="1293"><img src="/assets/landing/sale.webp" width="644" height="863" decoding="async" alt="Actual RETRADE item breakdown with marketplace fees, postage, packaging, item cost and £5.47 profit." loading="lazy"></picture></figure>
-          </article>
-          <article class="story" id="dashboard" data-screen="dashboard" tabindex="-1">
-            <div class="story-copy">
-            <p class="kicker">Dashboard</p><h3>Step back and see the whole month.</h3>
-            <p>Compare revenue with gross profit over the last 30 days. Spot your busy selling days and see how much margin the whole stock mix is returning.</p>
-            </div>
-            <figure><picture><source media="(max-width:600px)" srcset="/assets/landing/dashboard-phone.webp" width="975" height="1650"><img src="/assets/landing/dashboard.webp" width="1830" height="1140" decoding="async" alt="Thirty-day dashboard with sales, profit, margin and daily bars." loading="lazy"></picture></figure>
-          </article>
+          </div>
+          <figure class="product-screen">
+            <div class="screen-heading"><span><i></i> Example workspace</span><span>Sale breakdown</span></div>
+            <a class="screen-canvas" data-open-screen href="/assets/landing/sale.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="Expand sale breakdown screenshot">
+              <picture><source media="(max-width:600px)" srcset="/assets/landing/sale-phone.webp?v=20261120-full-screens" width="780" height="3648"><img class="screen-image" src="/assets/landing/sale.webp?v=20261120-full-screens" width="1860" height="2241" decoding="async" loading="lazy" alt="Mario Kart item page with the full item title and complete sale, fee, postage, packaging, cost and profit breakdown." draggable="false"></picture>
+            </a>
+            <figcaption><span>Illustrative data</span><a class="enlarge" data-open-screen href="/assets/landing/sale.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="View sale breakdown screenshot full screen">View full screen <span aria-hidden="true">↗</span></a></figcaption>
+          </figure>
+        </article>
+        <article class="story" id="dashboard" data-screen="dashboard">
+          <div class="story-copy">
+            <p class="kicker"><span class="chapter-number">04</span> Dashboard</p>
+            <h3>Step back and see the whole month.</h3>
+            <p>See sales, profit and returns together. Spot your busy selling days and understand how the whole stock mix is performing.</p>
+
+          </div>
+          <figure class="product-screen">
+            <div class="screen-heading"><span><i></i> Example workspace</span><span>Dashboard</span></div>
+            <a class="screen-canvas" data-open-screen href="/assets/landing/dashboard.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="Expand dashboard screenshot">
+              <picture><source media="(max-width:600px)" srcset="/assets/landing/dashboard-phone.webp?v=20261120-full-screens" width="780" height="5220"><img class="screen-image" src="/assets/landing/dashboard.webp?v=20261120-full-screens" width="1860" height="2766" decoding="async" loading="lazy" alt="Complete example dashboard with a modest month of sales, healthy profit and a low refund rate." draggable="false"></picture>
+            </a>
+            <figcaption><span>Illustrative data</span><a class="enlarge" data-open-screen href="/assets/landing/dashboard.webp?v=20261120-full-screens" target="_blank" rel="noopener" aria-label="View dashboard screenshot full screen">View full screen <span aria-hidden="true">↗</span></a></figcaption>
+          </figure>
+        </article>
         </div>
-        <div class="stage"><div class="stage-inner">
-          <div class="stage-title"><span><i></i> Example workspace</span><span data-caption>Sourcing runs</span></div>
-          <div class="screens"></div>
-          <a class="enlarge" href="/assets/landing/sourcing.webp" target="_blank" rel="noopener" data-full aria-label="Open sourcing runs screenshot at full size">View full screen <span aria-hidden="true">↗︎</span></a>
-        </div></div>
+        <p class="tour-help"><span class="help-desktop">Choose a stage above or use the arrows to explore.</span><span class="help-mobile">Swipe sideways or choose a stage above.</span></p>
       </div>
     </section>
-    <section class="closing"><div class="wrap"><div><p class="kicker"><i></i> Start with one item</p><h2>What did your<br>last flip <em>earn?</em></h2></div><a class="button" href="/signup/">Create your free account <span aria-hidden="true">↗︎</span></a></div></section>
+    <section class="closing"><div class="wrap"><div><p class="kicker"><i></i> Start with one item</p><h2>What did your<br>last flip <em>earn?</em></h2></div><a class="button" href="/signup/">Create your free account <span aria-hidden="true">↗</span></a></div></section>
   </main>
-  <footer class="wrap"><a class="brand" href="/" aria-label="RETRADE home"><img src="/assets/landing/mark.svg" width="24" height="28" alt="">RE<span>TRADE</span></a><a href="/login/">Log in <span aria-hidden="true">↗︎</span></a></footer>
+  <footer class="wrap"><a class="brand" href="/" aria-label="RETRADE home"><img src="/assets/landing/mark.svg" width="24" height="28" alt="">RE<span>TRADE</span></a><a href="/login/">Log in <span aria-hidden="true">↗</span></a></footer>
+  <dialog id="screen-viewer" class="screen-viewer" aria-labelledby="viewer-title">
+    <div class="viewer-heading"><div><p class="kicker">Example workspace</p><h2 id="viewer-title">Product screen</h2></div><button type="button" data-close-viewer aria-label="Close full-screen screenshot">Close <span aria-hidden="true">×</span></button></div>
+    <div class="viewer-content" tabindex="0"><img alt=""></div>
+    <div class="viewer-footer"><span>Illustrative example data</span><a data-view-original target="_blank" rel="noopener">Open original image <span aria-hidden="true">↗</span></a></div>
+  </dialog>
 </body>
 </html>

@@ -87,6 +87,7 @@ globalThis.RT_ASSETS = Object.freeze({
     "assets/styles/monitors.css"
   ],
   "landing": [
+    "assets/landing/capture-manifest.json",
     "assets/landing/dashboard-phone.webp",
     "assets/landing/dashboard.webp",
     "assets/landing/entry.js",

@@ -1049,23 +1049,40 @@ Cache generation: `20261016-dashboard-14-days` (staging adds `-staging`).
 
 The Pages build publishes the public product tour from `marketing/landing/index.html` at `/`. The login, signup and dashboard directories share the existing workspace shell. Native authentication owns the route transitions, and the service worker keeps the public page and the workspace in separate cache entries. Installed apps open `/dashboard/`. The previous `/start/` links and authentication callbacks sent to the old root still resolve.
 
-Tour assets are allowlisted in `config/assets.js`. To refresh the eight screenshots, run `node marketing/landing/capture.cjs` with Playwright Chromium, Python and Pillow installed. It uses the normal developer sign-in on the staging domain, seeds the mixed haul in the anonymous example account and captures four real dark-mode screens in two viewport sizes. An optional `RETRADE_TEST_STATE` path outside the checkout lets successive captures reuse that account.
+Tour assets are allowlisted in `config/assets.js`. To refresh the eight screenshots,
+run `node marketing/landing/capture.cjs /tmp/retrade-landing-captures` with Playwright
+Chromium, Python and Pillow installed. The real app renders a deterministic local
+fixture from `capture-fixture.cjs`; external networking is mocked or blocked and no
+account, saved session or database is used. Full page headings and the complete
+sale breakdown must fit the capture viewport. The script writes PNGs, WebPs and
+a manifest containing their dimensions, hashes, measured content and actual app
+calculations. Review the captures before replacing the public WebPs and manifest;
+update the HTML image dimensions and image version together. The Landing product
+screens workflow publishes the capture artifact for this review.
 
 
-### Landing tour settling — 20 November 2026
+### Landing product slides — 20 November 2026
 
-`assets/landing/tour.js` owns chapter selection, chapter-link alignment and the
-short settling movement after native wheel, keyboard or touch scrolling stops.
-Desktop copy and sticky screenshots share a viewport centre. Inline layouts have
-a copy stop and, for taller chapters, a screenshot stop; oversized content keeps
-a free reading interval. New input cancels a correction. Reduced motion, focus
-navigation, resize and history restoration never initiate automatic settling.
-No wheel or touch event is prevented, and no third-party scrolling library loads.
+`assets/landing/tour.js` owns one active product slide, its matching tab, progress
+indicator and full-screen image viewer. The persistent stage rail, Previous/Next,
+manual keyboard tabs and horizontal touch swipes select explicit stages. There is
+no document-scroll settling or vertical-wheel interception. Inactive panels are
+hidden and inert; incoming panels use a short entrance transition, skipped for
+reduced motion. Native vertical scrolling handles the page and tall phone images.
+Chapter links and history restore the matching stage. No scrolling library loads.
 
-The landing HTML reserves desktop and mobile image dimensions and versions its
-stylesheet and tour script with `20261120-smooth-tour`. These files remain outside
-the application's service-worker static cache, so this does not rotate the app
-asset generation. `tests/landing-scroll-browser.cjs` covers native wheel and
-Chromium touch input, responsive geometry, interruption, links, history, reduced
-motion and delayed screenshots; WebKit runs the same layout checks with wheel
-input. Screenshot artifacts are emitted by CI for review.
+Each slide owns its actual responsive picture; there is no cloned desktop stage.
+Desktop images fit completely inside a bounded frame using contain. Phone images
+retain their natural aspect ratio and full height. The native image dialog opens
+the selected picture and returns focus to its trigger when dismissed.
+The hero uses a bounded overview frame at every width, preserving the full
+dashboard without allowing a long capture to stretch the page introduction.
+
+The landing HTML reserves capture dimensions and versions the CSS/JS with
+`20261120-slide-tour` and pictures with `20261120-full-screens`. These files remain
+outside the application's service-worker static cache, so this does not rotate
+the app asset generation. `tests/landing-scroll-browser.cjs` covers the carousel
+in Chromium and WebKit, touch input, persistent controls, keyboard/history,
+reduced motion, delayed images and the no-JavaScript fallback. It also checks the
+published image hashes and complete-content proof against the capture manifest.
+CI emits desktop and mobile screenshots for visual review.

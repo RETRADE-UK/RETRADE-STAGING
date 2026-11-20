@@ -1,9 +1,11 @@
-/* Public landing interaction regressions. Assets come only from the Pages build;
- * no authentication, business data or external network is used. Chromium tests
- * native touch input; WebKit checks wheel input at the same mobile viewports. */
+/* Public tour regressions. The Pages build and synthetic capture manifest are
+ * the only inputs. Every external request is blocked; no sign-in or business
+ * database is contacted. Chromium adds native touch; WebKit covers the same
+ * responsive layouts, navigation and native vertical wheel scrolling. */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const {execFileSync} = require('node:child_process');
 const {chromium, webkit} = require('playwright');
 
@@ -12,104 +14,228 @@ const site = path.join(root, '_site');
 const origin = 'http://retrade.test';
 const isWebKit = process.argv.includes('--webkit');
 const engine = isWebKit ? 'webkit' : 'chromium';
-const types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', '.webp':'image/webp', '.png':'image/png', '.svg':'image/svg+xml'};
+const ids = ['sourcing', 'stock', 'sale', 'dashboard'];
 const sizes = [[320,568], [390,844], [768,1024], [1024,600], [1440,900]];
+const types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', '.json':'application/json', '.webp':'image/webp', '.png':'image/png', '.svg':'image/svg+xml'};
+let captureManifest;
 
-async function rest(page, minimum = 850) {
-  // Observe the result, not the implementation's timers or animation state.
-  const started = Date.now();
-  let last = await page.evaluate(() => scrollY);
-  let quietSince = started;
-  while (Date.now() - started < 6500) {
-    await page.waitForTimeout(60);
-    const y = await page.evaluate(() => scrollY);
-    if (Math.abs(y - last) > 0.5) quietSince = Date.now();
-    last = y;
-    if (Date.now() - started >= minimum && Date.now() - quietSince >= 300) return y;
+function captureChecks() {
+  const filename = path.join(root, 'assets/landing/capture-manifest.json');
+  assert(fs.existsSync(filename), 'The refreshed product captures need their reproducible capture manifest');
+  const manifest = JSON.parse(fs.readFileSync(filename, 'utf8'));
+  assert.equal(manifest.schemaVersion, 2, 'Use the complete-screen capture format');
+  assert.equal(manifest.label, 'Example workspace', 'Marketing screenshots must identify their illustrative data');
+  assert.equal(manifest.captures.length, 8, 'Each feature needs one desktop and one phone capture');
+  assert.equal(manifest.origin,origin,'Captures must come from the isolated local app');
+  assert.equal(manifest.externalNetwork,'blocked','The capture must exclude external data and writes');
+  const business = manifest.metrics.current;
+  assert(business.revenue >= 1500 && business.revenue <= 2500,'The example should depict a modest reseller business');
+  assert(business.soldCount >= 50 && business.soldCount <= 65,'The monthly sale count must match the modest example');
+  assert(business.margin >= 35 && business.margin <= 45,'The example should show a healthy, credible gross margin');
+  assert(business.refundRate > 0 && business.refundRate <= 3,'The example refund rate must stay small and non-zero');
+  for (const id of ids) {
+    for (const phone of [false,true]) {
+      const file = id + (phone ? '-phone' : '') + '.webp';
+      const capture = manifest.captures.find(record => record.file === file);
+      assert(capture, 'Missing capture record for ' + file);
+      const bytes = fs.readFileSync(path.join(site,'assets/landing',file));
+      assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),capture.sha256,
+        'Published image bytes must match the verified complete capture: ' + file);
+      assert(capture.width > 0 && capture.height > 0, 'Capture dimensions must be recorded: ' + file);
+      assert(capture.viewport.width > 0 && capture.viewport.height > 0, 'Capture viewport must be recorded: ' + file);
+      assert(capture.title && capture.title.trim().length > 2, 'The product page title must be recorded: ' + file);
+      assert.equal(capture.proof.fullHeading, true, 'The app heading must be inside the original capture: ' + file);
+      if (id === 'sale') assert.equal(capture.proof.fullBreakdown, true, 'Sale captures must include the complete breakdown');
+      assert(capture.proof.requiredElements.length >= 1, 'Capture proof needs measured product content: ' + file);
+      for (const element of capture.proof.requiredElements) {
+        const b = element.bounds;
+        assert(b && b.width > 0 && b.height > 0, 'Required product element must have visible dimensions: ' + file);
+        assert(b.x >= -1 && b.y >= -1 &&
+          b.x + b.width <= capture.viewport.width + 1 &&
+          b.y + b.height <= capture.viewport.height + 1,
+        'Original capture clips a required element: ' + JSON.stringify({file,element,viewport:capture.viewport}));
+      }
+    }
   }
-  throw new Error('Landing scroll did not settle within 6.5 seconds');
+  return manifest;
+}
+
+async function rest(page, minimum = 350) {
+  const began = Date.now();
+  let last = await page.evaluate(() => scrollY);
+  let quiet = began;
+  while (Date.now() - began < 5000) {
+    await page.waitForTimeout(50);
+    const y = await page.evaluate(() => scrollY);
+    if (Math.abs(y - last) > 0.5) quiet = Date.now();
+    last = y;
+    if (Date.now() - began >= minimum && Date.now() - quiet >= 180) return y;
+  }
+  throw new Error('Native page movement did not finish within five seconds');
+}
+
+async function selected(page, id) {
+  await page.waitForFunction(id => {
+    const panel = document.getElementById(id);
+    const tab = document.querySelector('.jump a[href="#' + id + '"]');
+    const indicator = document.querySelector('.tab-indicator');
+    return panel && !panel.hidden && !panel.inert &&
+      getComputedStyle(panel).visibility !== 'hidden' &&
+      Number(getComputedStyle(panel).opacity) >= 0.99 &&
+      [...panel.getAnimations(), ...(indicator ? indicator.getAnimations() : [])]
+        .every(animation => animation.playState !== 'running' && !animation.pending) &&
+      tab && tab.getAttribute('aria-selected') === 'true';
+  }, id);
+}
+
+async function activate(page, id) {
+  await page.locator('.jump a[href="#' + id + '"]').click();
+  await selected(page, id);
+  await rest(page);
+}
+
+async function position(page, top) {
+  await page.evaluate(top => scrollTo({top,behavior:'instant'}), top);
+  await rest(page, 220);
+}
+
+async function deckTop(page) {
+  const top = await page.locator('.tour-deck').evaluate(el => el.getBoundingClientRect().top + scrollY);
+  await position(page, top - 12);
+}
+
+async function decodeImages(page) {
+  await page.evaluate(async () => {
+    const images = [...document.images].filter(image => image.currentSrc || image.getAttribute('src'));
+    images.forEach(image => {image.loading = 'eager';});
+    await Promise.all(images.map(image => image.decode()));
+  });
 }
 
 async function geometry(page, id) {
   return page.evaluate(id => {
-    const story = document.getElementById(id);
-    const box = element => {
+    const rect = element => {
+      if (!element) return null;
       const r = element.getBoundingClientRect();
-      return {top:r.top, bottom:r.bottom, height:r.height, absoluteTop:r.top + scrollY};
+      return {x:r.x,y:r.y,top:r.top,bottom:r.bottom,left:r.left,right:r.right,width:r.width,height:r.height};
     };
+    const panel = document.getElementById(id);
+    const image = panel.querySelector('.screen-image');
+    const controls = document.querySelector('.tour-controls');
+    const imageStyle = getComputedStyle(image);
     return {
-      id, y:scrollY, height:innerHeight, width:innerWidth,
-      maxY:document.documentElement.scrollHeight - innerHeight,
-      desktop:document.documentElement.classList.contains('sticky-tour'),
-      story:box(story), copy:box(story.querySelector('.story-copy')), figure:box(story.querySelector('figure')),
-      stage:box(document.querySelector('.stage-inner')),
-      active:document.querySelector('.jump a[aria-current]')?.getAttribute('href'),
-      pane:document.querySelector('.pane.current')?.className,
-      overflow:document.documentElement.scrollWidth - innerWidth,
-      inputEvents:window.__landingInput
+      y:scrollY, width:innerWidth, height:innerHeight,
+      overflow:document.documentElement.scrollWidth-innerWidth,
+      controls:rect(controls), controlsPosition:getComputedStyle(controls).position,
+      indicator:rect(document.querySelector('.tab-indicator')),
+      copy:rect(panel.querySelector('.story-copy')), figure:rect(panel.querySelector('.product-screen')),
+      canvas:rect(panel.querySelector('.screen-canvas')), image:rect(image),
+      currentSrc:image.currentSrc, naturalWidth:image.naturalWidth, naturalHeight:image.naturalHeight,
+      objectFit:imageStyle.objectFit,
+      active:document.querySelector('.jump [aria-selected="true"]')?.getAttribute('href'),
+      panels:[...document.querySelectorAll('.story')].map(el => ({
+        id:el.id, hidden:el.hidden, inert:el.inert, ariaHidden:el.getAttribute('aria-hidden'),
+        role:el.getAttribute('role'), labelledBy:el.getAttribute('aria-labelledby'),
+        opacity:Number(getComputedStyle(el).opacity)
+      })),
+      tabs:[...document.querySelectorAll('.jump a')].map(el => ({
+        href:el.getAttribute('href'), id:el.id, role:el.getAttribute('role'),
+        selected:el.getAttribute('aria-selected'), tabIndex:el.tabIndex,
+        controls:el.getAttribute('aria-controls'), box:rect(el)
+      })),
+      count:document.querySelector('[data-slide-count]')?.textContent.trim(),
+      events:window.__landingInput
     };
   }, id);
 }
 
-async function position(page, top) {
-  await page.evaluate(top => scrollTo({top, behavior:'instant'}), top);
-  await rest(page);
-}
-
-async function wheel(page, delta) {
-  const viewport = page.viewportSize();
-  await page.mouse.move(Math.round(viewport.width * 0.65), Math.round(viewport.height * 0.6));
-  await page.mouse.wheel(0, delta);
-}
-
-async function assertChapter(page, id) {
-  const g = await geometry(page, id);
-  assert(g.overflow <= 1, `Horizontal overflow at ${g.width}px: ${g.overflow}`);
-  assert.equal(g.active, '#' + id, `Chapter indicator must match ${id}`);
-  if (g.desktop) {
-    assert(Math.abs(g.story.top + g.story.height / 2 - g.height / 2) <= 4,
-      `Desktop ${id} must finish centred: ${JSON.stringify(g)}`);
-    assert(g.pane?.split(' ').includes(id), `Visible screenshot must match ${id}: ${g.pane}`);
-    assert(g.stage.top >= 8 && g.stage.bottom <= g.height - 8,
-      `Desktop screenshot frame must remain fully visible: ${JSON.stringify(g)}`);
-    assert(g.copy.top >= 8 && g.copy.bottom <= g.height - 8,
-      `Desktop chapter copy must be fully readable: ${JSON.stringify(g)}`);
-  } else {
-    assert(g.copy.top >= 12 && g.copy.top <= 48,
-      `Inline ${id} must finish with comfortable top spacing: ${JSON.stringify(g)}`);
-    if (g.copy.height <= g.height - 48) assert(g.copy.bottom <= g.height - 4,
-      `Inline chapter copy that fits must remain visible: ${JSON.stringify(g)}`);
+async function assertSlide(page, id, {fitsDesktop = false} = {}) {
+  await selected(page,id);
+  const g = await geometry(page,id);
+  const index = ids.indexOf(id);
+  assert(g.overflow <= 1, 'No document horizontal overflow: ' + JSON.stringify(g));
+  assert.equal(g.active, '#' + id, 'Selected stage must match the visible product screen');
+  assert.equal(g.panels.filter(panel => !panel.hidden).length, 1, 'Exactly one product panel may remain displayed');
+  for (const panel of g.panels) {
+    assert.equal(panel.role, 'tabpanel');
+    assert.equal(panel.labelledBy, 'tab-' + panel.id);
+    assert.equal(panel.hidden, panel.id !== id, 'Inactive panels must be removed from layout');
+    assert.equal(panel.inert, panel.id !== id, 'Inactive panels must not retain focusable controls');
   }
+  assert.equal(g.tabs.filter(tab => tab.selected === 'true').length, 1);
+  assert.equal(g.tabs.filter(tab => tab.tabIndex === 0).length, 1, 'The stage rail needs one keyboard entry point');
+  for (const tab of g.tabs) {
+    assert.equal(tab.role, 'tab');
+    assert.equal(tab.controls, tab.href.slice(1));
+    assert(tab.box.width >= 43 && tab.box.height >= 43, 'Stage controls need comfortable touch targets: ' + JSON.stringify(tab));
+    assert(tab.box.left >= -1 && tab.box.right <= g.width + 1, 'Every stage must remain selectable on narrow layouts');
+  }
+  const activeTab = g.tabs.find(tab => tab.selected === 'true').box;
+  assert(g.indicator && Math.abs(g.indicator.left-activeTab.left) <= 3 &&
+    Math.abs(g.indicator.top-activeTab.top) <= 3 && Math.abs(g.indicator.width-activeTab.width) <= 3 &&
+    Math.abs(g.indicator.height-activeTab.height) <= 3,
+  'The moving highlight must stay aligned with the selected stage: ' + JSON.stringify({indicator:g.indicator,activeTab}));
+  const count = g.count.match(/(\d+)\s*(?:\/|of)\s*(\d+)/i);
+  assert(count && Number(count[1]) === index + 1 && Number(count[2]) === 4, 'The slide count must match the selected stage: ' + g.count);
+  assert.equal(await page.locator('[data-prev]').isDisabled(), index === 0);
+  assert.equal(await page.locator('[data-next]').isDisabled(), index === ids.length - 1);
+
+  assert(g.naturalWidth > 0 && g.naturalHeight > 0, 'A product image must load before it is reviewed');
+  const file = path.basename(new URL(g.currentSrc).pathname);
+  if (g.width <= 600) assert.equal(file,id+'-phone.webp','Phone layouts need the complete phone capture');
+  if (g.width >= 900) assert.equal(file,id+'.webp','Desktop layouts need the complete desktop capture');
+  const record = captureManifest.captures.find(capture => capture.file === file);
+  assert(record, 'The visible product image must be a verified complete capture: ' + file);
+  assert.equal(g.naturalWidth, record.width);
+  assert.equal(g.naturalHeight, record.height);
+  assert.equal(record.view, id, 'The screenshot and its selected stage must agree');
+  assert.notEqual(g.objectFit, 'cover', 'Product screens must never be cropped to fill their frame');
+  assert(g.image.left >= g.canvas.left - 2 && g.image.right <= g.canvas.right + 2 &&
+    g.image.top >= g.canvas.top - 2 && g.image.bottom <= g.canvas.bottom + 2,
+  'The screenshot must fit inside its presentation frame: ' + JSON.stringify(g));
+  if (!['contain','scale-down'].includes(g.objectFit)) {
+    assert(Math.abs(g.image.width / g.image.height - g.naturalWidth / g.naturalHeight) < 0.025,
+      'A naturally sized screenshot must keep its complete aspect ratio');
+  }
+  if (fitsDesktop && g.width >= 900) {
+    assert(g.figure.top >= g.controls.bottom - 2 && g.figure.bottom <= g.height + 2,
+      'The complete desktop product frame must fit below the persistent controls: ' + JSON.stringify(g));
+    assert(g.copy.top >= g.controls.bottom - 2 && g.copy.bottom <= g.height + 2,
+      'Desktop copy must fit alongside its screen: ' + JSON.stringify(g));
+  }
+  return g;
 }
 
-async function open(browser, width, height, {reduced = false, delayed = false, hash = ''} = {}) {
+async function open(browser, width, height, {reduced = false, delayed = false, hash = '', noJS = false} = {}) {
   const context = await browser.newContext({
-    // Playwright rejects mouse.wheel in WebKit's isMobile mode. The WebKit
-    // checks are explicitly responsive viewport coverage; Chromium adds touch.
     viewport:{width,height}, isMobile:width < 900 && !isWebKit, hasTouch:width < 900,
-    reducedMotion:reduced ? 'reduce' : 'no-preference', serviceWorkers:'block'
+    reducedMotion:reduced ? 'reduce' : 'no-preference', serviceWorkers:'block', javaScriptEnabled:!noJS
   });
   const missing = [];
+  const external = [];
   const errors = [];
-  let releaseImages;
-  const imageGate = delayed ? new Promise(resolve => {releaseImages = resolve;}) : Promise.resolve();
+  let releaseImages = () => {};
+  const gate = delayed ? new Promise(resolve => {releaseImages = resolve;}) : Promise.resolve();
   await context.route('**/*', async route => {
     const url = new URL(route.request().url());
-    if (url.origin !== origin) return route.abort();
+    if (url.origin !== origin) {
+      external.push(url.origin + url.pathname);
+      return route.abort();
+    }
     const filename = path.resolve(site, '.' + url.pathname + (url.pathname.endsWith('/') ? 'index.html' : ''));
     if (!filename.startsWith(site + path.sep) || !fs.existsSync(filename)) {
       missing.push(url.pathname);
-      return route.fulfill({status:404, body:'Missing landing test asset'});
+      return route.fulfill({status:404,body:'Missing public landing asset'});
     }
-    if (path.extname(filename) === '.webp') await imageGate;
-    return route.fulfill({contentType:types[path.extname(filename)] || 'application/octet-stream', body:fs.readFileSync(filename)});
+    if (path.extname(filename) === '.webp') await gate;
+    return route.fulfill({contentType:types[path.extname(filename)] || 'application/octet-stream',body:fs.readFileSync(filename)});
   });
-  await context.addInitScript(() => {
+  if (!noJS) await context.addInitScript(() => {
     window.__landingInput = [];
-    for (const type of ['wheel','scroll','touchstart','touchend','pointerdown','pointerup','focusin','click','resize','pageshow','blur']) {
+    for (const type of ['wheel','scroll','pointerdown','pointerup','pointercancel','touchstart','touchend','focusin','click','resize','popstate']) {
       addEventListener(type, event => {
-        window.__landingInput.push({type,y:scrollY,t:performance.now(),delta:event.deltaY,hidden:document.hidden,scale:visualViewport?.scale});
-        if (window.__landingInput.length > 20) window.__landingInput.shift();
+        window.__landingInput.push({type,y:scrollY,t:performance.now(),x:event.clientX,delta:event.deltaY,key:event.key});
+        if (window.__landingInput.length > 16) window.__landingInput.shift();
       }, {passive:true});
     }
   });
@@ -117,328 +243,326 @@ async function open(browser, width, height, {reduced = false, delayed = false, h
   page.setDefaultTimeout(6500);
   page.on('pageerror', error => errors.push(error.message));
   await page.goto(origin + '/' + hash, {waitUntil:'domcontentloaded'});
-  await page.waitForFunction(() => document.querySelectorAll('.story-copy').length === 4);
+  await page.locator('.story').first().waitFor({state:'attached'});
+  if (!noJS) await selected(page, ids.includes(hash.slice(1)) ? hash.slice(1) : 'sourcing');
   if (!delayed) {
-    await page.evaluate(async () => {
-      const images = [...document.images];
-      images.forEach(img => {img.loading = 'eager';});
-      await Promise.all(images.map(img => img.decode()));
-    });
+    await decodeImages(page);
     await rest(page);
   }
-  return {
-    page, context, releaseImages,
-    async finish(name) {
-      assert.deepEqual(missing, [], 'Every requested landing asset must exist');
-      assert.deepEqual(errors, [], 'Landing page must not raise JavaScript errors');
-      await page.screenshot({path:`/tmp/landing-scroll-${engine}-${name}.png`});
-      await context.close();
-    }
-  };
+  return {page,context,releaseImages,missing,external,errors};
 }
 
-async function chapterChecks(browser, width, height) {
-  const run = await open(browser, width, height);
-  const {page} = run;
+async function check(browser, width, height, name, work, options = {}) {
+  const run = await open(browser,width,height,options);
   try {
-    assert.equal(await page.evaluate(() => scrollY), 0, 'Initial load must remain at the top');
-    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'No initial horizontal overflow');
-    for (const id of ['sourcing', 'stock', 'sale', 'dashboard']) {
-      const g = await geometry(page, id);
-      const target = g.desktop ? g.story.absoluteTop + (g.story.height - g.height) / 2 : g.copy.absoluteTop - 24;
-      // A real wheel operation ends close to a reading position, after which the
-      // page should settle without requiring an exact pixel from the user.
-      await position(page, target - 95);
-      await wheel(page, 30);
-      await rest(page);
-      await assertChapter(page, id);
-    }
-    const g = await geometry(page, 'stock');
-    if (!g.desktop) {
-      const combinedHeight = g.figure.absoluteTop + g.figure.height - g.copy.absoluteTop;
-      if (combinedHeight > g.height && g.figure.height <= g.height - 56) {
-        const centre = g.figure.absoluteTop + (g.figure.height - g.height) / 2;
-        await position(page, centre + 75);
-        await wheel(page, -20);
-        await rest(page);
-        const result = await geometry(page, 'stock');
-        assert(Math.abs(result.figure.top + result.figure.height / 2 - result.height / 2) <= 4,
-          `A screenshot that fits must settle fully in view: ${JSON.stringify(result)}`);
-      } else if (g.figure.height > g.height + 100) {
-        const inside = g.figure.absoluteTop + (g.figure.height - g.height) / 2;
-        await position(page, inside - 20);
-        const before = await page.evaluate(() => scrollY);
-        await wheel(page, 40);
-        const after = await rest(page);
-        assert(after >= before + 20 && after <= before + 65,
-          'A screenshot taller than the viewport must allow reading within it');
-      }
-    }
-    await run.finish(`${width}x${height}`);
-    console.log('PASS landing reading positions, matching screenshots and no overflow', engine, `${width}x${height}`);
+    await work(run.page,run);
+    assert.deepEqual(run.missing, [], 'Every public landing asset must exist');
+    assert.deepEqual(run.external, [], 'The landing test must not contact an external service');
+    assert.deepEqual(run.errors, [], 'The landing page must not raise JavaScript errors');
+    await run.page.screenshot({path:'/tmp/landing-scroll-' + engine + '-' + name + '.png'});
+    console.log('PASS landing', engine, name);
   } catch (error) {
-    await page.screenshot({path:`/tmp/landing-scroll-${engine}-${width}x${height}-failure.png`}).catch(() => {});
-    await run.context.close();
+    const state = await run.page.evaluate(() => ({
+      y:scrollY, hash:location.hash, active:document.querySelector('.jump [aria-selected="true"]')?.getAttribute('href'),
+      panels:[...document.querySelectorAll('.story')].map(el=>({id:el.id,hidden:el.hidden,inert:el.inert})),
+      events:window.__landingInput
+    })).catch(() => ({}));
+    console.error('Landing failure state',JSON.stringify(state));
+    await run.page.screenshot({path:'/tmp/landing-scroll-' + engine + '-' + name + '-failure.png'}).catch(() => {});
     throw error;
+  } finally {
+    run.releaseImages();
+    await run.context.close();
   }
 }
 
-async function gestureChecks(browser) {
-  const run = await open(browser, 1440, 900);
-  const {page} = run;
-  try {
-    let g = await geometry(page, 'stock');
-    const centre = g.story.absoluteTop + (g.story.height - g.height) / 2;
-    await position(page, centre);
-    let previous = await page.evaluate(() => scrollY);
-    for (let i = 0; i < 10; i++) {
-      await wheel(page, 22);
-      await page.waitForTimeout(45);
-      const current = await page.evaluate(() => scrollY);
-      assert(current >= previous - 3, 'Continuous downward input must not be pulled back by settling');
-      previous = current;
-    }
-    assert(previous > centre + 120, 'Continuous wheel gesture must move the page naturally');
-    await rest(page);
-    await assertChapter(page, 'sale');
-    await wheel(page, -120);
-    await rest(page);
-    await assertChapter(page, 'stock');
-    await wheel(page, 120);
-    await rest(page);
-    await assertChapter(page, 'sale');
-    await page.keyboard.press('ArrowUp');
-    await rest(page);
-    await assertChapter(page, 'stock');
-    await page.keyboard.press('ArrowDown');
-    await rest(page);
-    await assertChapter(page, 'sale');
+async function layoutChecks(browser) {
+  for (const [width,height] of sizes) {
+    await check(browser,width,height,width + 'x' + height,async page => {
+      assert.equal(await page.evaluate(() => scrollY), 0, 'An untouched landing page must start at the top');
+      for (const id of ids) {
+        await activate(page,id);
+        await deckTop(page);
+        await assertSlide(page,id,{fitsDesktop:true});
+      }
+      await page.locator('[data-prev]').click();
+      await selected(page,'sale');
+      await assertSlide(page,'sale');
+      await page.locator('[data-next]').click();
+      await selected(page,'dashboard');
+      await assertSlide(page,'dashboard');
+    });
+  }
+}
 
-    const sale = await geometry(page, 'sale');
-    const nextCentre = sale.story.absoluteTop + (sale.story.height - sale.height) / 2;
-    const chapterGap = nextCentre - centre;
-    // A small second gesture must win even while the previous chapter remains
-    // geometrically nearest. Observe real intermediate positions with rAF.
-    await position(page, centre);
-    await wheel(page, 120);
-    await page.waitForFunction(({from,gap}) => scrollY > from + gap * 0.18 && scrollY < from + gap * 0.27,
-      {from:centre,gap:chapterGap}, {polling:'raf'});
-    await page.mouse.wheel(0, 120);
-    await rest(page);
-    await assertChapter(page, 'sale');
+async function keyboardChecks(browser) {
+  await check(browser,1440,900,'keyboard-and-native-scroll',async page => {
+    await activate(page,'sourcing');
+    await page.locator('#tab-sourcing').focus();
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'tab-stock');
+    assert.equal(await page.locator('.jump [aria-selected="true"]').getAttribute('href'), '#sourcing',
+      'Arrow keys move tab focus without changing the slide until activation');
+    await page.keyboard.press('Enter');
+    await assertSlide(page,'stock');
+    await page.keyboard.press('End');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'tab-dashboard');
+    assert.equal(await page.locator('.jump [aria-selected="true"]').getAttribute('href'), '#stock');
+    await page.keyboard.press('Space');
+    await assertSlide(page,'dashboard');
+    await page.keyboard.press('Home');
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'tab-sourcing');
+    await page.keyboard.press('Enter');
+    await assertSlide(page,'sourcing');
 
-    // Reverse late in the same correction, when a nearest-only choice would
-    // otherwise send the reader forward against their new upward input.
-    await position(page, centre);
-    await wheel(page, 120);
-    await page.waitForFunction(({from,gap}) => scrollY > from + gap * 0.70 && scrollY < from + gap * 0.88,
-      {from:centre,gap:chapterGap}, {polling:'raf'});
-    await page.mouse.wheel(0, -120);
-    await rest(page);
-    await assertChapter(page, 'stock');
+    // A native button becomes disabled at the first/last stage. Keep keyboard
+    // focus on a usable selected tab instead of letting it fall back to body.
+    await activate(page,'sale');
+    await page.locator('[data-next]').focus();
+    await page.keyboard.press('Enter');
+    await assertSlide(page,'dashboard');
+    assert.equal(await page.evaluate(() => document.activeElement.id),'tab-dashboard',
+      'A newly disabled Next button must transfer focus to the selected stage');
+    await activate(page,'stock');
+    await page.locator('[data-prev]').focus();
+    await page.keyboard.press('Space');
+    await assertSlide(page,'sourcing');
+    assert.equal(await page.evaluate(() => document.activeElement.id),'tab-sourcing',
+      'A newly disabled Previous button must transfer focus to the selected stage');
 
-    await position(page, centre + 280);
-    await wheel(page, 25);
-    const releasedAt = await page.evaluate(() => scrollY);
-    await page.waitForFunction(y => scrollY < y - 15, releasedAt);
-    const interruptedAt = await page.evaluate(() => scrollY);
-    assert(interruptedAt > centre + 20, 'A settling movement must expose intermediate frames for interruption');
-    await wheel(page, 630);
-    await page.waitForFunction(y => scrollY > y + 100, interruptedAt, {timeout:1000});
-    await rest(page);
-    await assertChapter(page, 'sale');
-
-    g = await geometry(page, 'sourcing');
-    const first = g.story.absoluteTop + (g.story.height - g.height) / 2;
-    await position(page, first + 80);
-    await wheel(page, -30);
-    await rest(page);
-    await assertChapter(page, 'sourcing');
-    await wheel(page, -1100);
-    const outside = await rest(page);
-    assert(outside < first - 500, 'The tour must not trap scrolling back to the introduction');
+    await deckTop(page);
+    const before = await page.evaluate(() => scrollY);
+    await page.mouse.move(1000,600);
+    await page.mouse.wheel(0,165);
+    const after = await rest(page);
+    assert(after > before + 100, 'Vertical wheel input must remain native page scrolling');
+    assert.equal(await page.locator('.jump [aria-selected="true"]').getAttribute('href'), '#sourcing',
+      'Vertical scrolling must not silently advance a slide');
+    await page.locator('#sourcing').focus();
     await page.keyboard.press('End');
     await rest(page);
     assert(await page.evaluate(() => Math.abs(scrollY - (document.documentElement.scrollHeight - innerHeight)) <= 3),
       'The closing section and footer must remain reachable');
-    await page.keyboard.press('Home');
-    await rest(page);
-    assert.equal(await page.evaluate(() => scrollY), 0, 'Home must reach the page beginning');
-    await run.finish('wheel-interruption');
-    console.log('PASS landing continuous wheel, interruption and tour exit', engine);
-  } catch (error) {
-    await page.screenshot({path:`/tmp/landing-scroll-${engine}-gesture-failure.png`}).catch(() => {});
-    await run.context.close();
-    throw error;
-  }
-}
-
-async function touchChecks(browser) {
-  const run = await open(browser, 390, 844);
-  const {page} = run;
-  try {
-    let g = await geometry(page, 'stock');
-    await position(page, g.copy.absoluteTop - 24 + 45);
-    if (isWebKit) {
-      // Playwright exposes CDP touch dispatch only for Chromium; do not label
-      // WebKit's mobile viewport wheel coverage as a physical touch test.
-      await wheel(page, -35);
-    } else {
-      const cdp = await run.context.newCDPSession(page);
-      await cdp.send('Input.dispatchTouchEvent', {type:'touchStart', touchPoints:[{x:190,y:430}]});
-      await cdp.send('Input.dispatchTouchEvent', {type:'touchMove', touchPoints:[{x:190,y:470}]});
-      await page.waitForTimeout(350);
-      const heldAt = await page.evaluate(() => scrollY);
-      await page.waitForTimeout(350);
-      assert(Math.abs(await page.evaluate(() => scrollY) - heldAt) <= 3,
-        'The page must not settle while a finger is still touching the screen');
-      await cdp.send('Input.dispatchTouchEvent', {type:'touchEnd', touchPoints:[]});
-      await cdp.detach();
-    }
-    await rest(page);
-    await assertChapter(page, 'stock');
-    await page.setViewportSize({width:844,height:390});
-    await rest(page);
-    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Landscape must not overflow');
-    g = await geometry(page, 'stock');
-    assert(g.figure.height > g.height + 70, 'Landscape fixture must exercise an oversized screenshot');
-    const inside = g.figure.absoluteTop + (g.figure.height - g.height) / 2;
-    await position(page, inside - 20);
-    const beforeReading = await page.evaluate(() => scrollY);
-    await wheel(page, 40);
-    const afterReading = await rest(page);
-    assert(Math.abs(afterReading - beforeReading - 40) <= 8,
-      'An oversized landscape screenshot must remain freely scrollable inside its reading area');
-    await page.setViewportSize({width:1024,height:600});
-    await page.waitForFunction(() => document.documentElement.classList.contains('sticky-tour'));
-    g = await geometry(page, 'stock');
-    await position(page, g.story.absoluteTop + (g.story.height - g.height) / 2 + 75);
-    await wheel(page, -20);
-    await rest(page);
-    await assertChapter(page, 'stock');
-    assert.equal(await page.locator('.pane').count(), 4, 'Changing breakpoints must not duplicate screenshots');
-    if (!isWebKit) {
-      // The resized touch-capable viewport now has well-separated desktop
-      // chapters. Interrupt an early correction, hold, then continue by touch.
-      g = await geometry(page, 'stock');
-      const next = await geometry(page, 'sale');
-      const from = g.story.absoluteTop + (g.story.height - g.height) / 2;
-      const destination = next.story.absoluteTop + (next.story.height - next.height) / 2;
-      const gap = destination - from;
-      const cdp = await run.context.newCDPSession(page);
-      await wheel(page, 80);
-      await page.waitForFunction(({from,gap}) => scrollY > from + gap * 0.18 && scrollY < from + gap * 0.25,
-        {from,gap}, {polling:'raf'});
-      await cdp.send('Input.dispatchTouchEvent', {type:'touchStart', touchPoints:[{x:400,y:400}]});
-      await page.waitForTimeout(60);
-      const heldAt = await page.evaluate(() => scrollY);
-      await page.waitForTimeout(350);
-      assert(Math.abs(await page.evaluate(() => scrollY) - heldAt) <= 3,
-        'A new finger must interrupt correction and hold the page still');
-      await cdp.send('Input.dispatchTouchEvent', {type:'touchMove', touchPoints:[{x:400,y:300}]});
-      await page.waitForTimeout(300);
-      assert(await page.evaluate(() => scrollY) > heldAt + 50, 'Native touch must move the interrupted page');
-      await cdp.send('Input.dispatchTouchEvent', {type:'touchEnd', touchPoints:[]});
-      await rest(page);
-      await assertChapter(page, 'sale');
-      await cdp.detach();
-    }
-    await run.finish('touch-and-resize');
-    console.log('PASS landing', engine, isWebKit ? 'mobile viewport wheel' : 'native touch/held-finger', 'and breakpoint changes');
-  } catch (error) {
-    await page.screenshot({path:`/tmp/landing-scroll-${engine}-touch-failure.png`}).catch(() => {});
-    await run.context.close();
-    throw error;
-  }
+  });
 }
 
 async function navigationChecks(browser) {
   for (const width of [390,1440]) {
-    const run = await open(browser, width, 900, {hash:'#stock'});
-    const {page} = run;
-    try {
-      await assertChapter(page, 'stock');
-      // Keep the previous history entry at the chapter. Playwright's ordinary
-      // click would first scroll this off-screen navigation into view, changing
-      // the position that Back is correctly expected to restore.
-      await page.locator('.jump a[href="#sale"]').evaluate(link => link.click());
-      await rest(page);
-      assert.equal(new URL(page.url()).hash, '#sale');
-      await assertChapter(page, 'sale');
+    await check(browser,width,900,'history-' + width,async page => {
+      await assertSlide(page,'stock');
+      await activate(page,'sale');
+      assert.equal(new URL(page.url()).hash,'#sale');
+      await page.locator('#sale .enlarge').evaluate(el => el.focus({preventScroll:true}));
       await page.goBack();
+      await selected(page,'stock');
       await rest(page);
-      assert.equal(new URL(page.url()).hash, '#stock');
-      await assertChapter(page, 'stock');
-      await run.finish(`history-${width}`);
-    } catch (error) {
-      await page.screenshot({path:`/tmp/landing-scroll-${engine}-history-${width}-failure.png`}).catch(() => {});
-      await run.context.close();
-      throw error;
+      await assertSlide(page,'stock');
+      assert.equal(await page.evaluate(() => document.activeElement.id),'stock',
+        'Back must move outgoing-panel focus into the newly visible panel');
+      await page.locator('#stock .enlarge').evaluate(el => el.focus({preventScroll:true}));
+      await page.goForward();
+      await selected(page,'sale');
+      await rest(page);
+      await assertSlide(page,'sale');
+      assert.equal(await page.evaluate(() => document.activeElement.id),'sale',
+        'Forward must not leave focus inside the hidden previous panel');
+      await page.setViewportSize({width:width === 390 ? 1024 : 390,height:width === 390 ? 600 : 844});
+      await rest(page);
+      await assertSlide(page,'sale');
+      assert.equal(await page.locator('.story').count(),4,'Resizing must not duplicate the slides');
+    },{hash:'#stock'});
+  }
+  await check(browser,390,844,'image-viewer',async page => {
+    await activate(page,'sale');
+    const src = await page.locator('#sale .screen-image').evaluate(image => image.currentSrc);
+    await page.locator('#sale .enlarge').click();
+    await page.locator('#screen-viewer[open]').waitFor({state:'visible'});
+    await page.waitForFunction(() => {const image=document.querySelector('#screen-viewer img');return image.complete && image.naturalWidth > 0;});
+    const displayed = await page.locator('#screen-viewer img').evaluate(image => ({src:image.currentSrc || image.src,complete:image.complete,width:image.naturalWidth}));
+    assert.equal(displayed.src,src,'Full-screen viewing must open the complete current responsive capture');
+    assert(displayed.complete && displayed.width > 0,'The full-screen capture must load');
+    assert(await page.locator('[data-close-viewer]').isVisible(),'The image viewer needs a visible close control');
+    const viewerScroll = await page.locator('#screen-viewer .viewer-content').evaluate(el => {
+      el.scrollTop = el.scrollHeight;
+      return el.scrollTop;
+    });
+    assert(viewerScroll > 0,'The complete sale screen must remain scrollable in the phone viewer');
+    await page.keyboard.press('Escape');
+    await page.locator('#screen-viewer[open]').waitFor({state:'hidden'});
+    await assertSlide(page,'sale');
+    assert(await page.locator('#sale .enlarge').evaluate(el => el === document.activeElement),
+      'Closing the image viewer must return focus to its opener');
+
+    // History can replace the current stage while the modal remains open.
+    // Its now-hidden original trigger is no longer a valid focus destination.
+    await page.locator('#sale .enlarge').click();
+    await page.locator('#screen-viewer[open]').waitFor({state:'visible'});
+    assert.equal(await page.locator('#screen-viewer .viewer-content').evaluate(el => el.scrollTop),0,
+      'Reopening a product screen must show its full heading instead of retaining the previous scroll position');
+    await page.goBack();
+    await selected(page,'sourcing');
+    await page.keyboard.press('Escape');
+    await page.locator('#screen-viewer[open]').waitFor({state:'hidden'});
+    await page.waitForFunction(() => document.activeElement.id === 'tab-sourcing');
+    await assertSlide(page,'sourcing');
+    assert.equal(await page.evaluate(() => document.activeElement.id),'tab-sourcing',
+      'Closing after history navigation must focus the current visible stage tab');
+  });
+}
+
+async function touchChecks(browser) {
+  await check(browser,390,844,'touch-and-sticky-controls',async (page,run) => {
+    await activate(page,'sourcing');
+    const imageTop = await page.locator('#sourcing .screen-canvas').evaluate(el => el.getBoundingClientRect().top + scrollY);
+    await position(page,imageTop - 210);
+    const beforeId = await page.locator('.jump [aria-selected="true"]').getAttribute('href');
+    if (!isWebKit) {
+      const cdp = await run.context.newCDPSession(page);
+      const touch = (type,points) => cdp.send('Input.dispatchTouchEvent',{type,touchPoints:points});
+      await touch('touchStart',[{x:330,y:450}]);
+      for (const x of [285,240,195,150,105,60]) {
+        await touch('touchMove',[{x,y:452}]);
+        await page.waitForTimeout(20);
+      }
+      assert.equal(await page.locator('.jump [aria-selected="true"]').getAttribute('href'),beforeId,
+        'A held horizontal gesture must not advance before it finishes');
+      // Exercise mixed keyboard/assistive focus and touch without scrolling
+      // away from the native gesture's target before its release.
+      await page.locator('#sourcing .enlarge').evaluate(el => el.focus({preventScroll:true}));
+      await touch('touchEnd',[]);
+      await selected(page,'stock');
+      await rest(page);
+      await assertSlide(page,'stock');
+      assert.equal(await page.evaluate(() => document.activeElement.id),'stock',
+        'Completing a swipe must move outgoing-panel focus into the new panel');
+      assert.equal(await page.locator('#screen-viewer[open]').count(),0,'A swipe must not open the screenshot viewer');
+
+      const stockTop = await page.locator('#stock .screen-canvas').evaluate(el => el.getBoundingClientRect().top + scrollY);
+      await position(page,stockTop - 210);
+      await touch('touchStart',[{x:330,y:450}]);
+      await touch('touchMove',[{x:250,y:450}]);
+      await touch('touchCancel',[]);
+      await rest(page);
+      await assertSlide(page,'stock');
+
+      const before = await page.evaluate(() => scrollY);
+      await touch('touchStart',[{x:195,y:670}]);
+      for (const y of [620,570,520,470,420,370]) {
+        await touch('touchMove',[{x:197,y}]);
+        await page.waitForTimeout(20);
+      }
+      // End a deliberate reading gesture without a high-velocity fling past
+      // the entire tour; native scrolling is measured before any page exit.
+      await page.waitForTimeout(250);
+      await touch('touchEnd',[]);
+      const after = await rest(page);
+      assert(after > before + 100,'A vertical swipe over the product image must scroll the page naturally');
+      await assertSlide(page,'stock');
+      await cdp.detach();
+    } else {
+      const before = await page.evaluate(() => scrollY);
+      await page.mouse.move(195,450);
+      await page.mouse.wheel(0,220);
+      const after = await rest(page);
+      assert(after > before + 150,'Native vertical scrolling must work in a narrow WebKit viewport');
+      assert.equal(await page.locator('.jump [aria-selected="true"]').getAttribute('href'),beforeId);
     }
-  }
-  const reduced = await open(browser, 1440, 900, {reduced:true, hash:'#stock'});
-  try {
-    const before = await reduced.page.evaluate(() => scrollY);
-    await wheel(reduced.page, 145);
-    const after = await rest(reduced.page);
-    assert(Math.abs(after - before - 145) <= 6, 'Reduced motion must leave native scrolling free of automatic settling');
-    await reduced.page.locator('.jump a[href="#sale"]').click();
-    await rest(reduced.page);
-    const g = await geometry(reduced.page, 'sale');
-    assert(g.copy.top >= 0 && g.copy.bottom <= g.height, 'Reduced-motion chapter navigation remains readable');
-    await reduced.finish('reduced-motion');
-  } catch (error) {
-    await reduced.page.screenshot({path:`/tmp/landing-scroll-${engine}-reduced-motion-failure.png`}).catch(() => {});
-    await reduced.context.close();
-    throw error;
-  }
-  console.log('PASS landing direct links, history and reduced motion', engine);
+    const controls = await page.locator('.tour-controls').evaluate(el => {
+      const r=el.getBoundingClientRect();
+      return {top:r.top,bottom:r.bottom,height:innerHeight,position:getComputedStyle(el).position};
+    });
+    assert.equal(controls.position,'sticky','Stage navigation must stay with the slide');
+    assert(controls.top >= -1 && controls.top <= 20 && controls.bottom < controls.height,
+      'The persistent stage controls must remain visible while reading a tall phone screen: ' + JSON.stringify(controls));
+    await activate(page,'dashboard');
+    const atEnd = await page.locator('.jump [aria-selected="true"]').getAttribute('href');
+    await page.mouse.wheel(0,180);
+    await rest(page);
+    assert.equal(await page.locator('.jump [aria-selected="true"]').getAttribute('href'),atEnd,
+      'Leaving the last stage must not wrap to the beginning');
+  });
+}
+
+async function reducedMotionChecks(browser) {
+  await check(browser,1440,900,'reduced-motion',async page => {
+    await page.locator('.jump a[href="#sale"]').click();
+    const motion = await page.locator('#sale').evaluate(el => ({
+      opacity:Number(getComputedStyle(el).opacity),
+      active:el.getAnimations({subtree:true}).filter(animation => animation.playState === 'running' &&
+        animation.effect.getKeyframes().some(frame => 'transform' in frame || 'translate' in frame || 'opacity' in frame)).length
+    }));
+    assert.equal(motion.opacity,1,'Reduced-motion slide changes must appear immediately');
+    assert.equal(motion.active,0,'Reduced motion must remove the slide entrance animation');
+    await assertSlide(page,'sale');
+    const before = await page.evaluate(() => scrollY);
+    await page.mouse.move(1000,500);
+    await page.mouse.wheel(0,145);
+    const after = await rest(page);
+    assert(after > before + 95,'Reduced motion retains ordinary vertical page scrolling');
+    await assertSlide(page,'sale');
+  },{reduced:true});
 }
 
 async function slowImageChecks(browser) {
   for (const width of [390,1440]) {
-    const run = await open(browser, width, 844, {delayed:true});
-    const {page} = run;
-    const measure = () => page.evaluate(() => [...document.querySelectorAll('.hero, .story')].map(node => {
-      const r = node.getBoundingClientRect();
-      return {top:r.top + scrollY, height:r.height};
-    }));
-    try {
+    await check(browser,width,844,'slow-images-' + width,async (page,run) => {
+      await activate(page,'sale');
+      const measure = () => page.evaluate(() => {
+        const box = selector => {
+          const r=document.querySelector(selector).getBoundingClientRect();
+          return {top:r.top+scrollY,height:r.height};
+        };
+        return {y:scrollY,hero:box('.hero'),controls:box('.tour-controls'),panel:box('#sale'),image:box('#sale .screen-canvas')};
+      });
       const before = await measure();
       run.releaseImages();
-      await page.evaluate(async () => {
-        const images = [...document.images];
-        images.forEach(img => {img.loading = 'eager';});
-        await Promise.all(images.map(img => img.decode()));
-      });
+      await decodeImages(page);
       await rest(page);
       const after = await measure();
-      before.forEach((box, i) => {
-        assert(Math.abs(box.top - after[i].top) <= 2 && Math.abs(box.height - after[i].height) <= 2,
-          `Loading images must not move reading positions (${width}px, section ${i}): ${JSON.stringify({before:box,after:after[i]})}`);
-      });
-      assert.equal(await page.evaluate(() => scrollY), 0, 'Late images must not scroll an untouched page');
-      await run.finish(`slow-images-${width}`);
-    } catch (error) {
-      run.releaseImages();
-      await page.screenshot({path:`/tmp/landing-scroll-${engine}-slow-images-${width}-failure.png`}).catch(() => {});
-      await run.context.close();
-      throw error;
-    }
+      for (const key of ['hero','controls','panel','image']) {
+        assert(Math.abs(before[key].top-after[key].top) <= 2 && Math.abs(before[key].height-after[key].height) <= 2,
+          'Late product images must keep the reserved layout: ' + JSON.stringify({width,key,before:before[key],after:after[key]}));
+      }
+      assert(Math.abs(before.y-after.y) <= 2,'Late images must not move the reader');
+      await assertSlide(page,'sale');
+    },{delayed:true});
   }
-  console.log('PASS landing image layout stability', engine);
+}
+
+async function fallbackChecks(browser) {
+  for (const width of [390,1440]) {
+    await check(browser,width,844,'no-script-' + width,async page => {
+      for (const id of ids) {
+        assert(await page.locator('#'+id).isVisible(),'Every feature remains readable without JavaScript');
+        assert.equal(await page.locator('.jump a[href="#'+id+'"]').count(),1,'Fallback links retain their chapter targets');
+      }
+      assert(!(await page.locator('[data-prev]').isVisible()),'Inactive JavaScript-only controls should not appear in the fallback');
+      assert(!(await page.locator('[data-next]').isVisible()),'Inactive JavaScript-only controls should not appear in the fallback');
+      await page.locator('.jump a[href="#sale"]').click();
+      assert.equal(new URL(page.url()).hash,'#sale');
+      await rest(page);
+      const heading = await page.locator('#sale h3').boundingBox();
+      assert(heading && heading.y >= -1 && heading.y < 844,'Native fallback navigation must reveal the sale heading');
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth+1),'The fallback must not overflow horizontally');
+    },{noJS:true});
+  }
 }
 
 (async () => {
-  execFileSync(process.execPath, ['scripts/build-site.cjs'], {cwd:root});
-  const browser = await (isWebKit ? webkit : chromium).launch({headless:true, executablePath:isWebKit ? undefined : process.env.CHROMIUM_EXECUTABLE});
+  execFileSync(process.execPath,['scripts/build-site.cjs'],{cwd:root});
+  captureManifest = captureChecks();
+  const browser = await (isWebKit ? webkit : chromium).launch({
+    headless:true,executablePath:isWebKit ? undefined : process.env.CHROMIUM_EXECUTABLE
+  });
   try {
-    for (const [width,height] of sizes) await chapterChecks(browser, width, height);
-    await gestureChecks(browser);
-    await touchChecks(browser);
+    await layoutChecks(browser);
+    await keyboardChecks(browser);
     await navigationChecks(browser);
+    await touchChecks(browser);
+    await reducedMotionChecks(browser);
     await slowImageChecks(browser);
+    await fallbackChecks(browser);
   } finally {
     await browser.close();
   }
-})().catch(error => {console.error(error); process.exitCode = 1;});
+})().catch(error => {console.error(error);process.exitCode=1;});
