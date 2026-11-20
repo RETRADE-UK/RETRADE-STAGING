@@ -308,7 +308,7 @@ async function capture(page,label,width){
         assert.equal(await snapshot(page),before);assert.equal(await page.evaluate(()=>__purchaseWrites),0);
       }
       await seed(page,[item('blocked')]);
-      await page.evaluate(()=>{_jobLots=[{id:'lot',name:'Job lot',status:'sourced'}];_jobLotItems=[{jobLotId:'lot',itemId:'blocked',removedAt:null}];openPurchaseSplit('blocked');});
+      await page.evaluate(()=>{_jobLots=[{id:'lot',name:'Job lot',status:'building'}];_jobLotItems=[{jobLotId:'lot',itemId:'blocked',removedAt:null}];openPurchaseSplit('blocked');});
       assert.equal(await page.locator('#slide-panel.on #purchase-save').count(),0);assert.equal(await page.evaluate(()=>__purchaseWrites),0);
 
       assert.deepEqual(errors,[]);assert.deepEqual(missingAssets,[]);

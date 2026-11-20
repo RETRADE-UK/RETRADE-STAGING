@@ -163,7 +163,7 @@
     function add(title){
       if(list.children.length>=50){toast('Split up to 50 items at a time.','error');return;}
       var n=++seq,div=document.createElement('section');div.className='purchase-line';
-      div.innerHTML='<h3>Item '+n+(options.split&&n===1?' · original record':'')+'</h3>'+field('Item title','purchase-title-'+n,title||'')+field('Allocated purchase cost (£)','purchase-cost-'+n,'','number')+_stockDetailsFieldsHTML('purchase-'+n,options.details)+button('Remove item','purchase-remove-'+n);
+      div.innerHTML='<h3>Item '+n+(options.split&&n===1?' · original record':'')+'</h3>'+field('Item title','purchase-title-'+n,title||'')+field('Allocated cost (£)','purchase-cost-'+n,'','number')+_stockDetailsFieldsHTML('purchase-'+n,options.details)+button('Remove item','purchase-remove-'+n);
       div.querySelector('#purchase-cost-'+n).dataset.cost='';div.querySelector('#purchase-title-'+n).dataset.title='';
       var remove=div.querySelector('button');if(options.split&&n===1)remove.hidden=true;
       remove.onclick=function(){if(list.children.length<=2){toast('A shared purchase needs at least two items.');return;}div.remove();balance();};
