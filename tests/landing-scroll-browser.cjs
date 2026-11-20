@@ -46,7 +46,7 @@ async function geometry(page, id) {
       active:document.querySelector('.jump a[aria-current]')?.getAttribute('href'),
       pane:document.querySelector('.pane.current')?.className,
       overflow:document.documentElement.scrollWidth - innerWidth,
-      probe:window.__landingProbe, inputEvents:window.__landingInput
+      inputEvents:window.__landingInput
     };
   }, id);
 }
@@ -102,9 +102,7 @@ async function open(browser, width, height, {reduced = false, delayed = false, h
       return route.fulfill({status:404, body:'Missing landing test asset'});
     }
     if (path.extname(filename) === '.webp') await imageGate;
-    let body = fs.readFileSync(filename);
-    if (url.pathname === '/assets/landing/tour.js') body = body.toString().replace('function settle() {', 'function settle() { window.__landingProbe = {pending,touching,pointing,keys:keys.size,motion,startY,y:scrollY,lastInput,lastScroll,now:performance.now(),reduced:reduced.matches,hidden:document.hidden,scale:window.visualViewport?.scale,collapsed:getSelection()?.isCollapsed};');
-    return route.fulfill({contentType:types[path.extname(filename)] || 'application/octet-stream', body});
+    return route.fulfill({contentType:types[path.extname(filename)] || 'application/octet-stream', body:fs.readFileSync(filename)});
   });
   await context.addInitScript(() => {
     window.__landingInput = [];
@@ -209,12 +207,19 @@ async function gestureChecks(browser) {
     await wheel(page, 120);
     await rest(page);
     await assertChapter(page, 'sale');
+    await page.keyboard.press('ArrowUp');
+    await rest(page);
+    await assertChapter(page, 'stock');
+    await page.keyboard.press('ArrowDown');
+    await rest(page);
+    await assertChapter(page, 'sale');
 
     await position(page, centre + 280);
     await wheel(page, 25);
     const releasedAt = await page.evaluate(() => scrollY);
     await page.waitForFunction(y => scrollY < y - 15, releasedAt);
     const interruptedAt = await page.evaluate(() => scrollY);
+    assert(interruptedAt > centre + 20, 'A settling movement must expose intermediate frames for interruption');
     await wheel(page, 630);
     await page.waitForFunction(y => scrollY > y + 100, interruptedAt, {timeout:1000});
     await rest(page);

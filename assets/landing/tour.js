@@ -19,7 +19,11 @@
   let current = -1;
   let frame = 0;
   let motion = 0;
+  let animatedY = scrollY;
   let timer = 0;
+  let idleTimer = 0;
+  let idleY = scrollY;
+  let keyboardInput = false;
   let measuring = false;
   let pending = false;
   let touching = false;
@@ -106,12 +110,15 @@
   }
   function cancel() {
     clearTimeout(timer);
+    clearTimeout(idleTimer);
     pending = false;
     cancelMotion();
+    idleY = scrollY;
   }
   function moveTo(target) {
     cancel();
     const from = scrollY;
+    animatedY = from;
     const distance = target - from;
     if (Math.abs(distance) < 1) return;
     if (reduced.matches) {
@@ -126,8 +133,9 @@
       // Smooth acceleration and deceleration; new input cancels the next frame.
       const eased = progress * progress * (3 - 2 * progress);
       scrollTo({top:from + distance * eased, behavior:'instant'});
+      animatedY = scrollY;
       if (progress < 1) motion = requestAnimationFrame(step);
-      else { motion = 0; root.classList.remove('tour-settling'); }
+      else { motion = 0; idleY = scrollY; root.classList.remove('tour-settling'); }
     }
     motion = requestAnimationFrame(step);
   }
@@ -136,7 +144,8 @@
     const remaining = quietTime - (performance.now() - Math.max(lastInput, lastScroll));
     if (remaining > 0) { timer = setTimeout(settle, remaining); return; }
     pending = false; // A correction must never schedule another correction.
-    if (reduced.matches || document.hidden || (window.visualViewport && visualViewport.scale !== 1)) return;
+    idleY = scrollY;
+    if (reduced.matches || document.hidden || (window.visualViewport && Math.abs(visualViewport.scale - 1) > 0.01)) return;
     if (getSelection() && !getSelection().isCollapsed) return;
     measure();
     const y = scrollY;
@@ -150,7 +159,7 @@
     let chosen = nearest(y);
     if (chosen.distance < 1) return;
     const origin = nearest(startY);
-    if (origin.distance < 12 && chosen.stop === origin.stop && Math.abs(travel) >= Math.max(44, viewportHeight() * 0.06)) {
+    if (origin.distance < 12 && chosen.stop === origin.stop && Math.abs(travel) >= (keyboardInput ? 2 : Math.max(44, viewportHeight() * 0.06))) {
       const next = stops[stops.indexOf(origin.stop) + Math.sign(travel)];
       if (!next) return;
       chosen = {stop:next, target:travel > 0 ? next.from : next.to};
@@ -161,11 +170,16 @@
     clearTimeout(timer);
     if (pending) timer = setTimeout(settle, quietTime);
   }
-  function input() {
+  function input(fromKeyboard = false) {
     const now = performance.now();
+    const interrupted = !!motion;
     cancelMotion();
-    if (!pending) startY = scrollY;
+    clearTimeout(idleTimer);
+    // Passive input may arrive after the compositor has already scrolled.
+    // Preserve the last quiet position instead of guessing from wheel deltas.
+    if (!pending) startY = interrupted ? animatedY : idleY;
     pending = true;
+    keyboardInput = fromKeyboard;
     lastInput = now;
     schedule();
   }
@@ -187,7 +201,13 @@
 
   addEventListener('scroll', () => {
     requestUpdate();
-    if (pending && !motion) { lastScroll = performance.now(); schedule(); }
+    if (motion) return;
+    lastScroll = performance.now();
+    if (pending) schedule();
+    else {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => { idleY = scrollY; }, quietTime);
+    }
   }, {passive:true});
   addEventListener('wheel', event => {
     if (event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) { cancel(); return; }
@@ -207,13 +227,17 @@
   addEventListener('touchend', endTouch, {passive:true});
   addEventListener('touchcancel', event => { endTouch(event); cancel(); }, {passive:true});
   addEventListener('pointerdown', event => { pointing = event.pointerType !== 'touch'; cancel(); }, {passive:true});
-  addEventListener('pointerup', () => { pointing = false; schedule(); }, {passive:true});
+  addEventListener('pointerup', () => {
+    if (pointing && !pending) idleY = scrollY;
+    pointing = false;
+    schedule();
+  }, {passive:true});
   addEventListener('pointercancel', () => { pointing = false; }, {passive:true});
   addEventListener('keydown', event => {
     const editing = event.target.closest('input,textarea,select,[contenteditable="true"]');
     if (scrollKeys.has(event.key) && !editing && !event.altKey && !event.ctrlKey && !event.metaKey) {
       keys.add(event.key);
-      input();
+      input(true);
     } else cancel();
   });
   addEventListener('keyup', event => {
