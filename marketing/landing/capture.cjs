@@ -137,8 +137,8 @@ async function stableView(page) {
 function viewSpec(view, mobile) {
   if (view === 'dashboard') return {
     title: '#p-summary .summary-title',
-    required: mobile ? ['#p-summary .summary-title', '#p-summary .summary-hero-card', '#p-summary .summary-mobile-twoup']
-      : ['#p-summary .summary-title', '#p-summary .summary-kpis-v3', '#p-summary .summary-chart-card', '#p-summary .summary-categories', '#p-summary .summary-snapshot']
+    required: mobile ? ['#p-summary .summary-title', '#p-summary .summary-grid-v3', '#p-summary .summary-hero-card', '#p-summary .summary-mobile-twoup']
+      : ['#p-summary .summary-title', '#p-summary .summary-grid-v3', '#p-summary .summary-kpis-v3', '#p-summary .summary-chart-card', '#p-summary .summary-categories', '#p-summary .summary-snapshot']
   };
   if (view === 'stock') return { title: '#p-stock .page-title', required: ['#p-stock .page-title', '#p-stock .stock-kpis', '#stock-list'] };
   if (view === 'sourcing') return { title: '#p-item .page-title', required: ['#p-item .page-title', '#p-item .item-full-page'] };
