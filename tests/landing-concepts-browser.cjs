@@ -44,14 +44,14 @@ const contentType={'.html':'text/html','.js':'text/javascript','.css':'text/css'
         await page.locator('.journey-nav a[href="#sale"]').click();
         await page.waitForTimeout(100);
         assert.equal(await page.evaluate(()=>location.hash),'#sale');
-        const example=await page.locator('#sale .visual-open img').evaluate(async img=>{await img.decode();return img.naturalWidth>1000;});
-        assert(example,'Actual desktop screenshot must decode');
+        await page.locator('#sale .visual-open img').evaluate(img=>{img.loading='eager';});
+        await page.waitForFunction(()=>{const img=document.querySelector('#sale .visual-open img');return !!img&&img.complete&&img.naturalWidth>1000;});
         if(width!==768){
           await page.screenshot({path:'/tmp/landing-scroll-concept'+variant+'-'+(isWebKit?'webkit':'chromium')+'-'+width+'-sale.png'});
         }
         await page.locator('#sale .visual-open').click();
         await page.locator('#image-dialog[open]').waitFor();
-        assert(await page.locator('#image-dialog img').evaluate(async img=>{await img.decode();return img.naturalWidth>500;}));
+        await page.waitForFunction(()=>{const img=document.querySelector('#image-dialog img');return !!img&&img.complete&&img.naturalWidth>500;});
         await page.locator('#close-dialog').click();
         assert.equal(await page.locator('#image-dialog[open]').count(),0);
         if(variant===2){
