@@ -1068,8 +1068,8 @@ The Landing product screens workflow publishes the capture artifact for this rev
 inside one sticky presentation. The track gives each stage a reading interval,
 including the final Dashboard stage. The stage rail, Previous/Next, manual keyboard
 tabs and horizontal touch swipes navigate to corresponding positions in that same
-track. A click selects its destination immediately while native smooth scrolling
-catches up; fresh wheel, touch or page-key input releases that navigation. There
+track. A click moves directly to its stage position while the product content
+uses a soft entrance transition; fresh wheel, touch or page-key input stays native. There
 is no wheel interception, delayed scroll correction or external scrolling library.
 
 Overlaid panels reserve the largest copy height and a common screenshot position.

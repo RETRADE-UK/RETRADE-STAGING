@@ -243,6 +243,12 @@ async function open(browser, width, height, {reduced = false, delayed = false, h
   });
   if (!noJS) await context.addInitScript(() => {
     window.__landingInput = [];
+    const nativeScrollTo = window.scrollTo;
+    window.scrollTo = function(...args) {
+      window.__landingInput.push({type:'scrollTo',y:scrollY,t:performance.now(),args});
+      if (window.__landingInput.length > 16) window.__landingInput.shift();
+      return nativeScrollTo.apply(window,args);
+    };
     for (const type of ['wheel','scroll','pointerdown','pointerup','pointercancel','touchstart','touchend','focusin','click','resize','popstate']) {
       addEventListener(type, event => {
         window.__landingInput.push({type,y:scrollY,t:performance.now(),x:event.clientX,delta:event.deltaY,key:event.key});

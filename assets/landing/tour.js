@@ -113,9 +113,11 @@
     if (Math.abs(top - scrollY) > 2) {
       const pending = {index, top};
       navigation = pending;
-      scrollTo({top, behavior:instant || reduced.matches ? 'instant' : 'smooth'});
-      // A cancelled native animation must never leave the stage locked.
-      navigationTimer = setTimeout(() => {
+      // The pinned scene supplies the visual transition. Moving the underlying
+      // track directly avoids a competing browser scroll animation on tab clicks.
+      scrollTo({top, behavior:'instant'});
+      if (Math.abs(scrollY - top) <= 2) stopNavigation();
+      else navigationTimer = setTimeout(() => {
         if (navigation === pending) { stopNavigation(); syncScroll(); }
       }, 1800);
     }
