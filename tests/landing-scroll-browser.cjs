@@ -204,6 +204,9 @@ async function assertSlide(page, id, {fitsViewport = false} = {}) {
     g.image.top >= g.canvas.top - 2 && g.image.bottom <= g.canvas.bottom + 2,
   'The screenshot must fit inside its presentation frame: ' + JSON.stringify(g));
   if (fitsViewport && g.pinned) {
+    assert(g.stage.top >= -1 && g.stage.bottom <= g.height + 2 &&
+      Math.abs(g.stage.top - (g.height - g.stage.height) / 2) <= 3,
+      'The complete pinned presentation should sit neatly in the middle of the viewport: ' + JSON.stringify(g.stage));
     assert(g.figure.top >= g.controls.bottom - 2 && g.figure.bottom <= g.height + 2,
       'The complete product frame must fit below the persistent controls: ' + JSON.stringify(g));
     assert(g.copy.top >= g.controls.bottom - 2 && g.copy.bottom <= g.height + 2,
@@ -560,7 +563,7 @@ async function touchChecks(browser) {
       return {top:r.top,bottom:r.bottom,height:innerHeight,position:getComputedStyle(document.querySelector('.tour-stage')).position};
     });
     assert.equal(controls.position,'sticky','The complete tour stage must stay pinned together');
-    assert(controls.top >= -1 && controls.top <= 20 && controls.bottom < controls.height,
+    assert(controls.top >= -1 && controls.bottom < controls.height,
       'The persistent stage controls must remain visible while scrolling through the phone tour: ' + JSON.stringify(controls));
     await activate(page,'dashboard');
     const atEnd = await page.locator('.jump [aria-selected="true"]').getAttribute('href');

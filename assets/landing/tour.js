@@ -96,7 +96,11 @@
     navigation = null;
     clearTimeout(navigationTimer);
   }
+  function refreshOrigin() {
+    layout.start = deck.getBoundingClientRect().top + scrollY - layout.inset;
+  }
   function destination(index) {
+    refreshOrigin();
     if (layout.pinned) return layout.start + (index + .25) * layout.step;
     return Math.max(0, panels[index].getBoundingClientRect().top + scrollY - controls.offsetHeight - layout.inset - 16);
   }
@@ -122,6 +126,7 @@
   function syncScroll() {
     scrollFrame = 0;
     if (viewer.open) return;
+    refreshOrigin();
     if (navigation) {
       if (Math.abs(scrollY - navigation.top) > 2) return;
       stopNavigation();
@@ -153,6 +158,7 @@
     // Mobile browser chrome changes the visual viewport during a native swipe.
     // The stable small viewport keeps that gesture and its stage positions intact.
     if (preserve && layout.width === innerWidth && layout.height === viewHeight) return;
+    refreshOrigin();
     const before = layout;
     const y = scrollY;
     const engaged = before.pinned
@@ -161,7 +167,7 @@
     const phase = before.pinned ? (y - before.start) / before.step : current + .25;
     stopNavigation(true);
     if (animation) { animation.cancel(); animation = null; }
-    const inset = innerWidth <= 600 ? 8 : 12;
+    let inset = innerWidth <= 600 ? 8 : 12;
     deck.style.setProperty('--tour-inset', inset + 'px');
     deck.style.removeProperty('--tour-copy-height');
     deck.classList.add('tour-pinned');
@@ -171,6 +177,8 @@
     deck.style.setProperty('--tour-copy-height', copyHeight + 'px');
     const height = Math.ceil(stage.getBoundingClientRect().height);
     const pinned = height <= viewHeight - inset * 2;
+    if (pinned) inset = Math.max(inset, Math.floor((viewHeight - height) / 2));
+    deck.style.setProperty('--tour-inset', inset + 'px');
     const step = Math.max(360, Math.round(viewHeight * .8));
     deck.classList.toggle('tour-pinned', pinned);
     deck.style.setProperty('--tour-step', step + 'px');

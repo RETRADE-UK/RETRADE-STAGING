@@ -1073,6 +1073,8 @@ catches up; fresh wheel, touch or page-key input releases that navigation. There
 is no wheel interception, delayed scroll correction or external scrolling library.
 
 Overlaid panels reserve the largest copy height and a common screenshot position.
+The complete presentation is vertically centred while pinned. Scroll destinations
+read the current document origin instead of relying on an initial cached offset.
 Inactive stages are hidden, inert and visually hidden while retaining grid space.
 If the complete stage does not fit a short or zoomed viewport, the controller
 releases the pin and exposes all chapters in natural flow with sticky navigation
