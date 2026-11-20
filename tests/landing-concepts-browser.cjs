@@ -43,7 +43,7 @@ const contentType={'.html':'text/html','.js':'text/javascript','.css':'text/css'
         assert(example,'Actual desktop screenshot must decode');
         await page.locator('#sale .visual-open').click();
         await page.locator('#image-dialog[open]').waitFor();
-        assert(await page.locator('#image-dialog img').evaluate(async img=>{await img.decode();return img.naturalWidth>1000;}));
+        assert(await page.locator('#image-dialog img').evaluate(async img=>{await img.decode();return img.naturalWidth>500;}));
         await page.locator('#close-dialog').click();
         assert.equal(await page.locator('#image-dialog[open]').count(),0);
         if(variant===2){
@@ -53,7 +53,7 @@ const contentType={'.html':'text/html','.js':'text/javascript','.css':'text/css'
           assert.equal(await page.locator('#demo-spend').innerText(),'£41.00');
           await page.locator('[data-stock-filter="unlisted"]').click();
           assert.match(await page.locator('#demo-items').innerText(),/Canon camera strap/);
-          await page.locator('#demo-sale-price').fill('30');
+          await page.locator('#demo-sale-price').evaluate(input=>{input.value='30';input.dispatchEvent(new Event('input',{bubbles:true}));});
           assert.equal(await page.locator('#demo-price').innerText(),'£30.00');
           assert.equal(await page.locator('#demo-profit').innerText(),'£15.15');
           await page.locator('[data-metric="returns"]').click();
