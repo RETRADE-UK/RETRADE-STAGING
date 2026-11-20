@@ -269,7 +269,7 @@ async function capture(page,label,width){
 
       // saveDB stages its outbox before painting. A later rendering failure
       // must keep memory aligned with the complete durable pending mutation.
-      await seed(page,[item('staged')]);await split(page,'staged',['30','20']);
+      await seed(page,[item('staged',{photo:'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',photoPath:'ui-test/synthetic-camera.jpg'})]);await split(page,'staged',['30','20']);
       await page.evaluate(()=>{
         window.__stalePurchaseSubmit=document.getElementById('purchase-save');
         saveDB=()=>{

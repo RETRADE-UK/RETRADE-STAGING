@@ -53,14 +53,15 @@
     try{
       updates.forEach(function(u){Object.assign(u.item,u.values);});
       creates.forEach(function(r){if(!Array.isArray(DB[r.month])){DB[r.month]=[];createdMonths.push(r.month);}DB[r.month].push(r.item);});
-      expected=updates.map(function(u){return _findItemRecordById(u.item.id);}).concat(creates).map(function(r){return {key:'item:'+r.item.id,month:r.month,json:JSON.stringify(r.item)};});
+      var fingerprints=_dbFingerprint();
+      expected=updates.map(function(u){return u.item.id;}).concat(creates.map(function(r){return r.item.id;})).map(function(id){return {key:'item:'+id,fingerprint:fingerprints['item:'+id]};});
       if(saveDB()===false)throw new Error('save rejected');
     }catch(e){
       // saveDB stages the durable queue before rendering. If that render fails,
       // keep the fully queued change; rolling memory back would contradict the
       // pending writes and make a retry create duplicate children.
       var queued=typeof _outboxRead==='function'?_outboxRead():{};
-      var staged=expected.length&&expected.every(function(r){var q=queued[r.key];return q&&q.op==='save'&&q.month===r.month&&q.json===r.json;});
+      var staged=expected.length&&expected.every(function(r){var q=queued[r.key];return q&&q.op==='save'&&q.json+'|'+q.month===r.fingerprint;});
       if(staged){
         if(! _previewMode){clearTimeout(_saveTimer);_saveTimer=setTimeout(_persistChanges,200);}
         try{refresh();}catch(renderError){}
