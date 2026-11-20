@@ -9,6 +9,9 @@
   // content crosses the reading line; tabs are optional, never scroll locks.
   function setCurrent(){
     const readingLine=innerHeight*.48;
+    const first=stages[0].getBoundingClientRect();
+    const last=stages[stages.length-1].getBoundingClientRect();
+    document.body.classList.toggle('tour-active',first.top<innerHeight*.85 && last.bottom>innerHeight*.18);
     let active=stages[0];
     for(const stage of stages) if(stage.getBoundingClientRect().top<=readingLine) active=stage;
     for(const link of nav){
