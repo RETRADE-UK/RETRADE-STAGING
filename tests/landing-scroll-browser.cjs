@@ -280,10 +280,13 @@ async function layoutChecks(browser) {
   for (const [width,height] of sizes) {
     await check(browser,width,height,width + 'x' + height,async page => {
       assert.equal(await page.evaluate(() => scrollY), 0, 'An untouched landing page must start at the top');
+      const review = width === 390 || width === 1440;
+      if (review) await page.screenshot({path:'/tmp/landing-scroll-' + engine + '-' + width + 'x' + height + '-hero.png'});
       for (const id of ids) {
         await activate(page,id);
         await deckTop(page);
         await assertSlide(page,id,{fitsDesktop:true});
+        if (review) await page.screenshot({path:'/tmp/landing-scroll-' + engine + '-' + width + 'x' + height + '-' + id + '.png'});
       }
       await page.locator('[data-prev]').click();
       await selected(page,'sale');
@@ -339,10 +342,18 @@ async function keyboardChecks(browser) {
     assert.equal(await page.locator('.jump [aria-selected="true"]').getAttribute('href'), '#sourcing',
       'Vertical scrolling must not silently advance a slide');
     await page.locator('#sourcing').focus();
-    await page.keyboard.press('End');
     await rest(page);
-    assert(await page.evaluate(() => Math.abs(scrollY - (document.documentElement.scrollHeight - innerHeight)) <= 3),
-      'The closing section and footer must remain reachable');
+    await page.mouse.move(1000,600);
+    await page.mouse.wheel(0,await page.evaluate(() => document.documentElement.scrollHeight));
+    await rest(page);
+    const footer = await page.locator('footer').evaluate(el => {
+      const box = el.getBoundingClientRect();
+      return {top:box.top,bottom:box.bottom,height:innerHeight};
+    });
+    assert(footer.top >= -1 && footer.bottom <= footer.height + 3,
+      'Native wheel scrolling must reach the full footer: ' + JSON.stringify(footer));
+    assert.equal(await page.locator('.jump [aria-selected="true"]').getAttribute('href'),'#sourcing',
+      'Scrolling past the tour must preserve the selected stage');
   });
 }
 

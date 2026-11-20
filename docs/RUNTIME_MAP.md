@@ -1057,8 +1057,8 @@ account, saved session or database is used. Full page headings and the complete
 sale breakdown must fit the capture viewport. The script writes PNGs, WebPs and
 a manifest containing their dimensions, hashes, measured content and actual app
 calculations. Review the captures before replacing the public WebPs and manifest;
-update the HTML image dimensions and image version together. The Landing product
-screens workflow publishes the capture artifact for this review.
+update the HTML image dimensions, desktop frame ratios and image version together.
+The Landing product screens workflow publishes the capture artifact for this review.
 
 
 ### Landing product slides — 20 November 2026
@@ -1072,8 +1072,9 @@ reduced motion. Native vertical scrolling handles the page and tall phone images
 Chapter links and history restore the matching stage. No scrolling library loads.
 
 Each slide owns its actual responsive picture; there is no cloned desktop stage.
-Desktop images fit completely inside a bounded frame using contain. Phone images
-retain their natural aspect ratio and full height. The native image dialog opens
+Desktop frames follow the complete image ratio within a viewport height limit,
+avoiding crops and wide empty gutters. Phone images retain their natural aspect
+ratio and full height. The native image dialog opens
 the selected picture and returns focus to its trigger when dismissed.
 The hero uses a bounded overview frame at every width, preserving the full
 dashboard without allowing a long capture to stretch the page introduction.
