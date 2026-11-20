@@ -138,11 +138,11 @@ function viewSpec(view, mobile) {
   if (view === 'dashboard') return {
     title: '#p-summary .summary-title',
     required: mobile ? ['#p-summary .summary-title', '#p-summary .summary-hero-card', '#p-summary .summary-mobile-twoup']
-      : ['#p-summary .summary-title', '#p-summary .summary-kpis-v3', '#p-summary .summary-chart-card', '#p-summary .summary-categories']
+      : ['#p-summary .summary-title', '#p-summary .summary-kpis-v3', '#p-summary .summary-chart-card', '#p-summary .summary-categories', '#p-summary .summary-snapshot']
   };
   if (view === 'stock') return { title: '#p-stock .page-title', required: ['#p-stock .page-title', '#p-stock .stock-kpis', '#stock-list'] };
   if (view === 'sourcing') return { title: '#p-item .page-title', required: ['#p-item .page-title', '#p-item .item-full-page'] };
-  return { title: '#p-item .ip-title', required: ['#p-item .ip-title', '#p-item .ip-topbar', '#p-item .ip-section-pnl', '#p-item .ip-section-pnl .ip-receipt-row.total'] };
+  return { title: '#p-item .ip-title', required: ['#p-item .ip-title', '#p-item .ip-topbar', '#p-item .item-full-page', '#p-item .ip-section-pnl', '#p-item .ip-section-pnl .ip-receipt-row.total'] };
 }
 
 async function fitCompleteSections(page, spec, base) {
@@ -151,14 +151,19 @@ async function fitCompleteSections(page, spec, base) {
     await resetScroll(page);
     await stableView(page);
     const geometry = await page.evaluate(selectors => {
+      const floating = [...document.querySelectorAll('#bottom-nav,#fab-dial .fab-main,#search-fab')]
+        .filter(element => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden' && Number(getComputedStyle(element).opacity) > 0)
+        .map(element => element.getBoundingClientRect());
       const elements = selectors.map(selector => {
         const element = document.querySelector(selector);
         if (!element || !element.getClientRects().length) throw new Error('Missing visible capture section: ' + selector);
-        return element.getBoundingClientRect().bottom;
+        const rect = element.getBoundingClientRect();
+        const clearance = floating.reduce((space, control) =>
+          control.left < rect.right && control.right > rect.left
+            ? Math.max(space, innerHeight - control.top + 28) : space, 28);
+        return rect.bottom + clearance;
       });
-      const nav = document.getElementById('bottom-nav');
-      const clearance = nav?.getClientRects().length ? nav.getBoundingClientRect().height + 28 : 28;
-      return { needed: Math.ceil(Math.max(...elements) + clearance), current: innerHeight };
+      return { needed: Math.ceil(Math.max(...elements)), current: innerHeight };
     }, spec.required);
     if (geometry.needed <= geometry.current) return;
     assert(geometry.needed <= 4200, 'Unexpectedly tall capture; inspect the app rather than silently clipping: ' + geometry.needed);
@@ -178,10 +183,18 @@ async function capture(page, view, mobile, base) {
     const rounded = value => Math.round(value * 100) / 100;
     const nav = document.getElementById('bottom-nav');
     const usableBottom = nav?.getClientRects().length ? nav.getBoundingClientRect().top : innerHeight;
+    const floating = [...document.querySelectorAll('#bottom-nav,#fab-dial .fab-main,#search-fab')]
+      .filter(element => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden' && Number(getComputedStyle(element).opacity) > 0)
+      .map(element => ({ selector: element.id ? '#' + element.id : '#fab-dial .fab-main', rect: element.getBoundingClientRect() }));
     const requiredElements = required.map(selector => {
       const element = document.querySelector(selector), rect = element.getBoundingClientRect();
       if (rect.x < -.5 || rect.y < -.5 || rect.right > innerWidth + .5 || rect.bottom > usableBottom + .5) {
         throw new Error('Capture would clip ' + selector + ': ' + JSON.stringify(rect.toJSON()));
+      }
+      for (const control of floating) {
+        if (control.rect.left < rect.right && control.rect.right > rect.left && rect.bottom > control.rect.top + .5) {
+          throw new Error('Capture would obscure ' + selector + ' behind ' + control.selector);
+        }
       }
       return { selector, text: element.innerText.trim(),
         inputs: [...element.querySelectorAll('input,select')].map(input => ({
@@ -196,7 +209,9 @@ async function capture(page, view, mobile, base) {
     return { title: heading.innerText.trim(), viewport: { width: innerWidth, height: innerHeight }, deviceScaleFactor: devicePixelRatio,
       scroll: { x: scrollX, y: scrollY },
       proof: { fullHeading: true, fullBreakdown: view === 'sale' ? true : null,
-        fullViewport: true, requiredElements },
+        fullViewport: true, clearOfFloatingControls: true, requiredElements,
+        floatingControls: floating.map(control => ({ selector: control.selector,
+          bounds: { x: rounded(control.rect.x), y: rounded(control.rect.y), width: rounded(control.rect.width), height: rounded(control.rect.height) } })) },
       renderedDashboard: view === 'dashboard' ? [...document.querySelectorAll('#p-summary [data-cv]')]
         .map(element => {
           const rect = element.getBoundingClientRect(), visible = !!element.getClientRects().length;
