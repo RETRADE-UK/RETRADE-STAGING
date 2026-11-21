@@ -13,6 +13,10 @@ for(const route of ['login','signup','dashboard']){
   fs.writeFileSync(path.join(out,route,'index.html'),shell);
 }
 fs.copyFileSync(path.join(root,'marketing/landing/index.html'),path.join(out,'index.html'));
+for (const route of ['landing1','landing2']) {
+  fs.mkdirSync(path.join(out,route),{recursive:true});
+  fs.copyFileSync(path.join(root,'marketing/landing',route+'.html'),path.join(out,route,'index.html'));
+}
 fs.mkdirSync(path.join(out,'start'));
 fs.writeFileSync(path.join(out,'start/index.html'),'<!doctype html><html lang="en"><meta charset="utf-8"><title>RETRADE</title><script src="/assets/landing/entry.js"></script><a href="/">Open RETRADE</a></html>');
 fs.writeFileSync(path.join(out,'.nojekyll'),'');

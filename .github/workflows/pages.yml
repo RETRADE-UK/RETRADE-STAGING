@@ -35,7 +35,7 @@ jobs:
           set -euo pipefail
           node scripts/check-assets.cjs
           node scripts/build-site.cjs
-          for route in login signup dashboard start; do test -s "_site/$route/index.html"; done
+          for route in login signup dashboard start landing1 landing2; do test -s "_site/$route/index.html"; done
           test -s _site/assets/landing/sourcing-phone.webp
           grep -q 'id="tour-title"' _site/index.html
           test -f _site/src/core/application.js
@@ -43,11 +43,19 @@ jobs:
           test ! -d _site/experiments
           test "$(cat _site/CNAME)" = "test.retrade-uk.com"
 
+      # Wait briefly for GitHub's artifact index. The previous staging deploy
+      # occasionally failed to find a package it had just uploaded.
       - name: Upload static site
         uses: actions/upload-pages-artifact@v4
         with:
           path: _site
+          name: github-pages-${{ github.run_attempt }}
+
+      - name: Allow artifact indexing
+        run: sleep 12
 
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
