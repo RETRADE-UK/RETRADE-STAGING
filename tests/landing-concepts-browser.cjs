@@ -51,7 +51,7 @@ const contentType={'.html':'text/html','.js':'text/javascript','.css':'text/css'
         await page.waitForFunction(() => document.querySelector('#image-dialog img').naturalWidth > 500);
         await page.locator('#close-dialog').click();
         assert.equal(await page.locator('#image-dialog[open]').count(), 0);
-        assert.equal(await salesImage.evaluate(el => el === document.activeElement), true);
+        await page.waitForFunction(() => document.activeElement.getAttribute('aria-label') === 'Expand Sales screenshot');
 
         if (variant === 2) {
           await page.getByRole('button', { name: 'By category' }).click();
