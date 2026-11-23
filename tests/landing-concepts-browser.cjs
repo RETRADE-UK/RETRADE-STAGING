@@ -32,7 +32,7 @@ const contentType={'.html':'text/html','.js':'text/javascript','.css':'text/css'
         await page.locator('h1').waitFor();
         assert.match(await page.locator('h1').innerText(),/You find the bargains/);
         assert.match(await page.locator('h1').innerText(),/We track the margins/);
-        assert.equal(await page.locator('.feature').count(),7);
+        assert.equal(await page.locator('.feature').count(),variant === 1 ? 6 : 7);
         assert.equal(await page.locator('.journey-nav a').count(),7);
         const noOverflow=await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2);
         assert(noOverflow,'No horizontal overflow at '+width+' variant '+variant);
@@ -45,32 +45,31 @@ const contentType={'.html':'text/html','.js':'text/javascript','.css':'text/css'
         if (variant === 2) await page.locator('#sale summary').click();
         const salesImage = page.getByRole('button', { name: 'Expand Sales screenshot' });
         await salesImage.scrollIntoViewIfNeeded();
-        assert.match(await salesImage.locator('img').evaluate(img => img.currentSrc), /sales(?:-phone)?\.webp$/);
+        await page.waitForFunction(() => document.querySelector('#sale picture img, #sale .visual-open img')?.naturalWidth > 500);
         await salesImage.click();
         await page.locator('#image-dialog[open]').waitFor();
         await page.waitForFunction(() => document.querySelector('#image-dialog img').naturalWidth > 500);
         await page.locator('#close-dialog').click();
         assert.equal(await page.locator('#image-dialog[open]').count(), 0);
-        assert.equal(await salesImage.evaluate(el => el === document.activeElement), true);
-
-        await page.getByRole('button', { name: 'By category' }).click();
-        assert.match(await page.locator('#expenses .workspace-list').innerText(), /Stock purchases/);
-        assert.match(await page.locator('#expenses .workspace-foot').innerText(), /£2,110.00/);
-        await page.evaluate(() => {
-          Object.defineProperty(navigator, 'clipboard', {
-            configurable: true, value: { writeText: async value => { window.copiedAmount = value; } }
-          });
-        });
-        await page.getByRole('button', { name: 'Copy box 21' }).click();
-        await page.waitForFunction(() => window.copiedAmount === '2040.00');
-        assert.match(await page.locator('#tax [role=status]').innerText(), /Box 21 copied/);
-        await page.evaluate(() => {
-          navigator.clipboard.writeText = async () => { throw new Error('Clipboard denied'); };
-        });
-        await page.getByRole('button', { name: 'Copy box 20' }).click();
-        await page.waitForFunction(() => document.querySelector('#tax [role=status]').textContent.includes('2110.00'));
+        await page.waitForFunction(() => document.activeElement.getAttribute('aria-label') === 'Expand Sales screenshot');
 
         if (variant === 2) {
+          await page.getByRole('button', { name: 'By category' }).click();
+          assert.match(await page.locator('#expenses .workspace-list').innerText(), /Stock purchases/);
+          assert.match(await page.locator('#expenses .workspace-foot').innerText(), /£2,110.00/);
+          await page.evaluate(() => {
+            Object.defineProperty(navigator, 'clipboard', {
+              configurable: true, value: { writeText: async value => { window.copiedAmount = value; } }
+            });
+          });
+          await page.getByRole('button', { name: 'Copy box 21' }).click();
+          await page.waitForFunction(() => window.copiedAmount === '2040.00');
+          assert.match(await page.locator('#tax [role=status]').innerText(), /Box 21 copied/);
+          await page.evaluate(() => {
+            navigator.clipboard.writeText = async () => { throw new Error('Clipboard denied'); };
+          });
+          await page.getByRole('button', { name: 'Copy box 20' }).click();
+          await page.waitForFunction(() => document.querySelector('#tax [role=status]').textContent.includes('2110.00'));
           const dashboard = page.locator('#dashboard');
           assert.match(await dashboard.innerText(), /£1,977.00/);
           for (const [range, revenue] of [['7 days', '£451.00'], ['14 days', '£972.00'], ['CY', '£16,853.90']]) {
@@ -93,6 +92,32 @@ const contentType={'.html':'text/html','.js':'text/javascript','.css':'text/css'
           assert.equal(await dashboard.getByRole('button', { name: '30 days' }).getAttribute('aria-pressed'), 'true');
         } else {
           assert.equal(await page.locator('.demo-card').count(), 0);
+          const dashboard = page.locator('#dashboard');
+          const selector = dashboard.getByRole('combobox', { name: 'Dashboard period' });
+          for (const period of ['7d','14d','cy','30d']) {
+            await selector.selectOption(period);
+            await page.waitForFunction(period => {
+              const root = document.querySelector('#dashboard');
+              const image = root.querySelector('img');
+              return root.dataset.dashboardCapture === period &&
+                image.currentSrc.includes('open-dashboard-' + period) && image.complete;
+            }, period);
+          }
+          for (const id of ['item','expenses','tax']) {
+            const screenshot = page.locator('#' + id + ' .capture-scroll');
+            await screenshot.scrollIntoViewIfNeeded();
+            await page.waitForFunction(id => {
+              const image = document.querySelector('#' + id + ' .capture-scroll img');
+              return image.complete && image.naturalWidth > 0;
+            }, id);
+            if (width <= 600) {
+              assert(await screenshot.evaluate(el => el.scrollHeight >= el.clientHeight), id + ' fits the phone frame');
+              await screenshot.evaluate(el => { el.scrollTop = el.scrollHeight; });
+              assert(await screenshot.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight <= 1), id + ' can display the end of the full page');
+            } else {
+              assert(await screenshot.evaluate((el, viewport) => el.clientWidth > viewport * .8, width), id + ' uses the desktop width');
+            }
+          }
         }
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), width, 'No overflow after interactions');
         assert.deepEqual(errors,[]);
