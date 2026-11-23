@@ -80,6 +80,8 @@ const types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', 
     await checkContact(reports);
     await page.goto(origin+'/?code=synthetic-callback');
     await page.waitForURL('**/login/?code=synthetic-callback');
+    await page.goto(origin+'/landing2/?code=retired-path-callback');
+    await page.waitForURL('**/login/?code=retired-path-callback');
     await page.goto(origin+'/start/?utm_source=review#stock');
     await page.waitForURL('**/?utm_source=review#stock');
     assert.deepEqual(missing,[]);

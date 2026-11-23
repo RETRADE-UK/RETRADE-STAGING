@@ -154,6 +154,11 @@ async function checkEntryPoints(page) {
   await page.goto(origin + '/');
   await page.getByRole('link', { name: /Try the Dashboard/i }).click();
   await waitForExample(page, 'Dashboard');
+  await page.goBack();
+  await checkSelected(page, 'Stock');
+  assert.equal(await page.locator('iframe').count(), 0, 'Back to the hero releases the example');
+  await page.getByRole('button', { name: 'Try Stock example' }).click();
+  await waitForExample(page, 'Stock');
 }
 
 async function checkFallback(page) {

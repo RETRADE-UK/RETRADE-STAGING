@@ -102,6 +102,13 @@
     tabByPage.get('stock').focus({ preventScroll: true });
   });
   resetButton.addEventListener('click', () => render(activePage, true, true));
+  window.addEventListener('message', event => {
+    if (event.data !== 'retrade-preview-panel-open' || !frame || event.source !== frame.contentWindow) return;
+    const bounds = frame.getBoundingClientRect();
+    if (bounds.top < 0 || bounds.bottom > window.innerHeight) {
+      frame.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    }
+  });
 
   function restore(reset = false) {
     const page = pageFromHash();
