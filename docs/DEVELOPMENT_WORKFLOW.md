@@ -123,8 +123,14 @@ Do not merge one project into another simply to share unfinished work. Rebase/me
 
 Direct writes to `main` should be treated as an emergency exception only. Repository protection should be configured to require pull requests, block force-pushes and block deletion of `main`.
 
-## 20 November 2026 — two public landing concepts
+## Staging landing page
 
-The root landing page is unchanged. Two independent public comparison pages are generated from `marketing/landing/landing1.html` and `marketing/landing/landing2.html` to `/landing1/` (open editorial vertical reveal) and `/landing2/` (scroll-and-click illustrative demo). They share `assets/landing/concepts.css` and `concepts.js`, with assets declared in `config/assets.js`. The comparison pages are noindex, use only static real-app screenshots made from the offline synthetic fixture, and never load staging auth, persistence, or production data. Full-screen captures remain on the existing allowlist. Interactions live only in the page and reset on reload. Full keyboard, mobile, reduced-motion and no-JS checks live in `tests/landing-concepts-browser.cjs` (the `test:landing` script).
+Edit `marketing/landing/landing1.html` for both `/` and `/landing1/`. On staging, Pages publishes the same search-excluded HTML at each address. On production, the build emits an indexable homepage with its canonical URL. Old `/landing2/` links redirect to `/landing1/`. The asset allowlist in `config/assets.js` controls which screenshots, scripts and styles ship. `npm run test:landing` exercises the public showcase in Chromium and WebKit. Review the result at https://test.retrade-uk.com/ before promoting the landing changes to production.
 
-The existing root, /login/, /signup/ and /dashboard/ routes are unchanged. To remove the experiment, revert its PR, preserving the original landing tour. GitHub Pages upload now assigns an artifact name by run attempt and pauses before deploy to avoid index visibility and duplicate-asset errors seen on previous retries.
+### Production promotion
+
+Production currently serves the workspace at `/` and sends confirmation and recovery callbacks to the current path. Ship the following together in the production landing PR.
+
+1. Port the Pages route generation in `scripts/build-site.cjs`, the landing assets and the generated sample workspaces. The routed workspace shell must serve `/login/`, `/signup/` and `/dashboard/` with `data-workspace-routes` and root-relative asset URLs, including dynamically loaded scripts in `app.js` and `src/platform/view-loader.js`. Keep the public homepage’s `assets/landing/entry.js` so older root email links retain their query and fragment and `/start/` bookmarks resolve.
+2. Port the route-aware auth flow in `src/core/application.js`, including `_authRouteName`, `_writeWorkspaceRoute` and `_authCallbackURL`. Set the production Supabase Site URL to `https://retrade-uk.com` and include `https://retrade-uk.com/login/` in its redirect allowlist before using that callback for signup and recovery. Retain the production CNAME, project binding and production asset configuration. These route changes require no customer-data migration.
+3. Port the separate homepage and workspace navigation cache keys in `sw.js`, root-scoped worker registration and the `/dashboard/` launch URL in `manifest.webmanifest`. Run the public-route and landing browser checks against the built production artifact with synthetic data. Verify direct signup, login, reset, legacy root callbacks and installed-app launch before rollout.

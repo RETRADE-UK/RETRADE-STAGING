@@ -39,23 +39,28 @@ manifest and test references, and run the import and export tests. The
 staging Pages workflow calls the same safety and browser jobs as pull
 requests before deploying the tested main commit.
 
-# Landing 1 live examples - 23 November 2026
+# Public landing and sample workspace
 
-The hero Dashboard opens immediately. Stock, Sales and Expenses start as their
-frames approach the viewport, including after back/forward restoration. The
-public homepage also waits until a visible tour chapter approaches before
-downloading its screenshot. The image links and no-JavaScript tour continue to
-use the same full-size captures.
+The Pages build publishes `marketing/landing/landing1.html` at `/` and `/landing1/`.
+The retired `/landing2/` address redirects to `/landing1/`. Authentication links
+sent to the original root and old `/start/` links use `assets/landing/entry.js`.
+The login, signup and dashboard routes share the signed-in workspace shell.
 
-`marketing/landing/build-previews.cjs` builds the four public examples under
-`/landing1/preview/`. They share the app's classic renderers, calculations,
-forms and styles. A separate entry point omits the auth boot, backend binding
-and service worker. Each sandboxed frame has an opaque origin, one page, and a
-network policy that blocks data connections. Its clock and sample records come
-from `capture-fixture.cjs`. Workspace and preference changes live in the frame's
-memory. Reset replaces the frame, and returning from the browser's back/forward
-cache also creates fresh frames. The generated scripts and styles use content
-hashes. The signed-in workspace keeps its original entry point.
+The hero uses responsive Dashboard screenshots. Explore the app opens Stock.
+`assets/landing/open.js` owns the page selector and the single active preview.
+The examples load on demand. Switching pages replaces the active example in
+the same space. Public landing assets are declared in `config/assets.js`.
+The app service worker handles landing navigation separately from the
+workspace shell.
+
+`marketing/landing/build-previews.cjs` generates the four live examples under
+`/landing1/preview/` using the app’s renderers, forms, calculations and styles.
+Each sandboxed example has an opaque origin and a policy blocking data
+connections. The app's auth boot, backend binding and service worker are
+excluded. Example records and time come from the offline capture fixture.
+Edits are held in the frame's memory. Generated scripts and styles use content
+hashes. Run `npm run test:landing` to exercise the public flow in Chromium
+and WebKit.
 
 # Stock purchase actions — 20 November 2026
 
@@ -1122,73 +1127,3 @@ The isolated fortnight regression runs in Chromium and WebKit at 320, 390, 768
 and 1440px, checking boundaries, totals, blank days, losses, bar gaps, label bounds,
 selection persistence, hover, drill-downs and switching between daily periods.
 Cache generation: `20261016-dashboard-14-days` (staging adds `-staging`).
-
-
-### Public URLs on staging
-
-The Pages build publishes the public product tour from `marketing/landing/index.html` at `/`. The login, signup and dashboard directories share the existing workspace shell. Native authentication owns the route transitions, and the service worker keeps the public page and the workspace in separate cache entries. Installed apps open `/dashboard/`. The previous `/start/` links and authentication callbacks sent to the old root still resolve.
-
-Tour assets are allowlisted in `config/assets.js`. To refresh the product screenshots,
-run `node marketing/landing/capture.cjs /tmp/retrade-landing-captures` with Playwright
-Chromium, Python and Pillow installed. The real app renders a deterministic local
-fixture from `capture-fixture.cjs`; external networking is mocked or blocked and no
-account, saved session or database is used. Full page headings and the complete
-sale breakdown must fit the capture viewport. The script writes PNGs, WebPs and
-a manifest containing their dimensions, hashes, measured content and actual app
-calculations. Schema 3 separates eight complete desktop/phone originals, four
-1600×1000 desktop overviews and one actual receipt-element detail. The wide
-overviews use the real desktop breakpoint, with the Dashboard chart and categories
-beside one another. The sale overview uses the app's existing receipt disclosure
-in its collapsed state; a separate expanded receipt capture makes every cost and
-the final profit readable. No product controls, rows or values are fabricated.
-Review the captures before replacing the public WebPs and manifest;
-update the HTML image dimensions and image version together. Preview frames retain
-their shared presentation ratio independently of the original capture dimensions.
-The Landing product screens workflow publishes the capture artifact for this review.
-
-
-### Landing scroll reveal and stage navigation — 20 November 2026
-
-`assets/landing/tour.js` maps native document scrolling to four product stages
-inside one sticky presentation. The track gives each stage a reading interval,
-including the final Dashboard stage. The stage rail, Previous/Next, manual keyboard
-tabs and horizontal touch swipes navigate to corresponding positions in that same
-track. A click moves directly to its stage position while the product content
-uses a 44px vertical entrance in the corresponding direction; fresh wheel, touch
-or page-key input stays native. The tab selection changes without a lateral sweep,
-and the previous/next controls use up/down arrows. There
-is no wheel interception, delayed scroll correction or external scrolling library.
-
-Overlaid panels reserve the largest copy height and a common screenshot position.
-The complete presentation is vertically centred while pinned. Scroll destinations
-read the current document origin instead of relying on an initial cached offset.
-Inactive stages are hidden, inert and visually hidden while retaining grid space.
-If the complete stage does not fit a short or zoomed viewport, the controller
-releases the pin and exposes all chapters in natural flow with sticky navigation
-links. Resizing preserves progress only when the reader is already in the tour.
-Chapter links and browser history restore both stage and scroll position. Reduced
-motion skips entrance animations and smooth navigation.
-
-Every preview uses a compact 16:10 canvas filled by a separately captured wide
-desktop overview. The original tall page is not squeezed into a thumbnail.
-Frame dimensions remain identical across stages and on phones. The sale frame's
-Item page/Breakdown controls switch between its true overview and the complete
-receipt detail without moving or resizing the frame. They are hidden without JS.
-The full-screen dialog opens the link's complete original, or each figure's
-`data-phone-src` on phones; it never accidentally reuses the smaller preview.
-It preserves full-size vertical reading, resets to the top on reopening, and
-returns focus when dismissed. The hero uses the same bounded landscape shape
-and can also open the complete Dashboard. There is no cloned product stage.
-
-The landing HTML reserves capture dimensions and versions the CSS/JS with
-`20261120-readable-tour`, also used for the new preview/detail images. Complete
-originals retain `20261120-full-screens`. These files remain
-outside the application's service-worker static cache, so this does not rotate
-the app asset generation. `tests/landing-scroll-browser.cjs` covers actual native
-wheel/touch progression and reversal in Chromium and WebKit, consistent frame
-geometry, click-to-scroll synchronization, persistent controls, keyboard/history,
-reduced motion, delayed images and short-viewport/no-JavaScript fallbacks. It also
-checks actual vertical animation keyframes, hero viewer focus, receipt view
-switching and original-versus-preview URLs. It checks the
-published image hashes and complete-content proof against the capture manifest.
-CI emits desktop and mobile screenshots for visual review.

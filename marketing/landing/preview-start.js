@@ -24,6 +24,15 @@ document.addEventListener('click', event => {
   if (event.target.closest('a[href]')) { event.preventDefault(); event.stopImmediatePropagation(); }
 }, true);
 document.addEventListener('submit', event => event.preventDefault());
+// The sample panel is fixed to the frame. Its controls can fall outside the
+// outer viewport when only part of the example is on screen.
+const previewPanel = document.getElementById('slide-panel');
+let previewPanelOpen = false;
+new MutationObserver(() => {
+  const open = previewPanel.classList.contains('on');
+  if (open && !previewPanelOpen) parent.postMessage('retrade-preview-panel-open', location.origin);
+  previewPanelOpen = open;
+}).observe(previewPanel, { attributes: true, attributeFilter: ['class'] });
 if (previewRoute === 'monthly') _prepareSalesEntry();
 document.documentElement.dataset.theme = 'dark';
 if (previewRoute === 'summary') {
