@@ -8,7 +8,9 @@ function between(start,end){
   assert.ok(a>=0&&b>a,start);
   return source.slice(a,b);
 }
+const oneFunction=name=>{const a=source.indexOf('function '+name+'(');assert.ok(a>=0,name);return source.slice(a,source.indexOf('\n}',a)+2);};
 const logic=[
+  ...['_jobLotItemAsk','_jobLotItemTotal','_initJobLotPrice','_jobLotMembers','_findItemRecordById'].map(oneFunction),
   between('function _resetBusinessStateForCloudLoad(){','async function _backfillDateSoldAtReturn(){'),
   between('function _dbFingerprint(){','async function _persistChangesPass(){'),
   between('let _cloudRefreshBusy=false;','// DATABASE (entry point'),
@@ -39,7 +41,7 @@ function harness(){
     _repairRunLinkedDates(){},_refreshNav(){},_initActivityShadow(){},refreshActivePage(){},
     pending:0,_outboxPendingCount:()=>c.pending,_waitForSync:async()=>{},
     allDBKeys:()=>Object.keys(c.DB).filter(k=>/^[A-Z]{3}-\d{2}$/.test(k)),
-    _rowToItem:(row,parts=[],returns=[])=>({id:row.id,notes:row.notes,price:row.price,parts,returns}),
+    _rowToItem:(row,parts=[],returns=[])=>({id:row.id,notes:row.notes,price:row.price,state:row.state,salePrice:row.sale_price,estSalePrice:row.est_sale_price,parts,returns}),
     _rowToRun:r=>r,_rowToAccount:r=>r,
     _sb:{auth:{getSession:async()=>({data:{session:{user:{id:c._currentUserId}}}})}}
   };
@@ -88,7 +90,13 @@ function harness(){
     history.items.push({id:'foreign',month:'OCT-26',price:999999,user_id:'two'});
     history.item_returns=history.items.slice(0,n).map(r=>({id:r.id,item_id:r.id,logged_at:'2026-10-04',user_id:'one'}));
     history.expenses=history.items.slice(0,n).map(r=>({id:r.id,date:'2026-10-01',amount:2,user_id:'one'}));
+    history.job_lots=[{id:'lot',name:'Camera kit',status:'listed',sale_price:159.99,category:'Digital Cameras & Lenses',promo_percent:.03,price_mode:'linked',price_adjustment:null,user_id:'one'}];
+    history.job_lot_items=[{id:'membership',job_lot_id:'lot',item_id:'0000',user_id:'one'}];
+    history.items[0].state='listed';history.items[0].sale_price=180;
     await c.loadFromSupabase();
+    assert.equal(c._jobLots[0].salePrice,159.99,'Legacy price is retained on cloud hydration');
+    assert.equal(c._jobLots[0].priceAdjustment,-20.01);
+    assert.equal(c._jobLots[0].category,'Digital Cameras & Lenses');assert.equal(c._jobLots[0].promoPercent,.03);
     assert.equal(c.DB['OCT-26'].length,n);
     assert.equal(c.DB['OCT-26'].reduce((sum,i)=>sum+i.price,0),n*(n+1)/2);
     assert.equal(c.DB['OCT-26'].reduce((sum,i)=>sum+i.returns.length,0),n);
