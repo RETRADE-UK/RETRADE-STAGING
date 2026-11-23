@@ -8,10 +8,10 @@
 <meta name="description" content="RETRADE for UK resellers. You find the bargains. We track the margins.">
 <title>RETRADE · Open scroll reveal</title>
 <link rel="icon" href="/assets/icons/app-32.png">
-<link rel="stylesheet" href="/assets/landing/concepts.css?v=20261123-landing-v3">
-<script defer src="/assets/landing/concepts.js?v=20261123-landing-v3"></script>
-<link rel="stylesheet" href="/assets/landing/open.css?v=20261123-open-views">
-<script defer src="/assets/landing/open.js?v=20261123-open-views"></script>
+<link rel="stylesheet" href="/assets/landing/concepts.css?v=20261123-live-windows">
+<script defer src="/assets/landing/concepts.js?v=20261123-live-windows"></script>
+<link rel="stylesheet" href="/assets/landing/open.css?v=20261123-live-windows">
+<script defer src="/assets/landing/open.js?v=20261123-live-windows"></script>
 </head>
 <body data-variant="editorial">
 <a class="skip-link" href="#main">Skip to content</a>
@@ -29,90 +29,40 @@
     <p class="hero-subtitle">From the first find to the final profit.</p>
     <div class="hero-actions"><a class="cta" href="/signup/">Start free <span aria-hidden="true">↗</span></a><a class="ghost-link" href="#dashboard">Explore the app <span aria-hidden="true">↓</span></a></div>
     <div class="hero-visual">
-<figure class="capture" id="dashboard" data-dashboard-capture="30d">
-    <div class="capture-tools">
-      <label>Dashboard period
-        <select>
-          <option value="7d">Last 7 days</option>
-          <option value="14d">Last 14 days</option>
-          <option value="30d" selected>Last 30 days</option>
-          <option value="cy">Calendar year to date</option>
-        </select>
-      </label>
-      <button type="button" data-zoom="/assets/landing/open-dashboard-30d.webp" data-phone="/assets/landing/open-dashboard-30d-phone.webp" data-title="Dashboard" aria-label="Expand Dashboard screenshot">View full page <span aria-hidden="true">↗</span></button>
-    </div>
-    <div class="capture-frame"><div class="capture-scroll" role="region" aria-label="Dashboard preview">
-      <picture><source media="(max-width: 600px)" srcset="/assets/landing/open-dashboard-30d-phone.webp" width="585" height="3819">
-        <img src="/assets/landing/open-dashboard-30d.webp" width="1320" height="1567" alt="RETRADE Dashboard with example data" fetchpriority="high" decoding="async">
-      </picture>
-    </div></div>
-    <figcaption class="capture-phone-help">Scroll inside the phone to explore the page.</figcaption>
-    <span class="capture-status" role="status"></span>
+<figure class="live-preview" id="dashboard">
+    <a class="skip-link" href="#reset-dashboard">Skip dashboard example</a>
+    <div class="preview-frame"><iframe src="/landing1/preview/dashboard/" title="Interactive Dashboard example" sandbox="allow-scripts" referrerpolicy="no-referrer" loading="eager"></iframe></div>
+    <figcaption><span>Sample data · Changes reset on refresh</span><button type="button" data-reset id="reset-dashboard" aria-label="Reset Dashboard example">Reset example</button></figcaption>
   </figure>
     </div>
   </div>
 </section>
 <div class="channels"><div class="wrap"><span>TRACK YOUR FLIPS ACROSS</span><strong>eBay</strong><strong>Vinted</strong><strong>Facebook Marketplace</strong><strong>Local collection</strong></div></div>
-<div class="tour-intro wrap"><h2>From the first haul to the books.</h2><p>All figures use example data.</p></div>
-<nav class="journey-nav wrap" aria-label="Product tour"><a href="#dashboard" data-nav="dashboard">Dashboard</a><a href="#sourcing" data-nav="sourcing">Sourcing</a><a href="#stock" data-nav="stock">Stock</a><a href="#sale" data-nav="sale">Sales</a><a href="#expenses" data-nav="expenses">Expenses</a></nav>
-<section class="feature" id="sourcing" aria-labelledby="sourcing-title"><div class="feature-layout wrap"><div class="feature-copy"><p class="feature-kicker">Sourcing</p><h2 id="sourcing-title">Every haul. Every find.</h2><p class="feature-desc">See which sourcing trips have paid for themselves.</p></div><div class="feature-visual">
-  <figure class="capture">
-    <div class="capture-tools">
-      <button type="button" data-zoom="/assets/landing/open-sourcing.webp" data-phone="/assets/landing/open-sourcing-phone.webp" data-title="Sourcing" aria-label="Expand Sourcing screenshot">View full page <span aria-hidden="true">↗</span></button>
-    </div>
-    <div class="capture-frame"><div class="capture-scroll" role="region" aria-label="Sourcing preview">
-      <picture><source media="(max-width: 600px)" srcset="/assets/landing/open-sourcing-phone.webp" width="585" height="1707">
-        <img src="/assets/landing/open-sourcing.webp" width="1320" height="843" alt="RETRADE Sourcing with example data" loading="lazy" decoding="async">
-      </picture>
-    </div></div>
-    <figcaption class="capture-phone-help">Scroll inside the phone to explore the page.</figcaption>
-
-  </figure>
-</div></div></section>
+<div class="tour-intro wrap"><h2>From the first haul to the books.</h2><p>Try the filters or add an example record. Refresh to start again.</p></div>
+<nav class="journey-nav wrap" aria-label="Product tour"><a href="#dashboard" data-nav="dashboard">Dashboard</a><a href="#stock" data-nav="stock">Stock</a><a href="#sale" data-nav="sale">Sales</a><a href="#expenses" data-nav="expenses">Expenses</a></nav>
 <section class="feature" id="stock" aria-labelledby="stock-title"><div class="feature-layout wrap"><div class="feature-copy"><p class="feature-kicker">Stock</p><h2 id="stock-title">Know what’s still waiting.</h2><p class="feature-desc">See what’s listed and what needs listing.</p></div><div class="feature-visual">
-  <figure class="capture">
-    <div class="capture-tools">
-      <button type="button" data-zoom="/assets/landing/open-stock.webp" data-phone="/assets/landing/open-stock-phone.webp" data-title="Stock" aria-label="Expand Stock screenshot">View full page <span aria-hidden="true">↗</span></button>
-    </div>
-    <div class="capture-frame"><div class="capture-scroll" role="region" aria-label="Stock preview">
-      <picture><source media="(max-width: 600px)" srcset="/assets/landing/open-stock-phone.webp" width="585" height="1376">
-        <img src="/assets/landing/open-stock.webp" width="1320" height="813" alt="RETRADE Stock with example data" loading="lazy" decoding="async">
-      </picture>
-    </div></div>
-    <figcaption class="capture-phone-help">Scroll inside the phone to explore the page.</figcaption>
-
+  <figure class="live-preview">
+    <a class="skip-link" href="#reset-stock">Skip stock example</a>
+    <div class="preview-frame"><iframe src="/landing1/preview/stock/" title="Interactive Stock example" sandbox="allow-scripts" referrerpolicy="no-referrer" loading="lazy"></iframe></div>
+    <figcaption><span>Sample workspace · 20 Nov 2026</span><button type="button" data-reset id="reset-stock" aria-label="Reset Stock example">Reset example</button></figcaption>
   </figure>
 </div></div></section>
 <section class="feature" id="sale" aria-labelledby="sale-title"><div class="feature-layout wrap"><div class="feature-copy"><p class="feature-kicker">Sales</p><h2 id="sale-title">Find your best flips.</h2><p class="feature-desc">Review returns and surface the sales with the highest profit.</p></div><div class="feature-visual">
-  <figure class="capture">
-    <div class="capture-tools">
-      <button type="button" data-zoom="/assets/landing/open-sales.webp" data-phone="/assets/landing/open-sales-phone.webp" data-title="Sales" aria-label="Expand Sales screenshot">View full page <span aria-hidden="true">↗</span></button>
-    </div>
-    <div class="capture-frame"><div class="capture-scroll" role="region" aria-label="Sales preview">
-      <picture><source media="(max-width: 600px)" srcset="/assets/landing/open-sales-phone.webp" width="585" height="1845">
-        <img src="/assets/landing/open-sales.webp" width="1320" height="1169" alt="RETRADE Sales with example data" loading="lazy" decoding="async">
-      </picture>
-    </div></div>
-    <figcaption class="capture-phone-help">Scroll inside the phone to explore the page.</figcaption>
-
+  <figure class="live-preview">
+    <a class="skip-link" href="#reset-sales">Skip sales example</a>
+    <div class="preview-frame"><iframe src="/landing1/preview/sales/" title="Interactive Sales example" sandbox="allow-scripts" referrerpolicy="no-referrer" loading="lazy"></iframe></div>
+    <figcaption><span>Sample workspace · 20 Nov 2026</span><button type="button" data-reset id="reset-sales" aria-label="Reset Sales example">Reset example</button></figcaption>
   </figure>
 </div></div></section>
 <section class="feature" id="expenses" aria-labelledby="expenses-title"><div class="feature-layout wrap"><div class="feature-copy"><p class="feature-kicker">Expenses</p><h2 id="expenses-title">Give every cost a category.</h2><p class="feature-desc">See where your money goes, from postage to promotion.</p></div><div class="feature-visual">
-  <figure class="capture">
-    <div class="capture-tools">
-      <button type="button" data-zoom="/assets/landing/open-expenses.webp?v=categories" data-phone="/assets/landing/open-expenses-phone.webp?v=categories" data-title="Expenses" aria-label="Expand Expenses screenshot">View full page <span aria-hidden="true">↗</span></button>
-    </div>
-    <div class="capture-frame"><div class="capture-scroll" role="region" aria-label="Expenses preview">
-      <picture><source media="(max-width: 600px)" srcset="/assets/landing/open-expenses-phone.webp?v=categories" width="585" height="1502">
-        <img src="/assets/landing/open-expenses.webp?v=categories" width="1320" height="984" alt="RETRADE Expenses with example data" loading="lazy" decoding="async">
-      </picture>
-    </div></div>
-    <figcaption class="capture-phone-help">Scroll inside the phone to explore the page.</figcaption>
-
+  <figure class="live-preview">
+    <a class="skip-link" href="#reset-expenses">Skip expenses example</a>
+    <div class="preview-frame"><iframe src="/landing1/preview/expenses/" title="Interactive Expenses example" sandbox="allow-scripts" referrerpolicy="no-referrer" loading="lazy"></iframe></div>
+    <figcaption><span>Sample workspace · 20 Nov 2026</span><button type="button" data-reset id="reset-expenses" aria-label="Reset Expenses example">Reset example</button></figcaption>
   </figure>
 </div></div></section>
 <section class="finish"><div class="wrap finish-inner"><div><p class="eyebrow"><span class="gold-line"></span> READY FOR YOUR NEXT HAUL?</p><h2>Your next flip.<br><em>All the figures.</em></h2></div><a class="cta" href="/signup/">Start tracking free <span aria-hidden="true">↗</span></a></div></section>
 </main>
 <footer class="footer wrap"><span>RETRADE · Made for UK resellers</span><div><a href="/landing2/">Compare option 2</a><a href="/">Current homepage</a></div></footer>
-<dialog id="image-dialog" aria-labelledby="image-dialog-title"><div class="dialog-top"><h2 id="image-dialog-title">RETRADE</h2><button type="button" id="close-dialog" aria-label="Close full screen view">Close ×</button></div><div class="dialog-picture"><img alt="Full RETRADE app page with illustrative data"></div><div class="dialog-bottom">Full app view · Illustrative data</div></dialog>
+
 </body></html>

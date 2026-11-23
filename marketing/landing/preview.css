@@ -1,0 +1,21 @@
+html, body.rt { margin: 0; background: var(--bg); color-scheme: dark; }
+body.rt { --sidebar-w: 0px !important; padding: 0 !important; }
+body.rt #main-content { display: block; margin: 0 !important; padding: 0 !important; width: 100%; }
+body.rt .page.on { padding-block: clamp(14px, 2vw, 28px) 28px !important; }
+.preview-loading { padding: 20px; color: var(--muted); font: 14px system-ui; }
+#panel-back-btn, [title="Open archive"], [onclick*="_openStockPurchaseAction"], [onclick*="openNewJobLot"],
+[onclick*="openItemPageFromPanel"], button[onclick*="openItemPage("], [onclick*="backToMonthlyGrid"],
+[onclick*="export"], [onclick*="Export"], [onclick*="print"], [onclick*="goToTab("],
+input[type="file"] { display: none !important; }
+.preview-category-detail { display: block; min-height: 1.3em; margin-top: 8px; color: var(--text-secondary); font-size: 12px; }
+.cat-legend-row[role="button"], .cat-donut-svg circle { cursor: pointer; }
+.cat-legend-row[role="button"]:is(:hover, :focus-visible) { color: var(--brand); }
+@media (max-width: 350px) {
+  body.rt #p-summary .summary-header { display: flex !important; flex-wrap: wrap !important; height: auto !important; }
+  body.rt #p-summary .summary-header .summary-period-sel { position: static !important; margin: 0 !important; transform: none !important; }
+  body.rt #p-summary .summary-header-text { flex-basis: 100%; }
+  body.rt #p-summary .summary-hero-chart svg { height: auto !important; aspect-ratio: 1.6; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

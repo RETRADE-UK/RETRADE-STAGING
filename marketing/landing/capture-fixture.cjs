@@ -72,7 +72,7 @@ function addPartialRefund(item, amount, date, id) {
   });
 }
 
-function buildFixture() {
+function buildFixture({ showcase = false } = {}) {
   const db = { _userOwned: true, trips: [], expenses: [], cashLedger: [], activityLog: [] };
   const current = [], prior = [], listed = [], unlisted = [];
   const add = item => {
@@ -102,6 +102,22 @@ function buildFixture() {
         addPartialRefund(item, period === 'current' ? 8 : 10, dateAgo(age - 2), 'capture-' + period + '-refund');
       }
       (period === 'current' ? current : prior).push(add(item));
+    }
+  }
+
+  if (showcase) {
+    db.expenses = require('./example-expenses.json').map(([date, category, description, amount], index) =>
+      ({ id: 'demo-expense-' + index, date, category, description, amount }));
+    // Earlier trading makes the calendar-year trend meaningful. Each point is
+    // a dated sale using the same catalogue, fees and accounting as recent sales.
+    for (let index = 0; index < 120; index++) {
+      const [item, category, platform, costPrice, price, packagingCost, shippingCost] = catalogue[index % catalogue.length];
+      const age = 60 + Math.floor(index * 2.1);
+      add(makeItem('capture-year-' + index, { item, category, costPrice,
+        salePrice: money(price - index % 4), packagingCost, shippingCost,
+        dateSold: dateAgo(age), dateListed: dateAgo(age + 5), dateSourced: dateAgo(age + 8),
+        listingFee: platform === 'ebay_biz' ? .36 : 0,
+        defaultPlatform: platform, salePlatform: platform, soldOnPlatform: platform }));
     }
   }
 
@@ -143,7 +159,7 @@ function buildFixture() {
   ].forEach(([name, category, cost, estimate], index) => {
     unlisted.push(add(makeItem('capture-unlisted-' + (index + 1), {
       item: name, category, state: 'sourced', source: 'Charity shop',
-      dateSourced: dateAgo(1 + index), costPrice: cost, salePrice: 0, estSalePrice: estimate
+      dateSourced: dateAgo(showcase ? [1, 8, 24][index] : 1 + index), costPrice: cost, salePrice: 0, estSalePrice: estimate
     })));
   });
 

@@ -37,14 +37,7 @@ async function main() {
           continue;
         }
         async function captureExpenses() {
-          const expenses = [
-            ['2026-11-19', 'Postage & packaging', 'Royal Mail parcel labels', 24.60],
-            ['2026-11-17', 'Software & subscriptions', 'Cross-listing subscription', 19.99],
-            ['2026-11-15', 'Public transport & parking', 'Market car park', 6.00],
-            ['2026-11-13', 'Postage & packaging', 'Mailers and packing tape', 13.50],
-            ['2026-11-11', 'Advertising & marketing', 'Promoted listings', 12.00],
-            ['2026-11-09', 'Phone, office & stationery', 'Thermal labels and receipt rolls', 9.75]
-          ];
+          const expenses = require('./example-expenses.json');
           await page.evaluate(rows => {
             DB.expenses = rows.map(([date, category, description, amount], index) =>
               ({ id: 'demo-expense-' + index, date, category, description, amount }));
