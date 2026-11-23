@@ -14,7 +14,19 @@ const {open,settled}=require('./startup-browser.cjs');
   const before=await page.evaluate(()=>JSON.stringify(DB));
   for(const width of [320,390,768,1024,1440,1920]){
    await page.setViewportSize({width,height:1080});
-   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Data fits '+width);
+   try {
+    await page.waitForFunction(expected => innerWidth === expected &&
+      document.documentElement.scrollWidth <= expected + 1, width, { timeout: 2000 });
+   } catch (error) {
+    const layout = await page.evaluate(() => ({
+     viewport: innerWidth,
+     document: document.documentElement.scrollWidth,
+     overflowing: Array.from(document.querySelectorAll('#p-data *, nav, header'))
+      .map(el => ({ element: el.id || el.className || el.tagName, right: Math.round(el.getBoundingClientRect().right) }))
+      .filter(el => el.right > innerWidth + 1).slice(0, 5)
+    }));
+    throw new Error('Data layout at ' + width + 'px: ' + JSON.stringify(layout), { cause: error });
+   }
    assert(await page.locator('#p-data .data-card button:visible,#p-data select:visible,#p-data input:visible').evaluateAll(es=>es.every(e=>{const r=e.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth+1;})),'Controls fit '+width);
    if([390,1440].includes(width)){
     const rectangles=()=>page.locator('#p-data .data-report,#p-data .data-support-grid>.data-card').evaluateAll(es=>es.map(e=>{const r=e.getBoundingClientRect();return [r.width,r.height];}));

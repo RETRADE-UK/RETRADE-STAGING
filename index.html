@@ -1003,6 +1003,9 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 html[data-workspace-routes] #auth-overlay{overflow-y:auto;overscroll-behavior:contain}
 html[data-workspace-routes] #auth-overlay>form{flex-shrink:0;margin-block:auto}
 html[data-workspace-routes] #auth-screen-signup .auth-home{display:block;text-align:center;margin-top:15px;font-size:13px;color:var(--text-secondary)}
+.privacy-contact{display:inline-flex;align-items:center;min-height:44px;max-width:100%;color:var(--text-secondary);font-size:13px;line-height:1.4;text-decoration:underline;text-underline-offset:.18em;overflow-wrap:anywhere}
+.privacy-contact:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+#auth-screen-signup .privacy-contact{display:flex;justify-content:center;text-align:center}
 @media(max-width:600px){html[data-workspace-routes] #auth-overlay{padding:14px!important}html[data-workspace-routes] #auth-screen-signup{padding:22px!important}}
 </style>
 <div id="auth-overlay" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;padding:24px;" data-theme="dark">
@@ -1078,6 +1081,7 @@ html[data-workspace-routes] #auth-screen-signup .auth-home{display:block;text-al
       <div style="position:relative"><input id="signup-pass2" required name="signup-pass2" type="password" autocomplete="new-password" placeholder="••••••••"><button type="button" class="auth-reveal" aria-controls="signup-pass2" onclick="_pwToggle('signup-pass2',this)" aria-label="Show password"><svg aria-hidden="true" width="18" height="18"><use href="#auth-eye"/></svg></button></div></div>
     <button type="submit" id="signup-btn" style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">Create free account</button>
     <a class="auth-home" href="/" style="display:block;text-align:center;margin-top:14px;color:var(--text-secondary);font-size:13px">Back to RETRADE</a>
+    <a class="privacy-contact" href="mailto:general007store@gmail.com">Email us about privacy or account closure</a>
     <div id="signup-loading" role="status" style="display:none;text-align:center;margin-top:12px;font-size:13px;color:var(--text-secondary);">Creating account…</div>
   </form>
 

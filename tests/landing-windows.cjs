@@ -131,5 +131,7 @@ module.exports = async function checkWindows(page, width) {
   assert.equal(new URL(page.url()).pathname, '/landing1/', 'Browser Back returns to the tour');
   await page.locator('#detail iframe').scrollIntoViewIfNeeded();
   await initial.locator('[data-stock-state="listed"].is-active').waitFor();
-  assert.equal(await initial.locator('[data-stock-item]').count(), 5);
+  const listedRows = initial.locator('[data-stock-item]');
+  await listedRows.nth(4).waitFor({ state: 'attached' });
+  assert.equal(await listedRows.count(), 5);
 };
