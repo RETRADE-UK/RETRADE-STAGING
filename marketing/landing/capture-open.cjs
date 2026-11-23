@@ -31,16 +31,37 @@ async function main() {
             'from PIL import Image\nfrom io import BytesIO\nimport sys\nim=Image.open(BytesIO(sys.stdin.buffer.read())).convert("RGB")\nim.thumbnail((int(sys.argv[2]), im.height), Image.Resampling.LANCZOS)\nim.save(sys.argv[1], quality=84, method=5)\nprint(im.size)',
             dest, mobile ? '585' : '1320'], { input: shot, stdio: ['pipe','inherit','inherit'] });
         }
+        if (process.argv.includes('--expenses-only')) {
+          await captureExpenses();
+          assert.deepEqual([...state.errors, ...state.missingAssets, ...state.databaseAttempts], []);
+          continue;
+        }
+        async function captureExpenses() {
+          const expenses = [
+            ['2026-11-19', 'Postage & packaging', 'Royal Mail parcel labels', 24.60],
+            ['2026-11-17', 'Software & subscriptions', 'Cross-listing subscription', 19.99],
+            ['2026-11-15', 'Public transport & parking', 'Market car park', 6.00],
+            ['2026-11-13', 'Postage & packaging', 'Mailers and packing tape', 13.50],
+            ['2026-11-11', 'Advertising & marketing', 'Promoted listings', 12.00],
+            ['2026-11-09', 'Phone, office & stationery', 'Thermal labels and receipt rolls', 9.75]
+          ];
+          await page.evaluate(rows => {
+            DB.expenses = rows.map(([date, category, description, amount], index) =>
+              ({ id: 'demo-expense-' + index, date, category, description, amount }));
+            goToTab('expenses');
+          }, expenses);
+          await page.locator('#p-expenses [data-cost-category="Software & subscriptions"]').waitFor();
+          const categories = await page.locator('#p-expenses [data-cost-category]').evaluateAll(cards =>
+            cards.map(card => card.dataset.costCategory));
+          assert.deepEqual(categories.filter(category => category !== 'all').sort(),
+            [...new Set(expenses.map(row => row[1]))].sort());
+          await capture('expenses', '#p-expenses', /Royal Mail parcel labels/);
+        }
         await page.evaluate(() => {
           const base = _periodDateRange;
           _periodDateRange = period => period === 'cy'
             ? { from: new Date().getFullYear() + '-01-01', to: new Date().toISOString().slice(0, 10) }
             : base(period);
-          DB.expenses = [
-            {id:'demo-postage', date:'2026-11-17', category:'Phone, stationery & office', description:'Royal Mail postage', amount:18.60},
-            {id:'demo-packing', date:'2026-11-13', category:'Phone, stationery & office', description:'Mailers and packing tape', amount:13.50},
-            {id:'demo-subscription', date:'2026-10-28', category:'Other', description:'Marketplace subscription', amount:19.99}
-          ];
         });
         for (const period of ['30d', '7d', '14d', 'cy']) {
           await page.evaluate(value => setSummaryPeriod(value), period);
@@ -65,11 +86,6 @@ async function main() {
         await page.evaluate(() => openRunPage(window.__landingCaptureFixture.refs.runId));
         await capture('sourcing', '#p-item', /Sunday car boot finds/);
         await page.evaluate(() => {
-          const ref = window.__landingCaptureFixture.refs.sale;
-          openItemPage(ref.month, ref.id);
-        });
-        await capture('item', '#p-item', /Mario Kart/);
-        await page.evaluate(() => {
           // A short browser-sized list keeps every example sale readable.
           const refs = new Set(window.__landingCaptureFixture.refs.current.slice(0, 5).map(ref => ref.id));
           for (const rows of Object.values(DB)) {
@@ -81,12 +97,7 @@ async function main() {
           goToTab('monthly');
         });
         await capture('sales', '#p-monthly', /Cotton chore jacket/);
-        await page.evaluate(() => goToTab('expenses'));
-        await capture('expenses', '#p-expenses', /Royal Mail postage/);
-        await page.evaluate(() => { goToTab('tax'); });
-        await page.locator('#p-tax [data-tax-view="filing"]').waitFor();
-        await page.evaluate(() => setTaxWorkspaceView('filing'));
-        await capture('tax', '#p-tax', /Filing|Self Assessment/i);
+        await captureExpenses();
         assert.deepEqual([...state.errors, ...state.missingAssets, ...state.databaseAttempts], []);
       } finally { await context.close(); }
     }

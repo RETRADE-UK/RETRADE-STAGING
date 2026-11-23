@@ -32,8 +32,8 @@ const contentType={'.html':'text/html','.js':'text/javascript','.css':'text/css'
         await page.locator('h1').waitFor();
         assert.match(await page.locator('h1').innerText(),/You find the bargains/);
         assert.match(await page.locator('h1').innerText(),/We track the margins/);
-        assert.equal(await page.locator('.feature').count(),variant === 1 ? 6 : 7);
-        assert.equal(await page.locator('.journey-nav a').count(),7);
+        assert.equal(await page.locator('.feature').count(),variant === 1 ? 4 : 7);
+        assert.equal(await page.locator('.journey-nav a').count(),variant === 1 ? 5 : 7);
         const noOverflow=await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2);
         assert(noOverflow,'No horizontal overflow at '+width+' variant '+variant);
         if(width!==768){
@@ -103,7 +103,7 @@ const contentType={'.html':'text/html','.js':'text/javascript','.css':'text/css'
                 image.currentSrc.includes('open-dashboard-' + period) && image.complete;
             }, period);
           }
-          for (const id of ['item','expenses','tax']) {
+          for (const id of ['expenses']) {
             const screenshot = page.locator('#' + id + ' .capture-scroll');
             await screenshot.scrollIntoViewIfNeeded();
             await page.waitForFunction(id => {
