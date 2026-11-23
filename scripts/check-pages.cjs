@@ -16,9 +16,9 @@ for (const page of ['dashboard', 'sales', 'stock', 'expenses']) {
   const document = previewRoot + page + '/index.html';
   expected.add(document);
   const html = read(document);
-  for (const extension of ['js', 'css']) {
-    const link = html.match(new RegExp('(?:src|href)="\\.\\./(workspace-([0-9a-f]{16})\\.' + extension + ')"'));
-    assert(link, 'Missing content-hashed ' + extension + ' in ' + document);
+  for (const [name, extension] of [['workspace','js'], ['workspace','css'], [page,'js']]) {
+    const link = html.match(new RegExp('(?:src|href)="\\.\\./(' + name + '-([0-9a-f]{16})\\.' + extension + ')"'));
+    assert(link, 'Missing content-hashed ' + name + '.' + extension + ' in ' + document);
     const file = previewRoot + link[1];
     const hash = createHash('sha256').update(fs.readFileSync(path.join(site, file))).digest('hex');
     assert.equal(hash.slice(0, 16), link[2], 'Generated preview asset hash changed: ' + file);

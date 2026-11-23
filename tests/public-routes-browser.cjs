@@ -95,11 +95,18 @@ const types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', 
     await signup.waitFor({state:'visible'});
     await page.goto(origin+'/dashboard/');
     await page.waitForURL('**/login/');
+    await page.evaluate(() => { localStorage.setItem('_rt_last_active', String(Date.now())); localStorage.setItem('_rt_sum_p', '90d'); });
     await page.locator('#auth-email').fill('ui@example.test');
     await page.locator('#auth-pass').fill('test-password');
     await page.locator('#auth-btn').click();
     await page.waitForURL('**/dashboard/');
     await page.locator('#p-summary.on').waitFor({state:'visible'});
+    const period = page.getByRole('combobox', {name:'Dashboard period'});
+    await period.waitFor();
+    assert.equal(await period.inputValue(), '7d', 'Signing in resets a previous dashboard range');
+    await period.selectOption('14d');
+    await page.waitForFunction(() => !document.querySelector('[data-rt-period-pending]'));
+    assert.equal(await period.inputValue(), '14d', 'The chosen range remains usable during the session');
     // Login updates the URL before the workspace finishes its first data load.
     // Open the real mobile menu so the browser respects the startup controls.
     await page.locator('#bnt-more').click();

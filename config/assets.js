@@ -1,7 +1,7 @@
 /* Runtime asset contract. Ordered classic scripts: do not alphabetise.
  * Shared by the browser loader, service worker and validation tools. */
 globalThis.RT_ASSETS = Object.freeze({
-  "build": "20261123-privacy-contact-staging",
+  "build": "20261123-workspace-tabs-staging",
   "environment": "staging",
   "entry": [
     "src/platform/local-recovery.js",
@@ -91,8 +91,6 @@ globalThis.RT_ASSETS = Object.freeze({
     "pdf": "assets/vendor/jspdf-4.2.1/jspdf.umd.min.js"
   },
   "landing": [
-    "assets/landing/concepts.css",
-    "assets/landing/concepts.js",
     "assets/landing/dashboard-phone.webp",
     "assets/landing/dashboard-preview.webp",
     "assets/landing/dashboard.webp",

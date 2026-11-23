@@ -3,9 +3,9 @@ const assert = require('node:assert/strict');
 
 module.exports = async function checkWindows(page, width) {
   page.setDefaultTimeout(12000);
-  const frames = {};
-  for (const [key, section] of Object.entries({ dashboard: 'dashboard', stock: 'stock', sales: 'sale', expenses: 'expenses' })) {
-    const host = page.locator('#' + section + ' iframe');
+  async function openWindow(key) {
+    if (key !== 'dashboard') await page.getByRole('tab', { name: key, exact: true }).click();
+    const host = page.locator((key === 'dashboard' ? '#dashboard' : '#detail') + ' iframe');
     await host.scrollIntoViewIfNeeded();
     assert.equal(await host.getAttribute('sandbox'), 'allow-scripts');
     const frame = await (await host.elementHandle()).contentFrame();
@@ -20,11 +20,12 @@ module.exports = async function checkWindows(page, width) {
       try { return !window.localStorage; } catch (error) { return error.name === 'SecurityError'; }
     }));
     assert(await frame.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
-    frames[key] = frame;
+    assert.equal(new URL(frame.url()).pathname, '/landing1/preview/' + key.toLowerCase() + '/');
+    return frame;
   }
-  const { dashboard, sales, stock, expenses } = frames;
-  await page.locator('#dashboard iframe').scrollIntoViewIfNeeded();
+  const dashboard = await openWindow('dashboard');
   const picker = dashboard.getByRole('combobox', { name: 'Dashboard period' });
+  assert.equal(await picker.inputValue(), '7d');
   const amounts = [];
   for (const period of ['7d', '14d', '30d', 'cy']) {
     await picker.selectOption(period);
@@ -45,7 +46,7 @@ module.exports = async function checkWindows(page, width) {
     assert.match(await dashboard.locator('.rt-chart-scrub-tip:visible').innerText(), /Gross Revenue/i);
   }
 
-  await page.locator('#sale iframe').scrollIntoViewIfNeeded();
+  const sales = await openWindow('Sales');
   await sales.getByLabel('Sort sales').selectOption('profit');
   await sales.waitForFunction(() => window.__monthItems.length > 1 && window.__monthItems.every((v, i, a) => !i || v.profit <= a[i - 1].profit));
   if (!await sales.locator('[data-month-filter="returned"]:visible').count()) {
@@ -54,7 +55,7 @@ module.exports = async function checkWindows(page, width) {
   await sales.locator('[data-month-filter="returned"]:visible').click();
   await sales.waitForFunction(() => window.__monthItems.length === 1 && window.__monthItems[0].isReturnAdjustment);
 
-  await page.locator('#stock iframe').scrollIntoViewIfNeeded();
+  const stock = await openWindow('Stock');
   await stock.locator('[data-stock-state="sourced"]').click();
   await stock.getByText('Longest sitting', { exact: true }).waitFor();
   assert.match(await stock.locator('.stock-kpis').innerText(), /24d/);
@@ -74,7 +75,20 @@ module.exports = async function checkWindows(page, width) {
   await stock.getByText('Test market find', { exact: true }).first().waitFor();
   assert.equal(await rows.count(), 4);
 
-  await page.locator('#expenses iframe').scrollIntoViewIfNeeded();
+  // Exercise ordinary Chrome window drags with both views live, then cross
+  // phone/tablet layouts. Filter, frame identity and edits must survive.
+  if (width === 1440) {
+    const docId = await stock.evaluate(() => performance.timeOrigin);
+    for (const px of [1370,1220,1050,860,700,540,390,320,400,560,768,960,1200,1440]) {
+      await page.setViewportSize({ width: px, height: 900 });
+    }
+    assert.equal(await stock.evaluate(() => performance.timeOrigin), docId);
+    assert.equal(await picker.inputValue(), 'cy');
+    assert.equal(await rows.count(), 4);
+    await stock.getByText('Test market find', {exact:true}).first().waitFor();
+  }
+  const expenses = await openWindow('Expenses');
+  assert(stock.isDetached(), 'Changing tabs releases the previous app instance');
   const costs = expenses.locator('.expense-item');
   assert.equal(await costs.count(), 6);
   await expenses.locator('[data-cost-category="Postage & packaging"]').click();
@@ -97,21 +111,25 @@ module.exports = async function checkWindows(page, width) {
   await seedRow.waitFor({ state: 'detached' });
   assert.equal(await costs.count(), 6);
   await page.getByRole('button', { name: 'Reset Expenses example' }).click();
-  const fresh = page.frameLocator('#expenses iframe');
+  const fresh = page.frameLocator('#detail iframe');
   await fresh.getByText('Royal Mail parcel labels', { exact: true }).waitFor({ state: 'attached' });
   assert.equal(await fresh.getByText('Test parcel', { exact: true }).count(), 0);
-  assert.equal(await rows.count(), 4, 'Resetting one window leaves its neighbours alone');
+  assert.equal(await picker.inputValue(), 'cy', 'Resetting the detail page preserves dashboard state');
+  const tab = page.getByRole('tab', {name:'Expenses'});
+  await tab.focus(); await tab.press('Home');
+  assert.equal(await page.getByRole('tab', {name:'Stock'}).getAttribute('aria-selected'),'true');
   assert.equal(await page.evaluate(() => window.localStorage.length + window.sessionStorage.length), 0);
   await page.reload();
-  const initial = page.frameLocator('#stock iframe');
-  await page.locator('#stock iframe').scrollIntoViewIfNeeded();
+  const initial = page.frameLocator('#detail iframe');
+  await page.locator('#detail iframe').scrollIntoViewIfNeeded();
   await initial.locator('[data-stock-state="sourced"]').click();
   await initial.getByText('Longest sitting', { exact: true }).waitFor();
   assert.equal(await initial.locator('[data-stock-item]').count(), 3);
-  assert.equal(await page.frameLocator('#dashboard iframe').getByLabel('Dashboard period').inputValue(), '30d');
-  await page.goto('https://retrade.test/landing2/');
+  assert.equal(await page.frameLocator('#dashboard iframe').getByLabel('Dashboard period').inputValue(), '7d');
+  await page.goto('https://retrade.test/assets/landing/mark.svg');
   await page.goBack();
-  await page.locator('#stock iframe').scrollIntoViewIfNeeded();
+  assert.equal(new URL(page.url()).pathname, '/landing1/', 'Browser Back returns to the tour');
+  await page.locator('#detail iframe').scrollIntoViewIfNeeded();
   await initial.locator('[data-stock-state="listed"].is-active').waitFor();
   const listedRows = initial.locator('[data-stock-item]');
   await listedRows.nth(4).waitFor({ state: 'attached' });
