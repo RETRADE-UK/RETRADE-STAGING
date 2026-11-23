@@ -22,7 +22,7 @@ const {open,settled}=require('./startup-browser.cjs');
     const selector=`#fab-dial-options button[onclick="runFabOption('${action}')"]`;
     await page.locator(selector).click({trial:true});await assertHit(selector);await act(selector);
     await page.waitForSelector('#slide-panel.on');
-    const input=page.locator('#panel-content input:not([type="hidden"]):not([disabled]):not([aria-hidden="true"])').first();
+    const input=page.locator('#panel-content input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([disabled]):not([aria-hidden="true"])').first();
     await input.click();assert(await input.evaluate(el=>document.activeElement===el),'Visible form field must focus');
     await act('#slide-panel [aria-label="Close panel"]');
     await page.waitForFunction(()=>!document.getElementById('slide-panel').classList.contains('on'));
