@@ -1,0 +1,37 @@
+name: Hosted staging smoke
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/hosted-staging.yml'
+      - 'scripts/check-hosted-staging.cjs'
+  workflow_run:
+    workflows: ['Deploy RETRADE staging to GitHub Pages']
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: hosted-staging-${{ github.event_name }}
+  cancel-in-progress: true
+jobs:
+  public-routes:
+    if: >-
+      github.repository == 'RETRADE-UK/RETRADE-STAGING' &&
+      (github.event_name == 'pull_request' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - name: Check currently published public routes
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-hosted-staging.cjs
+      - name: Verify custom domain serves the deployed artifact
+        if: github.event_name == 'workflow_run'
+        run: |
+          node scripts/build-site.cjs
+          node scripts/check-hosted-staging.cjs --compare-build
