@@ -1,9 +1,16 @@
--- Restore the historical partner-deletion RPC on an existing RETRADE database.
--- Its signature, definer, search path and privileges match production.
--- An existing deployment owns its function and is left alone.
+-- Restore a missing partner-delete RPC, or upgrade the recorded legacy body.
+-- A separately customised or newer body must retain its own migration history.
 do $restore$
+declare
+  existing_body_hash text;
 begin
-  if pg_catalog.to_regprocedure('public.retrade_delete_my_account_record(text)') is null then
+  select pg_catalog.md5(pg_catalog.replace(p.prosrc, E'\r\n', E'\n'))
+  into existing_body_hash
+  from pg_catalog.pg_proc p
+  where p.oid=pg_catalog.to_regprocedure('public.retrade_delete_my_account_record(text)');
+
+  -- Hash of production's historical body after newline normalization.
+  if existing_body_hash is null or existing_body_hash='760a74e2361492178b654eba53a987ae' then
     execute $definition$
 CREATE OR REPLACE FUNCTION public.retrade_delete_my_account_record(p_account_id text)
  RETURNS boolean
@@ -16,6 +23,14 @@ declare
 begin
   if auth.uid() is null then
     raise exception 'Authentication required';
+  end if;
+
+  -- Check and lock the caller's partner before detaching any linked stock.
+  perform 1 from public.accounts
+  where user_id=auth.uid() and id=p_account_id
+  for update;
+  if not found then
+    return false;
   end if;
 
   update public.items

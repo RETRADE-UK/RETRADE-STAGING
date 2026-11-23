@@ -121,3 +121,51 @@ select pg_temp.expect((select count(*)=7 from public.items)
   'stock is retained and legacy partner terms are detached');
 select pg_temp.expect(not exists (select * from stock_before where user_id=:'bob'
   except all select * from public.items where user_id=:'bob'), 'other owner stock is unchanged');
+
+-- Exercise the upgrade path independently of the missing-function path above.
+-- The text below is the recorded production body, including its original whitespace.
+CREATE OR REPLACE FUNCTION public.retrade_delete_my_account_record(p_account_id text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog'
+AS $function$
+declare
+  deleted_count integer := 0;
+begin
+  if auth.uid() is null then
+    raise exception 'Authentication required';
+  end if;
+
+  update public.items
+  set account_id=null,
+      account_item_type=null,
+      account_split_percent=null,
+      account_settled=false,
+      account_paid_amount=null
+  where user_id=auth.uid()
+    and account_id=p_account_id;
+
+  delete from public.accounts
+  where user_id=auth.uid()
+    and id=p_account_id;
+  get diagnostics deleted_count = row_count;
+
+  return deleted_count>0;
+end;
+$function$;
+\ir ../../supabase/migrations/20261123221855_restore_partner_delete_rpc.sql
+create temp table stock_after as select * from public.items;
+set role authenticated;
+select public.retrade_delete_my_account_record('fixed-b') as foreign_after_upgrade \gset
+reset role;
+select pg_temp.expect(not :'foreign_after_upgrade'::boolean and not exists
+  (select * from stock_after except all select * from public.items),
+  'known historical body is upgraded and refused delete preserves all stock');
+
+-- Future migrations can supersede this implementation without a replay replacing them.
+create or replace function public.retrade_delete_my_account_record(p_account_id text)
+returns boolean language plpgsql as $$ begin return true; end; $$;
+\ir ../../supabase/migrations/20261123221855_restore_partner_delete_rpc.sql
+select pg_temp.expect(prosrc=' begin return true; end; ', 'rerun leaves a later function revision intact')
+from pg_proc where oid='public.retrade_delete_my_account_record(text)'::regprocedure;
