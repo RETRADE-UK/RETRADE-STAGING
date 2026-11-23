@@ -1,3 +1,15 @@
+# Landing 1 live examples — 23 November 2026
+
+`marketing/landing/build-previews.cjs` builds the four public examples under
+`/landing1/preview/`. They share the app's classic renderers, calculations,
+forms and styles. A separate entry point omits the auth boot, backend binding
+and service worker. Each sandboxed frame has an opaque origin, one page, and a
+network policy that blocks data connections. Its clock and sample records come
+from `capture-fixture.cjs`. Workspace and preference changes live in the frame's
+memory. Reset replaces the frame, and returning from the browser's back/forward
+cache also creates fresh frames. The generated scripts and styles use content
+hashes. The signed-in workspace keeps its original entry point.
+
 # Stock purchase actions — 20 November 2026
 
 `src/features/purchases/groups.js` owns shared purchase creation, payment assignment

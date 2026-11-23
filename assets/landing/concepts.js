@@ -23,6 +23,7 @@
   if(reduced.matches) for(const stage of stages)stage.classList.add('is-visible');
   setCurrent();
   const dialog=document.getElementById('image-dialog');
+  if (!dialog) return;
   const dialogImage=dialog.querySelector('img');
   const dialogTitle=document.getElementById('image-dialog-title');
   let returnTo=null;
