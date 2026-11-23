@@ -91,29 +91,17 @@ globalThis.RT_ASSETS = Object.freeze({
     "pdf": "assets/vendor/jspdf-4.2.1/jspdf.umd.min.js"
   },
   "landing": [
-    "assets/landing/concepts.css",
-    "assets/landing/concepts.js",
-    "assets/landing/dashboard-phone.webp",
-    "assets/landing/dashboard-preview.webp",
-    "assets/landing/dashboard.webp",
     "assets/landing/entry.js",
-    "assets/landing/landing.css",
+    "assets/landing/hero-dashboard-phone.webp",
+    "assets/landing/hero-dashboard.webp",
     "assets/landing/mark.svg",
+    "assets/landing/open-dashboard-30d.webp",
+    "assets/landing/open-expenses.webp",
+    "assets/landing/open-sales.webp",
+    "assets/landing/open-stock-phone.webp",
+    "assets/landing/open-stock.webp",
     "assets/landing/open.css",
-    "assets/landing/open.js",
-    "assets/landing/sale-phone.webp",
-    "assets/landing/sale-preview.webp",
-    "assets/landing/sale-detail.webp",
-    "assets/landing/sale.webp",
-    "assets/landing/sales-phone.webp",
-    "assets/landing/sales.webp",
-    "assets/landing/sourcing-phone.webp",
-    "assets/landing/sourcing-preview.webp",
-    "assets/landing/sourcing.webp",
-    "assets/landing/stock-phone.webp",
-    "assets/landing/stock-preview.webp",
-    "assets/landing/stock.webp",
-    "assets/landing/tour.js"
+    "assets/landing/open.js"
   ],
   "images": [
     "assets/brand/pdf-logo-dark-v1.png"

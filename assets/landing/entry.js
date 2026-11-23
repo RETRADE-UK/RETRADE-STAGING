@@ -8,6 +8,8 @@
     location.replace('/login/' + location.search + location.hash);
   } else if (location.hash === '#signup') {
     location.replace('/signup/' + location.search);
+  } else if (/^\/landing2(?:\/(?:index\.html)?)?$/.test(location.pathname)) {
+    location.replace('/landing1/' + location.search + location.hash);
   } else if (location.pathname.startsWith('/start')) {
     location.replace('/' + location.search + location.hash);
   }

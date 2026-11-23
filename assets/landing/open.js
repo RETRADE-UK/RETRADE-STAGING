@@ -1,38 +1,119 @@
 (() => {
-  const examples = document.querySelectorAll('.live-preview');
-  function load(frame) {
-    if (!frame.hasAttribute('src')) frame.src = frame.dataset.src;
+  const nav = document.querySelector('.workspace-nav');
+  const panel = document.querySelector('#workspace-panel');
+  const frameBox = panel.querySelector('.workspace-frame');
+  const poster = frameBox.querySelector('picture');
+  const tryButton = frameBox.querySelector('.try-preview');
+  const status = frameBox.querySelector('.preview-status');
+  const resetButton = panel.querySelector('[data-reset]');
+  const tabs = Array.from(nav.querySelectorAll('[data-page]'));
+  const tabByPage = new Map(tabs.map(tab => [tab.id, tab]));
+  let activePage = 'stock';
+  let frame;
+
+  function pageFromHash() {
+    const key = location.hash.slice(1);
+    if (key === 'sale') return 'sales';
+    if (key === 'tour') return 'stock';
+    return tabByPage.has(key) ? key : null;
   }
-  const approaching = 'IntersectionObserver' in window && new IntersectionObserver(entries => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      load(entry.target);
-      approaching.unobserve(entry.target);
+
+  function render(page, live, reset = false) {
+    const tab = tabByPage.get(page);
+    if (frame && (activePage !== page || reset || !live)) {
+      frame.remove();
+      frame = null;
     }
-  }, { rootMargin: '180px 0px' });
-  function watch(frame) {
-    if (!frame.dataset.src) return;
-    if (approaching) approaching.observe(frame);
-    else load(frame);
-  }
-  function reset(example, immediate = false) {
-    const frame = example.querySelector('iframe');
-    // A new browsing context also clears the page's undo, form and scroll state.
-    const next = frame.cloneNode(false);
-    if (approaching) approaching.unobserve(frame);
-    if (next.dataset.src) next.removeAttribute('src');
-    if (immediate) {
-      next.loading = 'eager';
-      load(next);
+    activePage = page;
+    for (const option of tabs) {
+      option.setAttribute('aria-selected', String(option === tab));
+      option.tabIndex = option === tab ? 0 : -1;
     }
-    frame.replaceWith(next);
-    if (!immediate) watch(next);
+    panel.setAttribute('aria-labelledby', tab.id);
+    poster.hidden = live;
+    tryButton.hidden = live;
+    resetButton.hidden = !live;
+    resetButton.textContent = 'Reset ' + tab.textContent + ' example';
+
+    if (!live) status.hidden = true;
+    if (live && !frame) {
+      // A new frame keeps the selected page's sample edits in this visit only.
+      frame = document.createElement('iframe');
+      frame.title = 'Interactive ' + tab.textContent + ' example';
+      frame.setAttribute('sandbox', 'allow-scripts');
+      frame.referrerPolicy = 'no-referrer';
+      frame.src = '/landing1/preview/' + page + '/';
+      status.textContent = 'Opening ' + tab.textContent + '…';
+      status.hidden = false;
+      frame.addEventListener('load', event => {
+        if (event.currentTarget === frame) status.hidden = true;
+      }, { once: true });
+      frameBox.append(frame);
+    }
   }
-  for (const example of examples) {
-    watch(example.querySelector('iframe'));
-    example.querySelector('[data-reset]').addEventListener('click', () => reset(example, true));
+
+  function select(page) {
+    if (location.hash !== '#' + page) history.pushState(null, '', '#' + page);
+    render(page, true);
   }
-  window.addEventListener('pageshow', event => {
-    if (event.persisted) examples.forEach(example => reset(example));
+
+  nav.setAttribute('role', 'tablist');
+  panel.setAttribute('role', 'tabpanel');
+  for (const [index, tab] of tabs.entries()) {
+    tab.setAttribute('role', 'tab');
+    tab.setAttribute('aria-controls', panel.id);
+    tab.removeAttribute('aria-label');
+    tab.href = '#' + tab.id;
+    tab.addEventListener('click', event => {
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      select(tab.id);
+      tab.focus({ preventScroll: true });
+    });
+    tab.addEventListener('keydown', event => {
+      const next = {
+        ArrowLeft: (index + tabs.length - 1) % tabs.length,
+        ArrowRight: (index + 1) % tabs.length,
+        Home: 0,
+        End: tabs.length - 1,
+        ' ': index
+      }[event.key];
+      if (next === undefined) return;
+      event.preventDefault();
+      select(tabs[next].id);
+      tabs[next].focus({ preventScroll: true });
+    });
+  }
+
+  function showFromHero(page) {
+    select(page);
+    tabByPage.get(page).focus({ preventScroll: true });
+    nav.scrollIntoView({ block: 'start', behavior: 'instant' });
+  }
+  for (const link of document.querySelectorAll('[data-explore]')) {
+    link.addEventListener('click', event => {
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      showFromHero(link.hash.slice(1));
+    });
+  }
+  tryButton.addEventListener('click', () => {
+    select('stock');
+    tabByPage.get('stock').focus({ preventScroll: true });
   });
+  resetButton.addEventListener('click', () => render(activePage, true, true));
+
+  function restore(reset = false) {
+    const page = pageFromHash();
+    const focusWasInNav = nav.contains(document.activeElement);
+    render(page || 'stock', Boolean(page), reset);
+    if (focusWasInNav) tabByPage.get(activePage).focus({ preventScroll: true });
+  }
+  window.addEventListener('popstate', () => restore());
+  window.addEventListener('hashchange', () => restore());
+  window.addEventListener('pageshow', event => {
+    if (event.persisted) restore(true);
+  });
+  restore();
+  if (location.hash === '#sale' || location.hash === '#tour') nav.scrollIntoView({ block: 'start' });
 })();

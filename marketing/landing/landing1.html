@@ -1,69 +1,80 @@
 <!doctype html>
 <html lang="en-GB">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0a101a">
-<meta name="robots" content="noindex,nofollow">
-<meta name="description" content="RETRADE for UK resellers. You find the bargains. We track the margins.">
-<title>RETRADE · Open scroll reveal</title>
-<link rel="icon" href="/assets/icons/app-32.png">
-<link rel="stylesheet" href="/assets/landing/concepts.css?v=20261123-live-windows">
-<script defer src="/assets/landing/concepts.js?v=20261123-live-windows"></script>
-<link rel="stylesheet" href="/assets/landing/open.css?v=20261123-live-windows">
-<script defer src="/assets/landing/open.js?v=20261123-nearby-previews"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b111c">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="description" content="Track second-hand stock, sales and selling costs in RETRADE. See what each flip earns, from the first find to the final profit.">
+  <title>RETRADE · Stock and profit tracking for UK resellers</title>
+  <script src="/assets/landing/entry.js"></script>
+  <link rel="icon" href="/assets/icons/app-32.png">
+  <link rel="stylesheet" href="/assets/landing/open.css?v=20261123-stock-first">
+  <script defer src="/assets/landing/open.js?v=20261123-stock-first"></script>
 </head>
-<body data-variant="editorial">
-<a class="skip-link" href="#main">Skip to content</a>
-<header class="topbar"><nav class="nav-inner wrap" aria-label="Main navigation">
- <a class="logo" href="/" aria-label="RETRADE homepage"><img src="/assets/landing/mark.svg" alt="" width="30" height="34"><span>RE<em>TRADE</em></span></a>
- <div class="header-links"><a class="compare-link" href="/landing2/">See option 2 <span aria-hidden="true">↗</span></a><a href="/login/">Log in</a><a class="header-cta" href="/signup/">Sign up free</a></div>
-</nav></header>
-<div class="variation-strip wrap" aria-label="Compare landing page concepts"><span>LANDING CONCEPTS</span><a href="/landing1/" aria-current="page">Open reveal</a><a href="/landing2/" >Interactive tour</a></div>
-<main id="main">
-<section class="hero">
-  <div class="hero-glow" aria-hidden="true"></div>
-  <div class="wrap hero-content">
-    <p class="eyebrow"><span class="gold-line"></span> BUILT FOR UK RESELLERS <span class="gold-line"></span></p>
-    <h1>You find the bargains.<br><em>We track the margins.</em></h1>
-    <p class="hero-subtitle">From the first find to the final profit.</p>
-    <div class="hero-actions"><a class="cta" href="/signup/">Start free <span aria-hidden="true">↗</span></a><a class="ghost-link" href="#dashboard">Explore the app <span aria-hidden="true">↓</span></a></div>
-    <div class="hero-visual">
-<noscript><p>Turn on JavaScript to try the interactive examples, or <a href="/#tour">explore the screenshot tour</a>.</p></noscript>
-<figure class="live-preview" id="dashboard">
-    <a class="skip-link" href="#reset-dashboard">Skip dashboard example</a>
-    <div class="preview-frame"><iframe src="/landing1/preview/dashboard/" title="Interactive Dashboard example" sandbox="allow-scripts" referrerpolicy="no-referrer" loading="eager"></iframe></div>
-    <figcaption><span>Sample data · Changes reset on refresh</span><button type="button" data-reset id="reset-dashboard">Reset dashboard example</button></figcaption>
-  </figure>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="topbar">
+    <nav class="nav-inner wrap" aria-label="Main navigation">
+      <a class="logo" href="/" aria-label="RETRADE homepage">
+        <img src="/assets/landing/mark.svg" alt="" width="30" height="34"><span>RE<em>TRADE</em></span>
+      </a>
+      <div class="header-links"><a href="/login/">Log in</a><a class="header-cta" href="/signup/">Sign up free</a></div>
+    </nav>
+  </header>
+  <main id="main">
+    <section class="hero">
+      <div class="wrap hero-content">
+        <p class="eyebrow">Built for UK resellers</p>
+        <h1>You find the bargains.<br><em>We track the margins.</em></h1>
+        <p class="hero-subtitle">From the first find to the final profit.</p>
+        <div class="hero-actions">
+          <a class="cta" href="/signup/">Start free</a>
+          <a class="ghost-link" href="#stock" data-explore>Explore the app</a>
+        </div>
+        <a class="hero-preview" href="#dashboard" data-explore aria-label="Try the Dashboard">
+          <picture>
+            <source media="(max-width: 600px)" srcset="/assets/landing/hero-dashboard-phone.webp" width="585" height="770">
+            <img src="/assets/landing/hero-dashboard.webp" width="1320" height="572" fetchpriority="high" alt="Example RETRADE dashboard showing £1,977 in sales and the month’s revenue chart.">
+          </picture>
+          <span class="preview-caption"><span>Example dashboard</span><strong>Try the Dashboard</strong></span>
+        </a>
+      </div>
+    </section>
+    <div class="channels">
+      <div class="wrap"><span>Track your flips across</span><strong>eBay</strong><strong>Vinted</strong><strong>Facebook Marketplace</strong><strong>Local collection</strong></div>
     </div>
-  </div>
-</section>
-<div class="channels"><div class="wrap"><span>TRACK YOUR FLIPS ACROSS</span><strong>eBay</strong><strong>Vinted</strong><strong>Facebook Marketplace</strong><strong>Local collection</strong></div></div>
-<div class="tour-intro wrap"><h2>From the first haul to the books.</h2><p>Try the filters or add an example record. Refresh to start again.</p></div>
-<nav class="journey-nav wrap" aria-label="Product tour"><a href="#dashboard" data-nav="dashboard">Dashboard</a><a href="#stock" data-nav="stock">Stock</a><a href="#sale" data-nav="sale">Sales</a><a href="#expenses" data-nav="expenses">Expenses</a></nav>
-<section class="feature" id="stock" aria-labelledby="stock-title"><div class="feature-layout wrap"><div class="feature-copy"><p class="feature-kicker">Stock</p><h2 id="stock-title">Know what’s still waiting.</h2><p class="feature-desc">See what’s listed and what needs listing.</p></div><div class="feature-visual">
-  <figure class="live-preview">
-    <a class="skip-link" href="#reset-stock">Skip stock example</a>
-    <div class="preview-frame"><iframe data-src="/landing1/preview/stock/" title="Interactive Stock example" sandbox="allow-scripts" referrerpolicy="no-referrer" loading="lazy"></iframe></div>
-    <figcaption><span>Sample workspace · 20 Nov 2026</span><button type="button" data-reset id="reset-stock">Reset stock example</button></figcaption>
-  </figure>
-</div></div></section>
-<section class="feature" id="sale" aria-labelledby="sale-title"><div class="feature-layout wrap"><div class="feature-copy"><p class="feature-kicker">Sales</p><h2 id="sale-title">Find your best flips.</h2><p class="feature-desc">Review returns and surface the sales with the highest profit.</p></div><div class="feature-visual">
-  <figure class="live-preview">
-    <a class="skip-link" href="#reset-sales">Skip sales example</a>
-    <div class="preview-frame"><iframe data-src="/landing1/preview/sales/" title="Interactive Sales example" sandbox="allow-scripts" referrerpolicy="no-referrer" loading="lazy"></iframe></div>
-    <figcaption><span>Sample workspace · 20 Nov 2026</span><button type="button" data-reset id="reset-sales">Reset sales example</button></figcaption>
-  </figure>
-</div></div></section>
-<section class="feature" id="expenses" aria-labelledby="expenses-title"><div class="feature-layout wrap"><div class="feature-copy"><p class="feature-kicker">Expenses</p><h2 id="expenses-title">Give every cost a category.</h2><p class="feature-desc">See where your money goes, from postage to promotion.</p></div><div class="feature-visual">
-  <figure class="live-preview">
-    <a class="skip-link" href="#reset-expenses">Skip expenses example</a>
-    <div class="preview-frame"><iframe data-src="/landing1/preview/expenses/" title="Interactive Expenses example" sandbox="allow-scripts" referrerpolicy="no-referrer" loading="lazy"></iframe></div>
-    <figcaption><span>Sample workspace · 20 Nov 2026</span><button type="button" data-reset id="reset-expenses">Reset expenses example</button></figcaption>
-  </figure>
-</div></div></section>
-<section class="finish"><div class="wrap finish-inner"><div><p class="eyebrow"><span class="gold-line"></span> READY FOR YOUR NEXT HAUL?</p><h2>Your next flip.<br><em>All the figures.</em></h2></div><a class="cta" href="/signup/">Start tracking free <span aria-hidden="true">↗</span></a></div></section>
-</main>
-<footer class="footer wrap"><span>RETRADE · Made for UK resellers</span><div><a href="/landing2/">Compare option 2</a><a href="/">Current homepage</a></div></footer>
-
-</body></html>
+    <section class="showcase wrap" aria-labelledby="workspace-heading">
+      <h2 id="workspace-heading">From the first haul to the books.</h2>
+      <p class="showcase-intro">Explore Stock, Sales, Expenses and Dashboard with sample data.</p>
+      <nav class="workspace-nav" aria-label="Example pages">
+        <a id="stock" data-page href="/assets/landing/open-stock.webp" aria-label="Stock screenshot">Stock</a>
+        <a id="sales" data-page href="/assets/landing/open-sales.webp" aria-label="Sales screenshot">Sales</a>
+        <a id="expenses" data-page href="/assets/landing/open-expenses.webp" aria-label="Expenses screenshot">Expenses</a>
+        <a id="dashboard" data-page href="/assets/landing/open-dashboard-30d.webp" aria-label="Dashboard screenshot">Dashboard</a>
+      </nav>
+      <div id="workspace-panel">
+        <div class="workspace-frame">
+          <picture class="stock-poster">
+            <source media="(max-width: 600px)" srcset="/assets/landing/open-stock-phone.webp" width="585" height="1376">
+            <img src="/assets/landing/open-stock.webp" alt="Sample stock room showing listed items and their asking prices." width="1320" height="813" loading="lazy" decoding="async">
+          </picture>
+          <button type="button" class="try-preview" hidden>Try Stock example</button>
+          <p class="preview-status" role="status" hidden></p>
+        </div>
+        <div class="workspace-footer">
+          <span>Sample data · Each example starts fresh</span>
+          <button type="button" data-reset hidden>Reset Stock example</button>
+        </div>
+      </div>
+    </section>
+    <section class="finish">
+      <div class="wrap finish-inner">
+        <div><p class="eyebrow">Ready for your next haul?</p><h2>Your next flip.<br><em>All the figures.</em></h2></div>
+        <a class="cta" href="/signup/">Start tracking free</a>
+      </div>
+    </section>
+  </main>
+  <footer class="footer wrap"><span>RETRADE · Made for UK resellers</span></footer>
+</body>
+</html>
