@@ -10,7 +10,7 @@
   window.__rtDocumentExportsReady=true;
 
   var C={navy:[12,20,36],gold:[247,183,55],brandLight:[226,231,238],text:[28,36,48],muted:[110,118,130],line:[224,228,233],pale:[247,249,252],green:[46,125,50],red:[178,55,55],amber:[177,117,23]};
-  var pdfPromise=null,logoPromise=null,activeItem=null,activeBundleId=null,activeAccountId=null,repairQueued=false;
+  var logoPromise=null,activeItem=null,activeBundleId=null,activeAccountId=null,repairQueued=false;
   var TAGLINE="THE RESELLER'S BACK POCKET";
   var BANNER_WORDS='SALES · PAYMENTS · STATEMENTS';
   var L=14,R=196,W=182;
@@ -43,17 +43,7 @@
     lines[maxLines-1]=(last||'')+'...';return lines;
   }
 
-  function ensurePdf(){
-    if(window.jspdf&&window.jspdf.jsPDF)return Promise.resolve();
-    if(pdfPromise)return pdfPromise;
-    pdfPromise=new Promise(function(resolve,reject){
-      var old=document.getElementById('rt-doc-jspdf');
-      if(old){old.addEventListener('load',function(){window.jspdf&&window.jspdf.jsPDF?resolve():reject(new Error('PDF library did not initialise'));},{once:true});old.addEventListener('error',reject,{once:true});return;}
-      var s=document.createElement('script');s.id='rt-doc-jspdf';s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';s.async=true;s.crossOrigin='anonymous';s.referrerPolicy='no-referrer';
-      s.onload=function(){window.jspdf&&window.jspdf.jsPDF?resolve():reject(new Error('PDF library did not initialise'));};s.onerror=reject;document.head.appendChild(s);
-    }).catch(function(err){var failed=document.getElementById('rt-doc-jspdf');if(failed)failed.remove();pdfPromise=null;throw err;});
-    return pdfPromise;
-  }
+  function ensurePdf(){ return loadReportLibrary('pdf'); }
 
   function logoDataUrl(){
     if(logoPromise)return logoPromise;

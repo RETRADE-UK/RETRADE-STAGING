@@ -102,7 +102,7 @@
     var a=r.acct,s=r.stats,type=r.model==='fixed_cost'?'Fixed cost':'Profit share';
     var outstandingCount=Number(s.unsettledCount)||Number(s.unsettledSoldCount)||0;
     var term=r.model==='fixed_cost'?(paymentTiming(a)==='on_sale'?'After sale':'Upfront'):'';
-    return '<div class="rt-acct-op-row" data-account-id="'+escHtml(a.id)+'" role="link" tabindex="0" aria-label="Open '+escHtml(a.name||'account')+'" onclick="_rtAcctOpOpen(event,this.dataset.accountId)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_rtAcctOpOpen(event,this.dataset.accountId)}">'
+    return '<div class="rt-acct-op-row" data-account-id="'+escHtml(a.id)+'" role="link" tabindex="0" onclick="_rtAcctOpOpen(event,this.dataset.accountId)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();_rtAcctOpOpen(event,this.dataset.accountId)}">'
       +'<div class="rt-acct-op-main"><div class="rt-acct-op-name">'+escHtml(a.name||'Unnamed account')+'</div><div class="rt-acct-op-terms">'+badge(type,r.model==='fixed_cost'?'fixed':'share')+(term?'<span>'+term+'</span>':'')+'</div></div>'
       +'<div class="rt-acct-op-stock"><strong>'+(Number(s.stockOnHandCount)||0)+'</strong><span>'+(Number(s.listedCount)||0)+' listed · '+(Number(s.unlistedCount)||0)+' unlisted</span></div>'
       +'<div class="rt-acct-op-activity"><strong>'+escHtml(formatDate(r.last))+'</strong></div>'
@@ -113,7 +113,7 @@
   function controls(){
     function options(values,kind){return Object.keys(values).map(function(key){return '<button type="button" class="filter-pill-dd-opt'+(state[kind]===key?' active':'')+'" data-account-'+kind+'="'+key+'" onclick="_rtAcctOp'+(kind==='filter'?'Filter':'Sort')+'(\''+key+'\');closeFilterPill(\'rt-acct-filter-sort\')">'+values[key]+'</button>';}).join('');}
     return '<div class="rt-acct-op-controls rt-acct-compact-controls"><div class="rt-acct-op-search inlist-search">'+_selSearchIco(15)+'<input id="rt-acct-op-search" type="search" aria-label="Search accounts" value="'+escHtml(state.q)+'" placeholder="Search accounts…" oninput="_rtAcctOpSearch(this.value)"></div>'
-      +'<div id="rt-acct-filter-sort" class="filter-pill-dd rt-acct-combined-dd"><div class="filter-pill-dd-backdrop" onclick="closeFilterPill(\'rt-acct-filter-sort\')"></div><button type="button" class="filter-pill-dd-btn" aria-label="Filter and sort accounts" onclick="event.stopPropagation();toggleFilterPill(\'rt-acct-filter-sort\')">Filter / Sort ▾</button><div class="filter-pill-dd-menu rt-acct-combined-menu"><div class="rt-acct-fs-title">Filter</div>'+options(filters,'filter')+'<div class="rt-acct-fs-title">Sort</div>'+options(sorts,'sort')+'</div></div></div>';
+      +'<div id="rt-acct-filter-sort" class="filter-pill-dd rt-acct-combined-dd"><div class="filter-pill-dd-backdrop" onclick="closeFilterPill(\'rt-acct-filter-sort\')"></div><button type="button" class="filter-pill-dd-btn" aria-label="Filter and sort accounts" onclick="event.stopPropagation();toggleFilterPill(\'rt-acct-filter-sort\')">Filter and sort <span aria-hidden="true">&dtrif;</span></button><div class="filter-pill-dd-menu rt-acct-combined-menu"><div class="rt-acct-fs-title">Filter</div>'+options(filters,'filter')+'<div class="rt-acct-fs-title">Sort</div>'+options(sorts,'sort')+'</div></div></div>';
   }
   function updateList(){
     var page=document.getElementById('p-accounts'),list=page&&page.querySelector('.rt-acct-op-list');if(!list)return;

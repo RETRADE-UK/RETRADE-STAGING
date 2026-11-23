@@ -567,8 +567,7 @@ window.__rtRegisterView("sourcing", {
       const dateLabel=isNaN(parsed.getTime())?'Date not set':parsed.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
       const profitCol=st.profit>0?'var(--green)':st.profit<0?'var(--red)':'var(--text)';
       const search=[run.name,run.location,date,dateLabel].join(' ').toLowerCase();
-      const accessible=[run.name||'Sourcing run',dateLabel,run.location||'',st.sold+' of '+st.items+' items sold','Spent '+fmt(st.cost),'Net profit '+fmt(st.profit),'ROI '+(st.roi===null?'not available':st.roi.toFixed(0)+'%')].join(', ');
-      return '<button type="button" class="run-history-row" aria-label="'+esc(accessible)+'" data-runid="'+esc(run.id)+'" data-run-search="'+esc(search)+'" onclick="openRunPageFromRuns(this.dataset.runid)">'
+      return '<button type="button" class="run-history-row" data-runid="'+esc(run.id)+'" data-run-search="'+esc(search)+'" onclick="openRunPageFromRuns(this.dataset.runid)">'
         +'<span class="rh-body"><span class="rh-name">'+esc(run.name||'Sourcing run')+'</span><span class="rh-meta">'+esc(dateLabel)+(run.location?' · '+esc(run.location):'')+'</span></span>'
         +'<span class="rh-sold"><span class="rh-mobile-label">Items </span><strong>'+st.sold+' / '+st.items+'</strong><span class="rh-sold-label"> sold</span></span>'
         +'<span class="rh-fact"><span class="rh-mobile-label">Spent</span><strong>'+fmt(st.cost)+'</strong></span>'

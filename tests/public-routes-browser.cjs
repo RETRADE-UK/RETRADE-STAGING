@@ -19,6 +19,7 @@ const types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', 
   try {
     const context = await browser.newContext({viewport:{width:1370,height:850}, reducedMotion:'reduce', serviceWorkers:'block'});
     const missing = [];
+    const requestedImages = new Set();
     await context.route('**/*', async route => {
       const url = new URL(route.request().url());
       if (url.pathname.includes('/supabase-js@')) {
@@ -31,6 +32,7 @@ const types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', 
         return route.fulfill({status:404,body:'Missing asset'});
       }
       const ext = path.extname(file);
+      if (ext === '.webp') requestedImages.add(url.pathname);
       let body = fs.readFileSync(file);
       if (ext === '.html') body = body.toString().replace(/ integrity="[^"]*"/g,'');
       if (url.pathname === '/src/core/application.js') body = body.toString() + fixture;
@@ -41,6 +43,11 @@ const types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', 
     assert.match(await page.locator('h1').innerText(), /on every flip/);
     assert.equal(await page.locator('video').count(),0);
     assert.equal(await page.locator('.story').count(),4);
+    await page.waitForLoadState('networkidle');
+    for (const chapter of ['stock','sale']) {
+      assert(!requestedImages.has('/assets/landing/' + chapter + '-preview.webp'),
+        'An unopened chapter should not download on the homepage: ' + chapter);
+    }
     for (const id of ['sourcing','stock','sale','dashboard']) {
       await page.locator('.jump a[href="#'+id+'"]').click();
       await page.waitForFunction(id => !document.getElementById(id).hidden &&

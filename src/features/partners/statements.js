@@ -306,20 +306,7 @@
 
   function _psGenerateExcel(){
     var period,s;try{period=_psResolvedPeriod();s=_psBuild(_psState.accountId,period);}catch(err){try{toast(err.message||'Could not generate statement','error');}catch(_){alert(err.message||err);}return;}
-    if(window.XLSX){_psWriteWorkbook(s);return;}
-    var existing=document.getElementById('rt-xlsx-lib');
-    if(existing){
-      existing.addEventListener('load',function(){_psWriteWorkbook(s);},{once:true});
-      try{toast('Preparing Excel export…');}catch(_){}
-      return;
-    }
-    var script=document.createElement('script');script.id='rt-xlsx-lib';
-    script.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    script.integrity='sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==';
-    script.crossOrigin='anonymous';script.referrerPolicy='no-referrer';
-    script.onload=function(){_psWriteWorkbook(s);};
-    script.onerror=function(){try{toast('Could not load the Excel exporter. CSV is still available.','error');}catch(_){}};
-    document.head.appendChild(script);
+    withExcel(() => _psWriteWorkbook(s));
   }
 
   function _psSetMode(mode){

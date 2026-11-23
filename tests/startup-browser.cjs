@@ -9,14 +9,19 @@ const {assets}=require('../scripts/assets.cjs');
 const session = { user: { id: 'ui-test', email: 'ui@example.test', user_metadata: { full_name: 'Test User' } } };
 
 function mockAuth(initialSession, partnerData) {
-  window.__fixtureSession = initialSession;
+  window.__fixtureSession = JSON.parse(sessionStorage.getItem('fixture-next-session')||'null')||initialSession;
   window.__fixtureSignInCalls = 0;
   const listeners = [];
+  window.__fixtureSwitchAccount = user => {
+    window.__fixtureSession={user};
+    sessionStorage.setItem('fixture-next-session',JSON.stringify(window.__fixtureSession));
+    listeners.forEach(fn=>fn('SIGNED_IN',window.__fixtureSession));
+  };
   window.supabase = { createClient(url) { window.__fixtureClientUrl=url; return {
     ...(partnerData ? { from(table) {
       if (table !== 'account_adjustments') throw new Error('No fixture for table ' + table);
       const query = {
-        select: () => query, eq: () => query, order: () => query,
+        select: () => query, eq: () => query, order: () => query, limit: () => query,
         then: (resolve, reject) => Promise.resolve({ data: [], error: null }).then(resolve, reject)
       };
       return query;
@@ -82,7 +87,7 @@ async function settled(page) {
   // Deferred modules load in order through idle/frame callbacks. Slow fixtures
   // and CI scheduling can exceed 15s; dedicated tests still measure performance.
   try{
-    await page.waitForFunction(() => window.__rtFeaturesReady && window.__rtLaunchSettled && !document.documentElement.classList.contains('rt-app-cold'), null, { timeout: 30000 });
+    await page.waitForFunction(() => (window.__rtFeaturesReady || window.__rtLaunchDestination==='auth') && window.__rtLaunchSettled && !document.documentElement.classList.contains('rt-app-cold'), null, { timeout: 30000 });
   }catch(error){
     let state;
     try{state=await page.evaluate(()=>({featuresReady:window.__rtFeaturesReady??null,launchSettled:window.__rtLaunchSettled??null,cold:document.documentElement.classList.contains('rt-app-cold'),readyState:document.readyState,activePage:document.querySelector('.page.on')?.id}));}
@@ -100,6 +105,21 @@ module.exports={mockAuth,fixture,open,settled};
 if(require.main===module)(async () => {
   const browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_EXECUTABLE ? { executablePath: process.env.CHROMIUM_EXECUTABLE } : {}), args: ['--no-sandbox', '--disable-dev-shm-usage'] });
   try {
+    {
+      const {page,context}=await open(browser,{signedIn:true});
+      await settled(page);
+      await page.evaluate(()=>{
+        DB._taxOtherIncome=23500;
+        localStorage.setItem(_ownedPreferenceKey(SHIPPING_POLICIES_KEY),'[{"name":"Private shipping rate"}]');
+        document.body.dataset.privateWorkspace='first-user';
+        window.__fixtureSwitchAccount({id:'second-user',email:'second@example.test'});
+      });
+      await page.waitForFunction(()=>typeof _currentUserId!=='undefined'&&_currentUserId==='second-user'&&window.__rtLaunchSettled);
+      const state=await page.evaluate(()=>[document.body.dataset.privateWorkspace||null,_taxOtherIncome(),getShippingPolicies().length]);
+      assert.deepEqual(state,[null,0,0],'A cross-tab account switch starts a clean workspace');
+      await context.close();
+      console.log('PASS account switch clears the previous document, income and shipping presets');
+    }
     for (const options of [{ signedIn: true }, { signedIn: true, mobile: true }, { signedIn: true, reduced: true }]) {
       const { page, context, errors, missingAssets } = await open(browser, options);
       await settled(page);
@@ -224,6 +244,7 @@ if(require.main===module)(async () => {
     assert(bridgeCheck.gaps.every(g=>Math.abs(g-18)<1),'Shield and wordmark must maintain their 18px gap throughout travel');
     if(process.env.RETRADE_CAPTURE){await login.page.waitForTimeout(500);await login.page.screenshot({path:process.env.RETRADE_CAPTURE+'/login-transition.png'});}
     await settled(login.page);
+    assert.equal(await login.page.evaluate(() => RT_ASSETS.deferred.some(path=>document.querySelector('script[src*="'+path+'"]'))), false, 'Signed-out sessions should not download workspace features');
     assert.equal(await login.page.evaluate(() => window.__rtLaunchPerf.brandHandoff), 'auth', 'Welcome must hand off to login rather than a fallback');
     await login.page.locator('#auth-email').fill('ui@example.test');
     await login.page.locator('#auth-pass').fill('bad');

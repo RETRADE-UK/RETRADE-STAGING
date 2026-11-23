@@ -725,114 +725,80 @@ function _stampRelistFee(item){
   return item;
 }
 // User-configurable default platform — persisted to localStorage
+function _ownedPreferenceKey(key){
+  return key+'_'+(_currentUserId||'signed-out');
+}
 function _getDefaultPlatform(){
-  try{ const v=localStorage.getItem('_rtrade_default_platform'); return(v&&PLATFORMS[v])?v:'ebay'; }catch(e){return'ebay';}
+  try{ const v=localStorage.getItem(_ownedPreferenceKey('_rtrade_default_platform')); return(v&&PLATFORMS[v])?v:'ebay'; }catch(e){return'ebay';}
 }
 function _setDefaultPlatform(p){
-  try{ localStorage.setItem('_rtrade_default_platform',p); }catch(e){}
+  try{ localStorage.setItem(_ownedPreferenceKey('_rtrade_default_platform'),p); }catch(e){}
   _syncUserSettingsToCloud();
 }
 
-// F6: Debounced write-through of settings to Supabase user_settings table.
-// localStorage is the fast-start cache; Supabase is source of truth on login.
+// Cloud reads and writes are owned by the durable settings synchroniser below.
 let _settingsSyncTimer=null;
-function _syncUserSettingsToCloud(){
-  if(!_currentUserId||typeof _sb==='undefined')return;
-  clearTimeout(_settingsSyncTimer);
-  _settingsSyncTimer=setTimeout(async function(){
-    if(!_currentUserId)return;
-    try{
-      const row={
-        user_id:_currentUserId,
-        default_platform:_getDefaultPlatform(),
-        shipping_policies:getShippingPolicies(),
-        theme:localStorage.getItem('retrade_theme')||'dark',
-        country:COUNTRY||'uk',
-        tax_region:_taxRegion(),
-        tax_other_income:_taxOtherIncome(),
-        updated_at:new Date().toISOString()
-      };
-      const uid=row.user_id;
-      const upd=await _sb.from('user_settings').update(row).eq('user_id',uid).select('user_id');
-      if(upd.error)throw upd.error;
-      if(!upd.data||upd.data.length===0){
-        const ins=await _sb.from('user_settings').insert(row);
-        if(ins.error)throw ins.error;
-      }
-    }catch(e){
-      _lastSyncError='Settings sync: '+(e&&e.message?e.message:String(e));
-      console.warn('[RETRADE] user_settings sync failed (non-fatal):',_lastSyncError);
-      if(typeof _refreshSideNavSync==='function')_refreshSideNavSync('pending');
+let _syncUserSettingsToCloud;
+let _hydrateUserSettings;
+function _applyUserSettings(data){
+  // default_platform
+  if(data.default_platform&&PLATFORMS[data.default_platform]){
+    try{localStorage.setItem(_ownedPreferenceKey('_rtrade_default_platform'),data.default_platform);}catch(e){}
+  }
+  // shipping_policies — cloud wins on login
+  if(Array.isArray(data.shipping_policies)){
+    try{localStorage.setItem(_ownedPreferenceKey('retrade_shipping_policies'),JSON.stringify(data.shipping_policies));}catch(e){}
+    _refreshShippingPolicyDropdowns();
+  }
+  // theme — rt-theme is the device-local user preference and must remain
+  // authoritative throughout boot. The cloud's binary dark/light value may
+  // seed a genuinely fresh device, but must never cause a saved preference to
+  // flash to the opposite theme while login settings hydrate.
+  if(data.theme&&(data.theme==='dark'||data.theme==='light')){
+    const localPref=(typeof _readThemePref==='function')?_readThemePref():null;
+    if(localPref==='system'||localPref==='dark'||localPref==='light'){
+      const resolved=(typeof _resolveTheme==='function')?_resolveTheme(localPref):localPref;
+      const current=document.documentElement.getAttribute('data-theme')||'dark';
+      if(resolved!==current&&typeof _applyResolvedTheme==='function')_applyResolvedTheme(resolved);
+      try{localStorage.setItem(THEME_KEY,resolved);}catch(e){}
+    }else{
+      // First use on this device: adopt the cloud's last resolved theme once.
+      try{localStorage.setItem(THEME_PREF_KEY,data.theme);}catch(e){}
+      if(typeof _applyResolvedTheme==='function')_applyResolvedTheme(data.theme);
+      else document.documentElement.setAttribute('data-theme',data.theme);
+      try{localStorage.setItem(THEME_KEY,data.theme);}catch(e){}
     }
-  },800);
-}
-// F6: Hydrate local settings from Supabase row on login — called after loadDataForUser
-async function _hydrateUserSettings(uid){
-  if(!uid||typeof _sb==='undefined')return;
-  try{
-    const {data,error}=await _sb.from('user_settings').select('*').eq('user_id',uid).single();
-    if(error||!data)return; // no row yet — leave localStorage values as-is
-    // default_platform
-    if(data.default_platform&&PLATFORMS[data.default_platform]){
-      try{localStorage.setItem('_rtrade_default_platform',data.default_platform);}catch(e){}
-    }
-    // shipping_policies — cloud wins on login
-    if(Array.isArray(data.shipping_policies)&&data.shipping_policies.length>0){
-      try{localStorage.setItem('retrade_shipping_policies',JSON.stringify(data.shipping_policies));}catch(e){}
-      _refreshShippingPolicyDropdowns();
-    }
-    // theme — rt-theme is the device-local user preference and must remain
-    // authoritative throughout boot. The cloud's binary dark/light value may
-    // seed a genuinely fresh device, but must never cause a saved preference to
-    // flash to the opposite theme while login settings hydrate.
-    if(data.theme&&(data.theme==='dark'||data.theme==='light')){
-      const localPref=(typeof _readThemePref==='function')?_readThemePref():null;
-      if(localPref==='system'||localPref==='dark'||localPref==='light'){
-        const resolved=(typeof _resolveTheme==='function')?_resolveTheme(localPref):localPref;
-        const current=document.documentElement.getAttribute('data-theme')||'dark';
-        if(resolved!==current&&typeof _applyResolvedTheme==='function')_applyResolvedTheme(resolved);
-        try{localStorage.setItem(THEME_KEY,resolved);}catch(e){}
-      }else{
-        // First use on this device: adopt the cloud's last resolved theme once.
-        try{localStorage.setItem(THEME_PREF_KEY,data.theme);}catch(e){}
-        if(typeof _applyResolvedTheme==='function')_applyResolvedTheme(data.theme);
-        else document.documentElement.setAttribute('data-theme',data.theme);
-        try{localStorage.setItem(THEME_KEY,data.theme);}catch(e){}
-      }
-      if(typeof _updateThemePrefButtons==='function')_updateThemePrefButtons();
-    }
-    // country
-    if(data.country&&COUNTRIES[data.country]&&COUNTRIES[data.country].live){
-      setCountry(data.country,true); // silent — restore, not a user change
-    }
-    // tax estimator settings
-    if(data.tax_region==='scotland'||data.tax_region==='rUK'){
-      DB._taxRegion=data.tax_region;
-      try{localStorage.setItem('retrade_tax_region',data.tax_region);}catch(e){}
-    }
-    if(data.tax_other_income!=null&&isFinite(+data.tax_other_income)){
-      DB._taxOtherIncome=Math.max(0,+data.tax_other_income||0);
-      try{localStorage.setItem('retrade_tax_other_income',String(DB._taxOtherIncome));}catch(e){}
-    }
-  }catch(e){
-    console.warn('[RETRADE] _hydrateUserSettings failed (non-fatal):',e.message);
+    if(typeof _updateThemePrefButtons==='function')_updateThemePrefButtons();
+  }
+  // country
+  if(data.country&&COUNTRIES[data.country]&&COUNTRIES[data.country].live){
+    setCountry(data.country,true); // silent — restore, not a user change
+  }
+  // tax estimator settings
+  if(data.tax_region==='scotland'||data.tax_region==='rUK'){
+    DB._taxRegion=data.tax_region;
+    try{localStorage.setItem(_ownedPreferenceKey('retrade_tax_region'),data.tax_region);}catch(e){}
+  }
+  if(data.tax_other_income!=null&&isFinite(+data.tax_other_income)){
+    DB._taxOtherIncome=Math.max(0,+data.tax_other_income||0);
+    try{localStorage.setItem(_ownedPreferenceKey('retrade_tax_other_income'),String(DB._taxOtherIncome));}catch(e){}
   }
 }
 
 // Shipping policies — saved name → {yourCost, buyerPays}
 function getShippingPolicies(){
-  try{const v=localStorage.getItem(SHIPPING_POLICIES_KEY);return v?JSON.parse(v):[];}catch(e){return[];}
+  try{const v=localStorage.getItem(_ownedPreferenceKey(SHIPPING_POLICIES_KEY));return v?JSON.parse(v):[];}catch(e){return[];}
 }
 function saveShippingPolicy(name,yourCost,buyerPays){
   const policies=getShippingPolicies().filter(p=>p.name!==name);
   policies.push({name,yourCost:+yourCost||0,buyerPays:+buyerPays||0});
-  try{localStorage.setItem(SHIPPING_POLICIES_KEY,JSON.stringify(policies));}catch(e){}
+  try{localStorage.setItem(_ownedPreferenceKey(SHIPPING_POLICIES_KEY),JSON.stringify(policies));}catch(e){}
   _refreshShippingPolicyDropdowns();
   _syncUserSettingsToCloud();
 }
 function deleteShippingPolicy(name){
   const policies=getShippingPolicies().filter(p=>p.name!==name);
-  try{localStorage.setItem(SHIPPING_POLICIES_KEY,JSON.stringify(policies));}catch(e){}
+  try{localStorage.setItem(_ownedPreferenceKey(SHIPPING_POLICIES_KEY),JSON.stringify(policies));}catch(e){}
   _refreshShippingPolicyDropdowns();
   _syncUserSettingsToCloud();
 }
@@ -844,7 +810,7 @@ function reorderShippingPolicy(name,dir){
   const newIdx=idx+dir;
   if(newIdx<0||newIdx>=policies.length)return;
   const tmp=policies[idx]; policies[idx]=policies[newIdx]; policies[newIdx]=tmp;
-  try{localStorage.setItem(SHIPPING_POLICIES_KEY,JSON.stringify(policies));}catch(e){}
+  try{localStorage.setItem(_ownedPreferenceKey(SHIPPING_POLICIES_KEY),JSON.stringify(policies));}catch(e){}
   _refreshShippingPolicyDropdowns();
   _syncUserSettingsToCloud();
   _msPoliciesRender();
@@ -1872,7 +1838,7 @@ function _msSavePolicyFromSheet(){
 }
 function _platBadgeStyle(pid){
   // Returns inline style string matching .plat-badge CSS colours
-  if(pid==='vinted')return 'background:rgba(0,119,130,0.15);border:1px solid rgba(0,119,130,0.4);color:#007782;';
+  if(pid==='vinted')return 'background:rgba(0,119,130,0.15);border:1px solid rgba(0,119,130,0.4);color:var(--vinted-ink);';
   if(pid==='depop')return 'background:rgba(255,70,70,0.12);border:1px solid rgba(255,70,70,0.3);color:#e03030;';
   if(pid==='fb')return 'background:rgba(24,119,242,0.12);border:1px solid rgba(24,119,242,0.3);color:#1877f2;';
   if(pid==='amazon_uk')return 'background:rgba(255,153,0,0.14);border:1px solid rgba(255,153,0,0.35);color:#c45a00;';
@@ -1933,7 +1899,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 let _pwRecovery=false; try{ _pwRecovery=/type=recovery/i.test((location.hash||'')+' '+(location.search||'')); }catch(e){}
 const _sb = (typeof supabase !== 'undefined')
   ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:true,flowType:"implicit"}})
-  : {auth:{getSession:async()=>({data:{session:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe:()=>{}}}}),signInWithPassword:async()=>({error:{message:'offline'}}),signOut:async()=>{},refreshSession:async()=>({data:{},error:true}),resetPasswordForEmail:async()=>({error:null})}};
+  : {auth:{getSession:async()=>({data:{session:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe:()=>{}}}}),signInWithPassword:async()=>({error:{message:'offline'}}),signOut:async()=>{},refreshSession:async()=>({data:{},error:true}),resetPasswordForEmail:async()=>({error:{message:'Could not load the reset email service. Refresh the page and try again.'}})}};
 
 let _previewMode = false;
 const _previewParam = new URLSearchParams(window.location.search).get('preview');
@@ -2171,9 +2137,7 @@ function _pwToggle(id, btn){
   var toText = el.type==='password';
   el.type = toText ? 'text' : 'password';
   btn.setAttribute('aria-label', toText?'Hide password':'Show password');
-  btn.innerHTML = toText
-    ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-10-8-10-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 10 8 10 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>'
-    : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+  btn.querySelector('use').setAttribute('href', toText?'#auth-eye-off':'#auth-eye');
 }
 function _pwStrength(p){
   p=p||''; var len=p.length;
@@ -2389,9 +2353,12 @@ async function doResetPassword(){
   errEl.style.display = 'none';
   btn.style.display = 'none';
   ldEl.style.display = 'block';
-  const {error} = await _sb.auth.resetPasswordForEmail(email, {
-    redirectTo: _authCallbackURL()
-  });
+  let error;
+  try{
+    ({error} = await _sb.auth.resetPasswordForEmail(email, {redirectTo: _authCallbackURL()}));
+  }catch{
+    error = {message:'Could not send the reset email. Check your connection and try again.'};
+  }
   ldEl.style.display = 'none';
   btn.style.display = 'block';
   if(error){
@@ -2538,7 +2505,7 @@ async function _hydrateItemPhotoUrls(){
   allDBKeys().forEach(function(k){(DB[k]||[]).forEach(function(i){
     if(i&&i.photoPath){items.push(i);if(!seen.has(i.photoPath)){seen.add(i.photoPath);paths.push(i.photoPath);}}
   });});
-  if(!paths.length)return;
+  if(!paths.length)return false;
   const bucket=_sb.storage.from(RETRADE_PHOTO_BUCKET);
   try{
     if(typeof bucket.createSignedUrls==='function'){
@@ -2559,7 +2526,12 @@ async function _hydrateItemPhotoUrls(){
     console.warn('[RETRADE] photo URL hydration failed:',e&&e.message);
     _diagRecord('photo-load',e,{location:location.origin+location.pathname});
   }
-  items.forEach(function(i){const c=_photoUrlCache.get(i.photoPath);i.photo=c?c.url:null;});
+  let changed=false;
+  items.forEach(function(i){
+    const url=_photoUrlCache.get(i.photoPath)?.url||null;
+    if(i.photo!==url){i.photo=url;changed=true;}
+  });
+  return changed;
 }
 function _fileToDataUrl(file){
   return new Promise(function(resolve,reject){
@@ -2661,6 +2633,8 @@ function _rowToItem(row, parts, returns){
     // E33/E36 — Accounts. accountType per-item overrides the account's default
     // type for this specific item (null = inherit from account).
     accountId:           row.account_id || null,
+    arrangementModelOverride: ['fixed_cost','profit_share'].includes(row.arrangement_model_override)?row.arrangement_model_override:null,
+    partnerAgreedAmount: row.partner_agreed_amount!=null?Number(row.partner_agreed_amount):null,
     accountType:         row.account_item_type || null,
     accountSplitPercent: row.account_split_percent != null ? Number(row.account_split_percent) : null,
     accountSettled:      !!row.account_settled,
@@ -2777,6 +2751,8 @@ function _itemToRow(i, month){
     sourcing_run_id:  i.sourcingRunId || null,
     // E33 — Accounts (partners), see _rowToItem note above.
     account_id:             i.accountId || null,
+    arrangement_model_override: i.arrangementModelOverride||i.arrangement_model_override||null,
+    partner_agreed_amount: i.partnerAgreedAmount??i.partner_agreed_amount??null,
     account_item_type:      i.accountType || null,
     account_split_percent:  i.accountSplitPercent != null ? i.accountSplitPercent : null,
     account_settled:        !!i.accountSettled,
@@ -2817,33 +2793,84 @@ function _resetBusinessStateForCloudLoad(){
   _accounts=[];_jobLots=[];_jobLotItems=[];_saleReconciliations=[];
 }
 
-async function loadFromSupabase(){
-  _schemaVerified=false;
-  const ok = await _ensureSession();
-  if(!ok) throw new Error('Not authenticated — please sign in again.');
-  // Get current user id directly from session as belt-and-braces
-  const {data:{session}} = await _sb.auth.getSession();
-  if(!session) throw new Error('Session missing — please sign in again.');
-  _currentUserId = session.user.id;
-  const uid = _currentUserId;
-  await _verifySchemaVersion();
-  _schemaVerified=true;
-  // Fetch all tables in parallel — explicit .eq('user_id') on every query as
-  // belt-and-braces on top of RLS. Prevents NULL-user_id orphan rows or
-  // misconfigured policies from bleeding into the loaded DB.
+function _commitCloudWorkspace(apply){
+  // Mapping is synchronous. Retain references to the last complete workspace
+  // and its revision indices until every financial collection has been rebuilt.
+  const previous=[DB,_sourcingRuns,_activeSourcingRun,_accounts,_jobLots,_jobLotItems,
+    _saleReconciliations,_jobLotSchemaAvailable,_reconciliationSchemaAvailable];
+  const restoreRevisions=_resetBusinessStateForCloudLoad();
+  try{apply();}catch(error){
+    [DB,_sourcingRuns,_activeSourcingRun,_accounts,_jobLots,_jobLotItems,
+      _saleReconciliations,_jobLotSchemaAvailable,_reconciliationSchemaAvailable]=previous;
+    if(restoreRevisions)restoreRevisions();
+    throw error;
+  }
+}
+
+async function _timedCloudRead(read){
+  let timer;
+  try{
+    return await Promise.race([read,new Promise((_,reject)=>{
+      timer=setTimeout(()=>reject(new Error('Request timed out. Try refreshing.')),15000);
+    })]);
+  }finally{clearTimeout(timer);}
+}
+
+// Use the immutable primary key as the cursor. A deletion or a change to a
+// listing date between pages cannot shift the offset and skip a later record.
+async function _readOwnedRows(table,uid,sortColumns=[],ascending=true,checkOwner){
+  const rows=[];
+  let cursor=null;
+  for(;;){
+    if(checkOwner)checkOwner();
+    const first=cursor===null;
+    let query=_sb.from(table).select('*',first?{count:'exact'}:{}).eq('user_id',uid).order('id').limit(500);
+    if(!first)query=query.gt('id',cursor);
+    const result=await _timedCloudRead(query);
+    if(result.error)return result;
+    const page=result.data;
+    if(!Array.isArray(page)||page.some(row=>!row||row.id==null))throw new Error('Invalid response loading '+table);
+    rows.push(...page);
+    // The server can enforce a smaller cap than requested. Exact count lets
+    // small accounts finish in one read. Larger sets stop on an empty page.
+    if(!page.length||(first&&result.count===page.length))break;
+    const last=page[page.length-1].id;
+    if(last==null||last===cursor)throw new Error('Unable to continue loading '+table);
+    cursor=last;
+  }
+  if(sortColumns.length)rows.sort((a,b)=>{
+    for(const key of sortColumns){
+      const lhs=a[key],rhs=b[key];
+      if(lhs===rhs||(lhs==null&&rhs==null))continue;
+      // Postgres defaults to NULLS LAST ascending and NULLS FIRST descending.
+      const comparison=lhs==null?1:rhs==null?-1:lhs<rhs?-1:1;
+      return ascending?comparison:-comparison;
+    }
+    return 0;
+  });
+  return {data:rows,error:null};
+}
+
+async function loadFromSupabase({canCommit,onCommit}={}){
+  const uid=_currentUserId;
+  const generation=++_cloudLoadGeneration;
+  function checkOwner(){
+    if(!uid||uid!==_currentUserId||generation!==_cloudLoadGeneration)
+      throw new Error('Workspace changed while data was loading.');
+  }
+  checkOwner();
+  await _timedCloudRead((async()=>{
+    if(!await _ensureSession())throw new Error('Not authenticated - please sign in again.');
+    const {data:{session}}=await _sb.auth.getSession();
+    if(session?.user.id!==uid)throw new Error('Session changed - please sign in again.');
+    await _verifySchemaVersion();
+  })());
+  const read=(table,column,ascending)=>_readOwnedRows(table,uid,column?[column]:[],ascending,checkOwner);
   const [itemsRes, partsRes, returnsRes, tripsRes, expensesRes, runsRes, accountsRes, cashRes, activityRes, jobLotsRes, jobLotItemsRes, reconcileRes] = await Promise.all([
-    _sb.from('items').select('*').eq('user_id', uid).order('date_listed', {ascending: true}),
-    _sb.from('item_parts').select('*').eq('user_id', uid),
-    _sb.from('item_returns').select('*').eq('user_id', uid).order('logged_at', {ascending: true}),
-    _sb.from('trips').select('*').eq('user_id', uid).order('date', {ascending: true}),
-    _sb.from('expenses').select('*').eq('user_id', uid).order('date', {ascending: true}),
-    _sb.from('sourcing_runs').select('*').eq('user_id', uid).order('date_started', {ascending: false}),
-    _sb.from('accounts').select('*').eq('user_id', uid).order('name', {ascending: true}),
-    _sb.from('cash_ledger').select('*').eq('user_id', uid).order('date', {ascending: true}),
-    _sb.from('activity_log').select('*').eq('user_id', uid).order('ts', {ascending: true}),
-    _sb.from('job_lots').select('*').eq('user_id', uid).order('created_at', {ascending: true}),
-    _sb.from('job_lot_items').select('*').eq('user_id', uid).order('added_at', {ascending: true}),
-    _sb.from('sale_reconciliations').select('*').eq('user_id', uid).order('created_at', {ascending: true}),
+    read('items','date_listed'),read('item_parts'),read('item_returns','logged_at'),
+    read('trips','date'),read('expenses','date'),read('sourcing_runs','date_started',false),
+    read('accounts','name'),read('cash_ledger','date'),read('activity_log','ts'),
+    read('job_lots','created_at'),read('job_lot_items','added_at'),read('sale_reconciliations','created_at'),
   ]);
 
   // Core financial data must load as a complete set. Showing an apparently
@@ -2859,147 +2886,150 @@ async function loadFromSupabase(){
     _launchLoads.forEach(function(pair){if(pair[1]&&pair[1].error)throw new Error(pair[0]+' load failed: '+pair[1].error.message);});
   }
 
-  // All required reads succeeded: Supabase is now the authoritative baseline.
-  _resetBusinessStateForCloudLoad();
+  // Preserve the older-schema fallback only for genuinely absent tables.
+  for(const result of [jobLotsRes,jobLotItemsRes,reconcileRes]){
+    if(result.error&&!['42P01','PGRST205'].includes(result.error.code))throw new Error('Stock history load failed: '+result.error.message);
+  }
+  checkOwner();
+  if(canCommit&&!canCommit())throw new Error('Local changes are waiting to sync.');
+  _commitCloudWorkspace(()=>{
+    // Index parts and returns by item_id for fast lookup
+    const partsMap=Object.create(null);
+    (partsRes.data || []).forEach(p => {
+      if(!partsMap[p.item_id]) partsMap[p.item_id] = [];
+      partsMap[p.item_id].push(p);
+    });
+    const returnsMap=Object.create(null);
+    (returnsRes.data || []).forEach(r => {
+      if(!returnsMap[r.item_id]) returnsMap[r.item_id] = [];
+      returnsMap[r.item_id].push(r);
+    });
 
-  // Index parts and returns by item_id for fast lookup
-  const partsMap = {};
-  (partsRes.data || []).forEach(p => {
-    if(!partsMap[p.item_id]) partsMap[p.item_id] = [];
-    partsMap[p.item_id].push(p);
-  });
-  const returnsMap = {};
-  (returnsRes.data || []).forEach(r => {
-    if(!returnsMap[r.item_id]) returnsMap[r.item_id] = [];
-    returnsMap[r.item_id].push(r);
-  });
-
-  // Rebuild DB — rows grouped by their month key (may be bare 'APR' or year-suffixed 'APR-26')
-  // _migrateBareDBKeys() will normalise bare keys to year-suffixed after load.
-  (itemsRes.data || []).forEach(row => {
-    const m = row.month;
-    if(!DB[m]) DB[m] = [];
-    DB[m].push(_rowToItem(row, partsMap[row.id], returnsMap[row.id]));
-  });
-  // Private Storage URLs are signed in one batch per load. Failure only hides
-  // thumbnails; it never blocks the financial dataset from loading.
-  await _hydrateItemPhotoUrls();
-
-  // trips / expenses stored flat on DB (same as localStorage shape)
-  DB.trips = (tripsRes.data || []).map(t => ({
-    id:            t.id,
-    date:          t.date,
-    description:   t.description || '',
-    mileage:       Number(t.mileage) || 0,
-    ratePerMile:   Number(t.rate_per_mile) || 0.45,
-    // BUG-07: per-trip expenses (parking, entry fees, etc.). JSONB column on
-    // Supabase trips table — defaults to [] if column absent / null on row.
-    expenses:      Array.isArray(t.expenses) ? t.expenses : [],
-    sourcingRunId: t.sourcing_run_id || null,
-  }));
-  DB.expenses = (expensesRes.data || []).map(e => ({
-    id:            e.id,
-    date:          e.date,
-    description:   e.description || '',
-    amount:        Number(e.amount) || 0,
-    category:      e.category || null,
-    sourcingRunId: e.sourcing_run_id || null,
-  }));
-  // v2.20.0 — cash & owner ledger (graceful: skip cleanly if table not yet created)
-  if(cashRes && !cashRes.error){
-    DB.cashLedger = (cashRes.data || []).map(m => ({
-      id:          m.id,
-      date:        m.date,
-      type:        m.type || 'adjustment',
-      category:    m.category || m.type || null,
-      amount:      Number(m.amount) || 0,
-      direction:   m.direction || 'in',
-      description: m.description || '',
-      reconcileAnchor: m.reconcile_anchor === true,
-      systemEvent: m.type==='partner_settlement'||m.type==='supplier_refund',
-      createdAt:   m.created_at || null,
+    // Rebuild DB — rows grouped by their month key (may be bare 'APR' or year-suffixed 'APR-26')
+    // _migrateBareDBKeys() will normalise bare keys to year-suffixed after load.
+    (itemsRes.data || []).forEach(row => {
+      const m = row.month;
+      if(typeof m!=='string'||!/^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)(-\d{2})?$/.test(m))
+        throw new Error('A stock record has an unrecognised month. Check the record before retrying.');
+      if(!DB[m]) DB[m] = [];
+      DB[m].push(_rowToItem(row, partsMap[row.id], returnsMap[row.id]));
+    });
+    // trips / expenses stored flat on DB (same as localStorage shape)
+    DB.trips = (tripsRes.data || []).map(t => ({
+      id:            t.id,
+      date:          t.date,
+      description:   t.description || '',
+      mileage:       Number(t.mileage) || 0,
+      ratePerMile:   Number(t.rate_per_mile) || 0.45,
+      // BUG-07: per-trip expenses (parking, entry fees, etc.). JSONB column on
+      // Supabase trips table — defaults to [] if column absent / null on row.
+      expenses:      Array.isArray(t.expenses) ? t.expenses : [],
+      sourcingRunId: t.sourcing_run_id || null,
     }));
-  } else {
-    DB.cashLedger = DB.cashLedger || [];
-    if(cashRes && cashRes.error) console.warn('cash_ledger load skipped (table may not exist yet):', cashRes.error.message);
-  }
-  // v2.21.51 — activity log (graceful: skip cleanly if table not yet created)
-  if(activityRes && !activityRes.error){
-    DB.activityLog = (activityRes.data || []).map(r => ({
-      id:r.id, itemId:r.item_id||null, itemName:r.item_name||'',
-      action:r.action||'', fromState:r.from_state||null, toState:r.to_state||null,
-      before:r.before_snapshot||null, month:r.month||null, after:r.after_summary||'',
-      ts:Number(r.ts)||(r.created_at?Date.parse(r.created_at):Date.now()),
-      undoable:!!r.undoable, undone:!!r.undone, origin:r.origin||null
+    DB.expenses = (expensesRes.data || []).map(e => ({
+      id:            e.id,
+      date:          e.date,
+      description:   e.description || '',
+      amount:        Number(e.amount) || 0,
+      category:      e.category || null,
+      sourcingRunId: e.sourcing_run_id || null,
     }));
-  } else {
-    DB.activityLog = DB.activityLog || [];
-    if(activityRes && activityRes.error) console.warn('activity_log load skipped (table may not exist yet):', activityRes.error.message);
-  }
-  // v1.01 — Job Lot + historical-reconciliation support is additive. An
-  // older database can still load the core app; the Job Lot UI then explains
-  // that the v1.01 migration is required instead of emitting sync 400s.
-  _jobLotSchemaAvailable=!!(jobLotsRes&&!jobLotsRes.error&&jobLotItemsRes&&!jobLotItemsRes.error);
-  if(_jobLotSchemaAvailable){
-    _jobLots=(jobLotsRes.data||[]).map(function(r){return{
-      id:r.id,name:r.name||'Job Lot',status:r.status||'building',dateCreated:r.date_created||null,
-      dateListed:r.date_listed||null,dateSold:r.date_sold||null,salePrice:Number(r.sale_price)||0,
-      platform:r.platform||'ebay',bundleId:r.bundle_id||null,bundleRef:r.bundle_ref||null,
-      notes:r.notes||'',createdAt:r.created_at||null,updatedAt:r.updated_at||null
-    };});
-    _jobLotItems=(jobLotItemsRes.data||[]).map(function(r){return{
-      id:r.id,jobLotId:r.job_lot_id,itemId:r.item_id,addedAt:r.added_at||null,
-      removedAt:r.removed_at||null,costBasisAtAdd:Number(r.cost_basis_at_add)||0,notes:r.notes||''
-    };});
-  }else{
-    _jobLots=[];_jobLotItems=[];
-    if((jobLotsRes&&jobLotsRes.error)||(jobLotItemsRes&&jobLotItemsRes.error))console.info('[RETRADE] Job Lots unavailable until v1.01 stock-lifecycle migration is applied.');
-  }
-  _reconciliationSchemaAvailable=!!(reconcileRes&&!reconcileRes.error);
-  if(_reconciliationSchemaAvailable){
-    _saleReconciliations=(reconcileRes.data||[]).map(function(r){return{
-      id:r.id,attachedItemId:r.attached_item_id||null,targetSaleItemId:r.target_sale_item_id||null,
-      targetBundleId:r.target_bundle_id||null,targetBundleRef:r.target_bundle_ref||null,
-      treatment:r.treatment||'',status:r.status||'applied',priorOrderTotal:Number(r.prior_order_total)||0,
-      resultingOrderTotal:Number(r.resulting_order_total)||0,additionalRevenue:Number(r.additional_revenue)||0,
-      priorAllocation:r.prior_allocation||null,resultingAllocation:r.resulting_allocation||null,
-      pnlDelta:r.pnl_delta||null,beforeSnapshot:r.before_snapshot||null,afterSnapshot:r.after_snapshot||null,
-      note:r.note||'',createdAt:r.created_at||null
-    };});
-  }else{
-    _saleReconciliations=[];
-  }
-  // Patch C — load sourcing runs (graceful: if table doesn't exist yet, skip)
-  if(!runsRes.error){
-    _sourcingRuns = (runsRes.data||[]).map(_rowToRun);
-    _activeSourcingRun = _sourcingRuns.find(r=>r.status==='active')||null;
-    if(typeof _refreshNav==='function')_refreshNav();
-  } else {
-    console.warn('sourcing_runs load skipped (table may not exist yet):', runsRes.error.message);
-    _sourcingRuns = [];
-    _activeSourcingRun = null;
-  }
-  // E33 — load accounts (graceful: if table doesn't exist yet, skip — same
-  // pattern as sourcing_runs above, so users who haven't run the migration
-  // yet see an empty Accounts page rather than a broken one).
-  if(!accountsRes.error){
-    _accounts = (accountsRes.data||[]).map(_rowToAccount);
-  } else {
-    console.warn('accounts load skipped (table may not exist yet):', accountsRes.error.message);
-    _accounts = [];
-  }
-  DB._userOwned = true;
-  // Guarantee all expected month arrays exist, even if user has no data yet.
-  // Without this, DB[m].push(...) crashes for brand-new users.
-  _ensureDBShape();
-  // One-shot backfill for the _dateSoldAtReturn snapshot field. Existing return
-  // entries pre-dating this column have it undefined; refund-rate attribution
-  // falls back to i.dateSold for those, but full-returned items have dateSold
-  // wiped — so without backfill, they leak out of period buckets entirely.
-  // Idempotent: only writes when at least one entry was missing the field.
-  await _backfillDateSoldAtReturn();
-  // One-time-on-load repair for legacy linked records. Idempotent.
-  _repairRunLinkedDates(false);
+    // v2.20.0 — cash & owner ledger (graceful: skip cleanly if table not yet created)
+    if(cashRes && !cashRes.error){
+      DB.cashLedger = (cashRes.data || []).map(m => ({
+        id:          m.id,
+        date:        m.date,
+        type:        m.type || 'adjustment',
+        category:    m.category || m.type || null,
+        amount:      Number(m.amount) || 0,
+        direction:   m.direction || 'in',
+        description: m.description || '',
+        reconcileAnchor: m.reconcile_anchor === true,
+        systemEvent: m.type==='partner_settlement'||m.type==='supplier_refund',
+        createdAt:   m.created_at || null,
+      }));
+    } else {
+      DB.cashLedger = DB.cashLedger || [];
+      if(cashRes && cashRes.error) console.warn('cash_ledger load skipped (table may not exist yet):', cashRes.error.message);
+    }
+    // v2.21.51 — activity log (graceful: skip cleanly if table not yet created)
+    if(activityRes && !activityRes.error){
+      DB.activityLog = (activityRes.data || []).map(r => ({
+        id:r.id, itemId:r.item_id||null, itemName:r.item_name||'',
+        action:r.action||'', fromState:r.from_state||null, toState:r.to_state||null,
+        before:r.before_snapshot||null, month:r.month||null, after:r.after_summary||'',
+        ts:Number(r.ts)||(r.created_at?Date.parse(r.created_at):Date.now()),
+        undoable:!!r.undoable, undone:!!r.undone, origin:r.origin||null
+      }));
+    } else {
+      DB.activityLog = DB.activityLog || [];
+      if(activityRes && activityRes.error) console.warn('activity_log load skipped (table may not exist yet):', activityRes.error.message);
+    }
+    // v1.01 — Job Lot + historical-reconciliation support is additive. An
+    // older database can still load the core app; the Job Lot UI then explains
+    // that the v1.01 migration is required instead of emitting sync 400s.
+    _jobLotSchemaAvailable=!!(jobLotsRes&&!jobLotsRes.error&&jobLotItemsRes&&!jobLotItemsRes.error);
+    if(_jobLotSchemaAvailable){
+      _jobLots=(jobLotsRes.data||[]).map(function(r){return{
+        id:r.id,name:r.name||'Job Lot',status:r.status||'building',dateCreated:r.date_created||null,
+        dateListed:r.date_listed||null,dateSold:r.date_sold||null,salePrice:Number(r.sale_price)||0,
+        platform:r.platform||'ebay',bundleId:r.bundle_id||null,bundleRef:r.bundle_ref||null,
+        notes:r.notes||'',createdAt:r.created_at||null,updatedAt:r.updated_at||null
+      };});
+      _jobLotItems=(jobLotItemsRes.data||[]).map(function(r){return{
+        id:r.id,jobLotId:r.job_lot_id,itemId:r.item_id,addedAt:r.added_at||null,
+        removedAt:r.removed_at||null,costBasisAtAdd:Number(r.cost_basis_at_add)||0,notes:r.notes||''
+      };});
+    }else{
+      _jobLots=[];_jobLotItems=[];
+      if((jobLotsRes&&jobLotsRes.error)||(jobLotItemsRes&&jobLotItemsRes.error))console.info('[RETRADE] Job Lots unavailable until v1.01 stock-lifecycle migration is applied.');
+    }
+    _reconciliationSchemaAvailable=!!(reconcileRes&&!reconcileRes.error);
+    if(_reconciliationSchemaAvailable){
+      _saleReconciliations=(reconcileRes.data||[]).map(function(r){return{
+        id:r.id,attachedItemId:r.attached_item_id||null,targetSaleItemId:r.target_sale_item_id||null,
+        targetBundleId:r.target_bundle_id||null,targetBundleRef:r.target_bundle_ref||null,
+        treatment:r.treatment||'',status:r.status||'applied',priorOrderTotal:Number(r.prior_order_total)||0,
+        resultingOrderTotal:Number(r.resulting_order_total)||0,additionalRevenue:Number(r.additional_revenue)||0,
+        priorAllocation:r.prior_allocation||null,resultingAllocation:r.resulting_allocation||null,
+        pnlDelta:r.pnl_delta||null,beforeSnapshot:r.before_snapshot||null,afterSnapshot:r.after_snapshot||null,
+        note:r.note||'',createdAt:r.created_at||null
+      };});
+    }else{
+      _saleReconciliations=[];
+    }
+    // Patch C — load sourcing runs (graceful: if table doesn't exist yet, skip)
+    if(!runsRes.error){
+      _sourcingRuns = (runsRes.data||[]).map(_rowToRun);
+      _activeSourcingRun = _sourcingRuns.find(r=>r.status==='active')||null;
+    } else {
+      console.warn('sourcing_runs load skipped (table may not exist yet):', runsRes.error.message);
+      _sourcingRuns = [];
+      _activeSourcingRun = null;
+    }
+    // E33 — load accounts (graceful: if table doesn't exist yet, skip — same
+    // pattern as sourcing_runs above, so users who haven't run the migration
+    // yet see an empty Accounts page rather than a broken one).
+    if(!accountsRes.error){
+      _accounts = (accountsRes.data||[]).map(_rowToAccount);
+    } else {
+      console.warn('accounts load skipped (table may not exist yet):', accountsRes.error.message);
+      _accounts = [];
+    }
+    DB._userOwned = true;
+    // Guarantee all expected month arrays exist, even if user has no data yet.
+    // Without this, DB[m].push(...) crashes for brand-new users.
+    _ensureDBShape();
+    // One-time-on-load repair for legacy linked records. Idempotent.
+    _repairRunLinkedDates(false);
+  });
+  _schemaVerified=true;
+  if(onCommit)onCommit();
+  if(typeof _refreshNav==='function')_refreshNav();
+  const loadedDB=DB;
+  _hydrateItemPhotoUrls().then(changed=>{
+    if(changed&&DB===loadedDB&&uid===_currentUserId&&!_dbLoading)refreshActivePage();
+  }).catch(e=>console.warn('[RETRADE] Photo refresh skipped:',e.message));
 }
 
 // Legacy migration retained as a compatibility hook. Do not persist guessed
@@ -3426,10 +3456,13 @@ function _encodeAccountNotes(a){
   return (visible?visible:'')+_ACCOUNT_META_MARKER+payload+']]';
 }
 function _accountToRow(a){
+  const model=a.arrangementModel||a.arrangement_model||(a.accountType&&a.accountType!=='supplier'?'profit_share':'fixed_cost');
   return {
     id:      a.id,
     user_id: _currentUserId||null,
     name:    a.name,
+    arrangement_model: model,
+    payment_timing: model==='profit_share'?'on_sale':a.paymentTiming||a.payment_timing||a.paymentTerms||'upfront',
     notes:   _encodeAccountNotes(a),
     account_type:           a.accountType||'supplier',
     default_split_percent:  a.defaultSplitPercent!=null ? a.defaultSplitPercent : null,
@@ -3438,13 +3471,19 @@ function _accountToRow(a){
 }
 function _rowToAccount(row){
   const decoded=_decodeAccountNotes(row.notes||'');
+  const model=['fixed_cost','profit_share'].includes(row.arrangement_model)?row.arrangement_model:
+    (row.account_type&&row.account_type!=='supplier'?'profit_share':'fixed_cost');
+  const timing=model==='profit_share'?'on_sale':
+    (['upfront','on_sale'].includes(row.payment_timing)?row.payment_timing:decoded.paymentTerms||'upfront');
   return {
     id:    row.id,
     name:  row.name,
     notes: decoded.notes,
     settlements: decoded.settlements,
     accountType:             row.account_type||'supplier',
-    paymentTerms:            decoded.paymentTerms||'upfront',
+    arrangementModel:        model,
+    paymentTiming:           timing,
+    paymentTerms:            timing,
     defaultSplitPercent:     row.default_split_percent!=null ? Number(row.default_split_percent) : null,
     defaultCostContribution: row.default_cost_contribution!=null ? Number(row.default_cost_contribution) : null,
   };
@@ -3469,6 +3508,8 @@ async function deleteAccountFromSupabase(id){
 let _dbSnapshot = null;   // last-known-saved state (JSON string per item id)
 let _saveTimer = null;
 let _currentUserId = null; // set on SIGNED_IN, cleared on SIGNED_OUT
+let _cloudLoadGeneration = 0;
+let _localWriteGeneration = 0;
 let _schemaVerified = false; // production handshake status for RC diagnostics
 let _syncing = false;      // true while the serialized persistence queue is active
 let _syncResolvers = [];   // resolve callbacks waiting for ALL queued sync work to finish
@@ -3978,6 +4019,7 @@ function saveDB(){
     _saveTimer = null;
     return;
   }
+  _localWriteGeneration++;
   DB._userOwned = true;
   try{ _captureActivity(); }catch(e){ console.warn('[RETRADE] capture hook failed',e); }
   // v1.4.3 P1: make the mutation durable synchronously BEFORE refresh/render
@@ -3996,7 +4038,10 @@ function saveDB(){
 function _dbFingerprint(){
   const fp = {};
   allDBKeys().forEach(k => {
-    (DB[k]||[]).forEach(i => { fp['item:'+i.id] = JSON.stringify(i) + '|' + k; });
+    (DB[k]||[]).forEach(i => {
+      const durable=i.photoPath&&i.photo?Object.assign({},i,{photo:null}):i;
+      fp['item:'+i.id]=JSON.stringify(durable)+'|'+k;
+    });
   });
   (DB.trips||[]).forEach(t => { fp['trip:'+t.id] = JSON.stringify(t); });
   (DB.expenses||[]).forEach(e => { fp['exp:'+e.id] = JSON.stringify(e); });
@@ -4276,32 +4321,34 @@ async function _refreshCloudOnResume(force){
   const now=Date.now();
   if(!force && now-_lastCloudRefreshAt<8000)return false;
   _cloudRefreshBusy=true;
-  const _activityWasSuppressed=_suppressActivityCapture;
-  _suppressActivityCapture=true;
+  const uid=_currentUserId;
   try{
     // Give this device's own offline edits first chance to reach Supabase.
     if(_outboxPendingCount()>0||_persistPromise){
       await _waitForSync();
       if(_outboxPendingCount()>0)return false; // remain local-first until upload succeeds
     }
-    const _beforeSnapshot=_dbSnapshot||{};
-    await loadFromSupabase();
-    const _nextSnapshot=_dbFingerprint();
-    const _dataChanged=!_dbFingerprintsEqual(_beforeSnapshot,_nextSnapshot);
-    _dbSnapshot=_nextSnapshot;
-    _initActivityShadow();
+    if(uid!==_currentUserId)return false;
+    const writes=_localWriteGeneration;
+    let dataChanged=false;
+    await loadFromSupabase({
+      canCommit:()=>writes===_localWriteGeneration&&!_persistPromise&&!_outboxPendingCount(),
+      onCommit:()=>{
+        const next=_dbFingerprint();
+        dataChanged=!_dbFingerprintsEqual(_dbSnapshot,next);
+        _dbSnapshot=next;
+        _initActivityShadow();
+      }
+    });
+    if(uid!==_currentUserId)return false;
     _lastCloudRefreshAt=Date.now();
-    if(_dataChanged)refreshActivePage();
+    if(dataChanged)refreshActivePage();
     if(typeof updateSyncStatus==='function')updateSyncStatus();
     return true;
   }catch(e){
     console.warn('[RETRADE] background cloud refresh skipped:',e&&e.message);
     return false;
   }finally{
-    // Reseed from the final authoritative/replayed state before re-enabling
-    // capture. A passive sync must never become an Activity event.
-    try{_initActivityShadow();}catch(_e){}
-    _suppressActivityCapture=_activityWasSuppressed;
     _cloudRefreshBusy=false;
   }
 }
@@ -4335,19 +4382,21 @@ function _queueSyncClockRefresh(revision,reason){
   revision=Math.max(0,Number(revision)||0);
   if(revision>_syncClockTargetRevision)_syncClockTargetRevision=revision;
   if(_syncClockTargetRevision<=_syncClockAppliedRevision)return;
-  clearTimeout(_syncClockRefreshTimer);
+  if(_syncClockRefreshTimer!==null)return;
+  const uid=_currentUserId;
   _syncClockRefreshTimer=setTimeout(async function(){
     _syncClockRefreshTimer=null;
-    if(!_currentUserId||document.visibilityState==='hidden')return;
+    if(!uid||_currentUserId!==uid||document.visibilityState==='hidden')return;
     const wanted=_syncClockTargetRevision;
     const ok=await _refreshCloudOnResume(true);
+    if(_currentUserId!==uid)return;
     if(ok){
       _syncClockAppliedRevision=Math.max(_syncClockAppliedRevision,wanted);
       console.info('[RETRADE] cross-device sync applied',reason||'signal','rev',_syncClockAppliedRevision);
-    }else if(_currentUserId&&_syncClockTargetRevision>_syncClockAppliedRevision){
+    }else if(_syncClockRefreshTimer===null&&_syncClockTargetRevision>_syncClockAppliedRevision){
       // Local unsynced edits or an in-flight refresh may temporarily block the
       // pull. Retry; never discard the remote revision signal.
-      _syncClockRefreshTimer=setTimeout(function(){_queueSyncClockRefresh(_syncClockTargetRevision,'retry');},900);
+      _syncClockRefreshTimer=setTimeout(function(){_syncClockRefreshTimer=null;_queueSyncClockRefresh(_syncClockTargetRevision,'retry');},900);
     }
   },650);
 }
@@ -4436,6 +4485,7 @@ setInterval(function(){
 async function initDB(){
   if(_dbLoading){ console.warn('initDB already in progress, skipping'); return; }
   _dbLoading = true;
+  const owner=_currentUserId;
   try{
     // v2.19.18 -- 7B. Resolve the boot tab BEFORE the load so the real loading layout can be
     // the right page. Everything this reads (_SK.tab, _SK.lastActive) is
@@ -4464,10 +4514,8 @@ async function initDB(){
     _restoreBootMonthlyRoute();
     await window.__rtEnsureView(_safeTab);
     showRealLayoutLoading(_safeTab, 'Loading your data…');
-    await Promise.race([
-      loadFromSupabase(),
-      new Promise((_,reject) => setTimeout(() => reject(new Error('Request timed out. Try refreshing.')), 15000))
-    ]);
+    await loadFromSupabase();
+    if(owner!==_currentUserId)return false;
     // Migrate any legacy bare keys ('APR') → year-suffixed ('APR-26')
     _migrateBareDBKeys();
     // v2.09.4 — Snapshot the pre-migration state so if _migrateItemStates
@@ -4557,10 +4605,12 @@ async function initDB(){
     // Stamp this session active now so a quick reload (even with no navigation)
     // is recognised as the same session and the next save extends it.
     try{localStorage.setItem(_SK.lastActive,String(Date.now()));}catch(e){}
+    return true;
   }catch(e){
     console.error('initDB error:', e);
     // Keep the real page mounted. Load errors render inside that same layout.
-    _showLoadError(e.message);
+    if(owner===_currentUserId)_showLoadError(e.message);
+    return false;
   } finally {
     _dbLoading = false;
   }
@@ -4587,9 +4637,13 @@ function _showLoadError(msg){
   if(message)message.textContent=String(msg||'Failed to load data.');
   page.prepend(box);
 }
-function retryAppLoad(){
+async function retryAppLoad(){
   document.querySelectorAll('.rt-load-error').forEach(function(el){el.remove();});
-  initDB();
+  const uid=_currentUserId;
+  if(await initDB()&&uid===_currentUserId){
+    await _hydrateUserSettings(uid);
+    await _startRealtimeSync();
+  }
 }
 
 // ============================================================================
@@ -6726,7 +6780,9 @@ function openPanel(title,content,pushHistory,_meta){
     lockBodyScroll();
   }
   updatePanelNav();
+  const focusGeneration=panel._panelFocusGeneration=(panel._panelFocusGeneration||0)+1;
   setTimeout(function(){
+    if(panel._panelFocusGeneration!==focusGeneration||!panel.classList.contains('on')||panel.inert||panel.contains(document.activeElement))return;
     const first=panel.querySelector('input:not([disabled]),select:not([disabled]),textarea:not([disabled]),button:not([disabled])');
     (first||panel).focus();
   },0);
@@ -6750,7 +6806,7 @@ function closePanel(skipReturn){
   _runOverheadReturnId=null;
   const restore=_panelPrevFocus;_panelPrevFocus=null;
   if(restore&&typeof restore.focus==='function'&&document.contains(restore)){
-    setTimeout(function(){try{restore.focus({preventScroll:true});}catch(e){}},0);
+    setTimeout(function(){if(!panel.classList.contains('on')&&document.contains(restore))restore.focus({preventScroll:true});},0);
   }
   if(skipReturn!==true&&typeof onClose==='function')onClose();
 }
@@ -12254,6 +12310,8 @@ function _setupChartScrub(svgEl,ctx){
     svgEl.removeEventListener('pointercancel',old.cancel);
     svgEl.removeEventListener('pointerleave',old.leave);
     svgEl.removeEventListener('click',old.click,true);
+    svgEl.removeEventListener('focusin',old.focus);
+    svgEl.removeEventListener('focusout',old.blur);
   }
 
   let startX=null,startY=null,startT=0,moved=false,scrubbing=false,wasScrub=false,scrubClearT=null;
@@ -12354,6 +12412,16 @@ function _setupChartScrub(svgEl,ctx){
   function onCancel(){hideScrub();startX=startY=null;scrubbing=false;}
   function onLeave(){if(!scrubbing)hideScrub();}
   function onClick(e){if(wasScrub){e.stopPropagation();e.preventDefault();}}
+  function onFocus(e){
+    const column=e.target.closest('.rt-chart-col[tabindex]');
+    if(!column)return;
+    const previous=svgEl.querySelector('.rt-chart-col[tabindex="0"]');
+    if(previous!==column){
+      if(previous)previous.setAttribute('tabindex','-1');
+      column.setAttribute('tabindex','0');
+    }
+    showAt(Number(column.dataset.idx));
+  }
 
   svgEl.addEventListener('pointerdown',onDown);
   svgEl.addEventListener('pointermove',onMove);
@@ -12361,7 +12429,9 @@ function _setupChartScrub(svgEl,ctx){
   svgEl.addEventListener('pointercancel',onCancel);
   svgEl.addEventListener('pointerleave',onLeave);
   svgEl.addEventListener('click',onClick,true);
-  svgEl.__scrubHandlers={down:onDown,move:onMove,up:onUp,cancel:onCancel,leave:onLeave,click:onClick};
+  svgEl.addEventListener('focusin',onFocus);
+  svgEl.addEventListener('focusout',hideScrub);
+  svgEl.__scrubHandlers={down:onDown,move:onMove,up:onUp,cancel:onCancel,leave:onLeave,click:onClick,focus:onFocus,blur:hideScrub};
   svgEl.__wasScrub=function(){return wasScrub;};
 }
 
@@ -13478,39 +13548,51 @@ function _salesDayHeader(ds,events){
     '<span class="rt-sales-day-count">'+n+' order'+(n===1?'':'s')+(returns?' · '+returns+' return'+(returns===1?'':'s'):'')+'</span>'+
   '</div>';
 }
-// Sales history is date-sold by default. Build the day groups in the core
-// renderer so both desktop and mobile receive the same structural headers,
-// independently of optional performance/deferred layers.
+// Keep the full filtered event set for search, exports and bulk actions. Only
+// create row controls for the displayed page. The key survives an item visit.
+const MONTH_PAGE_SIZE=40;
+let monthListKey='',monthListPage=0;
 function _renderMonthList(events){
-  const dateGrouped=MONTH_SORT==='date-sold';
-  const groups=[];
-  if(dateGrouped){
-    let current=null;
-    (events||[]).forEach(function(e){
-      const ds=String((e&&e.saleDate)||'');
-      if(!current||current.date!==ds){current={date:ds,events:[]};groups.push(current);}
-      current.events.push(e);
-    });
-  }else{
-    groups.push({date:null,events:events||[]});
+  const key=JSON.stringify([_currentUserId,SELECTED_MONTH,MONTH_SORT,MONTH_FILTER,MONTH_SEARCH]);
+  if(monthListKey!==key){monthListKey=key;monthListPage=0;}
+  const byDate=MONTH_SORT==='date-sold',rows=[];
+  let group;
+  for(const event of events){
+    const date=byDate?String(event.saleDate||''):null;
+    if(!group||group.date!==date)group={date,events:[],bundles:new Map()};
+    group.events.push(event);
+    const bundle=_eventBundleId(event);
+    const members=bundle&&group.bundles.get(bundle);
+    if(members){members.push(event);continue;}
+    const row={group,bundle,events:[event]};
+    if(bundle)group.bundles.set(bundle,row.events);
+    rows.push(row);
   }
-  const out=[];
-  groups.forEach(function(group){
-    if(dateGrouped)out.push(_salesDayHeader(group.date,group.events));
-    const seen={};
-    group.events.forEach(function(e){
-      const bid=_eventBundleId(e);
-      if(bid){
-        if(seen[bid])return;
-        seen[bid]=true;
-        const members=group.events.filter(function(x){return _eventBundleId(x)===bid;});
-        out.push(members.length>1?renderBundleSaleRow(bid,members):renderSaleEventRow(e));
-      }else{
-        out.push(renderSaleEventRow(e));
-      }
-    });
-  });
+  const pages=Math.ceil(rows.length/MONTH_PAGE_SIZE);
+  monthListPage=Math.max(0,Math.min(monthListPage,pages-1));
+  const start=monthListPage*MONTH_PAGE_SIZE;
+  const pager=pages>1?'<div class="month-list-pager" role="group" aria-label="Sales pages">'
+    +'<button type="button" class="btn btn-secondary" onclick="_changeMonthListPage(-1)"'+(monthListPage===0?' disabled':'')+'>Previous</button>'
+    +'<span tabindex="-1">Page '+(monthListPage+1)+' of '+pages+'</span>'
+    +'<button type="button" class="btn btn-secondary" onclick="_changeMonthListPage(1)"'+(monthListPage===pages-1?' disabled':'')+'>Next</button></div>':'';
+  const out=[pager];
+  let previous;
+  for(const row of rows.slice(start,start+MONTH_PAGE_SIZE)){
+    if(byDate&&row.group!==previous)out.push(_salesDayHeader(row.group.date,row.group.events));
+    previous=row.group;
+    out.push(row.events.length>1?renderBundleSaleRow(row.bundle,row.events):renderSaleEventRow(row.events[0]));
+  }
+  out.push(pager);
   return out.join('');
+}
+function _changeMonthListPage(step){
+  const list=document.getElementById('month-list');
+  if(!list)return;
+  monthListPage+=step;
+  list.innerHTML=_renderMonthList(window.__monthItems||[]);
+  _refreshMonthSelection();
+  const status=list.querySelector('.month-list-pager span');
+  if(status){status.focus({preventScroll:true});status.scrollIntoView({block:'start'});}
 }
 
 function renderItemRow(m,i){
@@ -15620,6 +15702,7 @@ function _liveStockSearch(q){
   _paintSelBar('stock');
 }
 function _liveMonthSearch(q){
+  if(q!==MONTH_SEARCH)monthListPage=0;
   MONTH_SEARCH=q;
   const el=document.getElementById('month-list');
   const base=window.__monthAll||[];
@@ -15771,7 +15854,12 @@ function _costCategoryBreakdown(trips,expenses,tieredById,from,to){
 function _queueExpensesRender(){
   const page=document.getElementById('p-expenses');if(page)page.setAttribute('data-rt-filter-pending','1');
   _queueLocalControlRender('expenses-filter',function(){
+    const focused=document.activeElement;
+    const filter=focused?.matches('#p-expenses [data-cost-category]')?'data-cost-category':
+      focused?.matches('#p-expenses [data-cost-period]')?'data-cost-period':null;
+    const value=filter?focused.getAttribute(filter):null;
     renderExpenses();
+    if(filter)page.querySelector('['+filter+'="'+CSS.escape(value)+'"]')?.focus({preventScroll:true});
     const current=document.getElementById('p-expenses');if(current){current.removeAttribute('data-rt-filter-pending');if(window._animateWorkspaceChange)window._animateWorkspaceChange(current);}
   });
 }
@@ -17898,10 +17986,10 @@ function _applyBackupSettings(settings){
   let changed=0;
   try{
     if(settings.defaultPlatform&&PLATFORMS[settings.defaultPlatform]){
-      localStorage.setItem('_rtrade_default_platform',settings.defaultPlatform);changed++;
+      localStorage.setItem(_ownedPreferenceKey('_rtrade_default_platform'),settings.defaultPlatform);changed++;
     }
     if(Array.isArray(settings.shippingPolicies)){
-      localStorage.setItem(SHIPPING_POLICIES_KEY,JSON.stringify(_backupClean(settings.shippingPolicies)));changed++;
+      localStorage.setItem(_ownedPreferenceKey(SHIPPING_POLICIES_KEY),JSON.stringify(_backupClean(settings.shippingPolicies)));changed++;
       _refreshShippingPolicyDropdowns();
     }
     if(settings.themePreference&&['system','dark','light'].includes(settings.themePreference)){
@@ -17911,10 +17999,10 @@ function _applyBackupSettings(settings){
       setCountry(settings.country,true);changed++;
     }
     if(settings.taxRegion==='scotland'||settings.taxRegion==='rUK'){
-      DB._taxRegion=settings.taxRegion;localStorage.setItem('retrade_tax_region',settings.taxRegion);changed++;
+      DB._taxRegion=settings.taxRegion;localStorage.setItem(_ownedPreferenceKey('retrade_tax_region'),settings.taxRegion);changed++;
     }
     if(settings.taxOtherIncome!=null&&isFinite(+settings.taxOtherIncome)){
-      DB._taxOtherIncome=Math.max(0,+settings.taxOtherIncome||0);localStorage.setItem('retrade_tax_other_income',String(DB._taxOtherIncome));changed++;
+      DB._taxOtherIncome=Math.max(0,+settings.taxOtherIncome||0);localStorage.setItem(_ownedPreferenceKey('retrade_tax_other_income'),String(DB._taxOtherIncome));changed++;
     }
   }catch(e){console.warn('[RETRADE] backup settings restore partially failed',e);}
   return changed;
@@ -18248,13 +18336,7 @@ function _retradeExcelColumns(){
 }
 
 function downloadExcelTemplate(){
-  if(!window.XLSX){
-    const s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    s.onload=function(){_buildExcelTemplate();};
-    s.onerror=function(){toast('Failed to load Excel library','error');};
-    document.head.appendChild(s);
-  }else{_buildExcelTemplate();}
+  withExcel(_buildExcelTemplate);
 }
 
 function _buildExcelTemplate(){
@@ -18307,13 +18389,7 @@ function _buildExcelTemplate(){
 }
 
 function exportItemsAsExcel(){
-  if(!window.XLSX){
-    const s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    s.onload=function(){_buildItemsExcel();};
-    s.onerror=function(){toast('Failed to load Excel library','error');};
-    document.head.appendChild(s);
-  }else{_buildItemsExcel();}
+  withExcel(_buildItemsExcel);
 }
 
 function _buildItemsExcel(){
@@ -18357,20 +18433,16 @@ function _buildItemsExcel(){
 function importExcel(e){
   const file=e.target.files[0];
   if(!file)return;
-  if(!window.XLSX){
-    const script=document.createElement('script');
-    script.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    script.onload=function(){processExcelFile(file);};
-    script.onerror=function(){toast('Failed to load Excel library','err');};
-    document.head.appendChild(script);
-  }else{
-    processExcelFile(file);
-  }
+  const owner = _currentUserId;
+  withExcel(() => processExcelFile(file, owner));
 }
 
-function processExcelFile(file){
+function processExcelFile(file, owner = _currentUserId){
+  if (owner !== _currentUserId) return;
   const reader=new FileReader();
+  reader.onerror=()=>{if(owner===_currentUserId)toast('Could not read the spreadsheet. Please try again.','err');};
   reader.onload=function(e){
+    if (owner !== _currentUserId) return;
     try{
       const data=new Uint8Array(e.target.result);
       const workbook=XLSX.read(data,{type:'array',cellDates:true,raw:true});
@@ -18407,8 +18479,8 @@ function processExcelFile(file){
         const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:''});
         const headerRow=rows[0]||[];
         const dataRows=rows.slice(1);
-        const col={}; headerRow.forEach(function(h,i){if(h)col[String(h).trim()]=i;});
-        if(!col['Item Name']){toast('Template format not recognised — missing Item Name column','error');return;}
+        const col=Object.create(null); headerRow.forEach(function(h,i){if(h)col[String(h).trim()]=i;});
+        if(col['Item Name']===undefined){toast('Template format not recognised - missing Item Name column','error');return;}
         dataRows.forEach(function(row){
           if(!row||row.length===0) return;
           const itemName=String(row[col['Item Name']]||'').trim();
@@ -20358,7 +20430,7 @@ function showReturnedItems(){
 // income only; dividends/savings are deliberately outside this estimator.
 function setTaxRegion(v){
   DB._taxRegion=v==='scotland'?'scotland':'rUK';
-  try{localStorage.setItem('retrade_tax_region',DB._taxRegion);}catch(e){}
+  try{localStorage.setItem(_ownedPreferenceKey('retrade_tax_region'),DB._taxRegion);}catch(e){}
   _syncUserSettingsToCloud();saveDB();renderTax();
 }
 
@@ -20507,7 +20579,7 @@ function setTaxOtherIncome(v){
   _taxOtherIncomeUpdating=true;
   try{
     DB._taxOtherIncome=Math.max(0,parseFloat(v)||0);
-    try{localStorage.setItem('retrade_tax_other_income',String(DB._taxOtherIncome));}catch(e){}
+    try{localStorage.setItem(_ownedPreferenceKey('retrade_tax_other_income'),String(DB._taxOtherIncome));}catch(e){}
     _syncUserSettingsToCloud();
     saveDB();
     renderTax();
@@ -21431,7 +21503,10 @@ function _setAuthScreen(active){
     const shown=form.id==='auth-screen-'+active;
     form.style.display=shown?'block':'none';form.inert=!shown;
     form.querySelectorAll('input,button,select,textarea').forEach(function(control){control.disabled=!shown;});
-    if(!shown)form.querySelectorAll('input[autocomplete="current-password"],input[autocomplete="new-password"]').forEach(function(input){input.value='';});
+    if(!shown)form.querySelectorAll('input[autocomplete="current-password"],input[autocomplete="new-password"]').forEach(function(input){
+      input.value='';
+      if(input.type==='text')_pwToggle(input.id,input.nextElementSibling);
+    });
   });
 }
 function _neutralizeAuthInputs(){
@@ -21521,6 +21596,20 @@ if(_routedAuthPage())window.addEventListener('popstate',function(){
   // immediately on page load) never triggers a second concurrent initDB call.
   let _initialLoadDone = !!session && !_pwRecovery;
   let _authHandoffPromise=null;
+  let workspaceOwner=session?.user.id||null;
+  function acceptWorkspace(uid){
+    if(workspaceOwner&&workspaceOwner!==uid){
+      // Deferred views and open forms can retain the previous account. A fresh
+      // document disposes their handlers before mounting the new user.
+      _currentUserId=null;
+      _cloudLoadGeneration++;
+      showLogin();
+      location.reload();
+      return false;
+    }
+    workspaceOwner=uid;
+    return true;
+  }
 
   async function _completeSignedInSession(sess){
     if(!sess||!sess.user)return false;
@@ -21540,9 +21629,8 @@ if(_routedAuthPage())window.addEventListener('popstate',function(){
     if(_initialLoadDone)return true;
     _initialLoadDone=true;
     try{
-      await initDB();
-      _dbSnapshot=_dbFingerprint();
-      await _hydrateUserSettings(_currentUserId);
+      if(await initDB()===false||sess.user.id!==_currentUserId){_initialLoadDone=false;return false;}
+      await _hydrateUserSettings(sess.user.id);
       await _startRealtimeSync();
       return true;
     }catch(e){
@@ -21555,36 +21643,16 @@ if(_routedAuthPage())window.addEventListener('popstate',function(){
      heavy Supabase/data work outside onAuthStateChange avoids auth callback
      re-entrancy/deadlock timing on mobile. */
   window.__rtAuthHandoff=function(sess){
+    if(!sess?.user||!acceptWorkspace(sess.user.id))return Promise.resolve(false);
     if(_authHandoffPromise)return _authHandoffPromise;
     _authHandoffPromise=_completeSignedInSession(sess).finally(function(){_authHandoffPromise=null;});
     return _authHandoffPromise;
   };
 
-  if(session && _pwRecovery){
-    // v2.21.28 — arrived via a reset link: set a new password, do NOT enter the app
-    if(typeof disablePreviewMode==='function') disablePreviewMode();
-    _currentUserId = session.user.id;
-    showNewPasswordScreen();
-  } else if(session){
-    if(typeof disablePreviewMode==='function') disablePreviewMode();
-    _currentUserId = session.user.id;
-    showApp();
-    // Set avatar initial
-    const _av=document.getElementById('user-avatar');
-    if(_av && session.user?.email) _av.textContent=session.user.email[0].toUpperCase();
-    // Drop 4 — mirror to sidebar user row (avatar + display name)
-    if(typeof _refreshSideNavUser==='function') _refreshSideNavUser();
-    await initDB();
-    _dbSnapshot = _dbFingerprint();
-    await _hydrateUserSettings(_currentUserId); // F6: sync settings from cloud on login
-    await _startRealtimeSync();
-  } else {
-    showLogin();
-  }
-
   // Listen for auth state changes
   _sb.auth.onAuthStateChange((event, sess) => {
     if(_previewMode && event !== 'SIGNED_IN') return;
+    if(sess?.user&&!acceptWorkspace(sess.user.id))return;
     // v2.21.28 — a password-reset session must NOT auto-login; show the reset screen instead.
     if(event === 'PASSWORD_RECOVERY' || (_pwRecovery && sess && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED'))){
       if(sess) _currentUserId = sess.user.id;
@@ -21620,13 +21688,40 @@ if(_routedAuthPage())window.addEventListener('popstate',function(){
       _saveTimer = null;
       try{_stopRealtimeSync();}catch(e){}
       _initialLoadDone = false;
+      _cloudLoadGeneration++;
+      clearTimeout(_settingsSyncTimer);
+      _schemaVerified=false;
       _currentUserId = null;
       DB = {};
+      _resetBusinessStateForCloudLoad();
+      _photoUrlCache.clear();
       _dbSnapshot = {};
       try{localStorage.removeItem(_SK.tab);}catch(e){}
       showLogin();
     }
   });
+
+  if(session && _pwRecovery){
+    // v2.21.28 — arrived via a reset link: set a new password, do NOT enter the app
+    if(typeof disablePreviewMode==='function') disablePreviewMode();
+    _currentUserId = session.user.id;
+    showNewPasswordScreen();
+  } else if(session){
+    if(typeof disablePreviewMode==='function') disablePreviewMode();
+    _currentUserId = session.user.id;
+    showApp();
+    // Set avatar initial
+    const _av=document.getElementById('user-avatar');
+    if(_av && session.user?.email) _av.textContent=session.user.email[0].toUpperCase();
+    // Drop 4 — mirror to sidebar user row (avatar + display name)
+    if(typeof _refreshSideNavUser==='function') _refreshSideNavUser();
+    if(await initDB()!==false&&session.user.id===_currentUserId){
+      await _hydrateUserSettings(session.user.id);
+      await _startRealtimeSync();
+    }
+  } else {
+    showLogin();
+  }
 
   // v2.21.26 — fallback: if the page loaded straight from a recovery link, show
   // the set-password screen even if the PASSWORD_RECOVERY event was missed.
@@ -22801,8 +22896,10 @@ window.addEventListener('load', function(){
   if(typeof _resetBusinessStateForCloudLoad==='function'){
     var _v14OriginalResetBusinessStateForCloudLoad=_resetBusinessStateForCloudLoad;
     _resetBusinessStateForCloudLoad=function(){
-      _revById.clear();_updatedAtById.clear();
-      return _v14OriginalResetBusinessStateForCloudLoad.apply(this,arguments);
+      const revisions=_revById,timestamps=_updatedAtById;
+      _revById=new Map();_updatedAtById=new Map();
+      _v14OriginalResetBusinessStateForCloudLoad.apply(this,arguments);
+      return function(){_revById=revisions;_updatedAtById=timestamps;};
     };
   }
 
@@ -23849,7 +23946,7 @@ console.log('[RETRADE] v1.4.7 verified full-backup export/import loaded');
       }
     }
     var saved=res&&res.data&&res.data[0];
-    if(saved){_settingsCloudUpdatedAt=saved.updated_at||writeRow.updated_at;_settingsCloudBase=_v148CloudSettingsValues(saved);}
+    if(saved&&uid===_currentUserId){_settingsCloudUpdatedAt=saved.updated_at||writeRow.updated_at;_settingsCloudBase=_v148CloudSettingsValues(saved);}
     _v148SettingsOutboxClear(uid,entry.stamp);
     return true;
   }
@@ -23859,7 +23956,8 @@ console.log('[RETRADE] v1.4.7 verified full-backup export/import loaded');
     var entry=_v148StageSettings();
     clearTimeout(_settingsSyncTimer);
     _settingsSyncTimer=setTimeout(async function(){
-      var pending=_v148SettingsOutboxRead(_currentUserId);if(!pending)return;
+      if(entry.uid!==_currentUserId)return;
+      var pending=_v148SettingsOutboxRead(entry.uid);if(!pending)return;
       try{
         await _v148FlushSettingsEntry(pending);
         if(_lastSyncError&&/^Settings sync:/.test(_lastSyncError))_lastSyncError=null;
@@ -23872,7 +23970,6 @@ console.log('[RETRADE] v1.4.7 verified full-backup export/import loaded');
     return entry;
   };
 
-  var _v148BaseHydrateSettings=_hydrateUserSettings;
   _hydrateUserSettings=async function(uid){
     if(!uid||typeof _sb==='undefined')return;
     // A settings edit staged before a suspend/reload is local durable intent.
@@ -23880,6 +23977,8 @@ console.log('[RETRADE] v1.4.7 verified full-backup export/import loaded');
     var pending=_v148SettingsOutboxRead(uid);
     if(pending){
       try{await _v148FlushSettingsEntry(pending);}catch(e){
+        if(uid!==_currentUserId)return;
+        if(pending.uid===uid&&pending.values)_applyUserSettings(pending.values);
         _lastSyncError='Settings sync: '+(e&&e.message?e.message:String(e));
         console.warn('[RETRADE] pending settings preserved locally; cloud hydration deferred:',e&&e.message);
         return;
@@ -23887,10 +23986,11 @@ console.log('[RETRADE] v1.4.7 verified full-backup export/import loaded');
     }
     var cloud=null;
     try{cloud=await _v148FetchSettings(uid);}catch(e){console.warn('[RETRADE] settings hydrate failed:',e&&e.message);return;}
+    if(uid!==_currentUserId)return;
     if(!cloud){_settingsCloudUpdatedAt=null;_settingsCloudBase=_v148SettingsValues();return;}
     _settingsCloudUpdatedAt=cloud.updated_at||null;
     _settingsCloudBase=_v148CloudSettingsValues(cloud);
-    await _v148BaseHydrateSettings(uid);
+    _applyUserSettings(cloud);
     // Base must reflect the values actually accepted from the cloud after
     // hydration/validation (country/platform may reject unsupported values).
     _settingsCloudBase=_v148SettingsValues();

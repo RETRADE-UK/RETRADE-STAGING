@@ -182,6 +182,7 @@ html.rt-app-cold #fab-dial,html.rt-app-cold #search-fab{transition:none!importan
   };
   function notifySettled(destination){
     if(window.__rtLaunchSettled)return;
+    window.__rtLaunchDestination=destination;
     window.__rtLaunchSettled=true;
     perf.settledAt=stamp();
     window.dispatchEvent(new CustomEvent('retrade:launch-settled',{detail:{destination:destination}}));

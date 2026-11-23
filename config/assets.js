@@ -1,7 +1,7 @@
 /* Runtime asset contract. Ordered classic scripts: do not alphabetise.
  * Shared by the browser loader, service worker and validation tools. */
 globalThis.RT_ASSETS = Object.freeze({
-  "build": "20261120-stock-purchases-staging",
+  "build": "20261123-launch-readiness-staging",
   "environment": "staging",
   "entry": [
     "src/platform/local-recovery.js",
@@ -86,8 +86,11 @@ globalThis.RT_ASSETS = Object.freeze({
     "assets/styles/workspaces.css",
     "assets/styles/monitors.css"
   ],
+  "reportLibraries": {
+    "excel": "assets/vendor/sheetjs-0.20.3/xlsx.full.min.js",
+    "pdf": "assets/vendor/jspdf-4.2.1/jspdf.umd.min.js"
+  },
   "landing": [
-    "assets/landing/capture-manifest.json",
     "assets/landing/concepts.css",
     "assets/landing/concepts.js",
     "assets/landing/dashboard-phone.webp",
@@ -96,26 +99,6 @@ globalThis.RT_ASSETS = Object.freeze({
     "assets/landing/entry.js",
     "assets/landing/landing.css",
     "assets/landing/mark.svg",
-    "assets/landing/open-dashboard-14d-phone.webp",
-    "assets/landing/open-dashboard-14d.webp",
-    "assets/landing/open-dashboard-30d-phone.webp",
-    "assets/landing/open-dashboard-30d.webp",
-    "assets/landing/open-dashboard-7d-phone.webp",
-    "assets/landing/open-dashboard-7d.webp",
-    "assets/landing/open-dashboard-cy-phone.webp",
-    "assets/landing/open-dashboard-cy.webp",
-    "assets/landing/open-expenses-phone.webp",
-    "assets/landing/open-expenses.webp",
-    "assets/landing/open-item-phone.webp",
-    "assets/landing/open-item.webp",
-    "assets/landing/open-sales-phone.webp",
-    "assets/landing/open-sales.webp",
-    "assets/landing/open-sourcing-phone.webp",
-    "assets/landing/open-sourcing.webp",
-    "assets/landing/open-stock-phone.webp",
-    "assets/landing/open-stock.webp",
-    "assets/landing/open-tax-phone.webp",
-    "assets/landing/open-tax.webp",
     "assets/landing/open.css",
     "assets/landing/open.js",
     "assets/landing/sale-phone.webp",

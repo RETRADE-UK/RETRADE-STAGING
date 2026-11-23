@@ -17,7 +17,7 @@
   window.__rtPartnerStatementAccountingV3Ready=true;
   window.__rtPartnerStatementAccountingV2Ready=true;
 
-  var activeAccountId=null,pdfLibPromise=null,xlsxPromise=null;
+  var activeAccountId=null;
 
   function n(v){v=Number(v);return isFinite(v)?v:0;}
   function money(v){return Math.round(n(v)*100)/100;}
@@ -228,21 +228,11 @@
     try{var s=currentStatement(),rows=[];summaryRows(s).forEach(function(r){rows.push(r);});rows.push([],['SOLD ITEMS']);soldRows(s).forEach(function(r){rows.push(r);});rows.push([],['PAYMENT TRANSACTIONS & ADJUSTMENTS']);paymentRows(s).forEach(function(r){rows.push(r);});downloadBlob('\uFEFF'+rowsCsv(rows),'text/csv;charset=utf-8','RETRADE_'+safeName(s.account.name)+'_Statement_'+s.period.slug+'.csv');try{toast('Partner statement CSV downloaded');}catch(_){} }
     catch(err){try{toast(err.message||'Could not generate statement','error');}catch(_){}}
   }
-  function ensureXlsx(){
-    if(window.XLSX)return Promise.resolve();if(xlsxPromise)return xlsxPromise;
-    xlsxPromise=new Promise(function(resolve,reject){var old=document.getElementById('rt-xlsx-lib');if(old){old.addEventListener('load',function(){window.XLSX?resolve():reject(new Error('Excel library did not initialise'));},{once:true});old.addEventListener('error',reject,{once:true});return;}var script=document.createElement('script');script.id='rt-xlsx-lib';script.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';script.async=true;script.crossOrigin='anonymous';script.onload=function(){window.XLSX?resolve():reject(new Error('Excel library did not initialise'));};script.onerror=reject;document.head.appendChild(script);}).catch(function(err){xlsxPromise=null;throw err;});
-    return xlsxPromise;
-  }
   function generateExcel(){
     var s;try{s=currentStatement();}catch(err){try{toast(err.message||'Could not generate statement','error');}catch(_){}return;}
-    ensureXlsx().then(function(){var wb=XLSX.utils.book_new(),sr=summaryRows(s),ir=soldRows(s),pr=paymentRows(s),ws1=XLSX.utils.aoa_to_sheet(sr),ws2=XLSX.utils.aoa_to_sheet(ir),ws3=XLSX.utils.aoa_to_sheet(pr);ws1['!cols']=[{wch:54},{wch:34}];ws2['!cols']=[{wch:12},{wch:38},{wch:12},{wch:15},{wch:14},{wch:20},{wch:23},{wch:20},{wch:20},{wch:24},{wch:20},{wch:20},{wch:14},{wch:15},{wch:12}];ws3['!cols']=[{wch:13},{wch:22},{wch:46},{wch:13},{wch:20},{wch:17},{wch:48}];try{if(typeof _styleReportSheet==='function'){_styleReportSheet(ws1,sr,{moneyCols:[1],freezeRow:0});_styleReportSheet(ws2,ir,{headerRows:[0],moneyCols:[4,5,6,7,8,9,11],freezeRow:1});_styleReportSheet(ws3,pr,{headerRows:[0],moneyCols:[4,5],freezeRow:1});}}catch(_){}XLSX.utils.book_append_sheet(wb,ws1,'Statement');XLSX.utils.book_append_sheet(wb,ws2,'Sold Items');XLSX.utils.book_append_sheet(wb,ws3,'Payment Transactions');XLSX.writeFile(wb,'RETRADE_'+safeName(s.account.name)+'_Statement_'+s.period.slug+'.xlsx');try{toast('Partner statement Excel downloaded');}catch(_){} }).catch(function(){try{toast('Could not load the Excel exporter','error');}catch(_){}});
+    loadReportLibrary('excel').then(function(){var wb=XLSX.utils.book_new(),sr=summaryRows(s),ir=soldRows(s),pr=paymentRows(s),ws1=XLSX.utils.aoa_to_sheet(sr),ws2=XLSX.utils.aoa_to_sheet(ir),ws3=XLSX.utils.aoa_to_sheet(pr);ws1['!cols']=[{wch:54},{wch:34}];ws2['!cols']=[{wch:12},{wch:38},{wch:12},{wch:15},{wch:14},{wch:20},{wch:23},{wch:20},{wch:20},{wch:24},{wch:20},{wch:20},{wch:14},{wch:15},{wch:12}];ws3['!cols']=[{wch:13},{wch:22},{wch:46},{wch:13},{wch:20},{wch:17},{wch:48}];try{if(typeof _styleReportSheet==='function'){_styleReportSheet(ws1,sr,{moneyCols:[1],freezeRow:0});_styleReportSheet(ws2,ir,{headerRows:[0],moneyCols:[4,5,6,7,8,9,11],freezeRow:1});_styleReportSheet(ws3,pr,{headerRows:[0],moneyCols:[4,5],freezeRow:1});}}catch(_){}XLSX.utils.book_append_sheet(wb,ws1,'Statement');XLSX.utils.book_append_sheet(wb,ws2,'Sold Items');XLSX.utils.book_append_sheet(wb,ws3,'Payment Transactions');XLSX.writeFile(wb,'RETRADE_'+safeName(s.account.name)+'_Statement_'+s.period.slug+'.xlsx');try{toast('Partner statement Excel downloaded');}catch(_){} }).catch(function(){try{toast('Could not load the Excel exporter','error');}catch(_){}});
   }
 
-  function ensurePdf(){
-    if(window.jspdf&&window.jspdf.jsPDF)return Promise.resolve();if(pdfLibPromise)return pdfLibPromise;
-    pdfLibPromise=new Promise(function(resolve,reject){var old=document.getElementById('rt-jspdf-lib');if(old){old.addEventListener('load',function(){window.jspdf&&window.jspdf.jsPDF?resolve():reject(new Error('PDF library did not initialise'));},{once:true});old.addEventListener('error',reject,{once:true});return;}var script=document.createElement('script');script.id='rt-jspdf-lib';script.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';script.async=true;script.crossOrigin='anonymous';script.onload=function(){window.jspdf&&window.jspdf.jsPDF?resolve():reject(new Error('PDF library did not initialise'));};script.onerror=reject;document.head.appendChild(script);}).catch(function(err){pdfLibPromise=null;throw err;});
-    return pdfLibPromise;
-  }
 
   function writePdf(s){
     var jsPDF=window.jspdf.jsPDF,doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'}),navy=[12,20,36],gold=[247,183,55],muted=[101,110,126],line=[220,224,231],pale=[247,249,252],L=14,R=196,W=182,y=0;
@@ -290,7 +280,7 @@
     doc.save('RETRADE_'+safeName(s.account.name)+'_Statement_'+s.period.slug+'.pdf');try{toast('Partner statement PDF downloaded');}catch(_){}
   }
 
-  function generatePdf(){var s;try{s=currentStatement();}catch(err){try{toast(err.message||'Could not generate statement','error');}catch(_){}return;}ensurePdf().then(function(){writePdf(s);}).catch(function(){try{toast('Could not load the PDF exporter','error');}catch(_){}});}
+  function generatePdf(){var s;try{s=currentStatement();}catch(err){try{toast(err.message||'Could not generate statement','error');}catch(_){}return;}loadReportLibrary('pdf').then(function(){writePdf(s);}).catch(function(){try{toast('Could not load the PDF exporter','error');}catch(_){}});}
   function enhancePanel(){var excel=document.querySelector('button[onclick="_partnerStatementExcel()"]'),csv=document.querySelector('button[onclick="_partnerStatementCsv()"]'),host=excel&&excel.parentElement;if(host&&csv&&csv.parentElement===host){host.style.gridTemplateColumns='repeat(3,minmax(0,1fr))';host.innerHTML='<button type="button" class="btn btn-primary" style="width:100%;" onclick="_partnerStatementPdf()">Generate PDF</button><button type="button" class="btn btn-secondary" style="width:100%;" onclick="_partnerStatementExcel()">Generate Excel</button><button type="button" class="btn btn-secondary" style="width:100%;" onclick="_partnerStatementCsv()">Generate CSV</button>';}var note=host&&host.previousElementSibling;if(note&&/easy to read|statement:|transaction-linked/i.test(note.textContent||''))note.innerHTML='<strong style="color:var(--text);">Reconciled statement:</strong> RETRADE item earnings are net of matching returns/refunds and credits, so sold-item figures reconcile to the account summary.';}
   var originalOpen=window.openPartnerStatement;
   if(typeof originalOpen==='function'){window.openPartnerStatement=function(accountId){activeAccountId=accountId;window.__rtPartnerStatementActiveAccountId=accountId;var result=originalOpen.apply(this,arguments);setTimeout(enhancePanel,0);return result;};}

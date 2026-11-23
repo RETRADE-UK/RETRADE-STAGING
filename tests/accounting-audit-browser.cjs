@@ -13,7 +13,7 @@ const {open,settled}=require('./startup-browser.cjs');
    window.__auditItem=(id,extra={})=>Object.assign({id,item:'Synthetic '+id,state:'sold',dateSourced:'2026-07-01',dateListed:'2026-07-02',dateSold:'2026-07-05',costPrice:0,salePrice:100,salePlatform:'fb',defaultPlatform:'fb',soldOnPlatform:'fb',listingFee:0,postage:0,shippingCost:0,packagingCost:0,promoPercent:0,parts:[],returnHistory:[],refreshHistory:[]},extra);
    window.__auditSet=(items,accounts=[])=>{DB={'JUL-26':items,trips:[],expenses:[],cashLedger:[]};_accounts=accounts;_jobLots=[];_jobLotItems=[];_saleReconciliations=[];};
    window.__auditWrites=0;saveDB=()=>{__auditWrites++;};
-   window.__auditLoadCredits=async rows=>{_sb.from=()=>{const q={select:()=>q,eq:()=>q,order:()=>q,then:(ok,no)=>Promise.resolve({data:rows,error:null}).then(ok,no)};return q;};await __rtPartnerAdjustmentsEnsureLoaded(true);};
+   window.__auditLoadCredits=async rows=>{_sb.from=()=>{const q={select:()=>q,eq:()=>q,order:()=>q,limit:()=>q,then:(ok,no)=>Promise.resolve({data:rows,count:rows.length,error:null}).then(ok,no)};return q;};await __rtPartnerAdjustmentsEnsureLoaded(true);};
   });
   const dates=await page.evaluate(()=>{
    const ret={type:'full_seller',saleNo:1,loggedAt:'2026-03-31T12:00:00Z',refundAmount:20,_salePriceAtReturn:20,_platformAtReturn:'fb'};

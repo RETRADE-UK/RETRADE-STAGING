@@ -116,20 +116,15 @@ window.__rtRegisterView("costs", {
   }).join('');
 
   // Category filter cards (tap to filter, tap active to clear). Leading "All".
-  const allActive=(COST_CAT_FILTER==='all')?' active':'';
-  const allCard='<div data-cost-category="all" class="cost-cat-card'+allActive+'" onclick="setCostCatFilter(\'all\')">'
-    +'<div class="ccc-dot" style="background:var(--muted)"></div>'
-    +'<div class="ccc-label">All categories</div>'
-    +'<div class="ccc-amt">'+fmt(_brk.total)+'</div>'
-    +'<div class="ccc-count">'+_brk.count+' item'+(_brk.count!==1?'s':'')+'</div></div>';
-  const catCards=_brk.cats.map(function(c){
-    const act=(COST_CAT_FILTER===c.label)?' active':'';
-    return '<div data-cost-category="'+esc(c.label)+'" class="cost-cat-card'+act+'" onclick="setCostCatFilter(\''+c.label.replace(/'/g,"\\'")+'\')">'
-      +'<div class="ccc-box">Box '+c.box+'</div>'
-      +'<div class="ccc-dot" style="background:'+_costCatDot(c.bucket)+'"></div>'
-      +'<div class="ccc-label" title="'+esc(c.label)+'">'+esc(_expenseShort(c.label))+'</div>'
-      +'<div class="ccc-amt">'+fmt(c.amount)+'</div>'
-      +'<div class="ccc-count">'+c.count+' item'+(c.count!==1?'s':'')+'</div></div>';
+  const categories=[{label:'all',amount:_brk.total,count:_brk.count},..._brk.cats];
+  const categoryCards=categories.map(function(c){
+    const all=c.label==='all',active=COST_CAT_FILTER===c.label;
+    return '<button type="button" data-cost-category="'+esc(c.label)+'" class="cost-cat-card'+(active?' active':'')+'" aria-pressed="'+active+'" onclick="setCostCatFilter(this.dataset.costCategory)">'
+      +(all?'':'<span class="ccc-box">Box '+c.box+'</span>')
+      +'<span class="ccc-dot" style="background:'+(all?'var(--muted)':_costCatDot(c.bucket))+'"></span>'
+      +'<span class="ccc-label" title="'+esc(all?'All categories':c.label)+'">'+(all?'All categories':esc(_expenseShort(c.label)))+'</span>'
+      +'<span class="ccc-amt">'+fmt(c.amount)+'</span>'
+      +'<span class="ccc-count">'+c.count+' item'+(c.count!==1?'s':'')+'</span></button>';
   }).join('');
 
   const selectionHTML=COST_SELECTION_MODE?`<button id="cost-select-all" class="sel-check" role="checkbox" aria-label="Select all shown" aria-checked="false" onclick="selectAllCosts(COST_SELECTED.size!==COST_VISIBLE.length)"><span class="sel-check-box" aria-hidden="true"></span><span id="cost-selected-count" role="status">Select all</span></button>
@@ -171,7 +166,7 @@ window.__rtRegisterView("costs", {
       <button class="cost-taxlink" onclick="goToTab('tax')">Tax return ready <span style="font-size:15px;line-height:1">&rarr;</span></button>
     </div>
 
-    ${_brk.cats.length>0?`<div class="cost-cat-row">${allCard}${catCards}</div>`:''}
+    ${_brk.cats.length>0?`<div class="cost-cat-row" role="group" aria-label="Expense categories">${categoryCards}</div>`:''}
 
     <div class="cost-list-controls">
       <div class="inlist-search">${_selSearchIco(15)}<input id="cost-search" type="search" class="inlist-search-input" placeholder="Search trips &amp; expenses" aria-label="Search trips and expenses" value="${esc(COST_SEARCH)}" oninput="searchCosts(this.value)"></div>
@@ -206,9 +201,9 @@ window.__rtRegisterView("costs", {
     +'<div class="pnl-row"><span>Manual / reconcile adjustments</span><strong>'+(c.adjust<0?'−':'+')+fmt(Math.abs(c.adjust))+'</strong></div><div class="pnl-row total"><span>Business cash available</span><strong>'+fmt(c.cashAvailable)+'</strong></div>'
     +'<div style="font-size:11px;color:var(--text-secondary);line-height:1.45;margin-top:8px;">This total is event-ledger based: stock purchases and parts leave cash when bought; sales add cash; fees/shipping/refunds/expenses/settlements remove it; supplier refunds add it back. COGS restoration and HMRC mileage allowance do not move cash.</div></div></details>';
   html+='<div class="sl" style="margin:20px 0 10px;">Cash</div><div class="kgrid">'
-    +kpi('Cash in',c.inflows,'All recorded inflows','#3b82f6')+kpi('Cash out',c.outflows,'All recorded outflows','var(--warn)')+kpi('Cash tied up in stock',c.stockTied,'Paid acquisition + parts still held')+kpi('Gross profit (all-time)',c.grossProfit,'Accounting profit — shown for comparison only')+'</div>';
+    +kpi('Cash in',c.inflows,'All recorded inflows','var(--state-listed)')+kpi('Cash out',c.outflows,'All recorded outflows','var(--warn)')+kpi('Cash tied up in stock',c.stockTied,'Paid acquisition + parts still held')+kpi('Gross profit (all-time)',c.grossProfit,'Accounting profit — shown for comparison only')+'</div>';
   if(c.unpaidLiabilities.total>0)html+='<div class="card" style="padding:13px 15px;margin-top:-6px;margin-bottom:16px;border-style:dashed;"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;"><div><div style="font-size:12px;font-weight:700;color:var(--text);">Still to be paid</div><div style="font-size:11px;color:var(--text-secondary);margin-top:3px;line-height:1.45;">Supplier '+fmt(c.unpaidLiabilities.supplier)+' · partner shares '+fmt(c.unpaidLiabilities.partner)+'. These do not leave cash until a paid settlement exists.</div></div><strong class="num" style="white-space:nowrap;color:var(--accent);">'+fmt(c.unpaidLiabilities.total)+'</strong></div></div>';
-  html+='<div class="sl" style="margin:22px 0 10px;">Owner</div><div class="kgrid">'+kpi('You took out',c.draw,'This tax year '+fmt(c.drawFY),c.draw>0?'var(--warn)':'')+kpi('You added',c.contrib,'This tax year '+fmt(c.contribFY),c.contrib>0?'#3b82f6':'')+kpi('Net taken by you',c.netOwner,c.netOwner>=0?'More out than in':'More in than out')+kpi('Profit kept in business',c.profitRetained,'Accounting net profit − drawings + added')+'</div>';
+  html+='<div class="sl" style="margin:22px 0 10px;">Owner</div><div class="kgrid">'+kpi('You took out',c.draw,'This tax year '+fmt(c.drawFY),c.draw>0?'var(--warn)':'')+kpi('You added',c.contrib,'This tax year '+fmt(c.contribFY),c.contrib>0?'var(--state-listed)':'')+kpi('Net taken by you',c.netOwner,c.netOwner>=0?'More out than in':'More in than out')+kpi('Profit kept in business',c.profitRetained,'Accounting net profit − drawings + added')+'</div>';
 
   html+='<div class="cashflow-list-heading"><div><div class="sl">All cash movements</div><div id="cashflow-result-count" class="cashflow-result-count">'+filtered.length+' of '+led.length+' movements</div></div></div>';
   html+='<div class="cashflow-manager">'
@@ -218,7 +213,7 @@ window.__rtRegisterView("costs", {
       +'<label><span class="cashflow-control-label">Type</span><select id="cashflow-type" class="cashflow-control" onchange="setCashflowFilter(\'type\',this.value)"><option value="all"'+(_cashflowType==='all'?' selected':'')+'>All types</option>'+types.map(function(t){return '<option value="'+esc(t)+'"'+(_cashflowType===t?' selected':'')+'>'+esc(t.replace(/_/g,' '))+'</option>';}).join('')+'</select></label>'
       +'<label><span class="cashflow-control-label">Period</span><select id="cashflow-range" class="cashflow-control" onchange="setCashflowFilter(\'range\',this.value)"><option value="all"'+(_cashflowRange==='all'?' selected':'')+'>All time</option><option value="30"'+(_cashflowRange==='30'?' selected':'')+'>Last 30 days</option><option value="90"'+(_cashflowRange==='90'?' selected':'')+'>Last 90 days</option><option value="year"'+(_cashflowRange==='year'?' selected':'')+'>This year</option></select></label>'
     +'</div>'
-    +'<div class="cashflow-manager-footer"><div class="cashflow-filter-totals"><span>In <b id="cashflow-filter-in" style="color:#3b82f6">'+fmt(filteredIn)+'</b></span><span>Out <b id="cashflow-filter-out" style="color:var(--warn)">'+fmt(filteredOut)+'</b></span><span>Net <b id="cashflow-filter-net" style="color:'+(filteredIn-filteredOut>=0?'#3b82f6':'var(--warn)')+'">'+fmt(filteredIn-filteredOut)+'</b></span></div>'
+    +'<div class="cashflow-manager-footer"><div class="cashflow-filter-totals"><span>In <b id="cashflow-filter-in" style="color:var(--state-listed)">'+fmt(filteredIn)+'</b></span><span>Out <b id="cashflow-filter-out" style="color:var(--warn)">'+fmt(filteredOut)+'</b></span><span>Net <b id="cashflow-filter-net" style="color:'+(filteredIn-filteredOut>=0?'var(--state-listed)':'var(--warn)')+'">'+fmt(filteredIn-filteredOut)+'</b></span></div>'
       +'<div class="cashflow-actions"><div id="cashflow-clear-slot" style="display:contents">'+(filtersActive?'<button class="cashflow-action-btn" onclick="clearCashflowFilters()">Clear filters</button>':'')+'</div><button class="cashflow-action-btn" onclick="printCashflow()">Print</button><button class="cashflow-action-btn cashflow-action-primary" onclick="exportCashflowExcel()">Excel</button></div></div>'
     +'</div>';
   html+='<div id="cashflow-results">'+_cashflowLedgerHTML(led,filtered)+'</div>';

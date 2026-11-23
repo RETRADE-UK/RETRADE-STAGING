@@ -1,4 +1,4 @@
-/* Release 20261110-search-input. Versioned static cache; business/API traffic stays outside it. */
+/* Versioned static cache. Business and API requests use the network directly. */
 importScripts('./config/assets.js');
 const ASSETS=self.RT_ASSETS;
 const BUILD=ASSETS.build;
@@ -6,7 +6,7 @@ const CACHE_PREFIX='retrade-static-';
 const CACHE_NAME=CACHE_PREFIX+BUILD;
 const SCRIPTS=['app.js','config/assets.js'].concat(ASSETS.entry,ASSETS.bindings,[ASSETS.launch,ASSETS.core],ASSETS.critical,ASSETS.deferred,ASSETS.lazy);
 const SHELL=['index.html','dashboard/index.html','manifest.webmanifest'].concat(ASSETS.styles,ASSETS.icons);
-const STATIC_SET=new Set(SCRIPTS.concat(SHELL,ASSETS.launchImages,ASSETS.images||[]));
+const STATIC_SET=new Set(SCRIPTS.concat(SHELL,ASSETS.launchImages,ASSETS.images||[],Object.values(ASSETS.reportLibraries||{})));
 const VERSIONED_SET=new Set(SCRIPTS.concat(ASSETS.styles));
 const SCOPE=new URL(self.registration.scope);
 const pending=new Map();
@@ -111,9 +111,12 @@ self.addEventListener('fetch',event=>{
       // A newly activated worker also controls tabs running the previous build.
       // Serve that exact generation, never substitute current code under an old
       // URL or store another release inside this generation's cache.
-      const previous=await caches.open(CACHE_PREFIX+requestedBuild);
-      const exact=await previous.match(request);
-      if(exact)return exact;
+      const name=CACHE_PREFIX+requestedBuild;
+      if((await caches.keys()).includes(name)){
+        const previous=await caches.open(name);
+        const exact=await previous.match(request);
+        if(exact)return exact;
+      }
       return fetch(new Request(request,{cache:'no-cache'}));
     }
     const response=await cachedAsset(target);

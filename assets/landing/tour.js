@@ -9,6 +9,13 @@
   const rail = deck.querySelector('.jump');
   const tabs = [...rail.querySelectorAll('a')];
   const panels = [...deck.querySelectorAll('.story')];
+  const previews = 'IntersectionObserver' in window && new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting || entry.target.hidden) continue;
+      entry.target.classList.add('preview-ready');
+      previews.unobserve(entry.target);
+    }
+  }, {rootMargin:'180px 0px'});
   const previous = deck.querySelector('[data-prev]');
   const next = deck.querySelector('[data-next]');
   const count = deck.querySelector('[data-slide-count]');
@@ -65,6 +72,11 @@
       const hidden = layout.pinned && !active;
       panel.hidden = hidden;
       panel.inert = hidden;
+      if (!previews || (active && old !== current)) panel.classList.add('preview-ready');
+      if (previews) {
+        if (hidden) previews.unobserve(panel);
+        else if (!panel.classList.contains('preview-ready')) previews.observe(panel);
+      }
       panel.setAttribute('aria-hidden', String(hidden));
       if (layout.pinned) tabs[i].setAttribute('aria-selected', String(active));
       else tabs[i].removeAttribute('aria-selected');
@@ -109,6 +121,7 @@
   }
   function navigate(index, {history = true, instant = false, focus = false, announce = true} = {}) {
     if (index < 0 || index >= panels.length) return;
+    panels[index].classList.add('preview-ready');
     stopNavigation(true);
     select(index, {animate:!instant, announce});
     if (history) writeHash(index, 'pushState');

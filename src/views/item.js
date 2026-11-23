@@ -479,7 +479,7 @@ window.__rtRegisterView("item", {
     const _livePlats=Object.values(PLATFORMS).filter(p=>p.live);
     // Match .plat-badge colours per platform (same as the CSS definitions)
     const _platBtnStyle=(function(p){
-      if(p==='vinted')return 'background:rgba(0,119,130,0.12);border-color:rgba(0,119,130,0.35);color:#007782;';
+      if(p==='vinted')return 'background:rgba(0,119,130,0.12);border-color:rgba(0,119,130,0.35);color:var(--vinted-ink);';
       if(p==='depop')return 'background:rgba(255,70,70,0.1);border-color:rgba(255,70,70,0.25);color:#e03030;';
       if(p==='fb')return 'background:rgba(24,119,242,0.1);border-color:rgba(24,119,242,0.25);color:#1877f2;';
       if(p==='amazon_uk')return 'background:rgba(255,153,0,0.12);border-color:rgba(255,153,0,0.3);color:#c45a00;';

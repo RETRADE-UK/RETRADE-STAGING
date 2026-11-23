@@ -80,6 +80,8 @@ em {font:italic 1.025em/.98 Georgia,serif;color:var(--gold);letter-spacing:-.065
 .tour-pinned .story {grid-area:1/1;border-top:0}
 /* Reserve the tallest stage while keeping inactive content inaccessible. */
 .tour-pinned .story[hidden] {display:grid!important;visibility:hidden;pointer-events:none}
+/* Reserve each canvas while the selected screenshot approaches the viewport. */
+@media (scripting:enabled) { .story:not(.preview-ready) .screen-image {display:none} }
 .story {display:grid;grid-template-columns:minmax(240px,.8fr) minmax(0,1.2fr);gap:clamp(28px,4vw,64px);align-items:center;padding:22px 0 24px;scroll-margin-top:110px;min-width:0}
 .story+.story {border-top:1px solid var(--line)}
 .story-copy {min-width:0}

@@ -1,0 +1,6 @@
+# Preserve the distribution bytes, including the upstream newline format.
+assets/vendor/** -text
+assets/vendor/**/*.min.js -diff
+# These archived references are verified against their original byte digests.
+experiments/monitors/recovered-v3/** -text
+experiments/monitors/branch-schema/** -text

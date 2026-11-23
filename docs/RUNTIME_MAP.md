@@ -1,4 +1,51 @@
-# Landing 1 live examples — 23 November 2026
+# Workspace hydration and account changes
+
+Core reads the twelve business collections with an owner filter and a stable
+primary-key cursor. Partner credits use the same reader. A first-page count
+finishes small collections in one request. Larger collections are assembled
+before sorting and publication, including when the API sets a lower row limit.
+Each page has its own timeout. A failed read or malformed record keeps the
+previous complete workspace and item revisions. A later sync picks up edits
+that landed on the server while the tables were being read.
+
+The signed-in owner and local edit generation guard passive refreshes. Pending
+writes get the first opportunity to sync. A change made during a read defers
+that refresh until a subsequent one. The accepted business snapshot is recorded
+before photo URLs resolve. Account and stock terms are mapped from the same
+rows as the rest of the workspace, including on cold starts before partner
+views load.
+
+Switching between users starts a fresh document. Default marketplace, shipping
+presets, tax region and other income use owner-specific device keys. Existing
+users recover their settings from the cloud or their own pending settings
+outbox. Older device-only keys have no owner identifier and are left untouched.
+The colour theme remains a device preference.
+
+# Report libraries and staging release checks
+
+Excel imports, spreadsheets and PDF statements share the on-demand loader in
+`src/domain/report-engine.js`. The pinned browser files and licences live in
+`assets/vendor/`. The asset manifest names each file. The service worker
+caches these files on first use. The Data, tax export and PDF browser tests
+use the same distributions served to users.
+
+| Distribution | Upstream | Browser file SHA-256 |
+| --- | --- | --- |
+| SheetJS CE 0.20.3 | https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js | `cc015130aa8521e7f088f88898eba949ccdcbfb38df0bd129b44b7273c3a6f41` |
+| jsPDF 4.2.1 | https://github.com/parallax/jsPDF/blob/v4.2.1/dist/jspdf.umd.min.js | `e6551fcdc32f09d6853b2c5126d18d01d9447e0da618a41a11ebeee0f6c20d54` |
+
+For an upgrade, replace the versioned directory and licence, update the
+manifest and test references, and run the import and export tests. The
+staging Pages workflow calls the same safety and browser jobs as pull
+requests before deploying the tested main commit.
+
+# Landing 1 live examples - 23 November 2026
+
+The hero Dashboard opens immediately. Stock, Sales and Expenses start as their
+frames approach the viewport, including after back/forward restoration. The
+public homepage also waits until a visible tour chapter approaches before
+downloading its screenshot. The image links and no-JavaScript tour continue to
+use the same full-size captures.
 
 `marketing/landing/build-previews.cjs` builds the four public examples under
 `/landing1/preview/`. They share the app's classic renderers, calculations,

@@ -1,6 +1,6 @@
 /* Period reports use the real app with synthetic records and all external requests blocked. */
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const {chromium}=require('playwright'),XLSX=require('xlsx');
+const {chromium}=require('playwright'),XLSX=require('../assets/vendor/sheetjs-0.20.3/xlsx.full.min.js');
 const {open,settled}=require('./startup-browser.cjs');
 
 async function downloadBytes(download,page){
@@ -332,8 +332,6 @@ async function chooseMonth(page,value){
   try{
     for(const mobile of [false,true]){
       const {page,context,errors}=await open(browser,{signedIn:true,mobile,timezoneId:mobile?'America/Los_Angeles':'Europe/London'});await settled(page);await page.evaluate(()=>window.__rtEnsureView('tax'));
-      await context.route('**/jspdf.umd.min.js',route=>route.fulfill({contentType:'text/javascript',body:fs.readFileSync(require.resolve('jspdf/dist/jspdf.umd.min.js'))}));
-      await context.route('**/xlsx.full.min.js',route=>route.fulfill({contentType:'text/javascript',body:fs.readFileSync(require.resolve('xlsx/dist/xlsx.full.min.js'))}));
       if(process.env.RETRADE_CAPTURE_BLOBS==='1')await page.evaluate(()=>{const create=URL.createObjectURL.bind(URL);URL.createObjectURL=function(blob){window.__periodLastBlob=blob;return create(blob);};});
       await page.evaluate(()=>window.dispatchEvent(new Event('retrade:data-ready')));
       if(!mobile){await purchasePaymentCases(page);await listingFeeCases(page);await financialCases(page);}

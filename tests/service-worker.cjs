@@ -30,6 +30,7 @@ async function harness(scope='https://test.example/app/'){
  assert.equal(await (await h.emit('fetch',{request:new Request('https://test.example/app/'+assets.core+'?v=old')})).text(),'old-core','Old tabs receive their exact cached generation');
  const newer=await h.emit('fetch',{request:new Request('https://test.example/app/config/assets.js?v=future')});
  assert.equal(await newer.text(),'asset:https://test.example/app/config/assets.js?v=future','New HTML must not receive the active worker old manifest');
+ assert(!(await h.caches.keys()).includes('retrade-static-future'),'A request for an unknown build must not create an empty cache or displace the previous release');
  const olderCSS=await h.emit('fetch',{request:new Request('https://test.example/app/assets/styles/application.css?v=old')});
  assert.equal(await olderCSS.text(),'asset:https://test.example/app/assets/styles/application.css?v=old','Styles honour the requested generation too');
  assert.equal(await h.emit('fetch',{request:new Request('https://test.example/app/private-data.json')}),undefined,'Unknown/business data bypass caching');

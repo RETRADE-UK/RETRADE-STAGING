@@ -1,13 +1,11 @@
 /* Actual downloads with local copies of the existing export libraries. No external data requests. */
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const {chromium}=require('playwright'),XLSX=require('xlsx');
+const {chromium}=require('playwright'),XLSX=require('../assets/vendor/sheetjs-0.20.3/xlsx.full.min.js');
 const {open,settled}=require('./startup-browser.cjs');
 (async()=>{
  const browser=await chromium.launch({headless:true,...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{})});
  try{for(const mobile of [true,false]){
   const {page,context,errors}=await open(browser,{signedIn:true,mobile});await settled(page);await page.evaluate(()=>window.__rtEnsureView('tax'));
-  await context.route('**/jspdf.umd.min.js',route=>route.fulfill({contentType:'text/javascript',body:fs.readFileSync(require.resolve('jspdf/dist/jspdf.umd.min.js'))}));
-  await context.route('**/xlsx.full.min.js',route=>route.fulfill({contentType:'text/javascript',body:fs.readFileSync(require.resolve('xlsx/dist/xlsx.full.min.js'))}));
   await page.evaluate(()=>{goToTab('tax');renderTax();setTaxWorkspaceView('overview');});
   // Wait for the app's deferred legacy-record normalisation before checking export immutability.
   await page.evaluate(()=>window.dispatchEvent(new Event('retrade:data-ready')));

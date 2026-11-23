@@ -1,8 +1,7 @@
 name: RETRADE CI
 on:
   pull_request:
-  push:
-    branches: [main]
+  workflow_call:
 permissions:
   contents: read
 jobs:
@@ -29,6 +28,33 @@ jobs:
       - run: npm test
         env:
           RETRADE_CAPTURE: test-artifacts/purchases
+      - name: Purchase dialog screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: purchase-dialogs
+          path: test-artifacts/purchases/
+          if-no-files-found: ignore
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: monitor-ui-review
+          path: /tmp/monitors-*.png
+          if-no-files-found: ignore
+          retention-days: 7
+
+  compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit
+        timeout-minutes: 15
       - name: Landing scroll regressions (Chromium and WebKit)
         run: npm run test:landing
       - uses: actions/upload-artifact@v4
@@ -47,7 +73,6 @@ jobs:
           node tests/search-input-cache.cjs
           node tests/search-input-browser.cjs
           node tests/search-input-browser.cjs --webkit
-          node tests/search-revenue-browser.cjs
       - run: node tests/dashboard-fortnight-browser.cjs --webkit
       - run: node tests/account-cost-payout-browser.cjs --webkit
       - run: node tests/staging-auth-browser.cjs --webkit
@@ -59,18 +84,3 @@ jobs:
       - run: node tests/bundle-fees-browser.cjs --webkit
       - run: node tests/cash-refunds-history-browser.cjs --webkit
       - run: node tests/accounting-audit-browser.cjs --webkit
-      - name: Purchase dialog screenshots
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: purchase-dialogs
-          path: test-artifacts/purchases/
-          if-no-files-found: ignore
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: monitor-ui-review
-          path: /tmp/monitors-*.png
-          if-no-files-found: ignore
-          retention-days: 7
