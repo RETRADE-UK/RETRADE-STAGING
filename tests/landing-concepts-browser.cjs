@@ -106,7 +106,10 @@ const contentType={'.html':'text/html','.js':'text/javascript','.css':'text/css'
           for (const id of ['item','expenses','tax']) {
             const screenshot = page.locator('#' + id + ' .capture-scroll');
             await screenshot.scrollIntoViewIfNeeded();
-            await screenshot.locator('img').evaluate(img => img.decode());
+            await page.waitForFunction(id => {
+              const image = document.querySelector('#' + id + ' .capture-scroll img');
+              return image.complete && image.naturalWidth > 0;
+            }, id);
             if (width <= 600) {
               assert(await screenshot.evaluate(el => el.scrollHeight >= el.clientHeight), id + ' fits the phone frame');
               await screenshot.evaluate(el => { el.scrollTop = el.scrollHeight; });

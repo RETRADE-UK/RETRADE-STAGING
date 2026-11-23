@@ -31,7 +31,7 @@ body[data-variant=editorial] #item .feature-visual {
 .capture-frame {
   overflow: hidden;
   border-radius: 24px;
-  mask-image: radial-gradient(ellipse farthest-corner at center, #000 71%, transparent 100%);
+  mask-image: radial-gradient(ellipse farthest-corner at center, #000 83%, #0006 100%);
 }
 .capture-frame picture,
 .capture-frame img {
@@ -132,3 +132,7 @@ body[data-variant=editorial] #item .feature-visual {
   clip-path: inset(50%);
 }
 #dashboard { scroll-margin-top: 18px; }
+@media (min-width: 851px) {
+  body[data-variant=editorial] .hero-content { padding-top: clamp(42px, 5vw, 80px); }
+  body[data-variant=editorial] .hero-visual { margin-top: clamp(36px, 4vw, 50px); }
+}
