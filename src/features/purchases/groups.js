@@ -187,7 +187,12 @@
   function stockItem(line,values,gid){return Object.assign({id:_newId('sqa'),gid:'R-'+String(gid).padStart(4,'0'),item:line.title,state:'sourced',costPrice:line.cost/100,category:line.category,location:line.location,parts:[],returnHistory:[],refreshHistory:[],notes:'',dateListed:null,dateSold:null,salePrice:0,listingFee:0,postage:0,shippingCost:0,packagingCost:0,promoPercent:0,isReturned:false,grossProfit:null},values);}
   window.openNewPurchase=function(){
     var user=owner(),today=_todayISO();
-    openPanel('New purchase','<p>Enter the total paid once, including purchase delivery and buyer fees. Allocate it across the separate items you will list.</p>'+field('Purchase name','purchase-name','')+field('Date sourced','purchase-date',today,'date')+field('Date paid','purchase-paid-date',today,'date')+field('Total paid (£)','purchase-total','','number')+editorBody());
+    openPanel('New purchase','<label class="stock-purchase-choice"><input type="checkbox" id="purchase-multiple" checked><span><strong>Multiple items in one purchase</strong><span class="fg-hint">One payment, separate stock records.</span></span></label><p>Enter the total paid once, including purchase delivery and buyer fees. Allocate it across the separate items you will list.</p>'+field('Purchase name','purchase-name','')+field('Date sourced','purchase-date',today,'date')+field('Date paid','purchase-paid-date',today,'date')+field('Total paid (£)','purchase-total','','number')+editorBody());
+    document.getElementById('purchase-multiple').onchange=async function(){
+      const toggle=this,dirty=Array.from(document.querySelectorAll('#panel-content input:not([type=checkbox]):not([type=date])')).some(function(el){return el.value.trim();});
+      if(dirty&&!await showConfirm('Switch to one item?','The unsaved purchase fields will be cleared. No stock or payment has been saved.',{okLabel:'Switch to one item',danger:false})){toggle.checked=true;return;}
+      openStockQuickAdd();
+    };
     var editor=lineEditor({total:function(){return cents(document.getElementById('purchase-total').value);}});
     var sourceEl=document.getElementById('purchase-date'),paidEl=document.getElementById('purchase-paid-date'),paidTouched=false;
     paidEl.oninput=function(){paidTouched=true;};

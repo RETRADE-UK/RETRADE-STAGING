@@ -535,3 +535,10 @@ body:has(> #auth-overlay > form:not([inert])) > :is(.skip-nav, #mobile-top-bar, 
 .rt-acct-combined-menu{right:0;left:auto;min-width:238px;max-height:min(520px,75vh);overflow:auto}
 .rt-acct-fs-title{padding:8px 10px 5px;font-size:11px;font-weight:800;color:var(--text-secondary)}
 @media(max-width:640px){.rt-acct-combined-menu{min-width:min(250px,calc(100vw - 32px))}}
+
+/* Job lot settings and the shared single/multiple purchase choice. */
+.stock-purchase-choice{display:flex!important;align-items:flex-start;gap:12px;padding:14px;margin:0 0 18px!important;border:1px solid var(--gold);border-radius:12px;background:var(--gold-dim);cursor:pointer;text-transform:none!important;letter-spacing:normal!important}
+.stock-purchase-choice input[type=checkbox]{width:20px!important;height:20px!important;min-width:20px;margin:2px 0 0;accent-color:var(--gold)}
+.stock-purchase-choice>span{min-width:0}.stock-purchase-choice strong{display:block;font-size:1rem;color:var(--text);line-height:1.45}.stock-purchase-choice .fg-hint{display:block;margin-top:5px;font-size:.875rem;font-weight:400;line-height:1.5;color:var(--text-secondary)}
+.joblot-editor input,.joblot-editor select,.joblot-editor textarea{font-size:16px;min-width:0;max-width:100%}.joblot-editor .fg-hint{line-height:1.5}.joblot-editor .purchase-actions{display:flex;gap:10px;flex-wrap:wrap}.joblot-editor .purchase-actions button{flex:1;min-height:44px}
+.joblot-summary{font-size:.875rem;color:var(--text-secondary);line-height:1.6;overflow-wrap:anywhere}

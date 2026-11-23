@@ -2974,12 +2974,14 @@ async function loadFromSupabase({canCommit,onCommit}={}){
         id:r.id,name:r.name||'Job Lot',status:r.status||'building',dateCreated:r.date_created||null,
         dateListed:r.date_listed||null,dateSold:r.date_sold||null,salePrice:Number(r.sale_price)||0,
         platform:r.platform||'ebay',bundleId:r.bundle_id||null,bundleRef:r.bundle_ref||null,
+        category:r.category||null,promoPercent:Number(r.promo_percent)||0,priceMode:r.price_mode||'linked',priceAdjustment:r.price_adjustment==null?null:Number(r.price_adjustment),
         notes:r.notes||'',createdAt:r.created_at||null,updatedAt:r.updated_at||null
       };});
       _jobLotItems=(jobLotItemsRes.data||[]).map(function(r){return{
         id:r.id,jobLotId:r.job_lot_id,itemId:r.item_id,addedAt:r.added_at||null,
         removedAt:r.removed_at||null,costBasisAtAdd:Number(r.cost_basis_at_add)||0,notes:r.notes||''
       };});
+      _jobLots.forEach(_initJobLotPrice);
     }else{
       _jobLots=[];_jobLotItems=[];
       if((jobLotsRes&&jobLotsRes.error)||(jobLotItemsRes&&jobLotItemsRes.error))console.info('[RETRADE] Job Lots unavailable until v1.01 stock-lifecycle migration is applied.');
@@ -3318,6 +3320,7 @@ function _jobLotToRow(l){return{
   id:l.id,user_id:_currentUserId||null,name:l.name||'Job Lot',status:l.status||'building',
   date_created:l.dateCreated||null,date_listed:l.dateListed||null,date_sold:l.dateSold||null,
   sale_price:Number(l.salePrice)||0,platform:l.platform||null,bundle_id:l.bundleId||null,bundle_ref:l.bundleRef||null,notes:l.notes||null,
+  category:l.category||null,promo_percent:Number(l.promoPercent)||0,price_mode:l.priceMode||'linked',price_adjustment:l.priceAdjustment==null?null:Number(l.priceAdjustment),
   created_at:l.createdAt||new Date().toISOString()
 };}
 function _jobLotItemToRow(m){return{
@@ -4012,6 +4015,7 @@ function renderActivity(){
 }
 
 function saveDB(){
+  _syncJobLotPrices();
   if(_previewMode){
     DB._userOwned = false;
     refreshActivePage();
@@ -8146,7 +8150,7 @@ function _jobLotMemberWeightShare(item,lot){
   return total>0?(weights[idx]/total):(1/members.length);
 }
 function _jobLotMemberAskingShare(item,lot){
-  return +((Number(lot&&lot.salePrice)||0)*_jobLotMemberWeightShare(item,lot)).toFixed(2);
+  return +((_jobLotAskingPrice(lot)||0)*_jobLotMemberWeightShare(item,lot)).toFixed(2);
 }
 function _jobLotMemberPotentialShare(item,lot){
   const p=_jobLotEstimatedProfit(lot);
@@ -10147,13 +10151,18 @@ function _requiredStockDetails(prefix){
   return {category:cat.value,location:loc.value.trim()};
 }
 let _sqaSessionCount=0;
+async function _switchStockQuickAddToPurchase(toggle){
+  const dirty=['sqa-title','sqa-cost','sqa-est-sale','sqa-notes','sqa-category','sqa-location'].some(function(id){const el=document.getElementById(id);return el&&el.value.trim();})||(_sqaParts||[]).length||!!document.getElementById('sqa-photo')?.files.length;
+  if(dirty&&!await showConfirm('Switch to multiple items?','The unsaved stock fields will be cleared. No stock or payment has been saved.',{okLabel:'Switch to multiple items',danger:false})){toggle.checked=false;return;}
+  _openStockPurchaseAction('new');
+}
 function openStockQuickAdd(accountId){
   _quickAddAccountId=accountId||null;
   _sqaParts=[];
   _sqaSessionCount=0;
   const today=new Date().toISOString().split('T')[0];
   const html=`
-    ${!_quickAddAccountId?'<button type="button" class="btn btn-secondary" style="margin-bottom:16px" onclick="_openStockPurchaseAction(\'new\')">One purchase · multiple items</button>':''}
+    ${!_quickAddAccountId?'<label class="stock-purchase-choice"><input id="sqa-multiple" type="checkbox" onchange="_switchStockQuickAddToPurchase(this)"><span><strong>Multiple items in one purchase</strong><span class="fg-hint">Record one payment and allocate the cost across separate stock items.</span></span></label>':''}
     ${_quickAddAccountBanner(_quickAddAccountId)}
     ${_quickAddPartnerPickerHTML()}
     <div class="fg">
@@ -14643,18 +14652,127 @@ function _jobLotSearchText(lot){
   const names=_jobLotMembers(lot.id,false).map(function(x){return x.item.item||'';}).join(' ');
   return ((lot.name||'')+' '+names).toLowerCase();
 }
+// Linked prices keep the user's discount while member asking prices change.
+function _jobLotItemAsk(item){
+  return Math.max(0,Number(item.state==='sourced'||item.isReturned?item.estSalePrice:item.salePrice)||0);
+}
+function _jobLotItemTotal(lot){return +_jobLotMembers(lot.id,false).reduce(function(s,x){return s+_jobLotItemAsk(x.item);},0).toFixed(2);}
+function _initJobLotPrice(lot){
+  if(!lot||!['building','listed'].includes(lot.status))return;
+  if(lot.priceMode!=='fixed')lot.priceMode='linked';
+  if(lot.priceAdjustment==null||!Number.isFinite(Number(lot.priceAdjustment)))lot.priceAdjustment=+((Number(lot.salePrice)>0?Number(lot.salePrice):_jobLotItemTotal(lot))-_jobLotItemTotal(lot)).toFixed(2);
+}
+function _jobLotAskingPrice(lot){
+  if(!lot)return 0;
+  if(!['building','listed'].includes(lot.status)||lot.priceMode==='fixed')return Number(lot.salePrice)||0;
+  _initJobLotPrice(lot);
+  return +Math.max(0,_jobLotItemTotal(lot)+Number(lot.priceAdjustment||0)).toFixed(2);
+}
+function _syncJobLotPrices(){(_jobLots||[]).forEach(function(l){if(['building','listed'].includes(l.status))l.salePrice=_jobLotAskingPrice(l);});}
+function _jobLotCategory(lot){return lot.category||'Wholesale & Job Lots';}
+function _jobLotCategoryOptions(category){return ITEM_CATEGORIES.map(function(c){return '<option value="'+esc(c)+'"'+(c===category?' selected':'')+'>'+esc(c)+'</option>';}).join('');}
+function _jobLotPlatformOptions(platform){return Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){return '<option value="'+p.id+'"'+(platform===p.id?' selected':'')+'>'+esc(p.label||p.short)+'</option>';}).join('');}
+function _jobLotReadNumber(id,positive){
+  const el=document.getElementById(id),value=el&&Number(el.value);
+  if(!el||el.value.trim()===''||!el.checkValidity()||!Number.isFinite(value)||value<0||(positive&&value<=0)){toast('Check '+(el&&el.labels&&el.labels[0]?el.labels[0].textContent:'the amount'),'err');if(el)el.focus();return null;}
+  return value;
+}
+function _jobLotPreview(lotId){
+  const lot=_jobLotById(lotId);if(!lot)return;
+  const price=Number(document.getElementById('jl-list-price').value)||0;
+  const category=document.getElementById('jl-list-category').value,platform=document.getElementById('jl-list-platform').value;
+  const promo=(Number(document.getElementById('jl-list-promo').value)||0)/100;
+  const fees=calcPlatformBPF({category:category,defaultPlatform:platform},price,0,platform),ads=_calcPromoFee(platform,price,0,promo);
+  document.getElementById('jl-fee-preview').textContent='Estimated selling fees: '+fmt(fees)+' · Promotion: '+fmt(ads)+' · Before delivery and any listing charges';
+  const linked=document.getElementById('jl-price-linked').checked,total=_jobLotItemTotal(lot),delta=+(price-total).toFixed(2);
+  document.getElementById('jl-price-help').textContent=linked?'Item prices total '+fmt(total)+'. '+(delta<0?'Lot discount '+fmt(-delta)+'. ':delta>0?'Lot adjustment +'+fmt(delta)+'. ':'')+'Changes to item prices update this total by the same amount.':'Fixed lot price. Changing an item price will not change this total.';
+}
+function _freezeJobLotReturnHistory(item){
+  const full=(item.returnHistory||[]).filter(function(r){return r.type==='full_seller'||r.type==='full_ebay';});
+  full.forEach(function(r){
+    const n=Math.max(1,Number(r.saleNo)||1),s=_saleCycleSnapshot(item,n);if(!s)return;
+    const fields={_dateSoldAtReturn:s.date,_salePriceAtReturn:s.price,_postageAtReturn:s.postage,_platformAtReturn:s.platformId,_promoPercentAtReturn:s.promoPercent,_shippingCostAtReturn:s.shipping,_packagingCostAtReturn:s.packaging,_bundleIdAtReturn:s.bundleId,_bundleRefAtReturn:s.bundleRef,_bundleTotalAtReturn:s.bundleTotal,_listingFeeAtReturn:s.listingFee};
+    Object.keys(fields).forEach(function(k){if(r[k]==null)r[k]=fields[k];});
+  });
+  return full;
+}
+function _jobLotUnlistMember(item){
+  const ask=_jobLotItemAsk(item),full=_freezeJobLotReturnHistory(item);
+  item.estSalePrice=ask;item.state='sourced';item.isReturned=false;item.dateSold=null;
+  if(full.length){['resaleSalePrice','resaleDateSold','resalePlatform','resalePostage','resaleShippingCost','resalePackagingCost','resalePromoPercent','resaleGrossProfit','resaleBundleId','resaleBundleRef','resaleBundleTotal'].forEach(function(k){item[k]=null;});}
+  else{_WITHDRAW_CLEAR_FIELDS.forEach(function(k){item[k]=null;});['salePrice','shippingCost','postage','packagingCost','promoPercent'].forEach(function(k){item[k]=0;});item.soldOnPlatform=null;}
+}
+async function withdrawJobLot(lotId){
+  const lot=_jobLotById(lotId);if(!lot||lot.status!=='listed')return;
+  const ok=await showConfirm('Withdraw listing?','Move this job lot to Unlisted and keep its items together. You can relist it or split it into separate unlisted items there. End the marketplace listing separately.',{okLabel:'Withdraw listing',danger:false});
+  if(!ok||_jobLotById(lotId)!==lot||lot.status!=='listed')return;
+  lot.status='building';lot.dateListed=null;saveDB();_goToSourcedStock();openJobLotPage(lotId);toast('Job lot moved to Unlisted');
+}
+async function removeFromJobLot(lotId,itemId){
+  const lot=_jobLotById(lotId),mem=_activeJobLotMembership(itemId),rec=_findItemRecordById(itemId);
+  if(!lot||lot.status!=='building'||!mem||mem.jobLotId!==lotId||!rec)return;
+  const ok=await showConfirm('Remove item from job lot?','This item will become separate unlisted stock. Its purchase cost and sale history are kept.',{okLabel:'Move to Unlisted',danger:false});
+  if(!ok||lot.status!=='building'||_activeJobLotMembership(itemId)!==mem)return;
+  _initJobLotPrice(lot);mem.removedAt=new Date().toISOString();_jobLotUnlistMember(rec.item);
+  _jobLotLog(rec.item,'Removed from Job Lot',lot,'Moved to Unlisted');saveDB();openJobLotPage(lotId);
+}
+async function breakApartJobLot(lotId){
+  const lot=_jobLotById(lotId);if(!lot)return;
+  if(lot.status!=='building'){toast('Withdraw the listing before splitting its items.','err');return;}
+  const members=_jobLotMembers(lotId,false),ids=members.map(function(x){return x.item.id;}).join('|');
+  const ok=await showConfirm('Split into separate items?','All '+members.length+' items will appear separately in Unlisted. Their purchase costs, payment links, photos and sale history are kept. Nothing is listed or sold.',{okLabel:'Split items',danger:false});
+  if(!ok||lot.status!=='building'||ids!==_jobLotMembers(lotId,false).map(function(x){return x.item.id;}).join('|'))return;
+  const now=new Date().toISOString();
+  members.forEach(function(x){x.membership.removedAt=now;_jobLotUnlistMember(x.item);_jobLotLog(x.item,'Removed from Job Lot',lot,'Split into separate unlisted stock');});
+  lot.status='broken_apart';saveDB();closePanel(true);_goToSourcedStock();toast(members.length+' items moved to Unlisted');
+}
+function openJobLotListing(lotId,unlistedOnly){
+  const lot=_jobLotById(lotId);if(!lot||!['building','listed'].includes(lot.status))return;
+  _initJobLotPrice(lot);
+  const unlisted=unlistedOnly===true&&lot.status==='building',today=_todayISO();
+  const html='<div class="joblot-editor"><button type="button" class="btn btn-secondary" id="jl-list-back">Back to job lot</button>'
+    +'<p>'+_jobLotPhysicalCount(lotId)+' items · '+fmt(_jobLotCost(lotId))+' purchase cost · One marketplace listing</p>'
+    +'<div class="fg"><label for="jl-list-name">Lot name</label><input id="jl-list-name" value="'+esc(lot.name||'Job Lot')+'" required></div>'
+    +(!unlisted?'<div class="fg"><label for="jl-list-date">Listing date</label><input type="date" id="jl-list-date" value="'+esc(lot.dateListed||today)+'" required></div>':'')
+    +'<div class="fg"><label for="jl-list-price">'+(unlisted?'Estimated sale price':'Asking price')+' (£)</label><input type="number" min="0" step="0.01" inputmode="decimal" id="jl-list-price" value="'+_jobLotAskingPrice(lot).toFixed(2)+'" required></div>'
+    +'<label class="stock-purchase-choice"><input id="jl-price-linked" type="checkbox"'+(lot.priceMode!=='fixed'?' checked':'')+'><span><strong>Link to item prices</strong><span id="jl-price-help" class="fg-hint"></span></span></label>'
+    +'<div class="fg"><label for="jl-list-platform">Platform</label><select id="jl-list-platform">'+_jobLotPlatformOptions(lot.platform||DEFAULT_PLATFORM)+'</select></div>'
+    +'<div class="fg"><label for="jl-list-category">Listing category</label><select id="jl-list-category">'+_jobLotCategoryOptions(_jobLotCategory(lot))+'</select><div class="fg-hint">Use the category of the whole listing. This sets category-based selling fees.</div></div>'
+    +'<div class="fg"><label for="jl-list-promo">Promotion (%)</label><input type="number" min="0" max="100" step="0.1" inputmode="decimal" id="jl-list-promo" value="'+((Number(lot.promoPercent)||0)*100).toFixed(1)+'" required></div>'
+    +'<p id="jl-fee-preview" class="info-box" aria-live="polite"></p>'
+    +'<div class="fg"><label for="jl-list-notes">Notes (optional)</label><textarea id="jl-list-notes" rows="2">'+esc(lot.notes||'')+'</textarea></div>'
+    +'<div class="purchase-actions"><button type="button" class="btn btn-secondary" id="jl-list-cancel">Cancel</button><button type="button" class="btn btn-primary" id="jl-list-save">'+(unlisted?'Save job lot':lot.status==='listed'?'Save listing':'List job lot')+'</button></div></div>';
+  openPanel((unlisted?'Edit job lot':lot.status==='listed'?'Edit listing':'List job lot'),html,false,{onClose:function(){openJobLotPage(lotId);}});
+  document.getElementById('jl-list-back').onclick=document.getElementById('jl-list-cancel').onclick=function(){openJobLotPage(lotId);};
+  document.getElementById('jl-list-save').onclick=function(){confirmJobLotListing(lotId,unlisted);};
+  ['jl-list-price','jl-price-linked','jl-list-platform','jl-list-category','jl-list-promo'].forEach(function(id){document.getElementById(id).addEventListener('input',function(){_jobLotPreview(lotId);});});
+  _jobLotPreview(lotId);
+}
+function confirmJobLotListing(lotId,unlistedOnly){
+  const lot=_jobLotById(lotId);if(!lot||!['building','listed'].includes(lot.status))return;
+  const price=_jobLotReadNumber('jl-list-price',!unlistedOnly),promo=_jobLotReadNumber('jl-list-promo');if(price==null||promo==null)return;
+  const name=document.getElementById('jl-list-name').value.trim(),category=document.getElementById('jl-list-category').value,platform=document.getElementById('jl-list-platform').value;
+  const dateEl=document.getElementById('jl-list-date');
+  if(!name||!ITEM_CATEGORIES.includes(category)||!PLATFORMS[platform]||!PLATFORMS[platform].live||(!unlistedOnly&&(!dateEl||!_reportDateValid(dateEl.value)))){toast('Check the name, date and listing settings.','err');return;}
+  lot.name=name;lot.salePrice=+price.toFixed(2);lot.platform=platform;lot.category=category;lot.promoPercent=+(promo/100).toFixed(4);
+  lot.priceMode=document.getElementById('jl-price-linked').checked?'linked':'fixed';lot.priceAdjustment=+(price-_jobLotItemTotal(lot)).toFixed(2);
+  lot.notes=document.getElementById('jl-list-notes').value.trim();
+  if(!unlistedOnly){lot.dateListed=dateEl.value;lot.status='listed';}
+  saveDB();renderStock();openJobLotPage(lotId);toast(unlistedOnly?'Job lot saved':'Listing saved');
+}
+
 function _jobLotPseudo(lot){
   return {
     id:'joblot:'+lot.id,item:lot.name||'Job Lot',state:lot.status==='listed'?'listed':'sourced',
-    costPrice:_jobLotCost(lot.id,false),salePrice:Number(lot.salePrice)||0,estSalePrice:Number(lot.salePrice)||0,
+    costPrice:_jobLotCost(lot.id,false),salePrice:_jobLotAskingPrice(lot),estSalePrice:_jobLotAskingPrice(lot),
     dateListed:lot.dateListed||null,dateSourced:lot.dateCreated||null,defaultPlatform:lot.platform||DEFAULT_PLATFORM,
-    category:'Wholesale & Job Lots',shippingCost:0,packagingCost:0,postage:0,promoPercent:0,parts:[],
+    category:_jobLotCategory(lot),shippingCost:0,packagingCost:0,postage:0,promoPercent:Number(lot.promoPercent)||0,parts:[],
     _isJobLot:true,_jobLotId:lot.id
   };
 }
 function _jobLotEstimatedProfit(lot){
-  if(!lot||!(Number(lot.salePrice)>0))return null;
-  try{return calcGrossProfit(_jobLotPseudo(lot));}catch(e){return +((Number(lot.salePrice)||0)-_jobLotCost(lot.id,false)).toFixed(2);}
+  if(!lot||!(_jobLotAskingPrice(lot)>0))return null;
+  try{return calcGrossProfit(_jobLotPseudo(lot));}catch(e){return +((_jobLotAskingPrice(lot)||0)-_jobLotCost(lot.id,false)).toFixed(2);}
 }
 function _jobLotEstimatedNetProfit(lot){
   const gross=_jobLotEstimatedProfit(lot);
@@ -14678,9 +14796,10 @@ function _jobLotAllocation(total,buyerPost,shipping,packaging,weights){
   };
 }
 function _applyJobLotSaleLeg(i,leg){
-  const hasFull=(i.returnHistory||[]).some(function(r){return (r.type==='full_seller'||r.type==='full_ebay')&&(Number(r.saleNo)||1)===1;});
+  const full=_freezeJobLotReturnHistory(i),hasFull=full.length>0;
+  full.forEach(function(r){if(!r._relistedAt)r._relistedAt=leg.date;});
   if(hasFull){
-    // A returned physical unit is a Sale-2 leg. Never overwrite Sale 1 — and
+    // A returned physical unit uses its next resale cycle. Preserve Sale 1 — and
     // never reuse Sale 1's bundle fields for this new order. Otherwise the
     // historical Sale 1 event would appear inside today's Job Lot.
     i.resaleDateSold=leg.date;i.resaleSalePrice=leg.salePrice;i.resalePostage=leg.postage||0;
@@ -14694,6 +14813,8 @@ function _applyJobLotSaleLeg(i,leg){
     i.promoPercent=leg.promo||0;i.soldOnPlatform=leg.platform;i.salePlatform=leg.platform;i.isReturned=false;i.state='sold';
     i.bundleId=leg.bundleId;i.bundleRef=leg.bundleRef;i.bundleTotal=+Number(leg.bundleTotal||0).toFixed(2);
   }
+  i.refreshHistory=i.refreshHistory||[];
+  if(leg.category)i.refreshHistory.push({type:'joblot_listing',bundleId:leg.bundleId,saleNo:hasFull?_currentResaleCycleNo(i):1,category:leg.category,date:leg.date});
   try{i.grossProfit=calcGrossProfit(i);}catch(e){}
   return i;
 }
@@ -14724,7 +14845,7 @@ function _createJobLot(name,itemIds){
   const lot={
     id:_newId('jl'),name:(name||'').trim()||_newJobLotName(),status:'building',
     dateCreated:new Date().toISOString().split('T')[0],dateListed:null,dateSold:null,
-    salePrice:0,platform:DEFAULT_PLATFORM||'ebay_biz',notes:'',createdAt:new Date().toISOString()
+    salePrice:0,priceMode:'linked',priceAdjustment:0,promoPercent:0,category:null,platform:DEFAULT_PLATFORM||'ebay_biz',notes:'',createdAt:new Date().toISOString()
   };
   _jobLots.push(lot);
   (itemIds||[]).forEach(function(id){
@@ -14733,12 +14854,15 @@ function _createJobLot(name,itemIds){
     _jobLotItems.push({id:_newId('jm'),jobLotId:lot.id,itemId:id,addedAt:new Date().toISOString(),removedAt:null,costBasisAtAdd:+c.toFixed(2),notes:''});
     _jobLotLog(rec.item,'Added to Job Lot',lot,'Cost ownership moved to '+lot.name+' · '+fmt(c)+' basis');
   });
+  const categories=Array.from(new Set(_jobLotMembers(lot.id,false).map(function(x){return x.item.category;}).filter(Boolean)));
+  lot.category=categories.length===1?categories[0]:'Wholesale & Job Lots';lot.salePrice=_jobLotItemTotal(lot);
   saveDB();
   return lot;
 }
 function _addIdsToJobLot(lotId,itemIds){
   const lot=_jobLotById(lotId);
   if(!lot||lot.status!=='building'){toast('Only a building Job Lot can accept more items','err');return 0;}
+  _initJobLotPrice(lot);
   let count=0;
   (itemIds||[]).forEach(function(id){
     const rec=_findItemRecordById(id);if(!rec||!_canAddToJobLot(rec.item))return;
@@ -14827,49 +14951,10 @@ function _confirmJobLotAddItems(lotId){
   if(!ids.length){toast('Select at least one item','err');return;}
   const n=_addIdsToJobLot(lotId,ids);closePanel();toast(n+' item'+(n===1?'':'s')+' added');renderStock();
 }
-async function removeFromJobLot(lotId,itemId){
-  const lot=_jobLotById(lotId),mem=_activeJobLotMembership(itemId),rec=_findItemRecordById(itemId);
-  if(!lot||!mem||mem.jobLotId!==lotId||!rec)return;
-  const ok=await showConfirm('Remove from '+lot.name+'?','The item returns to its previous operational queue. Its purchase, listing and return history are unchanged.',{okLabel:'Remove'});
-  if(!ok)return;
-  mem.removedAt=new Date().toISOString();
-  _jobLotLog(rec.item,'Removed from Job Lot',lot,'Returned to '+(rec.item.isReturned?'Returned':rec.item.state==='sourced'?'Unlisted':'Listed'));
-  saveDB();toast('Removed from '+lot.name);openJobLotPage(lotId);
-}
-async function breakApartJobLot(lotId){
-  const lot=_jobLotById(lotId);if(!lot||!(lot.status==='building'||lot.status==='listed'))return;
-  const members=_jobLotMembers(lotId,false);
-  const ok=await showConfirm('Break apart '+lot.name+'?','All '+members.length+' items return to their previous queues. No cost, revenue or historical sale data is changed.',{okLabel:'Break apart'});
-  if(!ok)return;
-  const now=new Date().toISOString();
-  members.forEach(function(x){x.membership.removedAt=now;_jobLotLog(x.item,'Removed from Job Lot',lot,'Job Lot broken apart');});
-  lot.status='broken_apart';
-  saveDB();closePanel();toast(lot.name+' broken apart');renderStock();
-}
-function openJobLotListing(lotId){
-  const lot=_jobLotById(lotId);if(!lot||!(lot.status==='building'||lot.status==='listed'))return;
-  const today=new Date().toISOString().split('T')[0];
-  const html='<div class="info-box" style="margin-bottom:14px">'+_jobLotPhysicalCount(lotId)+' physical items · '+fmt(_jobLotCost(lotId,false))+' cost basis. Listing the lot does not rewrite any child item history.</div>'
-    +'<div class="fg"><label>Lot name</label><input id="jl-list-name" value="'+esc(lot.name||'Job Lot')+'"></div>'
-    +'<div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
-      +'<div class="fg"><label>Listing date</label><input type="date" id="jl-list-date" value="'+esc(lot.dateListed||today)+'"></div>'
-      +'<div class="fg"><label>Asking price (£)</label><input type="number" min="0" step="0.01" id="jl-list-price" value="'+(Number(lot.salePrice)||0)+'"></div>'
-    +'</div>'
-    +'<div class="fg"><label>Platform</label><select id="jl-list-platform">'+Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){return '<option value="'+p.id+'"'+((lot.platform||DEFAULT_PLATFORM)===p.id?' selected':'')+'>'+esc(p.label||p.short)+'</option>';}).join('')+'</select></div>'
-    +'<div class="fg"><label>Notes (optional)</label><textarea id="jl-list-notes" rows="2">'+esc(lot.notes||'')+'</textarea></div>'
-    +'<button class="btn btn-primary" style="width:100%" onclick="confirmJobLotListing(\''+lotId+'\')">'+icon('list',15)+' '+(lot.status==='listed'?'Save listing':'Mark Job Lot listed')+'</button>';
-  openPanel((lot.status==='listed'?'Edit ':'List ')+esc(lot.name),html);
-}
-function confirmJobLotListing(lotId){
-  const lot=_jobLotById(lotId);if(!lot)return;
-  const price=Math.max(0,parseFloat((document.getElementById('jl-list-price')||{}).value)||0);
-  if(!(price>0)){toast('Enter an asking price','err');return;}
-  lot.name=((document.getElementById('jl-list-name')||{}).value||lot.name||'Job Lot').trim();
-  lot.dateListed=(document.getElementById('jl-list-date')||{}).value||new Date().toISOString().split('T')[0];
-  lot.salePrice=+price.toFixed(2);lot.platform=(document.getElementById('jl-list-platform')||{}).value||DEFAULT_PLATFORM;
-  lot.notes=((document.getElementById('jl-list-notes')||{}).value||'').trim();lot.status='listed';
-  saveDB();closePanel();toast(lot.name+' listed');renderStock();
-}
+
+
+
+
 function openJobLotSale(lotId){
   const lot=_jobLotById(lotId);if(!lot||!(lot.status==='building'||lot.status==='listed'))return;
   const members=_jobLotMembers(lotId,false);if(!members.length){toast('This Job Lot has no items','err');return;}
@@ -14877,30 +14962,31 @@ function openJobLotSale(lotId){
   const html='<div class="info-box" style="margin-bottom:14px"><strong>One buyer, one order.</strong> RETRADE allocates the order total across the child items by their frozen cost basis only for internal accounting. Combined Job Lot P&amp;L remains the authoritative view.</div>'
     +'<div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
       +'<div class="fg"><label>Sale date</label><input type="date" id="jl-sale-date" value="'+today+'"></div>'
-      +'<div class="fg"><label>Order total (£)</label><input type="number" min="0" step="0.01" id="jl-sale-total" value="'+(Number(lot.salePrice)||0)+'"></div>'
+      +'<div class="fg"><label>Order total (£)</label><input type="number" min="0" step="0.01" id="jl-sale-total" value="'+_jobLotAskingPrice(lot)+'"></div>'
     +'</div>'
     +'<div class="fg"><label>Platform</label><select id="jl-sale-platform">'+Object.values(PLATFORMS).filter(function(p){return p.live;}).map(function(p){return '<option value="'+p.id+'"'+((lot.platform||DEFAULT_PLATFORM)===p.id?' selected':'')+'>'+esc(p.label||p.short)+'</option>';}).join('')+'</select></div>'
     +'<div class="form-grid-2" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
       +'<div class="fg"><label>Buyer postage (£)</label><input type="number" min="0" step="0.01" id="jl-sale-postage" value="0"></div>'
       +'<div class="fg"><label>Your shipping cost (£)</label><input type="number" min="0" step="0.01" id="jl-sale-shipping" value="0"></div>'
       +'<div class="fg"><label>Packaging cost (£)</label><input type="number" min="0" step="0.01" id="jl-sale-packaging" value="0"></div>'
-      +'<div class="fg"><label>Promoted / ad rate (%)</label><input type="number" min="0" max="100" step="0.1" id="jl-sale-promo" value="0"></div>'
+      +'<div class="fg"><label>Promoted / ad rate (%)</label><input type="number" min="0" max="100" step="0.1" id="jl-sale-promo" value="'+((Number(lot.promoPercent)||0)*100).toFixed(1)+'"></div>'
     +'</div>'
+    +'<div class="fg"><label for="jl-sale-category">Listing category</label><select id="jl-sale-category">'+_jobLotCategoryOptions(_jobLotCategory(lot))+'</select></div>'
+    +'<button type="button" class="btn btn-secondary" style="margin-bottom:14px" onclick="openJobLotPage(\''+lotId+'\')">Back to job lot</button>'
     +'<div style="font-size:11px;color:var(--muted);margin:-4px 0 14px">'+members.length+' child item'+(members.length===1?'':'s')+' · '+fmt(_jobLotCost(lotId,false))+' cost basis</div>'
     +'<button class="btn btn-primary" style="width:100%" onclick="confirmJobLotSale(\''+lotId+'\')">'+icon('sold',15)+' Mark Job Lot sold</button>';
-  openPanel('Sell '+esc(lot.name),html);
+  openPanel('Sell '+esc(lot.name),html,false,{onClose:function(){openJobLotPage(lotId);}});
 }
 function confirmJobLotSale(lotId){
-  const lot=_jobLotById(lotId);if(!lot)return;
+  const lot=_jobLotById(lotId);if(!lot||!['building','listed'].includes(lot.status))return;
   const members=_jobLotMembers(lotId,false);if(!members.length){toast('No active Job Lot members','err');return;}
   const date=(document.getElementById('jl-sale-date')||{}).value||new Date().toISOString().split('T')[0];
-  const total=Math.max(0,parseFloat((document.getElementById('jl-sale-total')||{}).value)||0);
-  if(!(total>0)){toast('Enter the order total','err');return;}
+  const total=_jobLotReadNumber('jl-sale-total',true);if(total==null)return;
   const platform=(document.getElementById('jl-sale-platform')||{}).value||lot.platform||DEFAULT_PLATFORM;
-  const buyerPost=Math.max(0,parseFloat((document.getElementById('jl-sale-postage')||{}).value)||0);
-  const ship=Math.max(0,parseFloat((document.getElementById('jl-sale-shipping')||{}).value)||0);
-  const packaging=Math.max(0,parseFloat((document.getElementById('jl-sale-packaging')||{}).value)||0);
-  const promo=Math.max(0,Math.min(100,parseFloat((document.getElementById('jl-sale-promo')||{}).value)||0))/100;
+  const buyerPost=_jobLotReadNumber('jl-sale-postage'),ship=_jobLotReadNumber('jl-sale-shipping'),packaging=_jobLotReadNumber('jl-sale-packaging'),promoValue=_jobLotReadNumber('jl-sale-promo');
+  if([buyerPost,ship,packaging,promoValue].some(function(v){return v==null;}))return;
+  const promo=promoValue/100,category=document.getElementById('jl-sale-category').value;
+  if(!_reportDateValid(date)||!ITEM_CATEGORIES.includes(category)||!PLATFORMS[platform]||!PLATFORMS[platform].live){toast('Check the date and listing settings.','err');return;}
   const weights=members.map(function(x){
     const s=Number(x.membership.costBasisAtAdd);return s>0?s:((Number(x.item.costPrice)||0)+calcPartsCost(x.item));
   });
@@ -14910,17 +14996,19 @@ function confirmJobLotSale(lotId){
   members.forEach(function(x,idx){
     _applyJobLotSaleLeg(x.item,{
       date:date,salePrice:saleShares[idx],postage:postShares[idx]||0,shipping:shipShares[idx]||0,
-      packaging:packShares[idx]||0,promo:promo,platform:platform,bundleId:bundleId,bundleRef:bundleRef,bundleTotal:total
+      packaging:packShares[idx]||0,promo:promo,category:category,platform:platform,bundleId:bundleId,bundleRef:bundleRef,bundleTotal:total
     });
     x.membership.removedAt=new Date().toISOString();
   });
+  members.forEach(function(x){x.item.grossProfit=calcGrossProfit(x.item);});
+  lot.category=category;lot.promoPercent=promo;
   lot.status='sold';lot.dateSold=date;lot.salePrice=+total.toFixed(2);lot.platform=platform;
   lot.bundleId=bundleId;lot.bundleRef=bundleRef;
-  saveDB();closePanel();toast(lot.name+' sold for '+fmt(total));renderStock();
+  saveDB();closePanel(true);toast(lot.name+' sold for '+fmt(total));renderStock();
   if(typeof openBundlePage==='function')openBundlePage(bundleId);
 }
 function renderJobLotCard(lot){
-  const members=_jobLotMembers(lot.id,false),count=members.length,cost=_jobLotCost(lot.id,false),price=Number(lot.salePrice)||0;
+  const members=_jobLotMembers(lot.id,false),count=members.length,cost=_jobLotCost(lot.id,false),price=_jobLotAskingPrice(lot);
   const listed=lot.status==='listed',p=_jobLotEstimatedNetProfit(lot);
   const badge=listed?'LISTED':'JOB LOT';
   const sub=(listed&&lot.dateListed?lot.dateListed+' · ':'')+count+' item'+(count===1?'':'s')+' · '+fmt(cost)+' cost';
@@ -14963,23 +15051,24 @@ function openJobLotPage(lotId){
       +'<button style="flex:1;min-width:0;text-align:left;background:none;border:none;color:var(--text);cursor:pointer" onclick="closePanel();openItemPage(\''+x.month+'\',\''+x.item.id+'\',\'p-stock\')">'
         +'<span style="display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(x.item.item||'Item')+'</span>'
         +'<span style="font-size:11px;color:var(--muted)">'+state+' · '+fmt(Number(x.membership.costBasisAtAdd)||0)+' basis</span></button>'
-      +(currentActive?'<button class="btn btn-secondary" style="padding:5px 8px;font-size:11px" onclick="removeFromJobLot(\''+lotId+'\',\''+x.item.id+'\')">Remove</button>':'')
+      +(currentActive&&lot.status==='building'?'<button class="btn btn-secondary" style="padding:5px 8px;font-size:11px" onclick="removeFromJobLot(\''+lotId+'\',\''+x.item.id+'\')">Remove</button>':'')
       +'</div>';
   }).join(''):'<div style="padding:18px;color:var(--muted);text-align:center">No items in this Job Lot</div>';
-  const statusLabel=lot.status==='building'?'Building':lot.status==='listed'?'Listed':lot.status==='sold'?'Sold':lot.status==='broken_apart'?'Broken apart':'Archived';
+  const statusLabel=lot.status==='building'?'Unlisted':lot.status==='listed'?'Listed':lot.status==='sold'?'Sold':lot.status==='broken_apart'?'Broken apart':'Archived';
   const html='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">'
       +'<div class="ip-token" style="flex:1;min-width:115px"><div class="ip-token-label">Status</div><div class="ip-token-val">'+statusLabel+'</div></div>'
       +'<div class="ip-token" style="flex:1;min-width:115px"><div class="ip-token-label">Items</div><div class="ip-token-val">'+members.length+'</div></div>'
       +'<div class="ip-token" style="flex:1;min-width:115px"><div class="ip-token-label">Cost basis</div><div class="ip-token-val">'+fmt(cost)+'</div></div>'
       +'<div class="ip-token" style="flex:1;min-width:115px"><div class="ip-token-label">'+(lot.status==='sold'?'Current net profit':'Est. profit')+'</div><div class="ip-token-val" style="color:'+((p||0)>=0?'var(--green)':'var(--red)')+'">'+(p==null?'—':fmt(p))+'</div></div>'
     +'</div>'
+    +(active?'<p class="joblot-summary">'+fmt(_jobLotAskingPrice(lot))+' asking total · '+esc(_jobLotCategory(lot))+' · '+((Number(lot.promoPercent)||0)*100).toFixed(1)+'% promotion · '+(lot.priceMode==='fixed'?'Fixed price':'Linked to item prices')+'</p>':'')
     +'<div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:14px"><div style="padding:8px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)">Physical members</div>'+rows+'</div>'
     +(lot.status==='sold'&&soldBundleId?'<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px"><button class="btn btn-secondary" onclick="closePanel();openBundlePage(\''+soldBundleId+'\')">'+icon('sold',14)+' View order P&amp;L</button></div>':'')
     +(active?'<div style="display:flex;gap:7px;flex-wrap:wrap">'
       +(lot.status==='building'?'<button class="btn btn-secondary" onclick="openJobLotAddItems(\''+lotId+'\')">'+icon('add',14)+' Add items</button>':'')
       +'<button class="btn btn-secondary" onclick="openJobLotListing(\''+lotId+'\')">'+icon('list',14)+' '+(lot.status==='listed'?'Edit listing':'List lot')+'</button>'
       +'<button class="btn btn-primary" onclick="openJobLotSale(\''+lotId+'\')">'+icon('sold',14)+' Mark sold</button>'
-      +'<button class="btn btn-secondary" style="color:var(--warn)" onclick="breakApartJobLot(\''+lotId+'\')">'+icon('revert',14)+' Break apart</button>'
+      +(lot.status==='listed'?'<button class="btn btn-secondary" onclick="withdrawJobLot(\''+lotId+'\')">Withdraw listing</button>':'<button class="btn btn-secondary" onclick="openJobLotListing(\''+lotId+'\',true)">Edit job lot</button><button class="btn btn-secondary" onclick="breakApartJobLot(\''+lotId+'\')">Split into separate items</button>')
       +'</div>':'');
   openPanel(esc(lot.name||'Job Lot'),html);
 }
