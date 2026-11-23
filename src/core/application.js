@@ -1131,7 +1131,8 @@ let _reconciliationSchemaAvailable=false;
 let _acctSelectMode=false;        // selection mode active on account detail page
 let _acctSelected=new Set();      // set of item IDs selected on account detail page
 let MONTHLY_VIEW='detail';          // 'grid' | 'detail'
-let SUMMARY_PERIOD='7d';  // summary period filter — default Last 7 days (daily-use framing)
+const DEFAULT_SUMMARY_PERIOD='7d';
+let SUMMARY_PERIOD=DEFAULT_SUMMARY_PERIOD;  // summary period filter — default Last 7 days (daily-use framing)
 let _sourcedPartsCost=0;          // parts cost carried from sourced item into List Item form (BPF preview)
 
 // CUSTOM CONFIRM MODAL
@@ -5446,7 +5447,7 @@ function platBadgeHTML(i){
 
 // NAVIGATION
 // ── UI State Persistence ──────────────────────────────────────────────────────
-const _SK={tab:'_rt_tab',stockF:'_rt_stk_f',stockSF:'_rt_stk_sf',stockSo:'_rt_stk_so',stockSoF:'_rt_stk_sof',stockGr:'_rt_stk_gr',stkCol:'_rt_stk_col',runsSort:'_rt_run_so',sumPer:'_rt_sum_p',monthV:'_rt_mon_v',lastActive:'_rt_last_active'};
+const _SK={tab:'_rt_tab',stockF:'_rt_stk_f',stockSF:'_rt_stk_sf',stockSo:'_rt_stk_so',stockSoF:'_rt_stk_sof',stockGr:'_rt_stk_gr',stkCol:'_rt_stk_col',runsSort:'_rt_run_so',monthV:'_rt_mon_v',lastActive:'_rt_last_active'};
 // A gap longer than this between activity and the next launch counts as a NEW
 // session — on a fresh session we ignore the persisted page/filters and start
 // from clean defaults (Summary page, no stock filters), which feels more
@@ -5454,7 +5455,7 @@ const _SK={tab:'_rt_tab',stockF:'_rt_stk_f',stockSF:'_rt_stk_sf',stockSo:'_rt_st
 const _SESSION_FRESH_MS=4*60*60*1000; // 4 hours
 let STOCK_COLLAPSED=new Set(); // F7: collapsed month keys in grouped stock view
 const _scrollMap={};
-function _saveUIState(){try{localStorage.setItem(_SK.tab,(document.querySelector('.page.on')||{id:'p-summary'}).id.replace('p-',''));localStorage.setItem(_SK.stockF,STOCK_FILTER);localStorage.setItem(_SK.stockSF,STOCK_STATE_FILTER);localStorage.setItem(_SK.stockSo,STOCK_SORT);localStorage.setItem(_SK.stockSoF,STOCK_SOURCED_FILTER);localStorage.setItem(_SK.stockGr,STOCK_GROUPED?'1':'0');localStorage.setItem(_SK.stkCol,JSON.stringify([...STOCK_COLLAPSED]));localStorage.setItem(_SK.runsSort,window._RUNS_SORT||'newest');localStorage.setItem(_SK.sumPer,SUMMARY_PERIOD);localStorage.setItem(_SK.monthV,MONTHLY_VIEW);localStorage.setItem(_SK.lastActive,String(Date.now()));}catch(e){}}
+function _saveUIState(){try{localStorage.setItem(_SK.tab,(document.querySelector('.page.on')||{id:'p-summary'}).id.replace('p-',''));localStorage.setItem(_SK.stockF,STOCK_FILTER);localStorage.setItem(_SK.stockSF,STOCK_STATE_FILTER);localStorage.setItem(_SK.stockSo,STOCK_SORT);localStorage.setItem(_SK.stockSoF,STOCK_SOURCED_FILTER);localStorage.setItem(_SK.stockGr,STOCK_GROUPED?'1':'0');localStorage.setItem(_SK.stkCol,JSON.stringify([...STOCK_COLLAPSED]));localStorage.setItem(_SK.runsSort,window._RUNS_SORT||'newest');localStorage.setItem(_SK.monthV,MONTHLY_VIEW);localStorage.setItem(_SK.lastActive,String(Date.now()));}catch(e){}}
 // True if the last recorded activity is recent enough to be the SAME session.
 // Missing/old timestamp → treat as a new session (return false).
 function _isSameSession(){try{const t=parseInt(localStorage.getItem(_SK.lastActive),10);if(!t||isNaN(t))return false;return (Date.now()-t)<_SESSION_FRESH_MS;}catch(e){return false;}}
@@ -5463,7 +5464,7 @@ function _loadUIState(){try{
   // than resuming stale page/filter state. Collapsed-group state is harmless to
   // restore either way, but we skip it too for a fully clean start.
   if(!_isSameSession())return;
-  const sf=localStorage.getItem(_SK.stockF);const ssf=localStorage.getItem(_SK.stockSF);const sso=localStorage.getItem(_SK.stockSo);const ssof=localStorage.getItem(_SK.stockSoF);const sgr=localStorage.getItem(_SK.stockGr);const sc=localStorage.getItem(_SK.stkCol);const rs=localStorage.getItem(_SK.runsSort);const sp=localStorage.getItem(_SK.sumPer);if(sf)STOCK_FILTER=sf;if(ssf){const _ssf=(ssf==='removed'?'listed':ssf);STOCK_STATE_FILTER=['all','listed','sourced','returned'].includes(_ssf)?_ssf:'listed';}if(sso)STOCK_SORT=sso;if(ssof)STOCK_SOURCED_FILTER=ssof;if(sgr)STOCK_GROUPED=sgr==='1';if(sc){try{STOCK_COLLAPSED=new Set(JSON.parse(sc));}catch(e){}}if(rs)window._RUNS_SORT=rs;if(sp)SUMMARY_PERIOD=sp;MONTHLY_VIEW='detail';}catch(e){}}
+  const sf=localStorage.getItem(_SK.stockF);const ssf=localStorage.getItem(_SK.stockSF);const sso=localStorage.getItem(_SK.stockSo);const ssof=localStorage.getItem(_SK.stockSoF);const sgr=localStorage.getItem(_SK.stockGr);const sc=localStorage.getItem(_SK.stkCol);const rs=localStorage.getItem(_SK.runsSort);if(sf)STOCK_FILTER=sf;if(ssf){const _ssf=(ssf==='removed'?'listed':ssf);STOCK_STATE_FILTER=['all','listed','sourced','returned'].includes(_ssf)?_ssf:'listed';}if(sso)STOCK_SORT=sso;if(ssof)STOCK_SOURCED_FILTER=ssof;if(sgr)STOCK_GROUPED=sgr==='1';if(sc){try{STOCK_COLLAPSED=new Set(JSON.parse(sc));}catch(e){}}if(rs)window._RUNS_SORT=rs;MONTHLY_VIEW='detail';}catch(e){}}
 // v1.4.23 — refresh-safe route + Sales subview persistence.
 // A hard refresh is continuation of the page the user is actively working on,
 // even if that page has been open longer than the four-hour fresh-session window.
@@ -21627,6 +21628,7 @@ if(_routedAuthPage())window.addEventListener('popstate',function(){
     if(typeof _refreshSideNavUser==='function') _refreshSideNavUser();
 
     if(_initialLoadDone)return true;
+    SUMMARY_PERIOD=DEFAULT_SUMMARY_PERIOD;
     _initialLoadDone=true;
     try{
       if(await initDB()===false||sess.user.id!==_currentUserId){_initialLoadDone=false;return false;}

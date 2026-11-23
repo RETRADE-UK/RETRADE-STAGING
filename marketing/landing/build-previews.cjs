@@ -4,6 +4,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
+const { transformSync } = require('esbuild');
 const { root, assets } = require('../../scripts/assets.cjs');
 const { buildFixture } = require('./capture-fixture.cjs');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8').replace(/\r\n/g, '\n');
@@ -20,6 +21,9 @@ module.exports = function buildPreviews(out) {
   const dir = path.join(out, 'landing1', 'preview');
   fs.mkdirSync(dir, { recursive: true });
   function asset(name, ext, content) {
+    // Keep global names used by the app's classic scripts and inline controls.
+    content = transformSync(content, { loader: ext, minifyWhitespace: true, charset: 'utf8',
+      legalComments: 'inline', target: ['chrome100', 'safari16'] }).code;
     const hash = createHash('sha256').update(content).digest('hex').slice(0, 16);
     const file = name + '-' + hash + '.' + ext;
     fs.writeFileSync(path.join(dir, file), content);
@@ -45,23 +49,27 @@ module.exports = function buildPreviews(out) {
     'const previewSeed = ' + state + ';', read('marketing/landing/preview-environment.js'),
     'window.RT_ASSETS = ' + JSON.stringify(manifest) + ';',
     read('src/domain/accounting-engine.js'), read('src/domain/report-engine.js'), read('src/platform/view-loader.js'), core,
-    ...Object.values(manifest.views).map(view => read(view.file)),
-    ...assets.critical.filter(file => file.startsWith('src/features/charts/')).map(read),
-    read('src/domain/relist-fees.js'), read('marketing/landing/preview-start.js')
+    read('src/domain/relist-fees.js'), 'window.__rtPreviewRuntimeReady = true;'
   ].join('\n;\n'));
-  const css = asset('workspace', 'css', [...assets.styles.map(read), read('marketing/landing/preview.css')].join('\n'));
+  const styles = assets.styles.filter(file => !['assets/styles/monitors.css', 'assets/styles/tax.css'].includes(file));
+  const css = asset('workspace', 'css', [...styles.map(read), read('marketing/landing/preview.css')].join('\n'));
   const shell = read('index.html');
   const panels = between(shell, '<div class="panel-overlay"', '<!-- ====') +
     between(shell, '<div id="toast">', '<!-- ── AUTH OVERLAY');
   const policy = "default-src 'none'; script-src 'self'; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'; worker-src 'none'";
   for (const [page, route] of Object.entries({ dashboard: 'summary', sales: 'monthly', stock: 'stock', expenses: 'expenses' })) {
+    const modules = route === 'summary' ? assets.critical.filter(file => file.startsWith('src/features/charts/'))
+      : [manifest.views[manifest.viewRoutes[route]].file];
+    const entry = asset(page, 'js', 'if (window.__rtPreviewRuntimeReady) { (() => {\n' +
+      [...modules.map(read), read('marketing/landing/preview-start.js')].join('\n;\n') + '\n})(); }');
     const target = path.join(dir, page);
     fs.mkdirSync(target, { recursive: true });
     fs.writeFileSync(path.join(target, 'index.html'), `<!doctype html><html lang="en-GB" data-theme="dark"><head>
 <meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${policy}">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
-<title>RETRADE · ${page} example</title><link rel="stylesheet" href="${css}"></head>
+<title>RETRADE · ${page} example</title><link rel="stylesheet" href="${css}">
+<script defer src="${script}"></script><script defer src="${entry}"></script></head>
 <body class="rt" data-preview="${route}"><main id="main-content"><div class="page on" id="p-${route}"><p class="preview-loading" role="status">Opening the ${page} example…</p></div></main>
-${panels}<script src="${script}"></script></body></html>`);
+${panels}</body></html>`);
   }
 };

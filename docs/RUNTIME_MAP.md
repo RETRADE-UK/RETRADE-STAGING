@@ -41,8 +41,9 @@ requests before deploying the tested main commit.
 
 # Landing 1 live examples - 23 November 2026
 
-The hero Dashboard opens immediately. Stock, Sales and Expenses start as their
-frames approach the viewport, including after back/forward restoration. The
+The hero Dashboard opens on seven days. The workspace below mounts only the
+selected Stock, Sales or Expenses tab and releases it on switching tabs.
+Stock is the initial tab and loads as the workspace approaches. The
 public homepage also waits until a visible tour chapter approaches before
 downloading its screenshot. The image links and no-JavaScript tour continue to
 use the same full-size captures.
@@ -54,8 +55,8 @@ and service worker. Each sandboxed frame has an opaque origin, one page, and a
 network policy that blocks data connections. Its clock and sample records come
 from `capture-fixture.cjs`. Workspace and preference changes live in the frame's
 memory. Reset replaces the frame, and returning from the browser's back/forward
-cache also creates fresh frames. The generated scripts and styles use content
-hashes. The signed-in workspace keeps its original entry point.
+cache also creates fresh frames. Build-time minification preserves the global names used by inline handlers.
+The shared runtime, styles and individual page scripts use content hashes. The signed-in workspace keeps its original entry point.
 
 # Stock purchase actions — 20 November 2026
 
