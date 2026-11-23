@@ -126,7 +126,7 @@ html.js .feature-layout{opacity:1;transform:none;transition:none}
 .hero h1 em{font-size:.86em}
 .journey-nav{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 10px;margin-top:28px;border-block:1px solid var(--line);padding:8px 0}
 .journey-nav a{min-height:44px;display:inline-flex;align-items:center;padding:6px 12px;color:var(--muted);font-size:13px;font-weight:650;border-radius:7px}
-.journey-nav a:hover,.journey-nav a[aria-current=step]{background:#ffd37412;color:var(--gold)}
+.journey-nav a:hover,.journey-nav a[aria-current=location]{background:#ffd37412;color:var(--gold)}
 .feature+.feature{border-top:1px solid #ffffff0c}
 #item .feature-visual{display:grid;gap:18px;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);align-items:start}
 .workspace{background:#101a28;border:1px solid #33445d;border-radius:16px;padding:clamp(14px,2.4vw,32px);box-shadow:0 18px 52px #0004;min-width:0;color:#eaf0f8}

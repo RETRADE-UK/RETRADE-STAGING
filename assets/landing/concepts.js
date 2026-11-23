@@ -5,23 +5,15 @@
   const stages=[...document.querySelectorAll('.feature')];
   const nav=[...document.querySelectorAll('.journey-nav a')];
   const reduced=matchMedia('(prefers-reduced-motion: reduce)');
-  // The page keeps native vertical scrolling. A stage becomes active as its
-  // content crosses the reading line; tabs are optional, never scroll locks.
-  function setCurrent(){
-    const readingLine=innerHeight*.48;
-    let active=stages[0];
-    for(const stage of stages) if(stage.getBoundingClientRect().top<=readingLine) active=stage;
-    for(const link of nav){
-      if(link.dataset.nav===active.id) link.setAttribute('aria-current','step');
+  // These links are an index at the top of the tour. The hash records the
+  // destination visitors chose without tracking their reading position.
+  function setCurrent() {
+    for (const link of nav) {
+      if ('#' + link.dataset.nav === location.hash) link.setAttribute('aria-current', 'location');
       else link.removeAttribute('aria-current');
     }
   }
-  let frame=0;
-  addEventListener('scroll',function(){
-    if(frame)return;
-    frame=requestAnimationFrame(function(){frame=0;setCurrent();});
-  },{passive:true});
-  addEventListener('resize',setCurrent,{passive:true});
+  addEventListener('hashchange', setCurrent);
   const observer='IntersectionObserver' in window ? new IntersectionObserver(function(entries){
     for(const entry of entries){
       if(entry.isIntersecting){entry.target.classList.add('is-visible');observer.unobserve(entry.target);}

@@ -40,7 +40,7 @@ const contentType={'.html':'text/html','.js':'text/javascript','.css':'text/css'
           await page.screenshot({path:'/tmp/landing-scroll-concept'+variant+'-'+(isWebKit?'webkit':'chromium')+'-'+width+'-hero.png'});
         }
         await page.locator('.journey-nav a[href="#sale"]').click();
-        await page.waitForFunction(() => document.querySelector('.journey-nav a[href="#sale"]').getAttribute('aria-current') === 'step');
+        await page.waitForFunction(() => document.querySelector('.journey-nav a[href="#sale"]').getAttribute('aria-current') === 'location');
         assert.equal(await page.evaluate(() => location.hash), '#sale');
         if (variant === 2) await page.locator('#sale summary').click();
         const salesImage = page.getByRole('button', { name: 'Expand Sales screenshot' });
