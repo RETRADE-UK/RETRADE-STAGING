@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+const screenshotPrefix = require("node:path").join(require("node:os").tmpdir(), "monitors-");
 const { chromium } = require("playwright");
 const { open, settled } = require("../startup-browser.cjs");
 (async () => {
@@ -153,9 +154,9 @@ const { open, settled } = require("../startup-browser.cjs");
         await page.setViewportSize({width,height:900});
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Setup fits width '+width);
       }
-      await page.screenshot({path:'/tmp/monitors-connection-'+(mobile?'mobile':'desktop')+'.png',fullPage:true,animations:'disabled'});
+      await page.screenshot({path:screenshotPrefix+'connection-'+(mobile?'mobile':'desktop')+'.png',fullPage:true,animations:'disabled'});
       await page.evaluate(()=>{_applyResolvedTheme('dark');window.scrollTo(0,0);});
-      await page.screenshot({path:'/tmp/monitors-connection-dark-'+(mobile?'mobile':'desktop')+'.png',fullPage:true,animations:'disabled'});
+      await page.screenshot({path:screenshotPrefix+'connection-dark-'+(mobile?'mobile':'desktop')+'.png',fullPage:true,animations:'disabled'});
       await page.evaluate(()=>{_applyResolvedTheme('light');});
       const clock=Date.now();
       connectionState={state:'disconnected',stored:false,retryAt:new Date(clock+90000).toISOString(),checkRetryAt:new Date(clock+60000).toISOString()};
@@ -176,7 +177,7 @@ const { open, settled } = require("../startup-browser.cjs");
       assert.equal(await page.getByRole('button',{name:'Start 12-hour trial',exact:true}).isEnabled(),false,'A refused catalogue cannot start a trial');
       await page.getByText('Catalogue access needs attention',{exact:true}).waitFor();
       assert.equal(disconnects,0);
-      await page.screenshot({path:'/tmp/monitors-blocked-'+(mobile?'mobile':'desktop')+'.png',fullPage:true,animations:'disabled'});
+      await page.screenshot({path:screenshotPrefix+'blocked-'+(mobile?'mobile':'desktop')+'.png',fullPage:true,animations:'disabled'});
       await page.getByRole('button',{name:'Check catalogue access',exact:true}).click();
       await page.getByText('Connection ready.',{exact:true}).waitFor();
       await page.getByRole('button',{name:'Start 12-hour trial',exact:true}).click();
@@ -321,7 +322,7 @@ const { open, settled } = require("../startup-browser.cjs");
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth > innerWidth),false,'Width '+width);
       }
       await page.screenshot({
-        path: "/tmp/monitors-" + (mobile ? "mobile" : "desktop") + ".png",
+        path: screenshotPrefix + (mobile ? "mobile" : "desktop") + ".png",
         fullPage: true,
       });
       await page.evaluate(() => goToTab("summary"));

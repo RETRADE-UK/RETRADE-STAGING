@@ -23,7 +23,7 @@
 .rt-cash-movement-row.net,.rt-cash-stock-row.primary{padding:6px 0 8px;margin-bottom:4px;border-bottom:1px solid color-mix(in srgb,var(--border) 82%,transparent)}\
 .rt-cash-movement-row.net span,.rt-cash-stock-row.primary span{font-weight:750;color:var(--text)}\
 .rt-cash-movement-row.net strong,.rt-cash-stock-row.primary strong{font-size:18px;font-weight:850;letter-spacing:-.018em}\
-.rt-cash-movement-row.net strong.positive,.rt-cash-movement-row.in strong{color:#3b82f6}\
+.rt-cash-movement-row.net strong.positive,.rt-cash-movement-row.in strong{color:var(--state-listed)}\
 .rt-cash-movement-row.net strong.negative,.rt-cash-movement-row.out strong{color:var(--warn)}\
 .rt-cash-stock-row.secondary strong{font-size:10.5px;font-weight:700;color:var(--text-secondary)}\
 #p-cash .rt-cash-more{background:color-mix(in srgb,var(--surface) 96%,var(--surface2));box-shadow:none}\

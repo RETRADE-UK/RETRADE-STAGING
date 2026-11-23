@@ -304,6 +304,9 @@
       // The HTML readout owns hover values; avoid a second native tooltip.
       var title=g.querySelector('title');
       if(title){g.setAttribute('aria-label',title.textContent);title.remove();}
+      g.setAttribute('role',handlers[i]?'button':'img');
+      g.setAttribute('tabindex',i===0?'0':'-1');
+      g.classList.toggle('clickable',!!handlers[i]);
       var hit=g.querySelector('rect');
       if(hit){hit.setAttribute('x',(pad.l+i*bandW).toFixed(1));hit.setAttribute('width',bandW.toFixed(1));}
     });
@@ -342,8 +345,29 @@
     addRefundDots(svgEl,refunds,sx,sy,n,firstHit);
 
     svgEl.setAttribute('preserveAspectRatio','xMidYMid meet');
-    svgEl.setAttribute('role','img');
+    svgEl.setAttribute('role','group');
     svgEl.setAttribute('aria-label',fortnight?'Last 14 days including today: daily gross revenue and gross profit bars with refunds':'Gross revenue and gross profit bars with refund trend and current-period forecast');
+    svgEl.setAttribute('aria-description','Use the left and right arrow keys to explore dates. Press Enter on a date with transactions to see the breakdown.');
+    svgEl.onkeydown=function(event){
+      var column=event.target.closest('.rt-chart-col');
+      if(!column)return;
+      var index=Number(column.dataset.idx),next=index;
+      switch(event.key){
+        case 'ArrowLeft': next=Math.max(0,index-1);break;
+        case 'ArrowRight': next=Math.min(n-1,index+1);break;
+        case 'Home': next=0;break;
+        case 'End': next=n-1;break;
+        case 'Enter':
+        case ' ':
+          if(!handlers[index])return;
+          event.preventDefault();
+          column.dispatchEvent(new MouseEvent('click',{bubbles:true}));
+          return;
+        default: return;
+      }
+      event.preventDefault();
+      hitGroups[next].focus();
+    };
 
     var scrubPad={t:pad.t,r:pad.r+bandW/2,b:pad.b,l:pad.l+bandW/2};
     _setupChartScrub(svgEl,{

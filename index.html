@@ -42,7 +42,8 @@
   // identity or business data is stored here.
   var idleMs=30*60*1000,last=0,at=Date.now();
   try{last=Number(sessionStorage.getItem('rt-last-active-at'))||0;}catch(_){}
-  window.__rtReplayIntro=!(last>0&&at>=last&&at-last<idleMs);
+  var authRoute=/^\/(login|signup)(?:\/|\/index\.html)?$/.test(window.location.pathname);
+  window.__rtReplayIntro=!authRoute&&!(last>0&&at>=last&&at-last<idleMs);
   if(!window.__rtReplayIntro)root.classList.add('rt-quick-start');
   function rememberActive(){try{sessionStorage.setItem('rt-last-active-at',String(Date.now()));}catch(_){} }
   rememberActive();
@@ -165,15 +166,15 @@ html.rt-auth-bridge #auth-screen-login .rt-auth-brand{visibility:hidden}
 <!-- V2 Session 1 — JetBrains Mono (Inter is already loaded above with the full weight range V2 needs) -->
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <!-- V2 Session 4a: Chart.js removed — dashboard chart is hand-rolled SVG -->
-<link rel="stylesheet" href="./assets/styles/application.css?v=20261120-stock-purchases-staging">
-<link rel="stylesheet" href="./assets/styles/tax.css?v=20261120-stock-purchases-staging">
-<link rel="stylesheet" href="./assets/styles/item.css?v=20261120-stock-purchases-staging">
-<link rel="stylesheet" href="./assets/styles/sales.css?v=20261120-stock-purchases-staging">
-<link rel="stylesheet" href="./assets/styles/status.css?v=20261120-stock-purchases-staging">
-<link rel="stylesheet" href="./assets/styles/responsive.css?v=20261120-stock-purchases-staging">
-<link rel="stylesheet" href="./assets/styles/workspaces.css?v=20261120-stock-purchases-staging">
-<link rel="stylesheet" href="./assets/styles/monitors.css?v=20261120-stock-purchases-staging">
-<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./assets/styles/loading.css?v=20261120-stock-purchases-staging">
+<link rel="stylesheet" href="./assets/styles/application.css?v=20261123-launch-readiness-staging">
+<link rel="stylesheet" href="./assets/styles/tax.css?v=20261123-launch-readiness-staging">
+<link rel="stylesheet" href="./assets/styles/item.css?v=20261123-launch-readiness-staging">
+<link rel="stylesheet" href="./assets/styles/sales.css?v=20261123-launch-readiness-staging">
+<link rel="stylesheet" href="./assets/styles/status.css?v=20261123-launch-readiness-staging">
+<link rel="stylesheet" href="./assets/styles/responsive.css?v=20261123-launch-readiness-staging">
+<link rel="stylesheet" href="./assets/styles/workspaces.css?v=20261123-launch-readiness-staging">
+<link rel="stylesheet" href="./assets/styles/monitors.css?v=20261123-launch-readiness-staging">
+<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./assets/styles/loading.css?v=20261123-launch-readiness-staging">
 
 
 
@@ -289,6 +290,8 @@ html.rt-auth-bridge #auth-screen-login .rt-auth-brand{visibility:hidden}
      so the fix restores the artwork without re-opening the agreed size.
      If the wordmark size ever changes, re-derive: mark_h = (cap * 1.13) / 0.508. -->
 <svg id="rt-brand-symbols" width="0" height="0" style="position:absolute;pointer-events:none;" aria-hidden="true" focusable="false">
+  <symbol id="auth-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="auth-eye-off" viewBox="0 0 24 24"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-10-8-10-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 10 8 10 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
   <symbol id="rt-mark" viewBox="0 0 811 946">
     <g transform="translate(0,946) scale(0.1,-0.1)">
       <path fill="var(--brand)" d="M3825 9371 c-305 -110 -738 -264 -1765 -628 -537 -190 -1013 -359
@@ -339,14 +342,14 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
   <div class="nav-inner">
 
     <!-- Brand — V2 R-shield + RETRADE wordmark (Drop 3, matches Drop 2 mobile) -->
-    <div class="brand" onclick="goToTab('summary')" role="button" aria-label="Go to dashboard">
+    <button type="button" class="brand" onclick="goToTab('summary')" aria-label="RETRADE dashboard">
       <span class="brand-mark-v2" aria-hidden="true">
         <svg width="24" height="27" viewBox="0 0 811 946" aria-hidden="true" focusable="false">
           <use href="#rt-mark"/>
         </svg>
       </span>
       <span class="brand-word-v2">RE<span class="rt-word-accent">TRADE</span></span>
-    </div>
+    </button>
 
     <!-- Search — left, next to brand (LinkedIn-style) -->
     <div class="search-wrap" style="width:260px;flex-shrink:0;">
@@ -524,7 +527,7 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
      state-machine continues to work unchanged. Hidden ≥601px where the
      desktop top bar (Drop 3) takes over. -->
 <header id="mobile-top-bar" aria-label="App header">
-  <button class="mtb-brand" onclick="goToTab('summary')" aria-label="Go to dashboard">
+  <button type="button" class="mtb-brand" onclick="goToTab('summary')" aria-label="RETRADE dashboard">
     <span class="mtb-brand-mark" aria-hidden="true">
       <svg width="24" height="27" viewBox="0 0 811 946" aria-hidden="true" focusable="false">
         <use href="#rt-mark"/>
@@ -756,14 +759,14 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
 <!-- ================================================================ -->
 <aside id="side-nav" aria-label="Main navigation" style="display:none;">
   <!-- Brand -->
-  <div class="side-nav-brand" onclick="goToTab('summary')" role="button" tabindex="0" aria-label="Go to dashboard">
+  <button type="button" class="side-nav-brand" onclick="goToTab('summary')" aria-label="RETRADE dashboard">
     <span class="side-nav-brand-mark" aria-hidden="true">
       <svg width="24" height="27" viewBox="0 0 811 946" aria-hidden="true" focusable="false">
         <use href="#rt-mark"/>
       </svg>
     </span>
     <span class="side-nav-brand-word">RE<span class="rt-word-accent">TRADE</span></span>
-  </div>
+  </button>
 
   <!-- Search -->
   <div class="side-nav-search">
@@ -835,9 +838,10 @@ c-230 453 -565 1105 -674 1315 -63 120 -114 221 -114 225 0 4 47 19 104 34
     <div class="side-user-menu" id="side-user-menu">
       <button class="side-nav-user" id="side-nav-user-btn"
               onclick="event.stopPropagation();toggleSideNavSettings()"
-              aria-label="Settings" aria-haspopup="menu" aria-expanded="false">
+              aria-haspopup="menu" aria-expanded="false">
         <span class="side-nav-user-avatar" id="side-nav-user-avatar">R</span>
         <span class="side-nav-user-name" id="side-nav-user-name">Account</span>
+        <span class="rt-sr-only">Settings</span>
         <span class="side-nav-user-gear" aria-hidden="true">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </span>
@@ -1004,34 +1008,28 @@ html[data-workspace-routes] #auth-screen-signup .auth-home{display:block;text-al
 <div id="auth-overlay" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;padding:24px;" data-theme="dark">
 
   <!-- SIGN IN SCREEN -->
-  <form id="auth-screen-login" name="retrade-login" method="post" autocomplete="on" onsubmit="event.preventDefault();doSignIn();" style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 8px 40px var(--shadow-md);position:relative;overflow:hidden;">
+  <form id="auth-screen-login" aria-labelledby="auth-title-login" name="retrade-login" method="post" autocomplete="on" onsubmit="event.preventDefault();doSignIn();" style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 8px 40px var(--shadow-md);position:relative;">
     <!-- v2.19.20 — the two absolutely-positioned accent hairlines that used to
          sit here (a 1px vertical + a 40px horizontal crossing at the card's top
          edge) are gone, along with the gradient rule under the wordmark. They
          were V1 flourish: three decorative gradients doing the job the mark now
          does properly. V2 is flat, and the logo does not need underlining. -->
     <div style="text-align:center;margin-bottom:30px;padding-top:4px;">
-      <div class="rt-auth-brand">
+      <h1 class="rt-auth-brand" id="auth-title-login" aria-label="Sign in to RETRADE">
         <svg width="66" height="77" viewBox="0 0 811 946" aria-hidden="true" focusable="false" style="display:block;">
           <use href="#rt-mark"/>
         </svg>
         <span class="rt-auth-word">RE<span>TRADE</span></span>
-      </div>
+      </h1>
     </div>
-    <div id="auth-error" style="display:none;background:var(--red-dim);border:1px solid var(--red);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--red);margin-bottom:16px;"></div>
+    <div id="auth-error" role="alert" style="display:none;background:var(--red-dim);border:1px solid var(--red);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--red);margin-bottom:16px;"></div>
     <div style="margin-bottom:14px;">
-      <label for="auth-email" style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Email</label>
-      <input id="auth-email" name="username" required type="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email" placeholder="you@example.com"
-        style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;"
-        onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+      <label for="auth-email">Email</label>
+      <input id="auth-email" name="username" required type="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email" placeholder="you@example.com">
     </div>
     <div style="margin-bottom:22px;">
-      <label for="auth-pass" style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Password</label>
-      <div style="position:relative;">
-        <div style="position:relative"><input id="auth-pass" name="password" required enterkeyhint="go" type="password" autocomplete="current-password" placeholder="••••••••"
-          style="width:100%;padding:10px 44px 10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;box-sizing:border-box;"
-          onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"><button type="button" tabindex="-1" onclick="_pwToggle('auth-pass',this)" aria-label="Show password" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-secondary);cursor:pointer;padding:2px;line-height:0;display:flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
-      </div>
+      <label for="auth-pass">Password</label>
+      <div style="position:relative"><input id="auth-pass" name="password" required enterkeyhint="go" type="password" autocomplete="current-password" placeholder="••••••••"><button type="button" class="auth-reveal" aria-controls="auth-pass" onclick="_pwToggle('auth-pass',this)" aria-label="Show password"><svg aria-hidden="true" width="18" height="18"><use href="#auth-eye"/></svg></button></div>
     </div>
     <button type="submit" id="auth-btn"
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
@@ -1050,10 +1048,10 @@ html[data-workspace-routes] #auth-screen-signup .auth-home{display:block;text-al
       Don't have an account?
       <button type="button" onclick="showSignupScreen()" style="background:none;border:none;color:var(--accent);font-size:13px;font-weight:700;cursor:pointer;padding:0 2px;">Create one</button>
     </div>
-    <div id="auth-loading" style="display:none;text-align:center;margin-top:12px;font-size:13px;color:var(--text-secondary);">Signing in…</div>
+    <div id="auth-loading" role="status" style="display:none;text-align:center;margin-top:12px;font-size:13px;color:var(--text-secondary);">Signing in…</div>
   </form>
 
-  <form id="auth-screen-signup" name="retrade-signup" method="post" autocomplete="on" onsubmit="event.preventDefault();doSignUp();" inert style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;width:100%;max-width:380px;box-shadow:0 8px 40px var(--shadow-md);">
+  <form id="auth-screen-signup" aria-labelledby="auth-title-signup" name="retrade-signup" method="post" autocomplete="on" onsubmit="event.preventDefault();doSignUp();" inert style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;width:100%;max-width:380px;box-shadow:0 8px 40px var(--shadow-md);">
     <button type="button" onclick="showLoginScreen()" style="background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;padding:0;margin-bottom:18px;display:flex;align-items:center;gap:6px;">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Back to sign in
@@ -1064,28 +1062,28 @@ html[data-workspace-routes] #auth-screen-signup .auth-home{display:block;text-al
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
         </div>
       </div>
-      <div style="font-size:20px;font-weight:700;letter-spacing:-0.02em;">Create your account</div>
+      <h1 class="auth-title" id="auth-title-signup">Create your account</h1>
       <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">Record your first item and see what it earns after costs.</div>
     </div>
-    <div id="signup-error" style="display:none;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;"></div>
-    <div style="margin-bottom:12px;"><label for="signup-name" style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Full name</label>
-      <input id="signup-name" name="signup-name" type="text" autocomplete="name" placeholder="Jane Smith" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></div>
-    <div style="margin-bottom:12px;"><label for="signup-business" style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Business name <span style="text-transform:none;font-weight:500;opacity:.7;">(optional)</span></label>
-      <input id="signup-business" name="signup-business" type="text" autocomplete="organization" placeholder="Your shop name" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></div>
-    <div style="margin-bottom:12px;"><label for="signup-email" style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Email</label>
-      <input id="signup-email" name="username" type="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email" placeholder="you@example.com" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></div>
-    <div style="margin-bottom:12px;"><label for="signup-pass" style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Password</label>
-      <div style="position:relative"><input id="signup-pass" name="signup-pass" type="password" autocomplete="new-password" placeholder="••••••••" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" oninput="_pwMeter('signup-pass','signup-str')"><button type="button" tabindex="-1" onclick="_pwToggle('signup-pass',this)" aria-label="Show password" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-secondary);cursor:pointer;padding:2px;line-height:0;display:flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div><div id="signup-str" style="display:none;margin-top:8px;"><div style="height:5px;border-radius:3px;background:var(--surface2);overflow:hidden;"><div id="signup-str-bar" style="height:100%;width:0%;transition:width .2s ease,background .2s;"></div></div><div id="signup-str-lbl" style="font-size:11px;margin-top:5px;font-weight:600;"></div></div></div>
-    <div style="margin-bottom:20px;"><label for="signup-pass2" style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Confirm password</label>
-      <div style="position:relative"><input id="signup-pass2" name="signup-pass2" type="password" autocomplete="new-password" placeholder="••••••••" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"><button type="button" tabindex="-1" onclick="_pwToggle('signup-pass2',this)" aria-label="Show password" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-secondary);cursor:pointer;padding:2px;line-height:0;display:flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
+    <div id="signup-error" role="alert" style="display:none;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;"></div>
+    <div style="margin-bottom:12px;"><label for="signup-name">Full name</label>
+      <input id="signup-name" required name="signup-name" type="text" autocomplete="name" placeholder="Jane Smith"></div>
+    <div style="margin-bottom:12px;"><label for="signup-business">Business name <span style="text-transform:none;font-weight:500;opacity:.7;">(optional)</span></label>
+      <input id="signup-business" name="signup-business" type="text" autocomplete="organization" placeholder="Your shop name"></div>
+    <div style="margin-bottom:12px;"><label for="signup-email">Email</label>
+      <input id="signup-email" required name="username" type="email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email" placeholder="you@example.com"></div>
+    <div style="margin-bottom:12px;"><label for="signup-pass">Password</label>
+      <div style="position:relative"><input id="signup-pass" required name="signup-pass" type="password" autocomplete="new-password" placeholder="••••••••" oninput="_pwMeter('signup-pass','signup-str')"><button type="button" class="auth-reveal" aria-controls="signup-pass" onclick="_pwToggle('signup-pass',this)" aria-label="Show password"><svg aria-hidden="true" width="18" height="18"><use href="#auth-eye"/></svg></button></div><div id="signup-str" style="display:none;margin-top:8px;"><div style="height:5px;border-radius:3px;background:var(--surface2);overflow:hidden;"><div id="signup-str-bar" style="height:100%;width:0%;transition:width .2s ease,background .2s;"></div></div><div id="signup-str-lbl" style="font-size:11px;margin-top:5px;font-weight:600;"></div></div></div>
+    <div style="margin-bottom:20px;"><label for="signup-pass2">Confirm password</label>
+      <div style="position:relative"><input id="signup-pass2" required name="signup-pass2" type="password" autocomplete="new-password" placeholder="••••••••"><button type="button" class="auth-reveal" aria-controls="signup-pass2" onclick="_pwToggle('signup-pass2',this)" aria-label="Show password"><svg aria-hidden="true" width="18" height="18"><use href="#auth-eye"/></svg></button></div></div>
     <button type="submit" id="signup-btn" style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">Create free account</button>
     <a class="auth-home" href="/" style="display:block;text-align:center;margin-top:14px;color:var(--text-secondary);font-size:13px">Back to RETRADE</a>
-    <div id="signup-loading" style="display:none;text-align:center;margin-top:12px;font-size:13px;color:var(--text-secondary);">Creating account…</div>
+    <div id="signup-loading" role="status" style="display:none;text-align:center;margin-top:12px;font-size:13px;color:var(--text-secondary);">Creating account…</div>
   </form>
 
 
   <!-- FORGOT PASSWORD SCREEN -->
-  <form id="auth-screen-reset" name="retrade-reset" method="post" autocomplete="on" onsubmit="event.preventDefault();doResetPassword();" inert style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 8px 40px var(--shadow-md);">
+  <form id="auth-screen-reset" aria-labelledby="auth-title-reset" name="retrade-reset" method="post" autocomplete="on" onsubmit="event.preventDefault();doResetPassword();" inert style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 8px 40px var(--shadow-md);">
     <button type="button" onclick="showLoginScreen()" style="background:none;border:none;color:var(--text-secondary);font-size:13px;cursor:pointer;padding:0;margin-bottom:20px;display:flex;align-items:center;gap:6px;">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       Back to sign in
@@ -1096,55 +1094,53 @@ html[data-workspace-routes] #auth-screen-signup .auth-home{display:block;text-al
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>
         </div>
       </div>
-      <div style="font-size:20px;font-weight:700;letter-spacing:-0.02em;">Reset Password</div>
+      <h1 class="auth-title" id="auth-title-reset">Reset Password</h1>
       <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">Enter your email and we'll send a reset link</div>
     </div>
-    <div id="reset-error" style="display:none;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;"></div>
+    <div id="reset-error" role="alert" style="display:none;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;"></div>
     <div style="margin-bottom:22px;">
-      <label for="reset-email" style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Email</label>
-      <input id="reset-email" name="reset-email" type="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email" placeholder="you@example.com"
-        style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;"
-        onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+      <label for="reset-email">Email</label>
+      <input id="reset-email" required name="reset-email" type="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" inputmode="email" placeholder="you@example.com">
     </div>
     <button type="submit" id="reset-btn"
       style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">
       Send Reset Link
     </button>
-    <div id="reset-loading" style="display:none;text-align:center;margin-top:12px;font-size:13px;color:var(--text-secondary);">Sending…</div>
+    <div id="reset-loading" role="status" style="display:none;text-align:center;margin-top:12px;font-size:13px;color:var(--text-secondary);">Sending…</div>
   </form>
 
-  <form id="auth-screen-newpass" name="retrade-newpass" method="post" autocomplete="on" onsubmit="event.preventDefault();doSetNewPassword();" inert style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 8px 40px var(--shadow-md);">
+  <form id="auth-screen-newpass" aria-labelledby="auth-title-newpass" name="retrade-newpass" method="post" autocomplete="on" onsubmit="event.preventDefault();doSetNewPassword();" inert style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px 32px;width:100%;max-width:380px;box-shadow:0 8px 40px var(--shadow-md);">
     <div style="text-align:center;margin-bottom:28px;">
       <div style="display:flex;justify-content:center;margin-bottom:12px;">
         <div style="width:52px;height:52px;border-radius:14px;background:var(--surface2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
         </div>
       </div>
-      <div style="font-size:20px;font-weight:700;letter-spacing:-0.02em;">Set a New Password</div>
+      <h1 class="auth-title" id="auth-title-newpass">Set a New Password</h1>
       <div style="font-size:13px;color:var(--text-secondary);margin-top:4px;">Choose a new password for your account</div>
     </div>
-    <div id="newpass-error" style="display:none;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;"></div>
+    <div id="newpass-error" role="alert" style="display:none;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:16px;"></div>
     <div style="margin-bottom:16px;">
-      <label for="newpass-1" style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">New password</label>
-      <div style="position:relative"><input id="newpass-1" name="newpass-1" type="password" autocomplete="new-password" placeholder="••••••••" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'" oninput="_pwMeter('newpass-1','newpass-str')"><button type="button" tabindex="-1" onclick="_pwToggle('newpass-1',this)" aria-label="Show password" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-secondary);cursor:pointer;padding:2px;line-height:0;display:flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div><div id="newpass-str" style="display:none;margin-top:8px;"><div style="height:5px;border-radius:3px;background:var(--surface2);overflow:hidden;"><div id="newpass-str-bar" style="height:100%;width:0%;transition:width .2s ease,background .2s;"></div></div><div id="newpass-str-lbl" style="font-size:11px;margin-top:5px;font-weight:600;"></div></div>
+      <label for="newpass-1">New password</label>
+      <div style="position:relative"><input id="newpass-1" required name="newpass-1" type="password" autocomplete="new-password" placeholder="••••••••" oninput="_pwMeter('newpass-1','newpass-str')"><button type="button" class="auth-reveal" aria-controls="newpass-1" onclick="_pwToggle('newpass-1',this)" aria-label="Show password"><svg aria-hidden="true" width="18" height="18"><use href="#auth-eye"/></svg></button></div><div id="newpass-str" style="display:none;margin-top:8px;"><div style="height:5px;border-radius:3px;background:var(--surface2);overflow:hidden;"><div id="newpass-str-bar" style="height:100%;width:0%;transition:width .2s ease,background .2s;"></div></div><div id="newpass-str-lbl" style="font-size:11px;margin-top:5px;font-weight:600;"></div></div>
     </div>
     <div style="margin-bottom:22px;">
-      <label for="newpass-2" style="display:block;font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.04em;text-transform:uppercase;">Confirm new password</label>
-      <div style="position:relative"><input id="newpass-2" name="newpass-2" type="password" autocomplete="new-password" placeholder="••••••••" style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;outline:none;transition:border-color 0.15s;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"><button type="button" tabindex="-1" onclick="_pwToggle('newpass-2',this)" aria-label="Show password" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-secondary);cursor:pointer;padding:2px;line-height:0;display:flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+      <label for="newpass-2">Confirm new password</label>
+      <div style="position:relative"><input id="newpass-2" required name="newpass-2" type="password" autocomplete="new-password" placeholder="••••••••"><button type="button" class="auth-reveal" aria-controls="newpass-2" onclick="_pwToggle('newpass-2',this)" aria-label="Show password"><svg aria-hidden="true" width="18" height="18"><use href="#auth-eye"/></svg></button></div>
     </div>
     <button type="submit" id="newpass-btn" style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">Update Password</button>
-    <div id="newpass-loading" style="display:none;text-align:center;margin-top:12px;font-size:13px;color:var(--text-secondary);">Updating…</div>
+    <div id="newpass-loading" role="status" style="display:none;text-align:center;margin-top:12px;font-size:13px;color:var(--text-secondary);">Updating…</div>
   </form>
 
 </div>
 
-<script src="./config/assets.js?v=20261120-stock-purchases-staging"></script>
-<script src="./src/platform/local-recovery.js?v=20261120-stock-purchases-staging"></script>
-<script src="./src/domain/accounting-engine.js?v=20261120-stock-purchases-staging"></script>
-<script src="./src/domain/report-engine.js?v=20261120-stock-purchases-staging"></script>
-<script src="./src/platform/view-loader.js?v=20261120-stock-purchases-staging"></script>
+<script src="./config/assets.js?v=20261123-launch-readiness-staging"></script>
+<script src="./src/platform/local-recovery.js?v=20261123-launch-readiness-staging"></script>
+<script src="./src/domain/accounting-engine.js?v=20261123-launch-readiness-staging"></script>
+<script src="./src/domain/report-engine.js?v=20261123-launch-readiness-staging"></script>
+<script src="./src/platform/view-loader.js?v=20261123-launch-readiness-staging"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.js" integrity="sha384-OUpie84zd1LdwNlK9uJJQRwab0BLqo3eKYKFh7hSVL58FSk7wPp2l0kfUMIIoaQd" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="./app.js?v=20261120-stock-purchases-staging"></script>
+<script src="./app.js?v=20261123-launch-readiness-staging"></script>
 
 <!-- RETRADE dashboard spacing cleanup: mobile/tablet/narrow-desktop rhythm v3 - 2026-06-29 -->
 <section id="rt-sync-details" aria-label="Cloud sync details" tabindex="-1" hidden>

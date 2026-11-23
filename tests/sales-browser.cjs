@@ -38,6 +38,38 @@ const {open,settled}=require('./startup-browser.cjs');
   await page.evaluate(()=>{goToTab('monthly');SELECTED_MONTH='SEP-26';renderMonth();});
   await page.locator('#month-list .item-row').first().click();
   assert(await page.locator('#p-item').evaluate(el=>el.classList.contains('on')),'Sales still opens item');
+  await page.evaluate(()=>{
+   exitItemPage();
+   const base=DB['SEP-26'][0];
+   DB={...DB,'SEP-26':Array.from({length:90},(_,i)=>({...base,id:'paged-'+i,item:'Paged sale '+i,
+     dateSold:'2026-09-22',salePrice:100+i,bundleId:[39,47].includes(i)?'one-order':null}))};
+   MONTH_SORT='date-sold';MONTH_FILTER='returned';MONTH_SEARCH='';renderMonth();
+  });
+  const list=page.locator('#month-list'),pager=list.locator('.month-list-pager').first();
+  const salesKpis=await page.locator('#p-monthly .kpi-value').allTextContents();
+  assert.equal(await list.locator(':scope > .item-row').count(),40);
+  assert.match(await list.locator('.rt-sales-day-count').innerText(),/89 orders/,'Day total includes every page');
+  assert.equal(await list.locator('[data-sale-bundle="one-order"]').count(),1,'Non-adjacent members share one order');
+  await pager.getByRole('button',{name:'Next'}).click();
+  assert.match(await page.locator(':focus').innerText(),/Page 2 of 3/);
+  assert.equal(await list.locator('[data-sale-bundle="one-order"]').count(),0,'Bundle does not repeat');
+  assert.deepEqual(await page.locator('#p-monthly .kpi-value').allTextContents(),salesKpis);
+  await page.locator('#p-monthly .select-toggle').click();
+  await page.locator('#p-monthly .sel-check').click();
+  assert.equal(await page.evaluate(()=>_selectedBulkRecords('month').length),90,'Bulk actions retain the full filtered month');
+  await page.locator('#p-monthly .sel-exit').click();
+  const row=list.locator('[data-sale-key]').nth(18),rowKey=await row.getAttribute('data-sale-key');
+  await row.scrollIntoViewIfNeeded();
+  const previousScroll=await page.evaluate(()=>scrollY);
+  await row.click();await page.evaluate(()=>exitItemPage());
+  await page.waitForFunction(y=>Math.abs(scrollY-y)<3,previousScroll);
+  assert.equal(await list.locator('[data-sale-key]').nth(18).getAttribute('data-sale-key'),rowKey);
+  await page.locator('#p-monthly input.inlist-search-input').fill('Paged sale 89');
+  assert.equal(await list.locator('[data-sale-key]').count(),1,'Search reaches the last page');
+  await page.locator('#p-monthly input.inlist-search-input').fill('');
+  assert.match(await pager.innerText(),/Page 1 of 3/);
+  await page.locator('#p-monthly .sort-select').selectOption('price');
+  await page.waitForFunction(()=>document.querySelector('#month-list [data-sale-key]')?.dataset.saleKey.startsWith('paged-89|'));
   assert.deepEqual(errors,[]);await context.close();console.log('PASS Sales date groups, persistent tags, responsive layouts and item navigation');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

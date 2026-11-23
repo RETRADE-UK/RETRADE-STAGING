@@ -457,8 +457,19 @@
   .rt .bulk-selection-toolbar .sel-exit{margin-left:0;padding:0 6px;font-size:12px;}
   .rt .bulk-actions-menu>summary{padding:0 10px;}
 }
+/* Auth replaces the workspace, including its keyboard and screen-reader navigation. */
+body:has(> #auth-overlay > form:not([inert])) > :is(.skip-nav, #mobile-top-bar, #nav, #side-nav, #bottom-nav, #nav-search-expand, #fab-dial, #search-fab, #main-content){display:none!important;}
+#auth-overlay{color:var(--text-primary);color-scheme:dark;}
+#auth-overlay h1{margin:0;}
+#auth-overlay .auth-title{font-size:20px;font-weight:700;letter-spacing:-.02em;}
+#auth-overlay .auth-reveal{position:absolute;right:0;inset-block:0;width:44px;display:grid;place-items:center;background:transparent;border:0;border-radius:8px;color:var(--text-secondary);cursor:pointer;}
+#auth-overlay .auth-reveal svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+#auth-overlay input:has(+ .auth-reveal){padding-right:44px;}
+#auth-overlay :is(button,a,input):focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 /* Legible credential fields avoid iOS focus zoom without affecting workspace inputs. */
-#auth-overlay form input{font-size:16px!important;}
+#auth-overlay form input{box-sizing:border-box;width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:16px;}
+#auth-overlay form input:focus{border-color:var(--accent);}
+#auth-overlay label{display:block;margin-bottom:6px;color:var(--text-secondary);font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;}
 #auth-overlay form{margin:0;}
 
 /* Bulk listing review: one vertical card per item, usable on narrow phones. */

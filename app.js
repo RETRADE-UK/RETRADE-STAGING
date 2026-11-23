@@ -81,8 +81,9 @@
     var critical=assets.critical.map(function(path){return "./"+path;});
     var files=assets.deferred.map(function(path){return "./"+path;});
     function loadDeferred(){
-      if(loadDeferred.started)return;
+      if(loadDeferred.started||!window.__rtLaunchSettled||window.__rtLaunchDestination!=='dashboard')return;
       loadDeferred.started=true;
+      window.removeEventListener('retrade:launch-settled',loadDeferred);
       var index=0;
       function next(){
         if(index>=files.length){window.__rtFeaturesReady=true;featuresDone();window.dispatchEvent(new Event('retrade:features-ready'));return;}
@@ -104,7 +105,7 @@
       schedule();
     }
     window.__rtLoadFeaturesNow=function(){window.__rtFeatureLoadUrgent=true;if(window.__rtFinishLaunchSoon)window.__rtFinishLaunchSoon();if(window.__rtLaunchSettled)loadDeferred();};
-    window.addEventListener('retrade:launch-settled',loadDeferred,{once:true});
+    window.addEventListener('retrade:launch-settled',loadDeferred);
     critical.forEach(function(src,index){
       append(src,index<3?'auto':'low',index===critical.length-1?function(){
         markMotionReady('critical-stack-loaded');

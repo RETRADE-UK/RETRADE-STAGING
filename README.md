@@ -17,15 +17,16 @@ Static browser application with a Supabase backend. No production build framewor
 | `supabase/migrations/` | Append-only database history |
 | `docs/` | Workflow, ownership, audits and handovers |
 
-See [runtime ownership](docs/RUNTIME_MAP.md), [cleanup report](docs/OPTIMISATION_HANDOVER.md) and [next feature handover](docs/NEXT_FEATURE_HANDOVER.md).
+See the [launch review](docs/audits/LAUNCH_2026-11-23.md), [runtime ownership](docs/RUNTIME_MAP.md), [cleanup report](docs/OPTIMISATION_HANDOVER.md) and [next feature handover](docs/NEXT_FEATURE_HANDOVER.md).
 
 ## Checks and development
 
 ```sh
 npm ci
-npx playwright install chromium
+npx playwright install chromium webkit
 npm run check
 npm test
+npm run test:landing
 npm run build
 npm run audit:size
 ```

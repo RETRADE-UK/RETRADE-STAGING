@@ -63,6 +63,18 @@ const engine=process.argv.includes('--webkit')?webkit:chromium;
    await svg.locator('.rt-chart-col').last().hover();
    assert.equal(await svg.locator('..').locator('.rt-chart-scrub-tip .tip-period').textContent(),state.labels[13]);
    await page.evaluate(()=>{showRangeSnapshot=(...args)=>{window.__selectedDailyRange=args;};});
+   const columns=svg.locator('.rt-chart-col');
+   assert.equal(await svg.getAttribute('role'),'group');
+   assert.equal(await svg.locator('.rt-chart-col[tabindex="0"]').count(),1);
+   await columns.nth(0).focus();
+   await page.keyboard.press('ArrowRight');
+   assert.equal(await page.locator(':focus').getAttribute('data-idx'),'1');
+   assert.equal(await columns.nth(4).getAttribute('role'),'img','Empty dates have no drill-down');
+   await page.keyboard.press('End');
+   assert.equal(await svg.locator('..').locator('.rt-chart-scrub-tip .tip-period').textContent(),state.labels[13]);
+   await page.keyboard.press('Enter');
+   assert.deepEqual((await page.evaluate(()=>window.__selectedDailyRange)).slice(1),['2026-10-16','2026-10-16']);
+   await page.evaluate(()=>{window.__selectedDailyRange=null;});
    await svg.locator('.rt-chart-col').last().click();
    assert.deepEqual((await page.evaluate(()=>window.__selectedDailyRange)).slice(1),['2026-10-16','2026-10-16']);
    for(const [period,count] of [['7d',7],['30d',30],['14d',14]]){

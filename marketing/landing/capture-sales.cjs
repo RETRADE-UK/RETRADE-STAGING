@@ -13,7 +13,7 @@ async function main() {
       if (!mobile) await page.setViewportSize({ width: 1440, height: 820 });
       await page.evaluate(() => goToTab('monthly'));
       await page.locator('#p-monthly [aria-label="Sort sales"]').waitFor();
-      await page.addStyleTag({ content: '#rt-staging-marker { display: none !important; }' });
+      await page.addStyleTag({ content: '.rt-staging-label { display: none !important; }' });
       await resetScroll(page);
       await stableView(page);
       assert.match(await page.locator('#p-monthly').innerText(), /Highest profit/);

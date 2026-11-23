@@ -3,7 +3,7 @@ import { createVintedSource, scanCatalog } from './adapters/vinted-source.mjs';
 import { matchListing } from './engine/match.mjs';
 
 // One global bounded cycle; no credentials, raw provider errors or URLs in output.
-export async function automaticScan({rpc,db,request,token,now=Date.now}) {
+export async function automaticScan({rpc,request,token,now=Date.now}) {
  const monitors=await rpc('monitor_auto_claim',{p_token:token});
  monitors.sort((a,b)=>(Date.parse(a.last_success_at||'1970-01-01')-Date.parse(b.last_success_at||'1970-01-01'))||String(a.id).localeCompare(String(b.id)));
  const accounts=new Map(),cache=new Map(),diagnostics=[];let requests=0,committed=0,renewals=0;

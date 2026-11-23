@@ -5,6 +5,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const screenshotPrefix = path.join(require('node:os').tmpdir(), 'landing-scroll-');
 const crypto = require('node:crypto');
 const {execFileSync} = require('node:child_process');
 const {chromium, webkit} = require('playwright');
@@ -183,7 +184,7 @@ async function assertSaleDetail(page,width,height) {
         'Changing to the receipt detail must keep the same frame: ' + JSON.stringify({key,dimension,before:before[key],after:after[key]}));
     }
   }
-  await page.screenshot({path:'/tmp/landing-scroll-' + engine + '-' + width + 'x' + height + '-sale-detail.png'});
+  await page.screenshot({path:screenshotPrefix + engine + '-' + width + 'x' + height + '-sale-detail.png'});
   await assertOriginalViewer(page,'#sale .product-screen',width <= 600);
   await overview.click();
   await page.waitForFunction(() => {
@@ -379,7 +380,7 @@ async function check(browser, width, height, name, work, options = {}) {
     assert.deepEqual(run.missing, [], 'Every public landing asset must exist');
     assert.deepEqual(run.external, [], 'The landing test must not contact an external service');
     assert.deepEqual(run.errors, [], 'The landing page must not raise JavaScript errors');
-    await run.page.screenshot({path:'/tmp/landing-scroll-' + engine + '-' + name + '.png'});
+    await run.page.screenshot({path:screenshotPrefix + engine + '-' + name + '.png'});
     console.log('PASS landing', engine, name);
   } catch (error) {
     const state = await run.page.evaluate(() => ({
@@ -388,7 +389,7 @@ async function check(browser, width, height, name, work, options = {}) {
       events:window.__landingInput
     })).catch(() => ({}));
     console.error('Landing failure state',JSON.stringify(state));
-    await run.page.screenshot({path:'/tmp/landing-scroll-' + engine + '-' + name + '-failure.png'}).catch(() => {});
+    await run.page.screenshot({path:screenshotPrefix + engine + '-' + name + '-failure.png'}).catch(() => {});
     throw error;
   } finally {
     run.releaseImages();
@@ -410,7 +411,7 @@ async function layoutChecks(browser) {
       assert.equal(hero.height,heroRecord.height);
       const review = width === 390 || width === 1440;
       if (review) {
-        await page.screenshot({path:'/tmp/landing-scroll-' + engine + '-' + width + 'x' + height + '-hero.png'});
+        await page.screenshot({path:screenshotPrefix + engine + '-' + width + 'x' + height + '-hero.png'});
         await assertOriginalViewer(page,'.hero-preview',width <= 600);
       }
       let firstFrame;
@@ -427,7 +428,7 @@ async function layoutChecks(browser) {
         }
         if (g.pinned) assert(Math.abs(g.figure.top-firstFrame.figure.top) <= 3,
           'The screenshot position must stay steady as the story changes: ' + JSON.stringify({first:firstFrame.figure,actual:g.figure}));
-        if (review) await page.screenshot({path:'/tmp/landing-scroll-' + engine + '-' + width + 'x' + height + '-' + id + '.png'});
+        if (review) await page.screenshot({path:screenshotPrefix + engine + '-' + width + 'x' + height + '-' + id + '.png'});
         if (review && id === 'sale') await assertSaleDetail(page,width,height);
       }
       await page.locator('[data-prev]').click();

@@ -464,7 +464,7 @@ function _taxRateConfig(year){return UK_TAX_RATES[year]||UK_TAX_RATES[2025];}
 
 function _taxRegion(){
   let v=DB._taxRegion;
-  if(!v){try{v=localStorage.getItem('retrade_tax_region');}catch(e){}}
+  if(!v){try{v=localStorage.getItem(_ownedPreferenceKey('retrade_tax_region'));}catch(e){}}
   return v==='scotland'?'scotland':'rUK';
 }
 
@@ -494,9 +494,9 @@ function _selfEmploymentIncomeTax(seProfit,otherIncome,year,region){
 }
 
 function _taxOtherIncome(){
-  let v=+DB._taxOtherIncome||0;
-  if(!v){try{v=+localStorage.getItem('retrade_tax_other_income')||0;}catch(e){}}
-  return Math.max(0,v);
+  let v=DB._taxOtherIncome;
+  if(v==null){try{v=+localStorage.getItem(_ownedPreferenceKey('retrade_tax_other_income'))||0;}catch(e){}}
+  return Math.max(0,Number(v)||0);
 }
 
 function _periodDateRange(period){

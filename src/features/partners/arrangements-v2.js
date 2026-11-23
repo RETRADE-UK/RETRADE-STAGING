@@ -128,18 +128,6 @@
       };
       _accountToRow.__rtArrangementV2=true;
     }
-    if(typeof _rowToAccount==='function'&&!_rowToAccount.__rtArrangementV2){
-      var r2a=_rowToAccount;
-      _rowToAccount=function(r){
-        var a=r2a.apply(this,arguments);if(!a)return a;
-        a.arrangementModel=model(r&&r.arrangement_model)||accountModel(a);
-        a.paymentTiming=timing(r&&r.payment_timing)||payTiming(a);
-        // The old debt engine already understands supplier paymentTerms.
-        a.paymentTerms=a.arrangementModel==='profit_share'?'on_sale':a.paymentTiming;
-        return a;
-      };
-      _rowToAccount.__rtArrangementV2=true;
-    }
     if(typeof _itemToRow==='function'&&!_itemToRow.__rtArrangementV2){
       var i2r=_itemToRow;
       _itemToRow=function(i,mth){
@@ -161,16 +149,6 @@
         return r;
       };
       _itemToRow.__rtArrangementV2=true;
-    }
-    if(typeof _rowToItem==='function'&&!_rowToItem.__rtArrangementV2){
-      var r2i=_rowToItem;
-      _rowToItem=function(r){
-        var i=r2i.apply(this,arguments);if(!i)return i;
-        i.arrangementModelOverride=model(r&&r.arrangement_model_override);
-        i.partnerAgreedAmount=r&&r.partner_agreed_amount!=null?Number(r.partner_agreed_amount):null;
-        return i;
-      };
-      _rowToItem.__rtArrangementV2=true;
     }
   }catch(e){console.warn('[RETRADE] arrangement mapper patch skipped',e);}
 
@@ -284,30 +262,6 @@
     });}catch(_){}
   }
 
-  async function hydrate(){
-    normalise();
-    try{
-      if(typeof _sb==='undefined'||typeof _currentUserId==='undefined'||!_currentUserId)return;
-      var ar=await _sb.from('accounts').select('id,arrangement_model,payment_timing').eq('user_id',_currentUserId);
-      if(!ar.error&&Array.isArray(ar.data))ar.data.forEach(function(r){
-        var a=acctById(r.id);if(!a)return;
-        a.arrangementModel=model(r.arrangement_model)||accountModel(a);
-        a.paymentTiming=timing(r.payment_timing)||payTiming(a);
-        a.paymentTerms=a.arrangementModel==='profit_share'?'on_sale':a.paymentTiming;
-      });
-      var ir=await _sb.from('items').select('id,arrangement_model_override,partner_agreed_amount').eq('user_id',_currentUserId);
-      if(!ir.error&&Array.isArray(ir.data)){
-        var map={};ir.data.forEach(function(r){map[String(r.id)]=r;});
-        (typeof allDBKeys==='function'?allDBKeys():[]).forEach(function(k){(DB[k]||[]).forEach(function(i){
-          var r=map[String(i.id)];if(!r)return;
-          i.arrangementModelOverride=model(r.arrangement_model_override);
-          i.partnerAgreedAmount=r.partner_agreed_amount!=null?Number(r.partner_agreed_amount):null;
-        });});
-      }
-      try{if(typeof renderAccounts==='function')renderAccounts();}catch(_){}
-    }catch(e){console.warn('[RETRADE] arrangement hydration skipped',e);}
-  }
-
   function polish(root){
     root=root||document;
     var s=root.querySelector&&root.querySelector('#acc-type');
@@ -354,6 +308,6 @@
   try{var formObserver=new MutationObserver(function(rs){rs.forEach(function(r){r.addedNodes&&r.addedNodes.forEach(function(n){if(n&&n.nodeType===1)polish(n);});});});
     ['panel-content','p-item','p-accounts'].forEach(function(id){var host=document.getElementById(id);if(host)formObserver.observe(host,{childList:true,subtree:true});});
   }catch(_){}
-  polish(document);normalise();setTimeout(hydrate,0);setTimeout(hydrate,1200);
+  polish(document);normalise();
   console.info('[RETRADE] fixed-cost / profit-share arrangements v1.4.75 loaded safely');
 })();

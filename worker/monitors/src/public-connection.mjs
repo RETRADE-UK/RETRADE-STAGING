@@ -26,7 +26,7 @@ export async function managedPublicConnection({rpc,request,userId,snapshot,manua
       return {state:'verified',session:previous,generation:current.generation};
     return {state:'rate_limited',deferred:true,retryAt:claim.retryAt,generation:claim.generation};
   }
-  let session=null,expiresAt=null,state='unavailable',retryAt=null,httpStatus=null,diagnostics=null;
+  let session=null,expiresAt=null,state,retryAt=null,httpStatus=null,diagnostics=null;
   try {
     ({session,expiresAt}=await createPublicSession({request,session:previous,now}));state='verified';
   } catch(e) {

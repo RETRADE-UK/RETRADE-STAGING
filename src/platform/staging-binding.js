@@ -12,12 +12,19 @@
 
   function addStagingMarker(){
     if(document.getElementById('rt-staging-marker'))return;
-    var el=document.createElement('div');
-    el.id='rt-staging-marker';
-    el.textContent='TEST BUILD · STAGING DATA';
-    el.setAttribute('aria-label','RETRADE test build using staging data');
-    el.style.cssText='position:fixed;z-index:2147483646;right:10px;top:calc(10px + env(safe-area-inset-top,0px));padding:6px 9px;border-radius:999px;background:rgba(17,20,28,.88);color:#fff;border:1px solid rgba(255,255,255,.18);box-shadow:0 4px 18px rgba(0,0,0,.18);font:700 10px/1.1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.055em;pointer-events:none;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)';
-    document.body.appendChild(el);
+    // Keep the environment visible without overlaying search or controls.
+    var style=document.createElement('style');
+    style.id='rt-staging-marker';
+    style.textContent='.rt-staging-label{display:block;margin-top:2px;color:var(--text-secondary);font:600 10px/1 system-ui;letter-spacing:.05em;text-transform:uppercase}'+
+      '#auth-overlay form::after{content:"Staging · test data";display:block;text-align:center;margin-top:12px;color:var(--text-secondary);font:600 12px/1.3 system-ui}';
+    document.head.appendChild(style);
+    document.querySelectorAll('.brand-word-v2,.mtb-brand-word,.side-nav-brand-word').forEach(function(word){
+      var label=document.createElement('span');
+      label.className='rt-staging-label';
+      label.textContent=' Staging';
+      word.appendChild(label);
+      word.closest('button').setAttribute('aria-label','RETRADE staging dashboard');
+    });
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addStagingMarker,{once:true});
   else addStagingMarker();

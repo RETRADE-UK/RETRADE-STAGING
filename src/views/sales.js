@@ -16,6 +16,7 @@ window.__rtRegisterView("sales", {
   const cSold=events.filter(e=>!e.isReturnAdjustment).length;
   const cReturned=events.filter(e=>e.isReturnAdjustment).length;
   const cAll=events.length;
+  if(cReturned===0&&(MONTH_FILTER==='sold'||MONTH_FILTER==='returned'))MONTH_FILTER='all';
 
   // Filter
   let visible=events;
@@ -60,17 +61,14 @@ window.__rtRegisterView("sales", {
     ?((stats.refundedItemCount||0)>0?((stats.refundedItemCount||0)+' return'+((stats.refundedItemCount||0)===1?'':'s')+' this month · no sales denominator'):'No sales')
     :(stats.fullRefundCount||0)+' full · '+(stats.partialOnlyCount||0)+' partial · '+stats.refundDenom+' sale'+(stats.refundDenom===1?'':'s');
 
-  // Auto-reset stale filter: if no returns this period but filter is sold/returned, drop to 'all'
-  if(cReturned===0&&(MONTH_FILTER==='sold'||MONTH_FILTER==='returned'))MONTH_FILTER='all';
-
   const html=`
     <div class="page-header rt-month-header">
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:nowrap;min-width:0;">
         <button class="btn btn-secondary" style="padding:7px 14px;font-size:13px;flex-shrink:0;" onclick="${backAction}" aria-label="${esc(backLabel.replace('← ','Back to '))}"><span class="rt-month-back-label">${backLabel}</span><span class="rt-month-back-icon" aria-hidden="true">←</span></button>
         <div class="month-picker-wrap" id="month-picker" style="min-width:0;">
-          <button type="button" class="month-picker-title" onclick="toggleMonthPicker()" aria-label="Choose sales month" aria-expanded="false" aria-controls="month-picker-list" onkeydown="if(event.key==='Escape'&amp;&amp;this.closest('.month-picker-wrap').classList.contains('open')){event.stopPropagation();toggleMonthPicker();}">
+          <button type="button" class="month-picker-title" onclick="toggleMonthPicker()" aria-label="${keyName(m)}, choose sales month" aria-expanded="false" aria-controls="month-picker-list" onkeydown="if(event.key==='Escape'&amp;&amp;this.closest('.month-picker-wrap').classList.contains('open')){event.stopPropagation();toggleMonthPicker();}">
             ${keyName(m)}
-            <span class="month-picker-chevron">▾</span>
+            <span class="month-picker-chevron" aria-hidden="true">▾</span>
           </button>
           <div class="month-picker-backdrop" onclick="toggleMonthPicker()"></div>
           <div class="month-picker-dropdown" id="month-picker-list">
@@ -219,7 +217,7 @@ window.__rtRegisterView("sales", {
       </div>
     `:`
       <div class="item-table" id="month-list">
-        ${(()=>{window.__monthItems=visible;return visible.length?_renderMonthList(visible):(MONTH_SEARCH?'<div class="inlist-empty">No sales match \u201c'+esc(MONTH_SEARCH)+'\u201d</div>':'');})()}
+        ${visible.length?_renderMonthList(visible):'<div class="inlist-empty">No sales match \u201c'+esc(MONTH_SEARCH)+'\u201d</div>'}
       </div>
     `}
   `;

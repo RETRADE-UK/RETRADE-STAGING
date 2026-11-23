@@ -32,7 +32,9 @@
     if(lastWarmAt&&now()-lastWarmAt<5*60*1000)return;
     if(warmTimer)clearTimeout(warmTimer);
     warmTimer=setTimeout(function(){
-      warmTimer=0;lastWarmAt=now();
+      warmTimer=0;
+      if(window.__rtLaunchDestination!=='dashboard'||!window.__rtLaunchSettled)return;
+      lastWarmAt=now();
       try{
         if(!('serviceWorker' in navigator))return;
         navigator.serviceWorker.ready.then(function(reg){

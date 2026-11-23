@@ -16,6 +16,36 @@ Keep source files LF-normalised.
 
 'use strict';
 
+// Share one on-demand request across imports, reports and partner statements.
+const reportLibraryLoads = new Map();
+function loadReportLibrary(format) {
+  const ready = () => format === 'pdf' ? window.jspdf?.jsPDF : window.XLSX;
+  if (ready()) return Promise.resolve();
+  if (reportLibraryLoads.has(format)) return reportLibraryLoads.get(format);
+  const file = window.RT_ASSETS?.reportLibraries?.[format];
+  if (!file) return Promise.reject(new Error('This report format is unavailable here.'));
+
+  const pending = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    const fail = () => {
+      script.remove();
+      reject(new Error('Could not load the ' + (format === 'pdf' ? 'PDF' : 'Excel') + ' library. Please try again.'));
+    };
+    script.src = '/' + file;
+    script.onload = () => ready() ? resolve() : fail();
+    script.onerror = fail;
+    document.head.appendChild(script);
+  });
+  reportLibraryLoads.set(format, pending);
+  pending.catch(() => reportLibraryLoads.delete(format));
+  return pending;
+}
+
+function withExcel(action) {
+  if (window.XLSX) return action();
+  return loadReportLibrary('excel').then(action, error => toast(error.message, 'error'));
+}
+
 function downloadAnnualStatement(fyStart){
   const keys=_fyKeys(fyStart);
   const label=_getFYLabel(fyStart);
@@ -187,13 +217,7 @@ function downloadStockSnapshot(){
 
 // ── Excel variants of the three download functions ───────────────────────────
 function _csvRowsToExcel(rows, sheetName, filename, opts){
-  if(!window.XLSX){
-    const s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.integrity='sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==';s.crossOrigin='anonymous';s.referrerPolicy='no-referrer';
-    s.onload=function(){_writeExcel(rows,sheetName,filename,opts);};
-    s.onerror=function(){toast('Failed to load Excel library','error');};
-    document.head.appendChild(s);
-  }else{_writeExcel(rows,sheetName,filename,opts);}
+  withExcel(() => _writeExcel(rows,sheetName,filename,opts));
 }
 // Apply one professional report style to every generated workbook sheet.
 // SheetJS CE may ignore some visual style properties in older builds, but the
@@ -326,12 +350,7 @@ function downloadMonthlyExcel(m){
   if(expBreak.rows.length){expRows.push([]);expRows.push(['TOTAL','','','','','','','','',+expBreak.total.toFixed(2)]);}
 
   // Build multi-sheet workbook
-  if(!window.XLSX){
-    const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.integrity='sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==';s.crossOrigin='anonymous';s.referrerPolicy='no-referrer';
-    s.onload=function(){_writeMonthlyExcelBook(m,salesRows,expRows,summaryRows,pnl);};
-    s.onerror=function(){toast('Failed to load Excel library','error');};
-    document.head.appendChild(s);
-  }else{_writeMonthlyExcelBook(m,salesRows,expRows,summaryRows,pnl);}
+  withExcel(() => _writeMonthlyExcelBook(m,salesRows,expRows,summaryRows,pnl));
 }
 function _writeMonthlyExcelBook(m,salesRows,expRows,summaryRows,pnl){
   const today=new Date().toLocaleDateString('en-GB',{year:'numeric',month:'short',day:'numeric'});
@@ -436,12 +455,7 @@ function downloadAnnualExcel(fyStart){
       +dtTotCosts.toFixed(2),+dtNet.toFixed(2),'','']);
   }
 
-  if(!window.XLSX){
-    const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.integrity='sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==';s.crossOrigin='anonymous';s.referrerPolicy='no-referrer';
-    s.onload=function(){_writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl,salesDetailRows);};
-    s.onerror=function(){toast('Failed to load Excel library','error');};
-    document.head.appendChild(s);
-  }else{_writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl,salesDetailRows);}
+  withExcel(() => _writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl,salesDetailRows));
 }
 function _writeAnnualExcelBook(fyStart,label,salesRows,expRows,summaryRows,pnl,salesDetailRows){
   const today=new Date().toLocaleDateString('en-GB',{year:'numeric',month:'short',day:'numeric'});
@@ -683,7 +697,6 @@ function downloadTaxSummary(format,source){
 
 // Every selected-period format consumes the same captured numeric rows. A lazy
 // library load must never change the selected dates or recalculate later data.
-var _periodReportXlsxPromise=null;
 function _periodReportFilename(report){
   return 'RETRADE_'+(report.basis==='uc'?'UC':'HMRC')+'_'+report.from+'_to_'+report.to;
 }
@@ -693,20 +706,6 @@ function _periodReportCsv(rows){
     // shared spreadsheet-formula protection.
     return typeof value==='number'&&Number.isFinite(value)?String(value):_csvCell(value);
   }).join(',');}).join('\r\n');
-}
-function _ensurePeriodReportExcel(){
-  if(window.XLSX)return Promise.resolve();
-  if(_periodReportXlsxPromise)return _periodReportXlsxPromise;
-  _periodReportXlsxPromise=new Promise(function(resolve,reject){
-    const script=document.createElement('script');
-    script.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    script.integrity='sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==';
-    script.crossOrigin='anonymous';script.referrerPolicy='no-referrer';
-    script.onload=function(){window.XLSX?resolve():reject(new Error('Excel library did not initialise.'));};
-    script.onerror=function(){script.remove();reject(new Error('Could not load Excel. Please try again.'));};
-    document.head.appendChild(script);
-  }).catch(function(error){_periodReportXlsxPromise=null;throw error;});
-  return _periodReportXlsxPromise;
 }
 async function exportPeriodReport(format,source){
   if(!source||!source.valid)throw new Error(source&&source.errors&&source.errors[0]||'Choose a valid reporting period.');
@@ -718,7 +717,7 @@ async function exportPeriodReport(format,source){
     return window.generateRetradePeriodReport(report);
   }
   if(format==='xlsx'){
-    await _ensurePeriodReportExcel();
+    await loadReportLibrary('excel');
     const rows=report.rows,wb=XLSX.utils.book_new(),ws=XLSX.utils.aoa_to_sheet(rows);
     _styleReportSheet(ws,rows,{headerRows:[0],freezeRow:5,moneyCols:[1]});
     ws['!cols']=[{wch:58},{wch:26},{wch:76}];
@@ -1114,11 +1113,7 @@ function downloadRangeExcel(from,to){
     XLSX.writeFile(wb,filename);
     toast('Downloaded '+filename);
   };
-  if(!window.XLSX){
-    const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.integrity='sha512-r22gChDnGvBylk90+2e/ycr3RVrDi8DIOkIGNhJlKfuyQM4tIRAI062MaV8sfjQKYVGjOBaZBOA87z+IhZE9DA==';s.crossOrigin='anonymous';s.referrerPolicy='no-referrer';
-    s.onload=build;s.onerror=function(){toast('Failed to load Excel library','error');};
-    document.head.appendChild(s);
-  }else{build();}
+  withExcel(build);
 }
 
 // Sale-attributed month stats — drives the new Monthly KPIs.

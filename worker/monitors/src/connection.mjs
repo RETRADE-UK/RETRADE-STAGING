@@ -39,7 +39,12 @@ export async function renewConnection({credentials,request,now=Date.now,timeoutM
         // Never persist error descriptions: providers can echo credentials in them.
         let code = null;
         if ([400,401].includes(response.status)) {
-          try { const body=await readJson(response,40000); code=body?.error; } catch {}
+          try {
+            const body=await readJson(response,40000);
+            code=body?.error;
+          } catch {
+            // A provider may return HTML. Use its HTTP status in that case.
+          }
         } else await response.body?.cancel().catch(()=>{});
         return {state:code==='invalid_grant'?'reconnect':[400,401,403].includes(response.status)?'blocked':response.status===429?'rate_limited':'unavailable',
           retryAt:response.status===429?retryAt(response.headers.get('retry-after'),now(),300000):null};

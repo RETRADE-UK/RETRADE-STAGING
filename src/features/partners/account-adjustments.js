@@ -13,8 +13,6 @@
   var loadedUser=null;
   var loadPromise=null;
   var activeAccountId=null;
-  var pdfPromise=null;
-  var xlsxPromise=null;
 
   function round(v){return Math.round((Number(v)||0)*100)/100;}
   function money(v){try{return typeof fmt==='function'?fmt(round(v)):'£'+round(v).toFixed(2);}catch(_){return '£'+round(v).toFixed(2);}}
@@ -80,7 +78,9 @@
     if(!force&&loadedUser===user)return rows;
     if(loadPromise){await loadPromise;if(loadedUser===user)return rows;return ensureLoaded(force);}
     loadPromise=(async function(){
-      var res=await client.from('account_adjustments').select('*').eq('user_id',user).order('date',{ascending:false}).order('created_at',{ascending:false});
+      var res=await _readOwnedRows('account_adjustments',user,['date','created_at'],false,function(){
+        if(uid()!==user)throw new Error('Workspace changed while loading partner credits.');
+      });
       if(res.error)throw res.error;
       if(uid()!==user)return []; // never publish another user's in-flight response
       var nextRows=(Array.isArray(res.data)?res.data:[]).filter(function(r){return r&&(!r.user_id||String(r.user_id)===String(user));});
@@ -201,11 +201,9 @@
     return {summary:summary,sold:sold,transactions:transactions};
   }
 
-  function ensureXlsx(){if(window.XLSX)return Promise.resolve();if(xlsxPromise)return xlsxPromise;xlsxPromise=new Promise(function(resolve,reject){var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.async=true;s.crossOrigin='anonymous';s.onload=function(){window.XLSX?resolve():reject(new Error('Excel library failed'));};s.onerror=reject;document.head.appendChild(s);}).catch(function(e){xlsxPromise=null;throw e;});return xlsxPromise;}
-  function ensurePdf(){if(window.jspdf&&window.jspdf.jsPDF)return Promise.resolve();if(pdfPromise)return pdfPromise;pdfPromise=new Promise(function(resolve,reject){var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';s.async=true;s.crossOrigin='anonymous';s.onload=function(){window.jspdf&&window.jspdf.jsPDF?resolve():reject(new Error('PDF library failed'));};s.onerror=reject;document.head.appendChild(s);}).catch(function(e){pdfPromise=null;throw e;});return pdfPromise;}
 
   async function generateCsv(){try{await ensureLoaded(false);var s=currentAdjustedStatement(),tab=statementTables(s),out=[];tab.summary.forEach(function(r){out.push(r);});out.push([],['SOLD ITEMS']);tab.sold.forEach(function(r){out.push(r);});out.push([],['PAYMENTS, ACCOUNT ADJUSTMENTS & RETURNS']);tab.transactions.forEach(function(r){out.push(r);});download('\uFEFF'+csvRows(out),'text/csv;charset=utf-8','RETRADE_'+String(s.account.name||'Partner').replace(/[^a-z0-9._-]+/gi,'_')+'_Statement_'+s.period.slug+'.csv');try{toast('Partner statement CSV downloaded');}catch(_){}}catch(err){try{toast(err.message||'Could not generate statement','error');}catch(_){}}}
-  async function generateExcel(){try{await ensureLoaded(false);var s=currentAdjustedStatement(),tab=statementTables(s);await ensureXlsx();var wb=XLSX.utils.book_new(),ws1=XLSX.utils.aoa_to_sheet(tab.summary),ws2=XLSX.utils.aoa_to_sheet(tab.sold),ws3=XLSX.utils.aoa_to_sheet(tab.transactions);ws1['!cols']=[{wch:44},{wch:26}];ws2['!cols']=[{wch:12},{wch:38},{wch:11},{wch:14},{wch:16},{wch:14},{wch:22},{wch:18},{wch:22},{wch:18},{wch:15}];ws3['!cols']=[{wch:12},{wch:22},{wch:52},{wch:14},{wch:16},{wch:24},{wch:36}];XLSX.utils.book_append_sheet(wb,ws1,'Statement');XLSX.utils.book_append_sheet(wb,ws2,'Sold Items');XLSX.utils.book_append_sheet(wb,ws3,'Transactions');XLSX.writeFile(wb,'RETRADE_'+String(s.account.name||'Partner').replace(/[^a-z0-9._-]+/gi,'_')+'_Statement_'+s.period.slug+'.xlsx');try{toast('Partner statement Excel downloaded');}catch(_){}}catch(err){try{toast(err.message||'Could not generate statement','error');}catch(_){}}}
+  async function generateExcel(){try{await ensureLoaded(false);var s=currentAdjustedStatement(),tab=statementTables(s);await loadReportLibrary('excel');var wb=XLSX.utils.book_new(),ws1=XLSX.utils.aoa_to_sheet(tab.summary),ws2=XLSX.utils.aoa_to_sheet(tab.sold),ws3=XLSX.utils.aoa_to_sheet(tab.transactions);ws1['!cols']=[{wch:44},{wch:26}];ws2['!cols']=[{wch:12},{wch:38},{wch:11},{wch:14},{wch:16},{wch:14},{wch:22},{wch:18},{wch:22},{wch:18},{wch:15}];ws3['!cols']=[{wch:12},{wch:22},{wch:52},{wch:14},{wch:16},{wch:24},{wch:36}];XLSX.utils.book_append_sheet(wb,ws1,'Statement');XLSX.utils.book_append_sheet(wb,ws2,'Sold Items');XLSX.utils.book_append_sheet(wb,ws3,'Transactions');XLSX.writeFile(wb,'RETRADE_'+String(s.account.name||'Partner').replace(/[^a-z0-9._-]+/gi,'_')+'_Statement_'+s.period.slug+'.xlsx');try{toast('Partner statement Excel downloaded');}catch(_){}}catch(err){try{toast(err.message||'Could not generate statement','error');}catch(_){}}}
   function writePdf(s){
     var jsPDF=window.jspdf.jsPDF,doc=new jsPDF({orientation:'portrait',unit:'mm',format:'a4'}),navy=[12,20,36],gold=[247,183,55],muted=[101,110,126],line=[220,224,231],pale=[247,249,252],L=14,R=196,W=182,y=0;
     function colour(fn,c){fn.apply(doc,c);}function brand(){colour(doc.setFillColor,navy);doc.rect(0,0,210,24,'F');doc.setFont('helvetica','bold');doc.setFontSize(18);colour(doc.setTextColor,gold);doc.text('RETRADE',L,15);doc.setFontSize(9);doc.setTextColor(255,255,255);doc.text('PARTNER STATEMENT',R,14,{align:'right'});}function page(){doc.addPage();brand();y=32;}function ensure(h){if(y+h>280)page();}function section(t){ensure(10);doc.setFont('helvetica','bold');doc.setFontSize(10);colour(doc.setTextColor,navy);doc.text(t,L,y);y+=5;}function rule(){colour(doc.setDrawColor,line);doc.line(L,y,R,y);}function row(label,value,bold){ensure(8);if(bold){colour(doc.setFillColor,pale);doc.rect(L,y-4,W,7,'F');}doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(8.5);colour(doc.setTextColor,navy);doc.text(label,L+2,y);doc.text(value,R-2,y,{align:'right'});y+=7;rule();}
@@ -217,7 +215,7 @@
     if(s.adjustments&&s.adjustments.length){y+=5;section('Returns & refunds — RETRADE impact');s.adjustments.forEach(function(a){row(a.date+' · '+a.item+' · '+a.saleNo,(a.profitImpact>0?'+':'')+gbp(a.profitImpact));});}
     if(Math.abs(s.totals.reconciliationDifference)>0.01){y+=4;row('RECONCILIATION WARNING',String(s.totals.reconciliationDifference),true);}var pages=doc.getNumberOfPages();for(var i=1;i<=pages;i++){doc.setPage(i);doc.setFontSize(7);colour(doc.setTextColor,muted);doc.text('RETRADE · '+String(s.account.name||'Partner')+' · '+s.period.label,L,291);doc.text('Page '+i+' of '+pages,R,291,{align:'right'});}doc.save('RETRADE_'+String(s.account.name||'Partner').replace(/[^a-z0-9._-]+/gi,'_')+'_Statement_'+s.period.slug+'.pdf');
   }
-  async function generatePdf(){try{await ensureLoaded(false);var s=currentAdjustedStatement();await ensurePdf();writePdf(s);try{toast('Partner statement PDF downloaded');}catch(_){}}catch(err){try{toast(err.message||'Could not generate statement','error');}catch(_){}}}
+  async function generatePdf(){try{await ensureLoaded(false);var s=currentAdjustedStatement();await loadReportLibrary('pdf');writePdf(s);try{toast('Partner statement PDF downloaded');}catch(_){}}catch(err){try{toast(err.message||'Could not generate statement','error');}catch(_){}}}
 
   try{if(typeof _taxCashStockAndPartner==='function'&&!_taxCashStockAndPartner.__rtAccountAdjustments){
     var baseTax=_taxCashStockAndPartner;

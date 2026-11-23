@@ -15,7 +15,7 @@ async function main() {
         if (!mobile) await page.setViewportSize({ width: 1320, height: 900 });
         await page.addStyleTag({ content: `
           body.rt { --sidebar-w: 0px !important; }
-          body.rt #side-nav, #rt-staging-marker, body.rt #bottom-nav, body.rt #mobile-top-bar, body.rt #nav, #search-fab,
+          body.rt #side-nav, .rt-staging-label, body.rt #bottom-nav, body.rt #mobile-top-bar, body.rt #nav, #search-fab,
           #fab-dial, .fab, .fab-main { display: none !important; }
           .page.on { padding-bottom: 24px !important; }
         ` });

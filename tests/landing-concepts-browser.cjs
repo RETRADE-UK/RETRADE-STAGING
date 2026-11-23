@@ -5,6 +5,7 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
+const screenshotPrefix = path.join(require('node:os').tmpdir(), 'landing-scroll-');
 const {execFileSync}=require('node:child_process');
 const {chromium,webkit}=require('playwright');
 const checkWindows=require('./landing-windows.cjs');
@@ -38,10 +39,15 @@ const contentType={'.html':'text/html','.js':'text/javascript','.css':'text/css'
         assert.match(await page.locator('h1').innerText(),/We track the margins/);
         assert.equal(await page.locator('.feature').count(),variant === 1 ? 3 : 7);
         assert.equal(await page.locator('.journey-nav a').count(),variant === 1 ? 4 : 7);
+        if (variant === 1) {
+          await page.frameLocator('#dashboard iframe').getByLabel('Dashboard period').waitFor();
+          assert.equal(await page.locator('iframe[data-src][src]').count(), 0,
+            'Below-fold workspaces must not boot during initial presentation');
+        }
         const noOverflow=await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2);
         assert(noOverflow,'No horizontal overflow at '+width+' variant '+variant);
         if(width!==768){
-          await page.screenshot({path:'/tmp/landing-scroll-concept'+variant+'-'+(isWebKit?'webkit':'chromium')+'-'+width+'-hero.png'});
+          await page.screenshot({path:screenshotPrefix+'concept'+variant+'-'+(isWebKit?'webkit':'chromium')+'-'+width+'-hero.png'});
         }
         await page.locator('.journey-nav a[href="#sale"]').click();
         await page.waitForFunction(() => document.querySelector('.journey-nav a[href="#sale"]').getAttribute('aria-current') === 'location');

@@ -4,7 +4,6 @@
   if(window.__rtPartnerAdjustmentStatementExportersReady)return;
   window.__rtPartnerAdjustmentStatementExportersReady=true;
 
-  var pdfPromise=null,xlsxPromise=null;
   function n(v){v=Number(v);return isFinite(v)?v:0;}
   function round(v){return Math.round(n(v)*100)/100;}
   function gbp(v){return '£'+round(v).toFixed(2);}
@@ -43,15 +42,6 @@
   function csvCell(v){var s=String(v==null?'':v);if(/^[=+\-@]/.test(s))s="'"+s;return /[",\r\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
   function csvRows(rows){return rows.map(function(r){return r.map(csvCell).join(',');}).join('\n');}
   function download(content,type,name){var blob=new Blob([content],{type:type}),a=document.createElement('a'),url=URL.createObjectURL(blob);a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},0);}
-  function ensureXlsx(){
-    if(window.XLSX)return Promise.resolve();if(xlsxPromise)return xlsxPromise;
-    xlsxPromise=new Promise(function(resolve,reject){var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.async=true;s.crossOrigin='anonymous';s.onload=function(){window.XLSX?resolve():reject(new Error('Excel library did not initialise'));};s.onerror=reject;document.head.appendChild(s);}).catch(function(e){xlsxPromise=null;throw e;});return xlsxPromise;
-  }
-  function ensurePdf(){
-    if(window.jspdf&&window.jspdf.jsPDF)return Promise.resolve();if(pdfPromise)return pdfPromise;
-    if(window.RETRADE_DOCUMENTS&&typeof window.RETRADE_DOCUMENTS.ensurePdf==='function')return window.RETRADE_DOCUMENTS.ensurePdf();
-    pdfPromise=new Promise(function(resolve,reject){var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';s.async=true;s.crossOrigin='anonymous';s.onload=function(){window.jspdf&&window.jspdf.jsPDF?resolve():reject(new Error('PDF library did not initialise'));};s.onerror=reject;document.head.appendChild(s);}).catch(function(e){pdfPromise=null;throw e;});return pdfPromise;
-  }
 
   async function csv(){
     try{var s=await statement(),tab=tables(s),out=[];tab.summary.forEach(function(r){out.push(r);});out.push([],['SOLD ITEMS']);tab.sold.forEach(function(r){out.push(r);});out.push([],['PAYMENTS, CREDITS / ADJUSTMENTS & RETURNS']);tab.transactions.forEach(function(r){out.push(r);});download('\uFEFF'+csvRows(out),'text/csv;charset=utf-8','RETRADE_'+safe(s.account.name)+'_Statement_'+s.period.slug+'.csv');try{toast('Partner statement CSV downloaded');}catch(_){}}
@@ -59,7 +49,7 @@
   }
   async function excel(){
     try{
-      var s=await statement(),tab=tables(s);await ensureXlsx();
+      var s=await statement(),tab=tables(s);await loadReportLibrary('excel');
       var wb=XLSX.utils.book_new(),ws1=XLSX.utils.aoa_to_sheet(tab.summary),ws2=XLSX.utils.aoa_to_sheet(tab.sold),ws3=XLSX.utils.aoa_to_sheet(tab.transactions);
       ws1['!cols']=[{wch:44},{wch:26}];ws2['!cols']=[{wch:12},{wch:38},{wch:11},{wch:14},{wch:16},{wch:14},{wch:22},{wch:18},{wch:22},{wch:18},{wch:15}];ws3['!cols']=[{wch:12},{wch:22},{wch:52},{wch:14},{wch:16},{wch:24},{wch:36}];
       XLSX.utils.book_append_sheet(wb,ws1,'Statement');XLSX.utils.book_append_sheet(wb,ws2,'Sold Items');XLSX.utils.book_append_sheet(wb,ws3,'Transactions');XLSX.writeFile(wb,'RETRADE_'+safe(s.account.name)+'_Statement_'+s.period.slug+'.xlsx');try{toast('Partner statement Excel downloaded');}catch(_){}
@@ -136,7 +126,7 @@
   }
   async function pdf(){
     try{
-      var s=await statement();await ensurePdf();var logo=null;
+      var s=await statement();await loadReportLibrary('pdf');var logo=null;
       if(window.RETRADE_DOCUMENTS&&typeof window.RETRADE_DOCUMENTS.logoDataUrl==='function')logo=await window.RETRADE_DOCUMENTS.logoDataUrl();
       writePdf(s,logo);try{toast('Partner statement PDF downloaded');}catch(_){}
     }catch(err){try{toast(err.message||'Could not generate statement','error');}catch(_){}}

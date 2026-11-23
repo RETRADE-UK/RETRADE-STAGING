@@ -51,6 +51,21 @@ const {open,settled}=require('./startup-browser.cjs');
   // Empty data has no phantom monthly export.
   await page.evaluate(()=>{DB={trips:[],expenses:[]};goToTab('data');renderData();});
   assert(await page.locator('.data-report').first().getByRole('button',{name:'CSV',exact:true}).isDisabled());
+  // An Excel workbook can put its item name first. Import through the real file
+  // input, including the first on-demand library request in this workspace.
+  const XLSX=require('../assets/vendor/sheetjs-0.20.3/xlsx.full.min.js');
+  const book=XLSX.utils.book_new();
+  const sheet=XLSX.utils.aoa_to_sheet([
+    ['Item Name','Month','State','Cost Price'],
+    ['Synthetic workbook camera','APR-26','sourced',12.45]
+  ]);
+  XLSX.utils.book_append_sheet(book,sheet,'Items');
+  await page.locator('#import-excel').setInputFiles({
+    name:'items.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer:Buffer.from(XLSX.write(book,{bookType:'xlsx',type:'array'}))
+  });
+  await page.waitForFunction(()=>DB['APR-26']?.some(item=>item.item==='Synthetic workbook camera'&&item.costPrice===12.45));
+  await page.evaluate(()=>closePanel());
   // Desktop overview puts the statement before reconciliation, alongside the estimate.
   // Narrow layouts retain the established single-column reading order.
   for(const width of [390,1024,1200,1440,1920]){
