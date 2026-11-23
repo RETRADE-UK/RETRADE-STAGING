@@ -65,10 +65,26 @@ async function select(page){
   await page.locator('#bulk-list-cancel').click();await page.evaluate(()=>{openStockBulkList();_jobLots=[{id:'lot',status:'building'}];_jobLotItems=[{jobLotId:'lot',itemId:'a'}];});
   await page.locator('#bulk-list-1-price').fill('40');await page.locator('#bulk-list-1-category').selectOption('Other');await page.locator('#bulk-list-1-location').fill('Shelf C');await page.locator('#bulk-list-save').click();assert.equal(await page.evaluate(()=>window.__bulkSaves),0);
   // Required details on quick-add, retained when adding another item in the same session.
-  await page.evaluate(()=>{closePanel();openStockQuickAdd();});await page.locator('#sqa-title').fill('New camera');await page.locator('#sqa-cost').fill('10');await page.locator('#sqa-next-btn').click();assert.equal(await page.evaluate(()=>window.__bulkSaves),0);
+  const focus=await page.evaluate(()=>{
+   closePanel();
+   // Run the real deferred panel-focus callback after the form chooses its input.
+   // This makes the timer ordering deterministic without sleeping or skipping WebKit.
+   const schedule=window.setTimeout,queued=[];
+   window.setTimeout=function(fn,delay,...args){
+    if(delay===0&&typeof fn==='function'){queued.push(()=>fn(...args));return 0;}
+    return schedule(fn,delay,...args);
+   };
+   try{openStockQuickAdd();}finally{window.setTimeout=schedule;}
+   const before=document.activeElement.id;queued.forEach(fn=>fn());
+   return {before,after:document.activeElement.id,deferred:queued.length};
+  });
+  assert(focus.deferred>0,'Exercise the queued panel focus');
+  assert.equal(focus.before,'sqa-title');assert.equal(focus.after,'sqa-title','Deferred panel focus must preserve the form input');
+  await page.locator('#sqa-title').fill('New camera');await page.locator('#sqa-cost').fill('10');await page.locator('#sqa-next-btn').click();assert.equal(await page.evaluate(()=>window.__bulkSaves),0);
   await page.locator('#sqa-category').selectOption('Digital Cameras & Lenses');await page.locator('#sqa-location').fill('   ');await page.locator('#sqa-next-btn').click();assert.equal(await page.evaluate(()=>window.__bulkSaves),0);
   await page.locator('#sqa-location').fill('Shelf 4');await page.locator('#sqa-next-btn').click();assert.equal(await page.evaluate(()=>window.__bulkSaves),1);assert.equal(await page.locator('#sqa-location').inputValue(),'Shelf 4');assert.equal(await page.locator('#sqa-category').inputValue(),'Digital Cameras & Lenses');
   const created=await page.evaluate(()=>allDBKeys().flatMap(m=>DB[m]||[]).find(i=>i.item==='New camera'));assert.equal(created.state,'sourced');assert.equal(created.location,'Shelf 4');assert.equal(created.category,'Digital Cameras & Lenses');
   assert.deepEqual(errors,[]);await context.close();console.log('PASS bulk list review, validation, lifecycle, cancellation, concurrency and stock creation',width,isWebkit?'WebKit':'Chromium');
  }}finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
+
