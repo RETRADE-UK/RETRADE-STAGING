@@ -48,17 +48,26 @@ const types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', 
       assert(!requestedImages.has('/assets/landing/' + chapter + '-preview.webp'),
         'An unopened chapter should not download on the homepage: ' + chapter);
     }
+    // The tour replaces its placeholder when the chapter is revealed. WebKit
+    // may abort decode() on that outgoing image during the source change.
+    async function waitForChapterImage(id) {
+      await page.waitForFunction(chapter => {
+        const image = document.querySelector('#'+chapter+' .screen-image');
+        return image?.complete && image.naturalWidth > 0 && image.currentSrc &&
+          new URL(image.currentSrc).pathname === '/assets/landing/'+chapter+'-preview.webp';
+      }, id);
+    }
     for (const id of ['sourcing','stock','sale','dashboard']) {
       await page.locator('.jump a[href="#'+id+'"]').click();
       await page.waitForFunction(id => !document.getElementById(id).hidden &&
         document.querySelector('.jump [aria-selected="true"]')?.getAttribute('href') === '#'+id, id);
       assert.equal(await page.locator('.story:visible').count(),1);
-      assert(await page.locator('#'+id+' .screen-image').evaluate(img => img.decode().then(()=>img.naturalWidth>0)));
+      await waitForChapterImage(id);
     }
     await page.setViewportSize({width:390,height:844});
     await page.locator('#tab-stock').click();
     await page.locator('#stock figure').scrollIntoViewIfNeeded();
-    assert(await page.locator('#stock figure img').evaluate(img=>img.decode().then(()=>new URL(img.currentSrc).pathname.endsWith('stock-preview.webp'))));
+    await waitForChapterImage('stock');
     assert.match(await page.locator('#stock figure').getAttribute('data-phone-src'),/stock-phone\.webp/);
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
     await page.goto(origin+'/signup/');
