@@ -75,6 +75,19 @@ const types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', 
     await signup.waitFor({state:'visible'});
     await page.reload();
     await signup.waitFor({state:'visible'});
+    await page.setViewportSize({width:320,height:568});
+    async function checkContact(container) {
+      const contact = container.getByRole('link',{name:'Email us about privacy or account closure'});
+      assert.equal(await contact.getAttribute('href'),'mailto:general007store@gmail.com');
+      await contact.scrollIntoViewIfNeeded();
+      await contact.focus();
+      assert(await contact.evaluate(el => {
+        const box = el.getBoundingClientRect();
+        return el === document.activeElement && box.left >= 0 && box.right <= innerWidth + 1 &&
+          box.height >= 44 && box.top >= 0 && box.bottom <= innerHeight + 1;
+      }), 'Privacy contact is focusable and fits the narrow viewport');
+    }
+    await checkContact(signup);
     await signup.getByRole('button',{name:'Back to sign in'}).click();
     await page.waitForURL('**/login/');
     await page.goBack();
@@ -86,6 +99,9 @@ const types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', 
     await page.locator('#auth-btn').click();
     await page.waitForURL('**/dashboard/');
     await page.locator('#p-summary.on').waitFor({state:'visible'});
+    await page.evaluate(() => goToTab('data'));
+    await page.waitForFunction(() => document.querySelector('#p-data.on')?.getAttribute('aria-busy') !== 'true' && document.querySelector('#p-data.on .privacy-contact'));
+    await checkContact(page.locator('#p-data.on'));
     await page.goto(origin+'/?code=synthetic-callback');
     await page.waitForURL('**/login/?code=synthetic-callback');
     await page.goto(origin+'/start/?utm_source=review#tour');
