@@ -39,6 +39,7 @@ const types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', 
       return route.fulfill({contentType:types[ext],body});
     });
     const page = await context.newPage();
+    page.on('pageerror', error => console.error('Page error:', error.message));
     await page.goto(origin + '/');
     assert.match(await page.locator('h1').innerText(), /on every flip/);
     assert.equal(await page.locator('video').count(),0);
@@ -99,9 +100,13 @@ const types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', 
     await page.locator('#auth-btn').click();
     await page.waitForURL('**/dashboard/');
     await page.locator('#p-summary.on').waitFor({state:'visible'});
-    await page.evaluate(() => goToTab('data'));
-    await page.waitForFunction(() => document.querySelector('#p-data.on')?.getAttribute('aria-busy') !== 'true' && document.querySelector('#p-data.on .privacy-contact'));
-    await checkContact(page.locator('#p-data.on'));
+    // Login updates the URL before the workspace finishes its first data load.
+    // Open the real mobile menu so the browser respects the startup controls.
+    await page.locator('#bnt-more').click();
+    await page.locator('#more-sheet').getByRole('button',{name:'Reports & Data',exact:true}).click();
+    const reports = page.locator('#p-data.on');
+    await reports.getByRole('button',{name:'Download backup',exact:true}).waitFor({state:'visible'});
+    await checkContact(reports);
     await page.goto(origin+'/?code=synthetic-callback');
     await page.waitForURL('**/login/?code=synthetic-callback');
     await page.goto(origin+'/start/?utm_source=review#tour');
