@@ -100,6 +100,8 @@ globalThis.RT_ASSETS = Object.freeze({
     "assets/landing/sale-preview.webp",
     "assets/landing/sale-detail.webp",
     "assets/landing/sale.webp",
+    "assets/landing/sales-phone.webp",
+    "assets/landing/sales.webp",
     "assets/landing/sourcing-phone.webp",
     "assets/landing/sourcing-preview.webp",
     "assets/landing/sourcing.webp",

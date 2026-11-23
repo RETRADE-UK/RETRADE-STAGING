@@ -373,5 +373,5 @@ async function main() {
   } finally { await browser.close(); }
 }
 
-module.exports = { collectMetrics, viewSpec, previewSpec };
+module.exports = { collectMetrics, viewSpec, previewSpec, openOffline, resetScroll, stableView };
 if (require.main === module) main().catch(error => { console.error(error.stack || error.message); process.exitCode = 1; });
