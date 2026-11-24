@@ -285,7 +285,13 @@ async function checkSaleExamples(page, width) {
           type, touchPoints: fraction == null ? [] : [{ x: x + railWidth * fraction, y: touchY }]
         });
         await touch('touchStart', .85);
-        for (const fraction of [.72, .58, .44, .30, .15]) await touch('touchMove', fraction);
+        // Drag one receipt and briefly rest the finger before lifting. An unpaced
+        // sequence creates a fling whose destination depends on the test host.
+        for (const fraction of [.72, .58, .44, .30, .15]) {
+          await page.waitForTimeout(30);
+          await touch('touchMove', fraction);
+        }
+        await page.waitForTimeout(140);
         await touch('touchEnd');
       } finally {
         await session.detach();
