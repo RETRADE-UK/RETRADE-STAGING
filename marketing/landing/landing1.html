@@ -9,8 +9,8 @@
   <title>RETRADE · Stock and profit tracking for UK resellers</title>
   <script src="/assets/landing/entry.js"></script>
   <link rel="icon" href="/assets/icons/app-32.png">
-  <link rel="stylesheet" href="/assets/landing/open.css?v=20261124-item-ledger">
-  <script defer src="/assets/landing/open.js?v=20261124-item-ledger"></script>
+  <link rel="stylesheet" href="/assets/landing/open.css?v=20261124-marketplaces">
+  <script defer src="/assets/landing/open.js?v=20261124-marketplaces"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -61,23 +61,23 @@
       <div class="wrap benefits-layout">
         <div class="benefits-lead">
           <h2 id="benefits-heading">What did you make on that flip?</h2>
-          <p>Try the same pair of jeans on two marketplaces. Add a repair or refund the buyer and see what happens to your bottom line.</p>
+          <p>Try the same jacket on different marketplaces. Add a repair or refund the buyer and see what happens to your bottom line.</p>
         </div>
-        <article class="item-demo" aria-labelledby="sample-item-title" data-fee="{{EBAY_FEE_PENCE}}" data-credit="{{EBAY_CREDIT_PENCE}}">
-          <header><span class="eyebrow">Sample item · Clothing</span><h3 id="sample-item-title">Levi’s 501 jeans</h3></header>
+        <article class="item-demo" aria-labelledby="sample-item-title" data-fee="{{EBAY_FEE_PENCE}}" data-credit="{{EBAY_CREDIT_PENCE}}" data-private-fee="{{PRIVATE_FEE}}" data-depop-fee="{{DEPOP_FEE}}">
+          <header><span class="eyebrow">Sample item · Clothing</span><h3 id="sample-item-title">Vintage denim jacket</h3></header>
           <div class="item-controls" hidden>
-            <label class="market">Sold on <select><option value="vinted">Vinted</option><option value="ebay">eBay Business</option></select></label>
+            <label class="market">Sold on <select><option value="vinted">Vinted</option><option value="ebay">eBay Personal</option><option value="ebay_biz">eBay Business</option><option value="fb">Facebook · collection</option><option value="depop">Depop</option></select></label>
             <label><input type="checkbox" name="part"> Add a replacement button · £2</label>
             <label><input type="checkbox" name="returned"> Log a full return</label>
           </div>
           <noscript><p>Example sale on Vinted</p></noscript>
           <dl class="item-ledger">
-            <div><dt>Sale price</dt><dd>£32.00</dd></div>
+            <div><dt data-price-label>Sale price</dt><dd>£32.00</dd></div>
             <div><dt>Purchase cost</dt><dd>−£8.50</dd></div>
             <div><dt>Parts</dt><dd data-value="parts">£0.00</dd></div>
-            <div><dt>Marketplace fees</dt><dd data-value="fees">£0.00</dd></div>
-            <div><dt>Packaging</dt><dd>−£0.50</dd></div>
-            <div><dt>Buyer refund</dt><dd data-value="refund">£0.00</dd></div>
+            <div><dt data-fee-label>Marketplace fees</dt><dd data-value="fees">£0.00</dd></div>
+            <div><dt>Packaging</dt><dd data-value="packing">−£0.50</dd></div>
+            <div><dt>Seller-funded refund</dt><dd data-value="refund">£0.00</dd></div>
             <div><dt>Return postage</dt><dd data-value="postage">£0.00</dd></div>
             <div><dt>Cost restored to stock</dt><dd data-value="stock">£0.00</dd></div>
             <div class="item-result"><dt data-result-label>Profit</dt><dd aria-live="polite" aria-atomic="true" data-value="total">£23.00</dd></div>

@@ -292,14 +292,22 @@
   function update() {
     const returned = controls.querySelector('[name="returned"]').checked;
     const parts = controls.querySelector('[name="part"]').checked ? -200 : 0;
-    const ebay = controls.querySelector('select').value === 'ebay';
-    // Business listing fee plus the sale fee, net of the eligible refund credit.
-    const fees = ebay ? -36 - Number(card.dataset.fee) + (returned ? Number(card.dataset.credit) : 0) : 0;
-    const refund = returned ? -3200 : 0;
-    const postage = returned ? -350 : 0;
+    const platform = controls.querySelector('select').value;
+    const personal = platform === 'ebay';
+    const collected = platform === 'fb';
+    let fees = 0;
+    if (personal) fees = -Number(card.dataset.privateFee);
+    if (platform === 'depop' && !returned) fees = -Number(card.dataset.depopFee);
+    if (platform === 'ebay_biz') fees = -36 - Number(card.dataset.fee) + (returned ? Number(card.dataset.credit) : 0);
+    // Private eBay's displayed price includes the buyer's protection charge.
+    const refund = returned ? -(3200 + (personal ? fees : 0)) : 0;
+    const packing = collected ? 0 : -50;
+    const postage = returned && !collected ? -350 : 0;
+    card.querySelector('[data-price-label]').textContent = personal ? 'Buyer-facing price' : 'Sale price';
+    card.querySelector('[data-fee-label]').textContent = personal ? 'Buyer protection' : 'Marketplace fees';
     const stock = returned ? 850 - parts : 0;
-    const total = 3200 - 850 - 50 + parts + fees + refund + postage + stock;
-    for (const [key, amount] of Object.entries({parts, fees, refund, postage, stock, total})) {
+    const total = 3200 - 850 + packing + parts + fees + refund + postage + stock;
+    for (const [key, amount] of Object.entries({parts, fees, packing, refund, postage, stock, total})) {
       card.querySelector('[data-value="' + key + '"]').textContent = money(amount);
     }
     card.querySelector('[data-result-label]').textContent = total < 0 ? 'Loss' : 'Profit';
