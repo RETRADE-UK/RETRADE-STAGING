@@ -2,7 +2,6 @@
 DB = previewSeed.db;
 _sourcingRuns = previewSeed.runs;
 _previewMode = true;
-SUMMARY_PERIOD = '30d';
 saveDB = function () {}; // Mutations already updated this document's in-memory DB.
 _refreshCloudOnResume = async () => false;
 const previewRoute = document.body.dataset.preview;

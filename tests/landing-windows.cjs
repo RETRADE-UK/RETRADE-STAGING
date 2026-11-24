@@ -25,6 +25,7 @@ module.exports = async function checkWindows(page, width) {
   }
   const dashboard = await openExample('Dashboard');
   const picker = dashboard.getByRole('combobox', { name: 'Dashboard period' });
+  assert.equal(await picker.inputValue(), '7d');
   const amounts = [];
   for (const period of ['7d', '14d', '30d', 'cy']) {
     await picker.selectOption(period);
@@ -106,5 +107,5 @@ module.exports = async function checkWindows(page, width) {
   await initial.getByText('Longest sitting', { exact: true }).waitFor();
   assert.equal(await initial.locator('[data-stock-item]').count(), 3, 'Reopened Stock starts with the sample workspace');
   const resetDashboard = await openExample('Dashboard');
-  assert.equal(await resetDashboard.getByLabel('Dashboard period').inputValue(), '30d');
+  assert.equal(await resetDashboard.getByLabel('Dashboard period').inputValue(), '7d');
 };

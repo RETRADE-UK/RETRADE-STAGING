@@ -394,21 +394,24 @@
   }
   function ensureResizeObserver(svgEl){
     if(!window.ResizeObserver||svgEl.__rtPolishedResizeObserver)return;
-    var lastW=0,lastH=0,raf=0;
+    var lastW=0,lastH=0,resizeTimer=0;
     try{var initial=svgEl.getBoundingClientRect();if(initial&&initial.width>=260&&initial.height>=150){lastW=Math.round(initial.width);lastH=Math.round(initial.height);}}catch(_){}
     var ro=new ResizeObserver(function(entries){
       var e=entries&&entries[0];if(!e)return;
-      if(!svgEl.isConnected){ro.disconnect();return;}
+      if(!svgEl.isConnected){clearTimeout(resizeTimer);ro.disconnect();return;}
       var r=e.contentRect;
-      if(!r||r.width<260||r.height<150){lastW=0;lastH=0;return;}
+      if(!r||r.width<260||r.height<150){clearTimeout(resizeTimer);lastW=0;lastH=0;return;}
       var w=Math.round(r.width),h=Math.round(r.height);
       if(Math.abs(w-lastW)<6&&Math.abs(h-lastH)<6)return;
-      lastW=w;lastH=h;if(raf)cancelAnimationFrame(raf);
-      raf=requestAnimationFrame(function(){
+      // The SVG scales with its container while a window is being dragged.
+      // Rebuild its chart geometry once the new size settles.
+      var becomingVisible=!lastW||!lastH;
+      lastW=w;lastH=h;clearTimeout(resizeTimer);
+      resizeTimer=setTimeout(function(){
         var snap=svgEl.__rtPolishedSnapshot;
         if(!snap||!svgEl.isConnected)return;
         _renderChartInto(svgEl,snap.labels,snap.revData,snap.profitData,snap.handlers,Object.assign({},snap.opts));
-      });
+      },becomingVisible?0:120);
     });
     ro.observe(svgEl);svgEl.__rtPolishedResizeObserver=ro;
   }
