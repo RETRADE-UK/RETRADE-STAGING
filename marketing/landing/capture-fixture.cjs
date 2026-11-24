@@ -204,4 +204,4 @@ function installFixture(fixture) {
   _refreshCloudOnResume = async function () { return false; };
 }
 
-module.exports = { buildFixture, installFixture };
+module.exports = { buildFixture, installFixture, makeItem };

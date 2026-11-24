@@ -1,6 +1,6 @@
 /* Capture real RETRADE views using a wholly synthetic, offline workspace.
  * Usage: node marketing/landing/capture.cjs [/tmp/retrade-landing-captures]
- * Append --receipt-only to generate just the two public profit breakdown images.
+ * Append --receipt-only to generate only the three public sale examples on desktop and mobile.
  * Requires npm ci, Playwright Chromium and Python 3 with Pillow.
  * No staging account, saved login state, API request or database write is used. */
 'use strict';
@@ -14,6 +14,7 @@ const { execFileSync } = require('node:child_process');
 const { chromium } = require('playwright');
 const { mockAuth, settled } = require('../../tests/startup-browser.cjs');
 const { buildFixture, installFixture } = require('./capture-fixture.cjs');
+const { captureReceipts } = require('./receipt-examples.cjs');
 
 const root = path.resolve(__dirname, '../..');
 const origin = 'http://retrade.test';
@@ -267,7 +268,7 @@ async function capture(page, view, mobile, base, options = {}) {
   return result;
 }
 
-async function captureSaleDetail(page, mobile, base) {
+async function captureSaleDetail(page, mobile, base, name = 'sale-detail') {
   const spec = { title: '#p-item .ip-title', required: ['#p-item .ip-section-pnl'] };
   await fitCompleteSections(page, spec, base);
   await resetScroll(page);
@@ -289,7 +290,7 @@ async function captureSaleDetail(page, mobile, base) {
         clearOfFloatingControls: true, text: element.innerText.trim(), profitText: total.innerText.trim() }
     };
   });
-  const basename = mobile ? 'sale-detail-phone' : 'sale-detail';
+  const basename = mobile ? name + '-phone' : name;
   const png = path.join(dest, basename + '.png'), webp = path.join(dest, basename + '.webp');
   await page.locator('#p-item .ip-section-pnl').screenshot({ path: png, animations: 'disabled', timeout: 30000 });
   const dimensions = JSON.parse(execFileSync('python3', ['-c',
@@ -325,24 +326,27 @@ async function take(browser, mobile) {
       await page.evaluate(() => openRunPage(window.__landingCaptureFixture.refs.runId));
       captures.push(await capture(page, 'sourcing', mobile, viewport));
       if (!mobile) captures.push(await capture(page, 'sourcing', false, previewViewport, { role: 'preview' }));
+      await page.evaluate(() => {
+        const ref = window.__landingCaptureFixture.refs.sale;
+        openItemPage(ref.month, ref.id);
+      });
+      const receipt = await page.locator('#p-item .ip-section-pnl').innerText();
+      assert(receipt.includes('£5.47'), 'Real sale profit reconciles to the selected item');
+      assert.equal(Number(await page.locator('#p-item .ip-section-pnl .rcpt-s1-price-input').inputValue()),
+        metrics.sale.breakdown.salePrice, 'The real editable sale price reconciles to the selected item');
+      captures.push(await capture(page, 'sale', mobile, viewport));
+      captures.push(await captureSaleDetail(page, mobile, mobile ? viewport : previewViewport));
+      if (!mobile) {
+        // A real disclosure state gives a clean item overview without cutting
+        // through its tall expanded receipt. The adjacent detail asset contains
+        // every receipt row; the complete original still includes the whole page.
+        await page.locator('#p-item .ip-section-pnl .ip-section-header').click();
+        captures.push(await capture(page, 'sale', false, previewViewport, { role: 'preview' }));
+      }
     }
-    await page.evaluate(() => {
-      const ref = window.__landingCaptureFixture.refs.sale;
-      openItemPage(ref.month, ref.id);
-    });
-    const receipt = await page.locator('#p-item .ip-section-pnl').innerText();
-    assert(receipt.includes('£5.47'), 'Real sale profit reconciles to the selected item');
-    assert.equal(Number(await page.locator('#p-item .ip-section-pnl .rcpt-s1-price-input').inputValue()),
-      metrics.sale.breakdown.salePrice, 'The real editable sale price reconciles to the selected item');
-    if (!receiptOnly) captures.push(await capture(page, 'sale', mobile, viewport));
-    captures.push(await captureSaleDetail(page, mobile, mobile ? viewport : previewViewport));
-    if (!mobile && !receiptOnly) {
-      // A real disclosure state gives a clean item overview without cutting
-      // through its tall expanded receipt. The adjacent detail asset contains
-      // every receipt row; the complete original still includes the whole page.
-      await page.locator('#p-item .ip-section-pnl .ip-section-header').click();
-      captures.push(await capture(page, 'sale', false, previewViewport, { role: 'preview' }));
-    }
+    const receipts = await captureReceipts(page, name => captureSaleDetail(page, mobile, mobile ? viewport : previewViewport, name));
+    captures.push(...receipts.captures);
+    metrics.publicReceipts = receipts.metrics;
     assert.deepEqual(state.errors, [], 'App must render without JavaScript errors');
     assert.deepEqual(state.missingAssets, [], 'All local app assets must be present');
     assert.deepEqual(state.databaseAttempts, [], 'Offline capture must never attempt a database call');

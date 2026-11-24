@@ -162,18 +162,41 @@ h1 em { font-size: .88em; }
   top: .55rem; left: .41rem; width: .59rem; height: 1px; background: currentColor;
   box-shadow: 0 .31rem currentColor;
 }
-.flip-receipt { grid-area: receipt; align-self: center; width: 100%; max-width: 36rem; margin: 0; }
-.flip-receipt figcaption { margin-bottom: .85rem; }
-.flip-receipt figcaption span {
-  display: block; color: var(--gold); font-size: .78rem; text-transform: uppercase; letter-spacing: .12em; font-weight: 750;
+.sale-examples { grid-area: receipt; width: 100%; min-width: 0; max-width: 36rem; }
+#sale-example-selector {
+  display: flex; gap: .3rem; margin-bottom: 1rem; border-bottom: 1px solid var(--line);
 }
-.flip-receipt figcaption strong { display: block; margin-top: .3rem; font-size: 1.15rem; }
-.receipt-image { aspect-ratio: 881 / 861; }
+#sale-example-selector button {
+  position: relative; flex: 0 1 auto; min-height: 2.75rem; padding: .4rem .8rem;
+  background: transparent; border: none; color: var(--muted);
+  font: inherit; font-size: .94rem; font-weight: 650;
+}
+#sale-example-selector button[aria-pressed="true"] { color: var(--gold); }
+#sale-example-selector button[aria-pressed="true"]::after {
+  content: ""; position: absolute; inset: auto .8rem -1px; height: 3px;
+  border-radius: 2px; background: var(--gold);
+}
+#sale-example-selector button:hover { color: var(--ink); }
+.sale-examples[data-enhanced] .example-track {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 100%; align-items: start;
+  height: var(--sale-example-height, auto); overflow-x: auto; overflow-y: hidden;
+  overscroll-behavior-x: contain; overflow-anchor: none;
+  scroll-snap-type: x mandatory; scrollbar-width: none;
+}
+.sale-examples[data-enhanced] .example-track::-webkit-scrollbar { display: none; }
+.example-slide { min-width: 0; scroll-snap-align: start; }
+.sale-examples:not([data-enhanced]) .example-slide + .example-slide { margin-top: 2rem; }
+.flip-receipt { width: 100%; margin: 0; }
+.flip-receipt figcaption { margin-bottom: .85rem; }
+.flip-receipt h3 { margin: 0; font-size: 1.22rem; letter-spacing: -.02em; }
+.flip-receipt figcaption p { margin-top: .22rem; color: var(--muted); font-size: .96rem; }
+.receipt-image { aspect-ratio: var(--desktop-ratio); }
 @media (max-width: 960px) {
-  .receipt-image { aspect-ratio: 716 / 1034; }
+  .receipt-image { aspect-ratio: var(--phone-ratio); }
 }
 .flip-receipt picture, .flip-receipt img { display: block; width: 100%; height: auto; }
 @media (max-width: 680px) {
   .benefits-layout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "lead" "receipt" "notes"; gap: 1.3rem; }
-  .flip-receipt { justify-self: center; max-width: 25rem; }
+  .sale-examples { justify-self: center; max-width: 25rem; }
+  #sale-example-selector button { flex: 1; padding-inline: .35rem; }
 }
