@@ -210,7 +210,16 @@ async function checkSaleExamples(page) {
   await card.scrollIntoViewIfNeeded();
   const initial = await card.boundingBox();
   assert.equal(await total.innerText(), '£23.00');
-  await card.getByRole('combobox').selectOption('ebay');
+  for (const [platform, sold, returned] of [
+    ['ebay', '£21.10', '−£4.00'], ['depop', '£21.77', '−£4.00'], ['fb', '£23.50', '£0.00']
+  ]) {
+    await card.getByRole('combobox').selectOption(platform);
+    assert.equal(await total.innerText(), sold);
+    await card.getByLabel(/full return/).check();
+    assert.equal(await total.innerText(), returned);
+    await card.getByLabel(/full return/).uncheck();
+  }
+  await card.getByRole('combobox').selectOption('ebay_biz');
   assert.equal(await total.innerText(), '£17.46');
   await card.getByLabel(/replacement button/).check();
   assert.equal(await total.innerText(), '£15.46');

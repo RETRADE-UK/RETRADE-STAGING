@@ -17,10 +17,12 @@ const feeContext = require('node:vm').createContext({});
 for (const file of ['report-engine', 'accounting-engine']) {
   require('node:vm').runInContext(fs.readFileSync(path.join(root, 'src/domain', file + '.js'), 'utf8'), feeContext);
 }
-const jeansFee = feeContext._calcEbayBizFeeComponents(32, 'Clothes, Shoes & Accessories', 32);
+const jacketFee = feeContext._calcEbayBizFeeComponents(32, 'Clothes, Shoes & Accessories', 32);
 const landing = fs.readFileSync(path.join(root, 'marketing/landing/landing1.html'), 'utf8')
-  .replace('{{EBAY_FEE_PENCE}}', Math.round(100 * jeansFee.total))
-  .replace('{{EBAY_CREDIT_PENCE}}', Math.round(100 * jeansFee.eligibleRefundableGross));
+  .replace('{{PRIVATE_FEE}}', Math.round(100 * feeContext.calcEbayBPF(32)))
+  .replace('{{DEPOP_FEE}}', Math.round(100 * feeContext.calcDepopBPF({}, 32, 0)))
+  .replace('{{EBAY_FEE_PENCE}}', Math.round(100 * jacketFee.total))
+  .replace('{{EBAY_CREDIT_PENCE}}', Math.round(100 * jacketFee.eligibleRefundableGross));
 // Keep the review address out of search on both hosts.
 const home = assets.environment === 'production'
   ? landing.replace('<meta name="robots" content="noindex,nofollow">', '<link rel="canonical" href="https://retrade-uk.com/">')
