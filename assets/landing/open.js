@@ -15,6 +15,7 @@
   let requested;
   let visible;
   let warmScheduled = false;
+  let firstWarmScheduled = false;
   let primeRequest;
   let inView = !('IntersectionObserver' in window);
 
@@ -157,10 +158,17 @@
   function scheduleWarm() {
     if (!canWarm() || warmScheduled) return;
     warmScheduled = true;
-    requestAnimationFrame(() => {
+    const idle = () => {
       if (window.requestIdleCallback) window.requestIdleCallback(warmNext);
       else setTimeout(warmNext, 0);
-    });
+    };
+    if (!firstWarmScheduled) {
+      firstWarmScheduled = true;
+      // Let the visible Dashboard paint before the first standby starts work.
+      requestAnimationFrame(() => requestAnimationFrame(idle));
+    } else {
+      requestAnimationFrame(idle);
+    }
   }
 
   function render(page, reset = false) {
