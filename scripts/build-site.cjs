@@ -12,7 +12,15 @@ for(const route of ['login','signup','dashboard']){
   fs.mkdirSync(path.join(out,route),{recursive:true});
   fs.writeFileSync(path.join(out,route,'index.html'),shell);
 }
-const landing = fs.readFileSync(path.join(root, 'marketing/landing/landing1.html'), 'utf8');
+// Price the fixed sample with the same category table and fee engine as the item page.
+const feeContext = require('node:vm').createContext({});
+for (const file of ['report-engine', 'accounting-engine']) {
+  require('node:vm').runInContext(fs.readFileSync(path.join(root, 'src/domain', file + '.js'), 'utf8'), feeContext);
+}
+const jeansFee = feeContext._calcEbayBizFeeComponents(32, 'Clothes, Shoes & Accessories', 32);
+const landing = fs.readFileSync(path.join(root, 'marketing/landing/landing1.html'), 'utf8')
+  .replace('{{EBAY_FEE_PENCE}}', Math.round(100 * jeansFee.total))
+  .replace('{{EBAY_CREDIT_PENCE}}', Math.round(100 * jeansFee.eligibleRefundableGross));
 // Keep the review address out of search on both hosts.
 const home = assets.environment === 'production'
   ? landing.replace('<meta name="robots" content="noindex,nofollow">', '<link rel="canonical" href="https://retrade-uk.com/">')

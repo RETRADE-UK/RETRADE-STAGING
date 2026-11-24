@@ -283,124 +283,29 @@
   if (location.hash === '#sale' || location.hash === '#tour') nav.scrollIntoView({ block: 'start' });
 })();
 
-// The static page shows all three sales; scripting adds a swipeable example picker.
+// All amounts in the sample ledger are in pence.
 (() => {
-  const examples = document.querySelector('.sale-examples');
-  const picker = examples?.querySelector('#sale-example-selector');
-  const track = examples?.querySelector('.example-track');
-  if (!picker || !track) return;
-  const buttons = Array.from(picker.querySelectorAll('button[data-example]'));
-  const slides = Array.from(track.querySelectorAll('.example-slide[data-scenario]'));
-  if (!slides.length || buttons.length !== slides.length ||
-      slides.some((slide, index) => slide.dataset.scenario !== buttons[index].dataset.example)) return;
-
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  let selected = 0;
-  let destination = null;
-  let lastWidth = 0;
-  let scrollQueued = false;
-  let nearby = !('IntersectionObserver' in window);
-
-  function loadReceipt(slide) {
-    const fallback = slide.querySelector('.receipt-image > noscript');
-    if (fallback) fallback.replaceWith(document.createRange().createContextualFragment(fallback.textContent));
-  }
-
-  function sizeTrack() {
-    const height = Math.ceil(slides[selected].getBoundingClientRect().height);
-    if (height) track.style.setProperty('--sale-example-height', height + 'px');
-  }
-
-  function setCurrent(index) {
-    selected = index;
-    buttons.forEach((button, i) => {
-      button.setAttribute('aria-pressed', String(i === index));
-      slides[i].inert = i !== index;
-    });
-    sizeTrack();
-  }
-
-  function leftFor(index) {
-    return track.scrollLeft + slides[index].getBoundingClientRect().left -
-      track.getBoundingClientRect().left - track.clientLeft;
-  }
-
-  function choose(index) {
-    const adjacent = Math.abs(index - selected) === 1;
-    destination = index;
-    loadReceipt(slides[index]);
-    setCurrent(index);
-    track.scrollTo({
-      left: leftFor(index),
-      behavior: adjacent && !reducedMotion.matches ? 'smooth' : 'instant'
-    });
-    if (Math.abs(track.scrollLeft - leftFor(index)) < 2) destination = null;
-  }
-
-  function readScroll() {
-    scrollQueued = false;
-    const left = track.getBoundingClientRect().left + track.clientLeft;
-    const right = left + track.clientWidth;
-    let mostVisible = 0;
-    let bestWidth = 0;
-    slides.forEach((slide, index) => {
-      const rect = slide.getBoundingClientRect();
-      const width = Math.min(right, rect.right) - Math.max(left, rect.left);
-      if (nearby && width > 1) loadReceipt(slide);
-      if (width > bestWidth) { bestWidth = width; mostVisible = index; }
-    });
-    if (destination !== null && Math.abs(track.scrollLeft - leftFor(destination)) < 2) destination = null;
-    if (destination === null && bestWidth > 0 && selected !== mostVisible) setCurrent(mostVisible);
-  }
-
-  buttons.forEach((button, index) => {
-    button.addEventListener('click', () => choose(index));
-    button.addEventListener('keydown', event => {
-      const next = {
-        ArrowLeft: (index + slides.length - 1) % slides.length,
-        ArrowRight: (index + 1) % slides.length,
-        Home: 0,
-        End: slides.length - 1
-      }[event.key];
-      if (next === undefined) return;
-      event.preventDefault();
-      buttons[next].focus({ preventScroll: true });
-      choose(next);
-    });
-  });
-
-  // A swipe or trackpad gesture can take over from a button's smooth scroll.
-  for (const event of ['pointerdown', 'wheel', 'keydown']) {
-    track.addEventListener(event, () => { destination = null; }, { passive: true });
-  }
-  track.addEventListener('scroll', () => {
-    if (scrollQueued) return;
-    scrollQueued = true;
-    requestAnimationFrame(readScroll);
-  }, { passive: true });
-
-  examples.dataset.enhanced = '';
-  picker.hidden = false;
-  setCurrent(0);
-  lastWidth = track.clientWidth;
-  function resize() {
-    const width = track.clientWidth;
-    if (width !== lastWidth) {
-      lastWidth = width;
-      destination = null;
-      track.scrollTo({ left: leftFor(selected), behavior: 'instant' });
+  const card = document.querySelector('.item-demo');
+  if (!card) return;
+  const controls = card.querySelector('.item-controls');
+  const money = pence => (pence < 0 ? '−' : '') + '£' + (Math.abs(pence) / 100).toFixed(2);
+  function update() {
+    const returned = controls.querySelector('[name="returned"]').checked;
+    const parts = controls.querySelector('[name="part"]').checked ? -200 : 0;
+    const ebay = controls.querySelector('select').value === 'ebay';
+    // Business listing fee plus the sale fee, net of the eligible refund credit.
+    const fees = ebay ? -36 - Number(card.dataset.fee) + (returned ? Number(card.dataset.credit) : 0) : 0;
+    const refund = returned ? -3200 : 0;
+    const postage = returned ? -350 : 0;
+    const stock = returned ? 850 - parts : 0;
+    const total = 3200 - 850 - 50 + parts + fees + refund + postage + stock;
+    for (const [key, amount] of Object.entries({parts, fees, refund, postage, stock, total})) {
+      card.querySelector('[data-value="' + key + '"]').textContent = money(amount);
     }
-    sizeTrack();
+    card.querySelector('[data-result-label]').textContent = total < 0 ? 'Loss' : 'Profit';
+    card.classList.toggle('has-loss', total < 0);
   }
-  if ('ResizeObserver' in window) {
-    const observer = new ResizeObserver(resize);
-    for (const slide of slides) observer.observe(slide);
-  } else window.addEventListener('resize', resize);
-
-  if ('IntersectionObserver' in window) {
-    new IntersectionObserver(([entry]) => {
-      nearby = entry.isIntersecting;
-      if (nearby) readScroll();
-    }, { rootMargin: '96px 0px' }).observe(track);
-  } else readScroll();
+  controls.addEventListener('change', update);
+  controls.hidden = false;
+  update();
 })();

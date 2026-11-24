@@ -9,8 +9,8 @@
   <title>RETRADE · Stock and profit tracking for UK resellers</title>
   <script src="/assets/landing/entry.js"></script>
   <link rel="icon" href="/assets/icons/app-32.png">
-  <link rel="stylesheet" href="/assets/landing/open.css?v=20261124-sale-examples">
-  <script defer src="/assets/landing/open.js?v=20261124-sale-examples"></script>
+  <link rel="stylesheet" href="/assets/landing/open.css?v=20261124-item-ledger">
+  <script defer src="/assets/landing/open.js?v=20261124-item-ledger"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -61,65 +61,28 @@
       <div class="wrap benefits-layout">
         <div class="benefits-lead">
           <h2 id="benefits-heading">What did you make on that flip?</h2>
-          <p>Follow the money from the price you paid to the profit you kept. See how the figures change when a find needs a repair or a buyer sends it back.</p>
+          <p>Try the same pair of jeans on two marketplaces. Add a repair or refund the buyer and see what happens to your bottom line.</p>
         </div>
-        <div class="sale-examples">
-          <div id="sale-example-selector" role="group" aria-label="Choose a sale example" hidden>
-            <button type="button" data-example="everyday" aria-controls="example-everyday" aria-pressed="true">Everyday sale</button>
-            <button type="button" data-example="repair" aria-controls="example-repair" aria-pressed="false">With parts</button>
-            <button type="button" data-example="return" aria-controls="example-return" aria-pressed="false">Return</button>
+        <article class="item-demo" aria-labelledby="sample-item-title" data-fee="{{EBAY_FEE_PENCE}}" data-credit="{{EBAY_CREDIT_PENCE}}">
+          <header><span class="eyebrow">Sample item · Clothing</span><h3 id="sample-item-title">Levi’s 501 jeans</h3></header>
+          <div class="item-controls" hidden>
+            <label class="market">Sold on <select><option value="vinted">Vinted</option><option value="ebay">eBay Business</option></select></label>
+            <label><input type="checkbox" name="part"> Add a replacement button · £2</label>
+            <label><input type="checkbox" name="returned"> Log a full return</label>
           </div>
-          <div class="example-track" aria-label="Sale breakdown examples" role="region">
-            <article class="example-slide" id="example-everyday" data-scenario="everyday" aria-labelledby="example-everyday-title">
-              <figure class="flip-receipt">
-                <figcaption>
-                  <h3 id="example-everyday-title">Levi’s 501 jeans</h3>
-                  <p>An £8.50 find sold for £32 on Vinted. With the buyer covering postage, that leaves £23.50 profit.</p>
-                </figcaption>
-                <div class="receipt-image" style="--desktop-ratio:881/528; --phone-ratio:716/644">
-                  <noscript>
-                    <picture>
-                      <source media="(max-width: 960px)" srcset="/assets/landing/sale-jeans-phone.webp" width="716" height="644">
-                      <img src="/assets/landing/sale-jeans.webp" width="881" height="528" decoding="async" loading="lazy" alt="Jeans sale breakdown. Sale price £32, item cost £8.50, profit £23.50.">
-                    </picture>
-                  </noscript>
-                </div>
-              </figure>
-            </article>
-            <article class="example-slide" id="example-repair" data-scenario="repair" aria-labelledby="example-repair-title">
-              <figure class="flip-receipt">
-                <figcaption>
-                  <h3 id="example-repair-title">Dyson V7 cordless vacuum</h3>
-                  <p>Bought for £15 and sold for £65 on Facebook Marketplace. A new battery and filter cost £24, leaving £26 profit.</p>
-                </figcaption>
-                <div class="receipt-image" style="--desktop-ratio:881/830; --phone-ratio:716/1000">
-                  <noscript>
-                    <picture>
-                      <source media="(max-width: 960px)" srcset="/assets/landing/sale-repair-phone.webp" width="716" height="1000">
-                      <img src="/assets/landing/sale-repair.webp" width="881" height="830" decoding="async" loading="lazy" alt="Vacuum sale breakdown. Sale price £65, item cost £15, replacement battery £18, filter £6, profit £26.">
-                    </picture>
-                  </noscript>
-                </div>
-              </figure>
-            </article>
-            <article class="example-slide" id="example-return" data-scenario="return" aria-labelledby="example-return-title">
-              <figure class="flip-receipt">
-                <figcaption>
-                  <h3 id="example-return-title">De’Longhi coffee grinder</h3>
-                  <p>The eBay buyer got their £30 back and the grinder went back into stock. Postage, packaging and fees left an £8.34 loss.</p>
-                </figcaption>
-                <div class="receipt-image" style="--desktop-ratio:881/1196; --phone-ratio:716/1436">
-                  <noscript>
-                    <picture>
-                      <source media="(max-width: 960px)" srcset="/assets/landing/sale-return-phone.webp" width="716" height="1436">
-                      <img src="/assets/landing/sale-return.webp" width="881" height="1196" decoding="async" loading="lazy" alt="Coffee grinder return breakdown. Full refund £30, stock cost restored £8, fee credit £4.41. Postage was £3.50 each way. Final loss £8.34.">
-                    </picture>
-                  </noscript>
-                </div>
-              </figure>
-            </article>
-          </div>
-        </div>
+          <noscript><p>Example sale on Vinted</p></noscript>
+          <dl class="item-ledger">
+            <div><dt>Sale price</dt><dd>£32.00</dd></div>
+            <div><dt>Purchase cost</dt><dd>−£8.50</dd></div>
+            <div><dt>Parts</dt><dd data-value="parts">£0.00</dd></div>
+            <div><dt>Marketplace fees</dt><dd data-value="fees">£0.00</dd></div>
+            <div><dt>Packaging</dt><dd>−£0.50</dd></div>
+            <div><dt>Buyer refund</dt><dd data-value="refund">£0.00</dd></div>
+            <div><dt>Return postage</dt><dd data-value="postage">£0.00</dd></div>
+            <div><dt>Cost restored to stock</dt><dd data-value="stock">£0.00</dd></div>
+            <div class="item-result"><dt data-result-label>Profit</dt><dd aria-live="polite" aria-atomic="true" data-value="total">£23.00</dd></div>
+          </dl>
+        </article>
         <div class="benefits-notes">
           <div class="benefit-note">
             <span class="benefit-symbol stock-symbol" aria-hidden="true"></span>
