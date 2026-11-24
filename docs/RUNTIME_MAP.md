@@ -54,10 +54,7 @@ the other tabs. Phones and modest devices keep one standby. When the browser
 reports a fast connection, they also fetch the other public view files at low
 priority. Save-Data, slow connections and very limited devices load examples
 on selection. Taxes stays disabled. With JavaScript off,
-the navigation opens screenshots. Below the demo, visitors can swipe or select
-one of three app-rendered breakdowns covering an everyday sale, replacement
-parts and a return. The examples use fictional transactions. Each image loads
-as its example is viewed. Without JavaScript, the three examples appear in order.
+the navigation opens screenshots. The sample item below the demo has a local, editable ledger. Its eBay sale fee and refund credit come from the accounting engine at build time. The ledger needs no image or network request.
 Public landing assets are declared in `config/assets.js`.
 The app service worker handles landing navigation separately from the
 workspace shell.
