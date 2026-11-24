@@ -4,6 +4,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
+const { transformSync } = require('esbuild');
 const { root, assets } = require('../../scripts/assets.cjs');
 const { buildFixture } = require('./capture-fixture.cjs');
 const read = file => fs.readFileSync(path.join(root, file), 'utf8').replace(/\r\n/g, '\n');
@@ -20,6 +21,9 @@ module.exports = function buildPreviews(out) {
   const dir = path.join(out, 'landing1', 'preview');
   fs.mkdirSync(dir, { recursive: true });
   function asset(name, ext, content) {
+    // Preserve classic-script names and inline event handlers when compacting the demo.
+    content = transformSync(content, { loader: ext, minifyWhitespace: true, charset: 'utf8',
+      legalComments: 'inline', target: ['chrome100', 'safari16'] }).code;
     const hash = createHash('sha256').update(content).digest('hex').slice(0, 16);
     const file = name + '-' + hash + '.' + ext;
     fs.writeFileSync(path.join(dir, file), content);

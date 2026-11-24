@@ -1,7 +1,7 @@
 /* Runtime asset contract. Ordered classic scripts: do not alphabetise.
  * Shared by the browser loader, service worker and validation tools. */
 globalThis.RT_ASSETS = Object.freeze({
-  "build": "20261124-workspace-headers-staging",
+  "build": "20261124-dashboard-week-staging",
   "environment": "staging",
   "entry": [
     "src/platform/local-recovery.js",
@@ -93,8 +93,8 @@ globalThis.RT_ASSETS = Object.freeze({
   "landing": [
     "assets/landing/entry.js",
     "assets/landing/mark.svg",
-    "assets/landing/open-dashboard-30d-phone.webp",
-    "assets/landing/open-dashboard-30d.webp",
+    "assets/landing/open-dashboard-7d-phone.webp",
+    "assets/landing/open-dashboard-7d.webp",
     "assets/landing/open-expenses.webp",
     "assets/landing/open-sales.webp",
     "assets/landing/open-stock.webp",

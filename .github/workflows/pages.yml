@@ -38,6 +38,7 @@ jobs:
 
       - name: Build staging site artifact
         run: |
+          npm ci --ignore-scripts
           node scripts/check-assets.cjs
           npm run build
 
