@@ -9,8 +9,8 @@
   <title>RETRADE · Stock and profit tracking for UK resellers</title>
   <script src="/assets/landing/entry.js"></script>
   <link rel="icon" href="/assets/icons/app-32.png">
-  <link rel="stylesheet" href="/assets/landing/open.css?v=20261124-warm-views">
-  <script defer src="/assets/landing/open.js?v=20261124-warm-views"></script>
+  <link rel="stylesheet" href="/assets/landing/open.css?v=20261124-sale-examples">
+  <script defer src="/assets/landing/open.js?v=20261124-sale-examples"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -60,20 +60,66 @@
     <section id="benefits" class="benefits" aria-labelledby="benefits-heading">
       <div class="wrap benefits-layout">
         <div class="benefits-lead">
-          <h2 id="benefits-heading">How much of a £19 sale do you keep?</h2>
-          <p>This game cost £8 and sold for £19 on eBay. After fees, postage and packaging, the seller kept £5.47. Open a sold item in RETRADE to see its breakdown.</p>
+          <h2 id="benefits-heading">What did you make on that flip?</h2>
+          <p>Follow the money from the price you paid to the profit you kept. See how the figures change when a find needs a repair or a buyer sends it back.</p>
         </div>
-        <figure class="flip-receipt">
-          <figcaption><span>Example sale</span><strong>Mario Kart 8 Deluxe, cartridge only</strong></figcaption>
-          <div class="receipt-image">
-            <noscript>
-              <picture>
-                <source media="(max-width: 960px)" srcset="/assets/landing/sale-detail-phone.webp" width="716" height="1034">
-                <img src="/assets/landing/sale-detail.webp" width="881" height="861" decoding="async" alt="RETRADE profit breakdown. From £19, deduct £8 for the game, £2.82 in selling fees, a 36p listing fee, £2.10 postage and 25p packaging. Profit £5.47.">
-              </picture>
-            </noscript>
+        <div class="sale-examples">
+          <div id="sale-example-selector" role="group" aria-label="Choose a sale example" hidden>
+            <button type="button" data-example="everyday" aria-controls="example-everyday" aria-pressed="true">Everyday sale</button>
+            <button type="button" data-example="repair" aria-controls="example-repair" aria-pressed="false">With parts</button>
+            <button type="button" data-example="return" aria-controls="example-return" aria-pressed="false">Return</button>
           </div>
-        </figure>
+          <div class="example-track" aria-label="Sale breakdown examples" role="region">
+            <article class="example-slide" id="example-everyday" data-scenario="everyday" aria-labelledby="example-everyday-title">
+              <figure class="flip-receipt">
+                <figcaption>
+                  <h3 id="example-everyday-title">Levi’s 501 jeans</h3>
+                  <p>An £8.50 find sold for £32 on Vinted. With the buyer covering postage, that leaves £23.50 profit.</p>
+                </figcaption>
+                <div class="receipt-image" style="--desktop-ratio:881/528; --phone-ratio:716/644">
+                  <noscript>
+                    <picture>
+                      <source media="(max-width: 960px)" srcset="/assets/landing/sale-jeans-phone.webp" width="716" height="644">
+                      <img src="/assets/landing/sale-jeans.webp" width="881" height="528" decoding="async" loading="lazy" alt="Jeans sale breakdown. Sale price £32, item cost £8.50, profit £23.50.">
+                    </picture>
+                  </noscript>
+                </div>
+              </figure>
+            </article>
+            <article class="example-slide" id="example-repair" data-scenario="repair" aria-labelledby="example-repair-title">
+              <figure class="flip-receipt">
+                <figcaption>
+                  <h3 id="example-repair-title">Dyson V7 cordless vacuum</h3>
+                  <p>Bought for £15 and sold for £65 on Facebook Marketplace. A new battery and filter cost £24, leaving £26 profit.</p>
+                </figcaption>
+                <div class="receipt-image" style="--desktop-ratio:881/830; --phone-ratio:716/1000">
+                  <noscript>
+                    <picture>
+                      <source media="(max-width: 960px)" srcset="/assets/landing/sale-repair-phone.webp" width="716" height="1000">
+                      <img src="/assets/landing/sale-repair.webp" width="881" height="830" decoding="async" loading="lazy" alt="Vacuum sale breakdown. Sale price £65, item cost £15, replacement battery £18, filter £6, profit £26.">
+                    </picture>
+                  </noscript>
+                </div>
+              </figure>
+            </article>
+            <article class="example-slide" id="example-return" data-scenario="return" aria-labelledby="example-return-title">
+              <figure class="flip-receipt">
+                <figcaption>
+                  <h3 id="example-return-title">De’Longhi coffee grinder</h3>
+                  <p>The eBay buyer got their £30 back and the grinder went back into stock. Postage, packaging and fees left an £8.34 loss.</p>
+                </figcaption>
+                <div class="receipt-image" style="--desktop-ratio:881/1196; --phone-ratio:716/1436">
+                  <noscript>
+                    <picture>
+                      <source media="(max-width: 960px)" srcset="/assets/landing/sale-return-phone.webp" width="716" height="1436">
+                      <img src="/assets/landing/sale-return.webp" width="881" height="1196" decoding="async" loading="lazy" alt="Coffee grinder return breakdown. Full refund £30, stock cost restored £8, fee credit £4.41. Postage was £3.50 each way. Final loss £8.34.">
+                    </picture>
+                  </noscript>
+                </div>
+              </figure>
+            </article>
+          </div>
+        </div>
         <div class="benefits-notes">
           <div class="benefit-note">
             <span class="benefit-symbol stock-symbol" aria-hidden="true"></span>

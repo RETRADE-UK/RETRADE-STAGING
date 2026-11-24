@@ -283,23 +283,124 @@
   if (location.hash === '#sale' || location.hash === '#tour') nav.scrollIntoView({ block: 'start' });
 })();
 
-// Only fetch the below-fold receipt when the reader approaches it.
+// The static page shows all three sales; scripting adds a swipeable example picker.
 (() => {
-  const slot = document.querySelector('.receipt-image');
-  const fallback = slot?.querySelector('noscript');
-  if (!fallback) return;
-  function loadReceipt() {
-    const picture = document.createRange().createContextualFragment(fallback.textContent);
-    slot.replaceChildren(picture);
+  const examples = document.querySelector('.sale-examples');
+  const picker = examples?.querySelector('#sale-example-selector');
+  const track = examples?.querySelector('.example-track');
+  if (!picker || !track) return;
+  const buttons = Array.from(picker.querySelectorAll('button[data-example]'));
+  const slides = Array.from(track.querySelectorAll('.example-slide[data-scenario]'));
+  if (!slides.length || buttons.length !== slides.length ||
+      slides.some((slide, index) => slide.dataset.scenario !== buttons[index].dataset.example)) return;
+
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let selected = 0;
+  let destination = null;
+  let lastWidth = 0;
+  let scrollQueued = false;
+  let nearby = !('IntersectionObserver' in window);
+
+  function loadReceipt(slide) {
+    const fallback = slide.querySelector('.receipt-image > noscript');
+    if (fallback) fallback.replaceWith(document.createRange().createContextualFragment(fallback.textContent));
   }
-  if (!('IntersectionObserver' in window)) {
-    loadReceipt();
-    return;
+
+  function sizeTrack() {
+    const height = Math.ceil(slides[selected].getBoundingClientRect().height);
+    if (height) track.style.setProperty('--sale-example-height', height + 'px');
   }
-  const observer = new IntersectionObserver(([entry]) => {
-    if (!entry.isIntersecting) return;
-    observer.disconnect();
-    loadReceipt();
-  }, { rootMargin: '96px 0px' });
-  observer.observe(slot);
+
+  function setCurrent(index) {
+    selected = index;
+    buttons.forEach((button, i) => {
+      button.setAttribute('aria-pressed', String(i === index));
+      slides[i].inert = i !== index;
+    });
+    sizeTrack();
+  }
+
+  function leftFor(index) {
+    return track.scrollLeft + slides[index].getBoundingClientRect().left -
+      track.getBoundingClientRect().left - track.clientLeft;
+  }
+
+  function choose(index) {
+    const adjacent = Math.abs(index - selected) === 1;
+    destination = index;
+    loadReceipt(slides[index]);
+    setCurrent(index);
+    track.scrollTo({
+      left: leftFor(index),
+      behavior: adjacent && !reducedMotion.matches ? 'smooth' : 'instant'
+    });
+    if (Math.abs(track.scrollLeft - leftFor(index)) < 2) destination = null;
+  }
+
+  function readScroll() {
+    scrollQueued = false;
+    const left = track.getBoundingClientRect().left + track.clientLeft;
+    const right = left + track.clientWidth;
+    let mostVisible = 0;
+    let bestWidth = 0;
+    slides.forEach((slide, index) => {
+      const rect = slide.getBoundingClientRect();
+      const width = Math.min(right, rect.right) - Math.max(left, rect.left);
+      if (nearby && width > 1) loadReceipt(slide);
+      if (width > bestWidth) { bestWidth = width; mostVisible = index; }
+    });
+    if (destination !== null && Math.abs(track.scrollLeft - leftFor(destination)) < 2) destination = null;
+    if (destination === null && bestWidth > 0 && selected !== mostVisible) setCurrent(mostVisible);
+  }
+
+  buttons.forEach((button, index) => {
+    button.addEventListener('click', () => choose(index));
+    button.addEventListener('keydown', event => {
+      const next = {
+        ArrowLeft: (index + slides.length - 1) % slides.length,
+        ArrowRight: (index + 1) % slides.length,
+        Home: 0,
+        End: slides.length - 1
+      }[event.key];
+      if (next === undefined) return;
+      event.preventDefault();
+      buttons[next].focus({ preventScroll: true });
+      choose(next);
+    });
+  });
+
+  // A swipe or trackpad gesture can take over from a button's smooth scroll.
+  for (const event of ['pointerdown', 'wheel', 'keydown']) {
+    track.addEventListener(event, () => { destination = null; }, { passive: true });
+  }
+  track.addEventListener('scroll', () => {
+    if (scrollQueued) return;
+    scrollQueued = true;
+    requestAnimationFrame(readScroll);
+  }, { passive: true });
+
+  examples.dataset.enhanced = '';
+  picker.hidden = false;
+  setCurrent(0);
+  lastWidth = track.clientWidth;
+  function resize() {
+    const width = track.clientWidth;
+    if (width !== lastWidth) {
+      lastWidth = width;
+      destination = null;
+      track.scrollTo({ left: leftFor(selected), behavior: 'instant' });
+    }
+    sizeTrack();
+  }
+  if ('ResizeObserver' in window) {
+    const observer = new ResizeObserver(resize);
+    for (const slide of slides) observer.observe(slide);
+  } else window.addEventListener('resize', resize);
+
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(([entry]) => {
+      nearby = entry.isIntersecting;
+      if (nearby) readScroll();
+    }, { rootMargin: '96px 0px' }).observe(track);
+  } else readScroll();
 })();

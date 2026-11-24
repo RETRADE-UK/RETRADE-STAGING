@@ -100,8 +100,12 @@ globalThis.RT_ASSETS = Object.freeze({
     "assets/landing/open-stock.webp",
     "assets/landing/open.css",
     "assets/landing/open.js",
-    "assets/landing/sale-detail-phone.webp",
-    "assets/landing/sale-detail.webp"
+    "assets/landing/sale-jeans-phone.webp",
+    "assets/landing/sale-jeans.webp",
+    "assets/landing/sale-repair-phone.webp",
+    "assets/landing/sale-repair.webp",
+    "assets/landing/sale-return-phone.webp",
+    "assets/landing/sale-return.webp"
   ],
   "images": [
     "assets/brand/pdf-logo-dark-v1.png"

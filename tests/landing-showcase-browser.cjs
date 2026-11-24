@@ -14,6 +14,11 @@ const origin = 'https://retrade.test';
 const isWebKit = process.argv.includes('--webkit');
 const engineName = isWebKit ? 'webkit' : 'chromium';
 const pageNames = ['Dashboard', 'Sales', 'Stock', 'Expenses'];
+const saleExamples = [
+  { key: 'everyday', image: 'sale-jeans', name: /Levi.+501/i, amounts: [32, 8.50, 23.50] },
+  { key: 'repair', image: 'sale-repair', name: /Dyson V7/i, amounts: [65, 15, 18, 6, 26] },
+  { key: 'return', image: 'sale-return', name: /coffee grinder/i, amounts: [30, 8, 4.41, 3.50, 8.34] }
+];
 const types = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.webp': 'image/webp', '.svg': 'image/svg+xml', '.png': 'image/png'
@@ -168,8 +173,8 @@ async function checkPresentation(page, requests, width) {
   await page.mouse.click(taxesBox.x + taxesBox.width / 2, taxesBox.y + taxesBox.height / 2);
   await checkSelected(page, 'Dashboard');
   assert.equal(new URL(page.url()).hash, '');
-  if (width === 390) assert(!requests.some(url => url.includes('/sale-detail')),
-    'The below-fold receipt is deferred on the first mobile screen');
+  assert(!requests.some(url => saleExamples.some(example => url.startsWith('/assets/landing/' + example.image))),
+    'Below-fold sale receipts must not be downloaded on first paint');
   const startY = await page.evaluate(() => window.scrollY);
   const sales = page.getByRole('tab', { name: 'Sales', exact: true });
   await sales.click();
@@ -197,21 +202,99 @@ async function checkPresentation(page, requests, width) {
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
   assert.equal(new URL(page.url()).hash, '#dashboard', 'Document scrolling never changes the selected page');
   await checkSelected(page, 'Dashboard');
-  const figure = page.locator('#benefits figure.flip-receipt');
-  await figure.scrollIntoViewIfNeeded();
-  const receipt = figure.locator('img');
-  await receipt.waitFor();
-  await receipt.evaluate(img => img.decode());
-  assert.match(await receipt.getAttribute('alt'), /£19.+£5\.47/);
-  assert.match(await page.locator('#benefits figure.flip-receipt figcaption').innerText(), /Mario Kart 8 Deluxe/i);
-  assert.equal(await receipt.evaluate(img => new URL(img.currentSrc).pathname),
-    '/assets/landing/sale-detail' + (width <= 960 ? '-phone' : '') + '.webp');
+  await checkSaleExamples(page, width);
   await stock.click();
   await waitForExample(page, 'Stock');
   await page.screenshot({ path: path.join(os.tmpdir(), 'landing-showcase-' + engineName + '-' + width + '-stock.png') });
 
   if (width === 390 || width === 1440) await checkWindows(page, width);
   await checkWidth(page);
+}
+
+async function checkReceipt(slide, example, width) {
+  const image = slide.locator('img');
+  await image.waitFor({ state: 'attached' });
+  const source = '/assets/landing/' + example.image + (width <= 960 ? '-phone' : '') + '.webp';
+  await slide.page().waitForFunction(({ img, source }) => {
+    return img.complete && img.naturalWidth > 0 && new URL(img.currentSrc).pathname === source;
+  }, { img: await image.elementHandle(), source });
+  const caption = await slide.innerText();
+  const description = await image.getAttribute('alt');
+  assert.match(caption, example.name);
+  assert(description && description.trim(), 'The receipt has a text alternative');
+  const summary = caption + ' ' + description;
+  const amounts = [...summary.matchAll(/£(\d+(?:\.\d{2})?)/g)].map(match => Number(match[1]));
+  for (const amount of example.amounts) {
+    assert(amounts.includes(amount), example.key + ' receipt should describe £' + amount);
+  }
+  assert.match(summary, example.key === 'return' ? /loss/i : /profit/i);
+}
+
+async function checkSaleExamples(page, width) {
+  const section = page.locator('.sale-examples');
+  const track = section.locator('.example-track');
+  const controls = section.locator('#sale-example-selector button');
+  assert.deepEqual(await controls.evaluateAll(buttons => buttons.map(button => button.dataset.example)),
+    saleExamples.map(example => example.key));
+
+  async function checkActive(index) {
+    const example = saleExamples[index];
+    const button = controls.nth(index);
+    const slide = track.locator('[data-scenario="' + example.key + '"]');
+    await section.locator('button[data-example="' + example.key + '"][aria-pressed="true"]').waitFor();
+    assert.equal(await section.locator('#sale-example-selector [aria-pressed="true"]').count(), 1);
+    assert.equal(await button.getAttribute('aria-controls'), await slide.getAttribute('id'));
+    assert(await slide.evaluate(element => !element.inert));
+    await checkReceipt(slide, example, width);
+    assert(await track.locator('.example-slide').evaluateAll(slides => slides.filter(slide => !slide.inert).length === 1));
+    await page.waitForFunction(key => {
+      const track = document.querySelector('.example-track');
+      const slide = track.querySelector('[data-scenario="' + key + '"]');
+      const item = slide.getBoundingClientRect();
+      const rail = track.getBoundingClientRect();
+      const visibleWidth = Math.min(item.right, rail.right) - Math.max(item.left, rail.left);
+      return visibleWidth >= Math.min(item.width, rail.width) - 2 && item.bottom <= rail.bottom + 2;
+    }, example.key);
+  }
+
+  await section.locator('#sale-example-selector').scrollIntoViewIfNeeded();
+  await checkActive(0);
+  const startY = await page.evaluate(() => scrollY);
+  await controls.nth(1).click();
+  await checkActive(1);
+  await controls.nth(1).press('ArrowRight');
+  await checkActive(2);
+  assert(await controls.nth(2).evaluate(button => button === document.activeElement));
+  await controls.nth(2).press('Home');
+  await checkActive(0);
+  assert(Math.abs(await page.evaluate(() => scrollY) - startY) <= 2, 'Sale selectors leave the page at the same vertical position');
+  assert.equal(new URL(page.url()).hash, '#dashboard');
+  if (width === 390) {
+    await track.scrollIntoViewIfNeeded();
+    const swipeY = await page.evaluate(() => scrollY);
+    const { x, y, width: railWidth, height } = await track.boundingBox();
+    const touchY = Math.min(page.viewportSize().height - 50, Math.max(50, y + height / 2));
+    if (isWebKit) {
+      // A horizontal trackpad gesture drives the native scroll container on WebKit.
+      await page.mouse.move(x + railWidth / 2, touchY);
+      await page.mouse.wheel(railWidth, 0);
+    } else {
+      const session = await page.context().newCDPSession(page);
+      try {
+        const touch = (type, fraction) => session.send('Input.dispatchTouchEvent', {
+          type, touchPoints: fraction == null ? [] : [{ x: x + railWidth * fraction, y: touchY }]
+        });
+        await touch('touchStart', .85);
+        for (const fraction of [.72, .58, .44, .30, .15]) await touch('touchMove', fraction);
+        await touch('touchEnd');
+      } finally {
+        await session.detach();
+      }
+    }
+    await checkActive(1);
+    assert(Math.abs(await page.evaluate(() => scrollY) - swipeY) <= 2,
+      'Horizontal receipt browsing leaves the outer page at the same height');
+  }
 }
 
 async function useDeviceProfile(page, saveData) {
@@ -367,9 +450,17 @@ async function checkFallback(page) {
     assert(fs.existsSync(path.join(site, new URL(href, origin).pathname)));
   }
   assert.equal(await page.locator('iframe').count(), 0);
-  const receipt = page.locator('#benefits figure.flip-receipt img');
-  await receipt.scrollIntoViewIfNeeded();
-  await receipt.evaluate(img => img.decode());
+  const section = page.locator('.sale-examples');
+  assert(await section.locator('#sale-example-selector').isHidden());
+  let previousBottom = 0;
+  for (const example of saleExamples) {
+    const slide = section.locator('[data-scenario="' + example.key + '"]');
+    const top = await slide.evaluate(element => element.getBoundingClientRect().top + scrollY);
+    assert(top >= previousBottom - 1, 'Without JavaScript the next receipt follows vertically');
+    await slide.scrollIntoViewIfNeeded();
+    await checkReceipt(slide, example, 320);
+    previousBottom = await slide.evaluate(element => element.getBoundingClientRect().bottom + scrollY);
+  }
   await checkWidth(page);
 }
 
@@ -380,7 +471,7 @@ async function checkFallback(page) {
   });
   try {
     for (const [width, height] of [[320, 568], [390, 844], [768, 1024], [1440, 900]]) {
-      await withPage(browser, { viewport: { width, height }, reducedMotion: 'reduce' },
+      await withPage(browser, { viewport: { width, height }, hasTouch: width === 390, reducedMotion: 'reduce' },
         (page, requests) => checkPresentation(page, requests, width));
       console.log('PASS landing showcase', engineName, width + 'x' + height);
     }
