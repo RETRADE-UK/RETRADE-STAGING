@@ -72,4 +72,9 @@ if (previewRoute === 'summary') {
     });
   };
   renderSummary();
-} else previewRender();
+} else if (window.__rtViewReady(previewRoute)) {
+  previewRender();
+} else {
+  // A missing page script must not trigger the app loader's fallback URL.
+  document.querySelector('.preview-loading').textContent = 'This example couldn’t load. Use Reset below to try again.';
+}

@@ -12,18 +12,24 @@ for (const route of ['login', 'signup', 'dashboard', 'start', 'landing1', 'landi
   expected.add(route + '/index.html');
 }
 const previewRoot = 'landing1/preview/';
-for (const page of ['dashboard', 'sales', 'stock', 'expenses']) {
+const previewViews = { dashboard: null, sales: 'sales', stock: 'stock', expenses: 'costs' };
+for (const [page, view] of Object.entries(previewViews)) {
   const document = previewRoot + page + '/index.html';
   expected.add(document);
   const html = read(document);
-  for (const extension of ['js', 'css']) {
-    const link = html.match(new RegExp('(?:src|href)="\\.\\./(workspace-([0-9a-f]{16})\\.' + extension + ')"'));
-    assert(link, 'Missing content-hashed ' + extension + ' in ' + document);
-    const file = previewRoot + link[1];
+  const resources = [...html.matchAll(/(?:src|href)="\.\.\/([^"]+)"/g)];
+  const referenced = [];
+  for (const [, name] of resources) {
+    const match = name.match(/^(workspace|view-(?:sales|stock|costs))-([a-f0-9]{16})\.(css|js)$/);
+    assert(match, 'Unexpected preview asset in ' + document + ': ' + name);
+    const file = previewRoot + name;
     const hash = createHash('sha256').update(fs.readFileSync(path.join(site, file))).digest('hex');
-    assert.equal(hash.slice(0, 16), link[2], 'Generated preview asset hash changed: ' + file);
+    assert.equal(hash.slice(0, 16), match[2], 'Generated preview asset hash changed: ' + file);
+    referenced.push(match[1] + '.' + match[3]);
     expected.add(file);
   }
+  const required = ['workspace.css', ...(view ? ['view-' + view + '.js'] : []), 'workspace.js'];
+  assert.deepEqual(referenced, required, 'Load only the selected view before startup in ' + document);
 }
 const actual = fs.readdirSync(site, { recursive: true, withFileTypes: true })
   .filter(entry => entry.isFile())
