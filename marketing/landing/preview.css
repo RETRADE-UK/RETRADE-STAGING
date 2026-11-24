@@ -1,7 +1,7 @@
 html, body.rt { margin: 0; background: var(--bg); color-scheme: dark; }
 body.rt { --sidebar-w: 0px !important; padding: 0 !important; }
 body.rt #main-content { display: block; margin: 0 !important; padding: 0 !important; width: 100%; }
-body.rt .page.on { padding-block: clamp(14px, 2vw, 28px) 28px !important; }
+body.rt .page.on { padding-block: clamp(14px, 2vw, 28px) 28px !important; animation: none; }
 .preview-loading { padding: 20px; color: var(--muted); font: 14px system-ui; }
 #panel-back-btn, [title="Open archive"], [onclick*="_openStockPurchaseAction"], [onclick*="openNewJobLot"],
 [onclick*="openItemPageFromPanel"], button[onclick*="openItemPage("], [onclick*="backToMonthlyGrid"],
@@ -18,4 +18,6 @@ input[type="file"] { display: none !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  body.rt[data-preview="summary"] #p-summary svg.rt-chart-draw [class],
+  #p-summary .cat-donut-svg circle, #p-summary .cat-legend-row { animation: none !important; }
 }

@@ -46,10 +46,16 @@ The retired `/landing2/` address redirects to `/landing1/`. Authentication links
 sent to the original root and old `/start/` links use `assets/landing/entry.js`.
 The login, signup and dashboard routes share the signed-in workspace shell.
 
-The public homepage opens the interactive Dashboard directly below its signup
-link. `assets/landing/open.js` owns the selector and keeps one example mounted.
-Sales, Stock and Expenses load when selected. The Taxes tab is disabled.
-Without JavaScript, the same navigation links open screenshot examples.
+The public homepage opens the interactive Dashboard below its signup link.
+`assets/landing/open.js` shows the current sandbox until the requested example
+finishes rendering. The parent exposes one frame at a time and tells the
+Dashboard when to play the app's reveal. In the visible demo, idle time prepares
+the other tabs. Phones and modest devices keep one standby. When the browser
+reports a fast connection, they also fetch the other public view files at low
+priority. Save-Data, slow connections and very limited devices load examples
+on selection. Taxes stays disabled. With JavaScript off,
+the navigation opens screenshots. The profit breakdown below the demo comes
+from an actual sold-item view using the synthetic capture fixture.
 Public landing assets are declared in `config/assets.js`.
 The app service worker handles landing navigation separately from the
 workspace shell.
@@ -60,8 +66,8 @@ Each sandboxed example has an opaque origin and a policy blocking data
 connections. The app's auth boot, backend binding and service worker are
 excluded. Example records and time come from the offline capture fixture.
 Edits are held in the frame's memory. The four examples share content-hashed
-core scripts and styles. Each optional view loads its own script on selection. Run `npm run test:landing` to exercise the public flow in Chromium
-and WebKit.
+core scripts and styles. Each optional view has its own script. Run
+`npm run test:landing` to exercise the public flow in Chromium and WebKit.
 
 # Stock purchase actions — 20 November 2026
 

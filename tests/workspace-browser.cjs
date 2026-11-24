@@ -139,7 +139,7 @@ const {open,settled}=require('./startup-browser.cjs');
 
    for(const width of mobile?[320,390,768]:[1024,1440]){
     await page.setViewportSize({width,height:900});
-    for(const tab of ['summary','yearly','accounts','tax','monthly','stock']){
+    for(const tab of ['summary','yearly','accounts','tax','monthly','stock','expenses']){
      await page.evaluate(t=>{if(t==='yearly'){goToTab('monthly');backToMonthlyGrid(false);}else if(t==='monthly'){goToTab('monthly');MONTHLY_VIEW='detail';SELECTED_MONTH='SEP-26';renderMonth();}else goToTab(t);},tab);
      await page.waitForFunction(()=>!document.querySelector('.page.on').hasAttribute('aria-busy'));
      assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),tab+' fits '+width);
@@ -151,6 +151,16 @@ const {open,settled}=require('./startup-browser.cjs');
        return {overlap:t.right>c.left+1,sameRow:t.top<c.bottom&&t.bottom>c.top};
       });
       assert(!geometry.overlap,tab+' title has room at '+width);assert(geometry.sameRow,tab+' header stays on one row at '+width);
+     }
+     if(tab==='monthly'||tab==='expenses'){
+      const header=page.locator('#p-'+tab+'.on .page-header').first();
+      const title=header.getByRole('heading',{name:tab==='monthly'?'Sales':'Trips & Expenses',exact:true});
+      const action=tab==='monthly'?header.getByLabel('Choose sales month'):header.getByRole('button',{name:/^Add/});
+      await Promise.all([title.waitFor(),action.waitFor()]);
+      const [t,a,h]=await header.evaluate((el,tab)=>[el.querySelector('[role=heading]'),el.querySelector(tab==='monthly'?'.month-picker-title':'#dd-exp-add > button'),el].map(node=>node.getBoundingClientRect().toJSON()),tab);
+      assert(t.width>0&&a.width>0&&t.right<=a.left+1,tab+' title and action have their own space at '+width);
+      assert(t.top<a.bottom&&t.bottom>a.top,tab+' controls share the first row at '+width);
+      assert(Math.abs(h.right-a.right)<2,tab+' action sits at the right edge at '+width);
      }
      if(tab==='monthly'){
       assert(await page.getByLabel('Choose sales month').evaluate(e=>e.scrollWidth<=e.clientWidth+1),'Full month title fits '+width);
@@ -164,6 +174,8 @@ const {open,settled}=require('./startup-browser.cjs');
       await page.locator('#p-monthly .sel-exit').click();
       await page.getByLabel('Choose sales month').click();
       assert(await page.locator('#month-picker-list').isVisible(),'Month picker works');
+      const menu=await page.locator('#month-picker-list').boundingBox();
+      assert(menu.x>=0&&menu.x+menu.width<=width+1,'Month menu fits '+width);
       await page.getByLabel('Choose sales month').click();
      }
     }
