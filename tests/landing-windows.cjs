@@ -5,9 +5,10 @@ module.exports = async function checkWindows(page, width) {
   page.setDefaultTimeout(12000);
   async function openExample(name) {
     await page.getByRole('tab', { name, exact: true }).click();
-    const host = page.locator('iframe[title="Interactive ' + name + ' example"]');
+    const host = page.locator('iframe[data-active][title="Interactive ' + name + ' example"]');
+    await host.waitFor({ state: 'visible' });
     await page.frameLocator('iframe[title="Interactive ' + name + ' example"]').locator('.page.on .card, .page.on .page-header').first().waitFor({ state: 'attached' });
-    assert.equal(await page.locator('iframe').count(), 1, 'Only the selected page has a live browsing context');
+    assert.equal(await page.locator('iframe[data-active]').count(), 1, 'Only the selected page is active');
     assert.equal(await host.getAttribute('sandbox'), 'allow-scripts');
     const frame = await (await host.elementHandle()).contentFrame();
     assert.equal(await frame.locator('.page, nav').count(), 1);
@@ -96,7 +97,7 @@ module.exports = async function checkWindows(page, width) {
   await seedRow.waitFor({ state: 'detached' });
   assert.equal(await costs.count(), 6);
   await page.getByRole('button', { name: 'Reset Expenses example' }).click();
-  const fresh = page.frameLocator('iframe');
+  const fresh = page.frameLocator('iframe[data-active][title="Interactive Expenses example"]');
   await fresh.getByText('Royal Mail parcel labels', { exact: true }).waitFor({ state: 'attached' });
   assert.equal(await fresh.getByText('Test parcel', { exact: true }).count(), 0);
   assert.equal(await page.evaluate(() => window.localStorage.length + window.sessionStorage.length), 0);

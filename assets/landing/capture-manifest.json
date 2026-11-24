@@ -1348,7 +1348,7 @@
       "title": "Mario Kart 8 Deluxe, cartridge only",
       "viewport": {
         "width": 1600,
-        "height": 1172
+        "height": 1228
       },
       "deviceScaleFactor": 1.5,
       "scroll": {
@@ -1357,7 +1357,7 @@
       },
       "sourceBounds": {
         "x": 929,
-        "y": 570.546875,
+        "y": 626.546875,
         "width": 587,
         "height": 573.34375
       },
@@ -1374,8 +1374,8 @@
         "height": 1000
       },
       "captureMode": "element",
-      "bytes": 26680,
-      "sha256": "e3f424f8c61c23f7c7ea71202d9c3f041bfc15ab04bb0276c944559e29fbb0d4"
+      "bytes": 22494,
+      "sha256": "70cba77f9c81bb24f59e09fead657c357b541a7a4ed548334a8b277a0a82e51c"
     },
     {
       "file": "sale-preview.webp",
@@ -2278,6 +2278,46 @@
       "captureMode": "viewport",
       "bytes": 126318,
       "sha256": "7889c9c2f52aa3d8e2e8e0efcfdf912bb1f0ffd9af8e36388075267f07fb6b69"
+    },
+    {
+      "file": "sale-detail-phone.webp",
+      "png": "sale-detail-phone.png",
+      "view": "sale",
+      "device": "mobile",
+      "role": "detail",
+      "width": 716,
+      "height": 1034,
+      "title": "Mario Kart 8 Deluxe, cartridge only",
+      "viewport": {
+        "width": 390,
+        "height": 1678
+      },
+      "deviceScaleFactor": 2,
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "sourceBounds": {
+        "x": 16,
+        "y": 1056.515625,
+        "width": 358,
+        "height": 516.375
+      },
+      "proof": {
+        "fullHeading": false,
+        "fullBreakdown": true,
+        "fullViewport": false,
+        "clearOfFloatingControls": true,
+        "text": "Profit breakdown\n£5.47\n▾\nSold on\neBay UK (Private)\neBay UK (Business)\nVinted\nDepop\nFacebook Marketplace\nAmazon UK\nSale price\n£\n+ Buyer postage\n+£\neBay FVF (Biz · 9.9%)\n−£2.82\nListing fee\n−£\nShipping cost (you pay)\n−£\nPackaging\n−£0.25\nItem cost\n−£8.00\nYour profit / loss\n£5.47",
+        "profitText": "Your profit / loss\n£5.47"
+      },
+      "baseViewport": {
+        "width": 390,
+        "height": 900
+      },
+      "captureMode": "element",
+      "bytes": 30980,
+      "sha256": "a32c396d3cdd37d3ca10c8d35fb84f25e93935bde9f08656f8095c9742fd5a6f"
     }
   ],
   "blockedExternalRequests": [

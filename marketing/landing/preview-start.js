@@ -36,6 +36,22 @@ new MutationObserver(() => {
 if (previewRoute === 'monthly') _prepareSalesEntry();
 document.documentElement.dataset.theme = 'dark';
 if (previewRoute === 'summary') {
+  const dashboard = document.getElementById('p-summary');
+  // Run the signed-in app's reveal when this prepared Dashboard becomes visible.
+  window.addEventListener('message', event => {
+    if (event.source !== parent || event.origin !== location.origin || event.data !== 'retrade-preview-activate') return;
+    if (!_kpiReducedMotion()) {
+      _markLoadingRegions(dashboard);
+      // The example is already painted. Use its real value/chart fades without
+      // showing the list placeholders that mask a signed-in app's network load.
+      dashboard.querySelectorAll('.rt-loading-list-overlay').forEach(overlay => overlay.remove());
+      _clearLoadingRegions(dashboard);
+    } else {
+      dashboard.querySelectorAll('.rt-motion-hold').forEach(chart => chart.classList.remove('rt-motion-hold'));
+    }
+    _playDashboardBootReveal(dashboard);
+  });
+
   // Use the app's category results for both the ring and its keyboard-accessible
   // legend. Each period render creates new segments and new values.
   const drawDashboard = renderSummary;
@@ -72,9 +88,14 @@ if (previewRoute === 'summary') {
     });
   };
   renderSummary();
+  _prepareDashboardBootReveal(dashboard);
 } else if (window.__rtViewReady(previewRoute)) {
   previewRender();
 } else {
   // A missing page script must not trigger the app loader's fallback URL.
   document.querySelector('.preview-loading').textContent = 'This example couldn’t load. Use Reset below to try again.';
+}
+// The parent reveals the frame only after the real workspace has replaced its shell.
+if (!document.querySelector('.page.on .preview-loading')) {
+  document.documentElement.setAttribute('data-preview-ready', '');
 }

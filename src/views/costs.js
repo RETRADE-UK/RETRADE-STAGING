@@ -141,12 +141,12 @@ window.__rtRegisterView("costs", {
   }
   const filterNote=_catAll?'':' · '+esc(COST_CAT_FILTER);
   const html=`
-    <div class="page-header">
+    <div class="page-header rt-inline-header">
       <div>
-        <div class="page-title">Trips &amp; Expenses</div>
+        <div class="page-title" role="heading" aria-level="1">Trips &amp; Expenses</div>
         <div class="page-subtitle">Log mileage, sourcing runs and business spend</div>
       </div>
-      <div class="ddwrap" id="dd-exp-add" style="position:relative;flex-shrink:0">
+      <div class="ddwrap page-actions" id="dd-exp-add">
         <button class="btn btn-primary" style="gap:6px;padding:9px 14px;font-size:13px" onclick="toggleDD('dd-exp-add')">Add ▾</button>
         <div class="ddmenu" style="right:0;min-width:160px">
           <button onclick="toggleDD('dd-exp-add');addTrip()">${icon('trip',14)} Log Trip</button>

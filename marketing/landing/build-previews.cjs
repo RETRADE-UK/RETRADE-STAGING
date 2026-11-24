@@ -67,7 +67,7 @@ module.exports = function buildPreviews(out) {
 <meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${policy}">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
 <title>RETRADE · ${page} example</title><link rel="stylesheet" href="${css}"></head>
-<body class="rt" data-preview="${route}"><main id="main-content"><div class="page on" id="p-${route}"><p class="preview-loading" role="status">Opening the ${page} example…</p></div></main>
+<body class="rt" data-preview="${route}" onload="parent.postMessage(document.documentElement.hasAttribute('data-preview-ready') ? 'retrade-preview-ready' : 'retrade-preview-error', location.origin)"><main id="main-content"><div class="page on" id="p-${route}"><p class="preview-loading" role="status"></p></div></main>
 ${panels}${viewScript}<script src="${script}"></script></body></html>`);
   }
 };
