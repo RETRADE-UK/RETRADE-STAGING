@@ -189,6 +189,7 @@
   .rt #p-accounts .rt-inline-header>.btn{white-space:nowrap;}
 }
 @media(max-width:360px){
+  .rt #p-monthly button.month-picker-title{padding-left:28px;padding-right:24px;background-position:left 7px center,right 7px center;}
   .rt #p-monthly .rt-performance-header .page-title{font-size:17px!important;}
   .rt #p-monthly .rt-performance-header{gap:5px;}
   .rt #p-monthly .rt-performance-header select{width:108px;font-size:11px!important;padding-left:6px!important;padding-right:18px!important;}

@@ -157,10 +157,13 @@ const {open,settled}=require('./startup-browser.cjs');
       const title=header.getByRole('heading',{name:tab==='monthly'?'Sales':'Trips & Expenses',exact:true});
       const action=tab==='monthly'?header.getByLabel('Choose sales month'):header.getByRole('button',{name:/^Add/});
       await Promise.all([title.waitFor(),action.waitFor()]);
+      // September is the widest month. Exercise a broad system font at the smallest supported width.
+      const fallback=tab==='monthly'&&width===320?await page.addStyleTag({content:'#p-monthly .rt-month-header :is(.page-title,.month-picker-title){font-family:"DejaVu Sans",sans-serif!important}'}):null;
       const [t,a,h]=await header.evaluate((el,tab)=>[el.querySelector('[role=heading]'),el.querySelector(tab==='monthly'?'.month-picker-title':'#dd-exp-add > button'),el].map(node=>node.getBoundingClientRect().toJSON()),tab);
-      assert(t.width>0&&a.width>0&&t.right<=a.left+1,tab+' title and action have their own space at '+width);
+      assert(t.width>0&&a.width>0&&t.right<=a.left+1,tab+' title ends at '+t.right+' and action starts at '+a.left+' at '+width);
       assert(t.top<a.bottom&&t.bottom>a.top,tab+' controls share the first row at '+width);
       assert(Math.abs(h.right-a.right)<2,tab+' action sits at the right edge at '+width);
+      if(fallback)await fallback.evaluate(el=>el.remove());
      }
      if(tab==='monthly'){
       assert(await page.getByLabel('Choose sales month').evaluate(e=>e.scrollWidth<=e.clientWidth+1),'Full month title fits '+width);
