@@ -72,8 +72,35 @@ async function waitForExample(page, name) {
   assert.equal(await page.locator('iframe').count(), 1);
 }
 
-function checkWidth(page) {
-  return page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1);
+async function checkWidth(page) {
+  const overflow = await page.evaluate(() => {
+    const width = document.documentElement.scrollWidth;
+    if (width <= innerWidth + 1) return null;
+    const elements = [...document.body.querySelectorAll('*')].filter(element => {
+      const box = element.getBoundingClientRect();
+      return box.width && (box.right > innerWidth + 1 || box.left < -1 ||
+        element.scrollWidth > element.clientWidth + 1);
+    }).map(element => {
+      const box = element.getBoundingClientRect();
+      return {
+        element: element.id || element.className || element.tagName.toLowerCase(),
+        left: Math.round(box.left), right: Math.round(box.right),
+        client: element.clientWidth, scroll: element.scrollWidth
+      };
+    });
+    return { viewport: innerWidth, document: width, elements };
+  });
+  assert.equal(overflow, null, 'Horizontal page overflow: ' + JSON.stringify(overflow));
+}
+
+async function checkTabRow(tabs) {
+  assert(await tabs.evaluateAll(elements => elements.every((tab, index) => {
+    const box = tab.getBoundingClientRect();
+    const first = elements[0].getBoundingClientRect();
+    const previous = index && elements[index - 1].getBoundingClientRect();
+    return box.left >= 0 && box.right <= innerWidth + 1 && box.height >= 44 &&
+      Math.abs(box.top - first.top) <= 1 && (!previous || box.left >= previous.right - 1);
+  })), 'All five tabs fit in order in one touch-friendly row');
 }
 
 async function checkPresentation(page, requests, width) {
@@ -108,14 +135,15 @@ async function checkPresentation(page, requests, width) {
   assert(benefits.y >= demoTop + demoHeight - 1 && finishBox.y >= benefits.y + benefits.height - 1,
     'Visitors can scroll from the demo to the benefits and final sign-up link');
   assert(await finish.isVisible());
-  assert(await checkWidth(page), 'No page overflow at ' + width);
-  assert(await tabs.evaluateAll(elements => elements.every((tab, index) => {
-    const box = tab.getBoundingClientRect();
-    const first = elements[0].getBoundingClientRect();
-    const previous = index && elements[index - 1].getBoundingClientRect();
-    return box.left >= 0 && box.right <= innerWidth + 1 && box.height >= 44 &&
-      Math.abs(box.top - first.top) <= 1 && (!previous || box.left >= previous.right - 1);
-  })), 'All five tabs fit in order in one touch-friendly row at ' + width);
+  await checkWidth(page);
+  await checkTabRow(tabs);
+  if (width === 320) {
+    // The wider Linux fallback previously pushed the Taxes tab past the phone's right edge.
+    const widerFont = await page.addStyleTag({ content: ':root { font-family: "DejaVu Sans", sans-serif; }' });
+    await checkWidth(page);
+    await checkTabRow(tabs);
+    await widerFont.evaluate(style => style.remove());
+  }
   await page.screenshot({ path: path.join(os.tmpdir(), 'landing-showcase-' + engineName + '-' + width + '-hero.png') });
 
   const taxesBox = await taxes.boundingBox();
@@ -160,7 +188,7 @@ async function checkPresentation(page, requests, width) {
   await page.screenshot({ path: path.join(os.tmpdir(), 'landing-showcase-' + engineName + '-' + width + '-stock.png') });
 
   if (width === 390 || width === 1440) await checkWindows(page, width);
-  assert(await checkWidth(page));
+  await checkWidth(page);
 }
 
 async function checkEntryPoints(page) {
@@ -195,7 +223,7 @@ async function checkFallback(page) {
     assert(fs.existsSync(path.join(site, new URL(href, origin).pathname)));
   }
   assert.equal(await page.locator('iframe').count(), 0);
-  assert(await checkWidth(page));
+  await checkWidth(page);
 }
 
 (async () => {

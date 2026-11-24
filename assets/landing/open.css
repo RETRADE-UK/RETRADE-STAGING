@@ -101,6 +101,13 @@ h1 em { font-size: .88em; }
   .workspace-footer { font-size: .8rem; }
   .finish-inner { align-items: flex-start; flex-direction: column; gap: 1.25rem; }
 }
+@media (max-width: 360px) {
+  .showcase.wrap { width: calc(100% - 1rem); }
+  .workspace-toolbar { padding-inline: .2rem; }
+  .workspace-nav { padding-inline: .125rem; }
+  .workspace-nav a, .workspace-nav button { padding-inline: 1px; letter-spacing: -.015em; }
+}
+
 .benefits {
   padding-block: clamp(2.5rem, 5vw, 4.5rem);
   border-top: 1px solid var(--line);
