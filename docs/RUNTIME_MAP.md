@@ -46,10 +46,11 @@ The retired `/landing2/` address redirects to `/landing1/`. Authentication links
 sent to the original root and old `/start/` links use `assets/landing/entry.js`.
 The login, signup and dashboard routes share the signed-in workspace shell.
 
-The hero uses responsive Dashboard screenshots. Explore the app opens Stock.
-`assets/landing/open.js` owns the page selector and the single active preview.
-The examples load on demand. Switching pages replaces the active example in
-the same space. Public landing assets are declared in `config/assets.js`.
+The public homepage opens the interactive Dashboard directly below its signup
+link. `assets/landing/open.js` owns the selector and keeps one example mounted.
+Sales, Stock and Expenses load when selected. The Taxes tab is disabled.
+Without JavaScript, the same navigation links open screenshot examples.
+Public landing assets are declared in `config/assets.js`.
 The app service worker handles landing navigation separately from the
 workspace shell.
 
@@ -58,8 +59,8 @@ workspace shell.
 Each sandboxed example has an opaque origin and a policy blocking data
 connections. The app's auth boot, backend binding and service worker are
 excluded. Example records and time come from the offline capture fixture.
-Edits are held in the frame's memory. Generated scripts and styles use content
-hashes. Run `npm run test:landing` to exercise the public flow in Chromium
+Edits are held in the frame's memory. The four examples share content-hashed
+core scripts and styles. Each optional view loads its own script on selection. Run `npm run test:landing` to exercise the public flow in Chromium
 and WebKit.
 
 # Stock purchase actions — 20 November 2026

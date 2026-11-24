@@ -13,7 +13,7 @@ const site = path.join(root, '_site');
 const origin = 'https://retrade.test';
 const isWebKit = process.argv.includes('--webkit');
 const engineName = isWebKit ? 'webkit' : 'chromium';
-const pageNames = ['Stock', 'Sales', 'Expenses', 'Dashboard'];
+const pageNames = ['Dashboard', 'Sales', 'Stock', 'Expenses'];
 const types = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.webp': 'image/webp', '.svg': 'image/svg+xml', '.png': 'image/png'
@@ -72,8 +72,35 @@ async function waitForExample(page, name) {
   assert.equal(await page.locator('iframe').count(), 1);
 }
 
-function checkWidth(page) {
-  return page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1);
+async function checkWidth(page) {
+  const overflow = await page.evaluate(() => {
+    const width = document.documentElement.scrollWidth;
+    if (width <= innerWidth + 1) return null;
+    const elements = [...document.body.querySelectorAll('*')].filter(element => {
+      const box = element.getBoundingClientRect();
+      return box.width && (box.right > innerWidth + 1 || box.left < -1 ||
+        element.scrollWidth > element.clientWidth + 1);
+    }).map(element => {
+      const box = element.getBoundingClientRect();
+      return {
+        element: element.id || element.className || element.tagName.toLowerCase(),
+        left: Math.round(box.left), right: Math.round(box.right),
+        client: element.clientWidth, scroll: element.scrollWidth
+      };
+    });
+    return { viewport: innerWidth, document: width, elements };
+  });
+  assert.equal(overflow, null, 'Horizontal page overflow: ' + JSON.stringify(overflow));
+}
+
+async function checkTabRow(tabs) {
+  assert(await tabs.evaluateAll(elements => elements.every((tab, index) => {
+    const box = tab.getBoundingClientRect();
+    const first = elements[0].getBoundingClientRect();
+    const previous = index && elements[index - 1].getBoundingClientRect();
+    return box.left >= 0 && box.right <= innerWidth + 1 && box.height >= 44 &&
+      Math.abs(box.top - first.top) <= 1 && (!previous || box.left >= previous.right - 1);
+  })), 'All five tabs fit in order in one touch-friendly row');
 }
 
 async function checkPresentation(page, requests, width) {
@@ -82,35 +109,53 @@ async function checkPresentation(page, requests, width) {
   assert.match(await heading.innerText(), /You find the bargains/);
   assert.match(await heading.innerText(), /We track the margins/);
   assert.equal(await page.locator('a[href*="/landing2/"]').count(), 0);
-  assert.doesNotMatch(await page.locator('body').innerText(), /interactive tour|compare option|landing concepts/i);
-  assert.deepEqual(await page.getByRole('tab').allTextContents(), pageNames);
-  await checkSelected(page, 'Stock');
-  const hero = page.getByRole('link', { name: /Try the Dashboard/i }).locator('img');
-  await hero.evaluate(img => img.decode());
-  assert.equal(await hero.evaluate(img => new URL(img.currentSrc).pathname),
-    '/assets/landing/hero-dashboard' + (width <= 600 ? '-phone' : '') + '.webp',
-    'Use the artwork sized for this viewport');
-  assert(await checkWidth(page), 'No page overflow at ' + width);
+  assert.doesNotMatch(await page.locator('body').innerText(), /interactive tour|track your flips across|try the dashboard|from the first haul to the books/i);
+  await waitForExample(page, 'Dashboard');
+  const tabs = page.getByRole('tablist').getByRole('tab');
+  assert.deepEqual((await tabs.allTextContents()).slice(0, 4), pageNames);
+  assert.equal(await tabs.count(), 5);
+  const taxes = tabs.nth(4);
+  assert.match(await taxes.innerText(), /taxes/i);
+  assert.match(await taxes.innerText(), /soon/i);
+  assert(await taxes.isDisabled());
+
+  const hero = page.locator('.hero');
+  const signup = hero.getByRole('link', { name: /sign up for free/i });
+  assert.equal(await signup.getAttribute('href'), '/signup/');
+  assert.equal(await hero.getByRole('link').count(), 1);
+  const frame = page.locator('iframe');
+  const { y: demoTop, height: demoHeight } = await frame.boundingBox();
+  const signupBox = await signup.boundingBox();
+  const navBox = await page.getByRole('tablist').boundingBox();
+  const benefits = await page.locator('#benefits').boundingBox();
+  const finish = page.locator('main a[href="/signup/"]').last();
+  const finishBox = await finish.boundingBox();
+  assert(navBox.y >= signupBox.y + signupBox.height && demoTop >= navBox.y + navBox.height - 1);
+  assert(demoTop < await page.evaluate(() => innerHeight), 'Visitors see the working demo on first load at ' + width);
+  assert(benefits.y >= demoTop + demoHeight - 1 && finishBox.y >= benefits.y + benefits.height - 1,
+    'Visitors can scroll from the demo to the benefits and final sign-up link');
+  assert(await finish.isVisible());
+  await checkWidth(page);
+  await checkTabRow(tabs);
+  if (width === 320) {
+    // The wider Linux fallback previously pushed the Taxes tab past the phone's right edge.
+    const widerFont = await page.addStyleTag({ content: ':root { font-family: "DejaVu Sans", sans-serif; }' });
+    await checkWidth(page);
+    await checkTabRow(tabs);
+    await widerFont.evaluate(style => style.remove());
+  }
   await page.screenshot({ path: path.join(os.tmpdir(), 'landing-showcase-' + engineName + '-' + width + '-hero.png') });
 
-  // First paint and ordinary scrolling must not boot any app workspace.
-  await page.getByRole('tab', { name: 'Stock', exact: true }).scrollIntoViewIfNeeded();
-  await page.waitForLoadState('networkidle');
-  assert.equal(await page.locator('iframe').count(), 0);
-  assert(!requests.some(file => /^\/(?:landing1\/preview\/|src\/|app\.js$)/.test(file)), 'Workspace runtime loaded without a request to explore');
-  const explore = page.getByRole('link', { name: /^Explore the app/i });
-  assert.equal(await explore.getAttribute('href'), '#stock');
-  await explore.click();
-  await waitForExample(page, 'Stock');
-  assert.equal(new URL(page.url()).hash, '#stock');
-  const stock = page.getByRole('tab', { name: 'Stock', exact: true });
-  assert(await stock.evaluate(el => el === document.activeElement));
-  assert(await stock.evaluate(el => {
-    const box = el.getBoundingClientRect();
-    return box.top >= 0 && box.bottom <= innerHeight;
-  }), 'Explore brings Stock navigation into view');
-  const documents = requests.filter(file => /^\/landing1\/preview\/[^/]+\/$/.test(file));
-  assert.deepEqual([...new Set(documents)], ['/landing1/preview/stock/'], 'Explore downloads Stock alone');
+  const taxesBox = await taxes.boundingBox();
+  await page.mouse.click(taxesBox.x + taxesBox.width / 2, taxesBox.y + taxesBox.height / 2);
+  await checkSelected(page, 'Dashboard');
+  assert.equal(new URL(page.url()).hash, '');
+  const previewDocuments = () => requests.filter(file => /^\/landing1\/preview\/[^/]+\/$/.test(file));
+  assert.deepEqual(previewDocuments(), ['/landing1/preview/dashboard/'], 'Only the live Dashboard is loaded initially');
+  assert(!requests.some(file => file.startsWith('/landing1/preview/view-')),
+    'Dashboard does not download the other page scripts');
+  assert(!requests.some(file => file.startsWith('/assets/landing/') && file.endsWith('.webp')),
+    'The scripted page does not download a marketing screenshot');
 
   const startY = await page.evaluate(() => window.scrollY);
   const sales = page.getByRole('tab', { name: 'Sales', exact: true });
@@ -118,54 +163,58 @@ async function checkPresentation(page, requests, width) {
   await waitForExample(page, 'Sales');
   assert.equal(new URL(page.url()).hash, '#sales');
   await sales.press('ArrowRight');
+  await waitForExample(page, 'Stock');
+  const stock = page.getByRole('tab', { name: 'Stock', exact: true });
+  assert(await stock.evaluate(el => el === document.activeElement));
+  await stock.press('End');
   await waitForExample(page, 'Expenses');
   const expenses = page.getByRole('tab', { name: 'Expenses', exact: true });
-  assert(await expenses.evaluate(el => el === document.activeElement));
-  await expenses.press('End');
+  await expenses.press('ArrowRight');
   await waitForExample(page, 'Dashboard');
-  await page.getByRole('tab', { name: 'Dashboard', exact: true }).press('Home');
-  await waitForExample(page, 'Stock');
   assert(Math.abs(await page.evaluate(() => window.scrollY) - startY) <= 2,
     'Changing views must leave the document at the same scroll position');
+  assert.deepEqual(previewDocuments(), ['dashboard', 'sales', 'stock', 'expenses', 'dashboard'].map(name => '/landing1/preview/' + name + '/'),
+    'Only the requested view loads on each selection');
 
   await page.goBack();
-  await waitForExample(page, 'Dashboard');
+  await waitForExample(page, 'Expenses');
   await page.goForward();
-  await waitForExample(page, 'Stock');
+  await waitForExample(page, 'Dashboard');
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-  assert.equal(new URL(page.url()).hash, '#stock', 'Document scrolling never changes the selected page');
-  await checkSelected(page, 'Stock');
-  await stock.scrollIntoViewIfNeeded();
+  assert.equal(new URL(page.url()).hash, '#dashboard', 'Document scrolling never changes the selected page');
+  await checkSelected(page, 'Dashboard');
+  await stock.click();
+  await waitForExample(page, 'Stock');
   await page.screenshot({ path: path.join(os.tmpdir(), 'landing-showcase-' + engineName + '-' + width + '-stock.png') });
 
   if (width === 390 || width === 1440) await checkWindows(page, width);
-  assert(await checkWidth(page));
+  await checkWidth(page);
 }
 
 async function checkEntryPoints(page) {
   await page.goto(origin + '/landing2/');
   await page.waitForURL('**/landing1/');
-  await checkSelected(page, 'Stock');
-  assert.equal(await page.locator('iframe').count(), 0);
+  await waitForExample(page, 'Dashboard');
   await page.goto(origin + '/#sale');
   await waitForExample(page, 'Sales');
   await page.reload();
   await waitForExample(page, 'Sales');
-  await page.goto(origin + '/');
-  await page.getByRole('link', { name: /Try the Dashboard/i }).click();
-  await waitForExample(page, 'Dashboard');
-  await page.goBack();
-  await checkSelected(page, 'Stock');
-  assert.equal(await page.locator('iframe').count(), 0, 'Back to the hero releases the example');
-  await page.getByRole('button', { name: 'Try Stock example' }).click();
+  await page.goto(origin + '/#tour');
   await waitForExample(page, 'Stock');
+  await page.goto(origin + '/#taxes');
+  await waitForExample(page, 'Dashboard');
+  await page.goto(origin + '/');
+  await page.getByRole('tab', { name: 'Stock', exact: true }).click();
+  await waitForExample(page, 'Stock');
+  await page.goBack();
+  await waitForExample(page, 'Dashboard');
 }
 
 async function checkFallback(page) {
   await page.goto(origin + '/');
-  const explore = page.getByRole('link', { name: /^Explore the app/i });
-  await explore.click();
-  assert.equal(new URL(page.url()).hash, '#stock');
+  const poster = page.locator('#workspace-panel img');
+  assert(await poster.isVisible(), 'The Dashboard has a fallback when JavaScript is disabled');
+  assert.match(await poster.getAttribute('alt'), /dashboard/i);
   for (const name of pageNames) {
     const link = page.getByRole('link', { name: name + ' screenshot', exact: true });
     assert(await link.isVisible(), name + ' screenshot is available without scripting');
@@ -174,7 +223,7 @@ async function checkFallback(page) {
     assert(fs.existsSync(path.join(site, new URL(href, origin).pathname)));
   }
   assert.equal(await page.locator('iframe').count(), 0);
-  assert(await checkWidth(page));
+  await checkWidth(page);
 }
 
 (async () => {

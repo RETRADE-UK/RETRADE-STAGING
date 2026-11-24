@@ -92,13 +92,11 @@ globalThis.RT_ASSETS = Object.freeze({
   },
   "landing": [
     "assets/landing/entry.js",
-    "assets/landing/hero-dashboard-phone.webp",
-    "assets/landing/hero-dashboard.webp",
     "assets/landing/mark.svg",
+    "assets/landing/open-dashboard-30d-phone.webp",
     "assets/landing/open-dashboard-30d.webp",
     "assets/landing/open-expenses.webp",
     "assets/landing/open-sales.webp",
-    "assets/landing/open-stock-phone.webp",
     "assets/landing/open-stock.webp",
     "assets/landing/open.css",
     "assets/landing/open.js"

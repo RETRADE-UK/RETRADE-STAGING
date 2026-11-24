@@ -35,21 +35,26 @@ module.exports = function buildPreviews(out) {
   core = core.replace(periodMarker, "{key:'cy',label:'Calendar year to date'}," + periodMarker);
 
   const fixture = buildFixture({ showcase: true });
-  const manifest = { views: {}, viewRoutes: {} };
+  const viewScripts = {};
+  const manifests = { summary: { views: {}, viewRoutes: {} } };
   for (const [route, key] of Object.entries({ monthly: 'sales', stock: 'stock', expenses: 'costs' })) {
-    manifest.views[key] = assets.views[key];
-    manifest.viewRoutes[route] = key;
+    const view = assets.views[key];
+    manifests[route] = { views: { [key]: view }, viewRoutes: { [route]: key } };
+    // The optional script declares the selected view. The common script runs
+    // its registration after the sandbox check, view loader and core are ready.
+    viewScripts[route] = asset('view-' + key, 'js', 'function registerPreviewView() {\n' + read(view.file) + '\n}');
   }
   const state = JSON.stringify({ db: fixture.db, runs: fixture.runs, asOf: fixture.asOf });
   const script = asset('workspace', 'js', [
     'const previewSeed = ' + state + ';', read('marketing/landing/preview-environment.js'),
-    'window.RT_ASSETS = ' + JSON.stringify(manifest) + ';',
+    'window.RT_ASSETS = ' + JSON.stringify(manifests) + '[document.body.dataset.preview];',
     read('src/domain/accounting-engine.js'), read('src/domain/report-engine.js'), read('src/platform/view-loader.js'), core,
-    ...Object.values(manifest.views).map(view => read(view.file)),
+    'if (typeof registerPreviewView === "function") registerPreviewView();',
     ...assets.critical.filter(file => file.startsWith('src/features/charts/')).map(read),
     read('src/domain/relist-fees.js'), read('marketing/landing/preview-start.js')
   ].join('\n;\n'));
-  const css = asset('workspace', 'css', [...assets.styles.map(read), read('marketing/landing/preview.css')].join('\n'));
+  const styles = assets.styles.filter(file => !['assets/styles/monitors.css', 'assets/styles/tax.css'].includes(file));
+  const css = asset('workspace', 'css', [...styles.map(read), read('marketing/landing/preview.css')].join('\n'));
   const shell = read('index.html');
   const panels = between(shell, '<div class="panel-overlay"', '<!-- ====') +
     between(shell, '<div id="toast">', '<!-- ── AUTH OVERLAY');
@@ -57,11 +62,12 @@ module.exports = function buildPreviews(out) {
   for (const [page, route] of Object.entries({ dashboard: 'summary', sales: 'monthly', stock: 'stock', expenses: 'expenses' })) {
     const target = path.join(dir, page);
     fs.mkdirSync(target, { recursive: true });
+    const viewScript = viewScripts[route] ? `<script src="${viewScripts[route]}"></script>` : '';
     fs.writeFileSync(path.join(target, 'index.html'), `<!doctype html><html lang="en-GB" data-theme="dark"><head>
 <meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${policy}">
 <meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
 <title>RETRADE · ${page} example</title><link rel="stylesheet" href="${css}"></head>
 <body class="rt" data-preview="${route}"><main id="main-content"><div class="page on" id="p-${route}"><p class="preview-loading" role="status">Opening the ${page} example…</p></div></main>
-${panels}<script src="${script}"></script></body></html>`);
+${panels}${viewScript}<script src="${script}"></script></body></html>`);
   }
 };
