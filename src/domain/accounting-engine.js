@@ -1666,8 +1666,10 @@ function _saleFeeCategory(item,cycle){
   return listing&&listing.category||item&&item.category;
 }
 function _ebaySaleFeeComponents(item,price,post,saleNo){
-  const cycle=item?_saleCycleSnapshot(item,saleNo||((item.resaleSalePrice&&item.resaleDateSold)?_currentResaleCycleNo(item):1)):null;
-  const standalone=_calcEbayBizFeeComponents(price+post,_saleFeeCategory(item,cycle),price);
+  const estimating=saleNo==null&&item&&(item.isReturned||(!item.dateSold&&!item.resaleSalePrice));
+  const cycle=item&&!estimating?_saleCycleSnapshot(item,saleNo||((item.resaleSalePrice&&item.resaleDateSold)?_currentResaleCycleNo(item):1)):null;
+  const matching=cycle&&cycle.platformId==='ebay_biz'&&Math.abs(cycle.price-price)<=0.001&&Math.abs(cycle.postage-post)<=0.001;
+  const standalone=_calcEbayBizFeeComponents(price+post,matching?_saleFeeCategory(item,cycle):item&&item.category,price);
   if(!item||typeof _bundleItems!=='function')return standalone;
   if(!cycle||!cycle.bundleId||cycle.platformId!=='ebay_biz'||Math.abs(cycle.price-price)>0.001||Math.abs(cycle.postage-post)>0.001)return standalone;
   const members=_bundleItems(cycle.bundleId).map(function(i){return {item:i,cycle:_bundleMemberCycle(i,cycle.bundleId)};})

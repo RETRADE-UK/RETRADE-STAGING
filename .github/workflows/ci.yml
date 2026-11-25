@@ -12,6 +12,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - run: npm ci --ignore-scripts
       - run: npm run check
       - run: npm run build
   browser:
@@ -55,13 +56,13 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium webkit
         timeout-minutes: 15
-      - name: Landing scroll regressions (Chromium and WebKit)
+      - name: Landing showcase regressions (Chromium and WebKit)
         run: npm run test:landing
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: landing-scroll-review
-          path: /tmp/landing-scroll-*.png
+          name: landing-showcase-review
+          path: /tmp/landing-showcase-*.png
           if-no-files-found: ignore
           retention-days: 7
       - run: node tests/public-routes-browser.cjs --webkit

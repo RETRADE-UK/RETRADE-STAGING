@@ -1,5 +1,6 @@
 /* Capture real RETRADE views using a wholly synthetic, offline workspace.
  * Usage: node marketing/landing/capture.cjs [/tmp/retrade-landing-captures]
+ * Append --receipt-only to generate only the three public sale examples on desktop and mobile.
  * Requires npm ci, Playwright Chromium and Python 3 with Pillow.
  * No staging account, saved login state, API request or database write is used. */
 'use strict';
@@ -13,10 +14,13 @@ const { execFileSync } = require('node:child_process');
 const { chromium } = require('playwright');
 const { mockAuth, settled } = require('../../tests/startup-browser.cjs');
 const { buildFixture, installFixture } = require('./capture-fixture.cjs');
+const { captureReceipts } = require('./receipt-examples.cjs');
 
 const root = path.resolve(__dirname, '../..');
 const origin = 'http://retrade.test';
-const dest = path.resolve(process.argv[2] || path.join(os.tmpdir(), 'retrade-landing-captures'));
+const args = process.argv.slice(2);
+const receiptOnly = args.includes('--receipt-only');
+const dest = path.resolve(args.find(arg => arg !== '--receipt-only') || path.join(os.tmpdir(), 'retrade-landing-captures'));
 const fixture = buildFixture();
 // Real desktop layout starts at 1280 CSS pixels. The old 1240px complete
 // captures are retained as originals, but are too tall to explain the product
@@ -264,9 +268,9 @@ async function capture(page, view, mobile, base, options = {}) {
   return result;
 }
 
-async function captureSaleDetail(page) {
+async function captureSaleDetail(page, mobile, base, name = 'sale-detail') {
   const spec = { title: '#p-item .ip-title', required: ['#p-item .ip-section-pnl'] };
-  await fitCompleteSections(page, spec, previewViewport);
+  await fitCompleteSections(page, spec, base);
   await resetScroll(page);
   await stableView(page);
   const proof = await page.evaluate(() => {
@@ -286,13 +290,13 @@ async function captureSaleDetail(page) {
         clearOfFloatingControls: true, text: element.innerText.trim(), profitText: total.innerText.trim() }
     };
   });
-  const basename = 'sale-detail';
+  const basename = mobile ? name + '-phone' : name;
   const png = path.join(dest, basename + '.png'), webp = path.join(dest, basename + '.webp');
   await page.locator('#p-item .ip-section-pnl').screenshot({ path: png, animations: 'disabled', timeout: 30000 });
   const dimensions = JSON.parse(execFileSync('python3', ['-c',
     'from PIL import Image\nimport json,sys\nim=Image.open(sys.argv[1]); im.convert("RGB").save(sys.argv[2],quality=92,method=6)\nprint(json.dumps({"width":im.width,"height":im.height}))', png, webp], { encoding: 'utf8' }));
-  const result = { file: basename + '.webp', png: basename + '.png', view: 'sale', device: 'desktop',
-    role: 'detail', ...dimensions, ...proof, baseViewport: previewViewport,
+  const result = { file: basename + '.webp', png: basename + '.png', view: 'sale', device: mobile ? 'mobile' : 'desktop',
+    role: 'detail', ...dimensions, ...proof, baseViewport: base,
     captureMode: 'element', bytes: fs.statSync(webp).size,
     sha256: crypto.createHash('sha256').update(fs.readFileSync(webp)).digest('hex') };
   console.log('Captured', result.file, dimensions.width + '×' + dimensions.height);
@@ -304,40 +308,45 @@ async function take(browser, mobile) {
   const { context, page, viewport } = state;
   try {
     const captures = [];
-    captures.push(await capture(page, 'dashboard', mobile, viewport));
-    if (!mobile) captures.push(await capture(page, 'dashboard', false, previewViewport, { role: 'preview' }));
     const metrics = await page.evaluate(collectMetrics);
-    assert(metrics.current.soldCount >= 50 && metrics.current.soldCount <= 65, 'Modest current sales volume');
-    assert(metrics.current.revenue >= 1500 && metrics.current.revenue <= 2500, 'Modest current revenue');
-    assert(metrics.current.margin >= 35 && metrics.current.margin <= 45, 'Healthy but realistic gross margin');
-    assert.equal(metrics.current.partialRefundCount, 1);
-    assert.equal(metrics.current.fullRefundCount, 0);
-    assert.equal(metrics.current.refundAmount, 8);
     assert.equal(metrics.sale.profit, 5.47);
-    await page.evaluate(() => { goToTab('stock'); STOCK_STATE_FILTER = 'listed'; STOCK_SEARCH = ''; renderStock(); });
-    await page.waitForFunction(() => window.__stockItems?.length === window.__landingCaptureFixture.refs.listed.length);
-    captures.push(await capture(page, 'stock', mobile, viewport));
-    if (!mobile) captures.push(await capture(page, 'stock', false, previewViewport, { role: 'preview' }));
-    await page.evaluate(() => openRunPage(window.__landingCaptureFixture.refs.runId));
-    captures.push(await capture(page, 'sourcing', mobile, viewport));
-    if (!mobile) captures.push(await capture(page, 'sourcing', false, previewViewport, { role: 'preview' }));
-    await page.evaluate(() => {
-      const ref = window.__landingCaptureFixture.refs.sale;
-      openItemPage(ref.month, ref.id);
-    });
-    const receipt = await page.locator('#p-item .ip-section-pnl').innerText();
-    assert(receipt.includes('£5.47'), 'Real sale profit reconciles to the selected item');
-    assert.equal(Number(await page.locator('#p-item .ip-section-pnl .rcpt-s1-price-input').inputValue()),
-      metrics.sale.breakdown.salePrice, 'The real editable sale price reconciles to the selected item');
-    captures.push(await capture(page, 'sale', mobile, viewport));
-    if (!mobile) {
-      captures.push(await captureSaleDetail(page));
-      // A real disclosure state gives a clean item overview without cutting
-      // through its tall expanded receipt. The adjacent detail asset contains
-      // every receipt row; the complete original still includes the whole page.
-      await page.locator('#p-item .ip-section-pnl .ip-section-header').click();
-      captures.push(await capture(page, 'sale', false, previewViewport, { role: 'preview' }));
+    if (!receiptOnly) {
+      captures.push(await capture(page, 'dashboard', mobile, viewport));
+      if (!mobile) captures.push(await capture(page, 'dashboard', false, previewViewport, { role: 'preview' }));
+      assert(metrics.current.soldCount >= 50 && metrics.current.soldCount <= 65, 'Modest current sales volume');
+      assert(metrics.current.revenue >= 1500 && metrics.current.revenue <= 2500, 'Modest current revenue');
+      assert(metrics.current.margin >= 35 && metrics.current.margin <= 45, 'Healthy but realistic gross margin');
+      assert.equal(metrics.current.partialRefundCount, 1);
+      assert.equal(metrics.current.fullRefundCount, 0);
+      assert.equal(metrics.current.refundAmount, 8);
+      await page.evaluate(() => { goToTab('stock'); STOCK_STATE_FILTER = 'listed'; STOCK_SEARCH = ''; renderStock(); });
+      await page.waitForFunction(() => window.__stockItems?.length === window.__landingCaptureFixture.refs.listed.length);
+      captures.push(await capture(page, 'stock', mobile, viewport));
+      if (!mobile) captures.push(await capture(page, 'stock', false, previewViewport, { role: 'preview' }));
+      await page.evaluate(() => openRunPage(window.__landingCaptureFixture.refs.runId));
+      captures.push(await capture(page, 'sourcing', mobile, viewport));
+      if (!mobile) captures.push(await capture(page, 'sourcing', false, previewViewport, { role: 'preview' }));
+      await page.evaluate(() => {
+        const ref = window.__landingCaptureFixture.refs.sale;
+        openItemPage(ref.month, ref.id);
+      });
+      const receipt = await page.locator('#p-item .ip-section-pnl').innerText();
+      assert(receipt.includes('£5.47'), 'Real sale profit reconciles to the selected item');
+      assert.equal(Number(await page.locator('#p-item .ip-section-pnl .rcpt-s1-price-input').inputValue()),
+        metrics.sale.breakdown.salePrice, 'The real editable sale price reconciles to the selected item');
+      captures.push(await capture(page, 'sale', mobile, viewport));
+      captures.push(await captureSaleDetail(page, mobile, mobile ? viewport : previewViewport));
+      if (!mobile) {
+        // A real disclosure state gives a clean item overview without cutting
+        // through its tall expanded receipt. The adjacent detail asset contains
+        // every receipt row; the complete original still includes the whole page.
+        await page.locator('#p-item .ip-section-pnl .ip-section-header').click();
+        captures.push(await capture(page, 'sale', false, previewViewport, { role: 'preview' }));
+      }
     }
+    const receipts = await captureReceipts(page, name => captureSaleDetail(page, mobile, mobile ? viewport : previewViewport, name));
+    captures.push(...receipts.captures);
+    metrics.publicReceipts = receipts.metrics;
     assert.deepEqual(state.errors, [], 'App must render without JavaScript errors');
     assert.deepEqual(state.missingAssets, [], 'All local app assets must be present');
     assert.deepEqual(state.databaseAttempts, [], 'Offline capture must never attempt a database call');
@@ -354,8 +363,9 @@ async function take(browser, mobile) {
 }
 
 async function main() {
+  const manifestPath = path.join(dest, receiptOnly ? 'receipt-manifest.json' : 'capture-manifest.json');
   fs.mkdirSync(dest, { recursive: true });
-  fs.rmSync(path.join(dest, 'capture-manifest.json'), { force: true });
+  fs.rmSync(manifestPath, { force: true });
   execFileSync('python3', ['-c', 'from PIL import Image; assert Image.registered_extensions()[".webp"] == "WEBP"']);
   const browser = await chromium.launch({ headless: true,
     ...(process.env.CHROMIUM_EXECUTABLE ? { executablePath: process.env.CHROMIUM_EXECUTABLE } : {}),
@@ -367,8 +377,8 @@ async function main() {
       label: fixture.label, origin, externalNetwork: 'blocked',
       metrics: desktop.metrics, captures: [...desktop.captures, ...mobile.captures],
       blockedExternalRequests: [...new Set([...desktop.blockedExternal, ...mobile.blockedExternal])].sort() };
-    fs.writeFileSync(path.join(dest, 'capture-manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
-    console.log('Wrote offline example workspace manifest:', path.join(dest, 'capture-manifest.json'));
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+    console.log('Wrote offline example workspace manifest:', manifestPath);
     console.log(JSON.stringify(manifest.metrics, null, 2));
   } finally { await browser.close(); }
 }

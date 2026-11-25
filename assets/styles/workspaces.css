@@ -69,10 +69,11 @@
 .rt #p-summary .summary-header{display:flex;flex-wrap:nowrap;align-items:center;gap:12px!important;}
 .rt #p-summary .summary-header-text{display:block!important;flex:1 1 auto;min-width:0;}
 .rt #p-summary .summary-period-sel{flex:0 0 auto;width:auto!important;max-width:55%;min-width:0;}
-.rt .rt-month-back-icon{display:none;}
-.rt #p-monthly .rt-month-header>div{width:100%;justify-content:space-between;}
-.rt #p-monthly button.month-picker-title{border:0;background:none;padding:6px 0;color:var(--text);font-family:inherit;min-height:44px;text-align:right;}
-.rt #p-monthly .rt-month-header .month-picker-wrap{margin-left:auto;}
+.rt #p-monthly .rt-sales-heading{display:flex;align-items:center;gap:8px;}
+.rt #p-monthly .rt-month-back{width:44px;height:44px;flex:none;justify-content:center;padding:0;font-size:18px;}
+.rt #p-monthly .rt-month-header .month-picker-wrap{flex:0 0 auto;margin-left:auto;}
+.rt #p-monthly button.month-picker-title{font:600 13px var(--font-body);letter-spacing:normal;min-height:44px;padding-right:32px;}
+@media(min-width:601px){.rt #p-monthly .month-picker-dropdown{left:auto;right:0;}}
 .rt #p-monthly .month-picker-wrap.open button.month-picker-title{position:relative;z-index:600;}
 .rt .page .rt-inline-header .page-title{white-space:nowrap;}
 
@@ -166,8 +167,6 @@
   .rt :is(#p-stock,#p-monthly) .rt-overview .card.kpi{padding:14px;}
 
   .rt :is(#p-stock,#p-monthly) .rt-overview .kpi-value{font-size:24px!important;margin:6px 0;}
-  .rt #p-monthly .rt-month-header .btn{font-size:11px;padding:8px;}
-  .rt #p-monthly button.month-picker-title{font-size:20px!important;letter-spacing:-.03em;white-space:nowrap;}
   .rt #p-stock .item-row{padding:12px;min-height:72px;}
   .rt #p-stock .item-row-name{font-size:13px;}
   .rt #p-stock .item-row-price{font-size:15px;}
@@ -190,14 +189,11 @@
   .rt #p-accounts .rt-inline-header>.btn{white-space:nowrap;}
 }
 @media(max-width:360px){
-  .rt #p-monthly .rt-month-back-label{display:none;}
-  .rt #p-monthly .rt-month-back-icon{display:inline;}
-  .rt #p-monthly .rt-month-header .btn{min-width:44px;}
+  .rt #p-monthly button.month-picker-title{padding-left:28px;padding-right:24px;background-position:left 7px center,right 7px center;}
   .rt #p-monthly .rt-performance-header .page-title{font-size:17px!important;}
   .rt #p-monthly .rt-performance-header{gap:5px;}
   .rt #p-monthly .rt-performance-header select{width:108px;font-size:11px!important;padding-left:6px!important;padding-right:18px!important;}
   .rt #p-monthly .rt-performance-header .btn{font-size:10px!important;padding:6px!important;}
-  .rt #p-monthly button.month-picker-title{font-size:17px!important;}
   .rt :is(#p-stock,#p-monthly) .rt-overview .card.kpi{padding:12px;}
   .rt :is(#p-stock,#p-monthly) .rt-overview .kpi-value{font-size:22px!important;}
 }

@@ -1131,7 +1131,8 @@ let _reconciliationSchemaAvailable=false;
 let _acctSelectMode=false;        // selection mode active on account detail page
 let _acctSelected=new Set();      // set of item IDs selected on account detail page
 let MONTHLY_VIEW='detail';          // 'grid' | 'detail'
-let SUMMARY_PERIOD='7d';  // summary period filter — default Last 7 days (daily-use framing)
+const DEFAULT_SUMMARY_PERIOD='7d';
+let SUMMARY_PERIOD=DEFAULT_SUMMARY_PERIOD;  // summary period filter — default Last 7 days (daily-use framing)
 let _sourcedPartsCost=0;          // parts cost carried from sourced item into List Item form (BPF preview)
 
 // CUSTOM CONFIRM MODAL
@@ -5450,7 +5451,7 @@ function platBadgeHTML(i){
 
 // NAVIGATION
 // ── UI State Persistence ──────────────────────────────────────────────────────
-const _SK={tab:'_rt_tab',stockF:'_rt_stk_f',stockSF:'_rt_stk_sf',stockSo:'_rt_stk_so',stockSoF:'_rt_stk_sof',stockGr:'_rt_stk_gr',stkCol:'_rt_stk_col',runsSort:'_rt_run_so',sumPer:'_rt_sum_p',monthV:'_rt_mon_v',lastActive:'_rt_last_active'};
+const _SK={tab:'_rt_tab',stockF:'_rt_stk_f',stockSF:'_rt_stk_sf',stockSo:'_rt_stk_so',stockSoF:'_rt_stk_sof',stockGr:'_rt_stk_gr',stkCol:'_rt_stk_col',runsSort:'_rt_run_so',monthV:'_rt_mon_v',lastActive:'_rt_last_active'};
 // A gap longer than this between activity and the next launch counts as a NEW
 // session — on a fresh session we ignore the persisted page/filters and start
 // from clean defaults (Summary page, no stock filters), which feels more
@@ -5458,7 +5459,7 @@ const _SK={tab:'_rt_tab',stockF:'_rt_stk_f',stockSF:'_rt_stk_sf',stockSo:'_rt_st
 const _SESSION_FRESH_MS=4*60*60*1000; // 4 hours
 let STOCK_COLLAPSED=new Set(); // F7: collapsed month keys in grouped stock view
 const _scrollMap={};
-function _saveUIState(){try{localStorage.setItem(_SK.tab,(document.querySelector('.page.on')||{id:'p-summary'}).id.replace('p-',''));localStorage.setItem(_SK.stockF,STOCK_FILTER);localStorage.setItem(_SK.stockSF,STOCK_STATE_FILTER);localStorage.setItem(_SK.stockSo,STOCK_SORT);localStorage.setItem(_SK.stockSoF,STOCK_SOURCED_FILTER);localStorage.setItem(_SK.stockGr,STOCK_GROUPED?'1':'0');localStorage.setItem(_SK.stkCol,JSON.stringify([...STOCK_COLLAPSED]));localStorage.setItem(_SK.runsSort,window._RUNS_SORT||'newest');localStorage.setItem(_SK.sumPer,SUMMARY_PERIOD);localStorage.setItem(_SK.monthV,MONTHLY_VIEW);localStorage.setItem(_SK.lastActive,String(Date.now()));}catch(e){}}
+function _saveUIState(){try{localStorage.setItem(_SK.tab,(document.querySelector('.page.on')||{id:'p-summary'}).id.replace('p-',''));localStorage.setItem(_SK.stockF,STOCK_FILTER);localStorage.setItem(_SK.stockSF,STOCK_STATE_FILTER);localStorage.setItem(_SK.stockSo,STOCK_SORT);localStorage.setItem(_SK.stockSoF,STOCK_SOURCED_FILTER);localStorage.setItem(_SK.stockGr,STOCK_GROUPED?'1':'0');localStorage.setItem(_SK.stkCol,JSON.stringify([...STOCK_COLLAPSED]));localStorage.setItem(_SK.runsSort,window._RUNS_SORT||'newest');localStorage.setItem(_SK.monthV,MONTHLY_VIEW);localStorage.setItem(_SK.lastActive,String(Date.now()));}catch(e){}}
 // True if the last recorded activity is recent enough to be the SAME session.
 // Missing/old timestamp → treat as a new session (return false).
 function _isSameSession(){try{const t=parseInt(localStorage.getItem(_SK.lastActive),10);if(!t||isNaN(t))return false;return (Date.now()-t)<_SESSION_FRESH_MS;}catch(e){return false;}}
@@ -5467,7 +5468,7 @@ function _loadUIState(){try{
   // than resuming stale page/filter state. Collapsed-group state is harmless to
   // restore either way, but we skip it too for a fully clean start.
   if(!_isSameSession())return;
-  const sf=localStorage.getItem(_SK.stockF);const ssf=localStorage.getItem(_SK.stockSF);const sso=localStorage.getItem(_SK.stockSo);const ssof=localStorage.getItem(_SK.stockSoF);const sgr=localStorage.getItem(_SK.stockGr);const sc=localStorage.getItem(_SK.stkCol);const rs=localStorage.getItem(_SK.runsSort);const sp=localStorage.getItem(_SK.sumPer);if(sf)STOCK_FILTER=sf;if(ssf){const _ssf=(ssf==='removed'?'listed':ssf);STOCK_STATE_FILTER=['all','listed','sourced','returned'].includes(_ssf)?_ssf:'listed';}if(sso)STOCK_SORT=sso;if(ssof)STOCK_SOURCED_FILTER=ssof;if(sgr)STOCK_GROUPED=sgr==='1';if(sc){try{STOCK_COLLAPSED=new Set(JSON.parse(sc));}catch(e){}}if(rs)window._RUNS_SORT=rs;if(sp)SUMMARY_PERIOD=sp;MONTHLY_VIEW='detail';}catch(e){}}
+  const sf=localStorage.getItem(_SK.stockF);const ssf=localStorage.getItem(_SK.stockSF);const sso=localStorage.getItem(_SK.stockSo);const ssof=localStorage.getItem(_SK.stockSoF);const sgr=localStorage.getItem(_SK.stockGr);const sc=localStorage.getItem(_SK.stkCol);const rs=localStorage.getItem(_SK.runsSort);if(sf)STOCK_FILTER=sf;if(ssf){const _ssf=(ssf==='removed'?'listed':ssf);STOCK_STATE_FILTER=['all','listed','sourced','returned'].includes(_ssf)?_ssf:'listed';}if(sso)STOCK_SORT=sso;if(ssof)STOCK_SOURCED_FILTER=ssof;if(sgr)STOCK_GROUPED=sgr==='1';if(sc){try{STOCK_COLLAPSED=new Set(JSON.parse(sc));}catch(e){}}if(rs)window._RUNS_SORT=rs;MONTHLY_VIEW='detail';}catch(e){}}
 // v1.4.23 — refresh-safe route + Sales subview persistence.
 // A hard refresh is continuation of the page the user is actively working on,
 // even if that page has been open longer than the four-hour fresh-session window.
@@ -5566,7 +5567,7 @@ function _routeSkeletonMarkup(name,yearly){
   const value='<span class="skeleton rt-pending-value"></span>';
   const foot='<span class="skeleton rt-pending-foot"></span>';
   const button=function(text,primary){return '<button type="button" disabled class="btn btn-'+(primary?'primary':'secondary')+'">'+text+'</button>';};
-  const title={summary:'Dashboard',monthly:yearly?'Performance':'Monthly sales',stock:'Stock',accounts:'Accounts',expenses:'Trips &amp; Expenses',cash:'Cashflow',runs:'Sourcing',tax:'Tax overview',data:'Reports &amp; Data',returns:'Returns',scrapped:'Archive',activity:'Activity &amp; Undo',search:'Search',monitors:'Monitors'}[name]||'Loading';
+  const title={summary:'Dashboard',monthly:yearly?'Performance':'Sales',stock:'Stock',accounts:'Accounts',expenses:'Trips &amp; Expenses',cash:'Cashflow',runs:'Sourcing',tax:'Tax overview',data:'Reports &amp; Data',returns:'Returns',scrapped:'Archive',activity:'Activity &amp; Undo',search:'Search',monitors:'Monitors'}[name]||'Loading';
   const heading=function(actions,subtitle){return '<div class="page-header"><div><div class="page-title">'+title+'</div>'+(subtitle?'<div class="page-subtitle">'+subtitle+'</div>':'')+'</div>'+(actions?'<div class="page-actions">'+actions+'</div>':'')+'</div>';};
   const card=function(label,primary){return '<div class="card kpi'+(primary?' rt-overview-primary':'')+'"><div class="kpi-label">'+label+'</div><div class="kpi-value num">'+value+'</div><div class="kpi-foot">'+foot+foot+'</div></div>';};
   const overview=function(cls,labels){return '<div class="'+cls+' rt-overview">'+card(labels[0])+'<div class="rt-overview-side">'+labels.slice(1).map(function(label,i){return card(label,i===0);}).join('')+'</div></div>';};
@@ -5580,7 +5581,7 @@ function _routeSkeletonMarkup(name,yearly){
     body=_monthlyNetProfitChartHTML().replace('<svg id=','<svg class="skeleton" id=').replace('<div id="monthly-money-flow" class="money-flow-rows"></div>','<div class="money-flow-rows rt-route-sales-flow">'+Array.from({length:6},function(){return '<div class="rt-pending-flow">'+foot+value+'</div>';}).join('')+'</div>')
       +'<div class="fy-section"><div class="rt-route-fy">'+button('Financial year ▾')+'</div><div class="mgrid">'+Array.from({length:4},function(){return '<div class="mcard"><div class="mcard-body-left">'+foot+foot+'</div><div class="mcard-body-right">'+value+'</div></div>';}).join('')+'</div></div>';
   }else if(name==='monthly'){
-    header='<div class="page-header rt-month-header"><div style="display:flex;align-items:center;gap:12px">'+button('<span class="rt-month-back-label">← Performance</span><span class="rt-month-back-icon" aria-hidden="true">←</span>')+'<button class="month-picker-title" disabled>'+keyName(SELECTED_MONTH)+' ▾</button></div></div>';
+    header='<div class="page-header rt-inline-header rt-month-header"><div class="rt-sales-heading"><button disabled class="btn btn-secondary rt-month-back" aria-label="Back">←</button><div class="page-title">Sales</div></div><div class="month-picker-wrap"><button disabled class="period-select-inline month-picker-title">'+keyName(SELECTED_MONTH)+'</button></div></div>';
     body=overview('sales-kpis-v2',['Net Revenue','Net Profit','Net Margin','Refund rate'])+controls('sales')+'<div class="rt-pending-day">'+foot+'</div>'+rows();
   }else if(name==='stock'){
     header='<div class="page-header"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:0"><div style="min-width:0;flex:1"><div class="page-title">Stock</div><div class="page-subtitle">Listed, unlisted and returned stock — everything physically on hand.</div></div><div style="display:flex;align-items:center;gap:6px;flex-shrink:0">'+button('Archive')+button('By month')+button('Add ▾',true)+'</div></div></div>';
@@ -5618,7 +5619,7 @@ function _routeSkeletonMarkup(name,yearly){
     header=heading(button('Log past')+button('Start sourcing',true));
     body='<div class="runs-kpis-v2 runs-kpis-stack">'+['Return on runs','Avg profit / run','Best session'].map(function(t){return card(t);}).join('')+'</div><section class="runs-history"><div class="runs-history-title"><h2>Sourcing history</h2>'+foot+'</div><div class="runs-history-controls">'+search('runs')+'<select disabled class="sort-select"><option>Newest first</option></select></div><details class="runs-history-help"><summary>About these figures</summary></details><div class="runs-list-head"><span>Run / location</span><span>Sold / items</span><span>Spent</span><span>Net profit</span><span>ROI</span><span></span></div><div class="runs-list">'+Array.from({length:3},function(){return '<div class="run-history-row"><span class="rh-body">'+foot+foot+'</span><span class="rh-sold">'+foot+'</span>'+['Spent','Net profit','ROI'].map(t=>'<span class="rh-fact"><span class="rh-mobile-label">'+t+'</span><strong>'+value+'</strong></span>').join('')+'<span class="rh-chevron">›</span></div>';}).join('')+'</div></section>';
   }else if(name==='expenses'){
-    header=heading(button('Add ▾',true),'Log mileage, sourcing runs and business spend');
+    header=heading(button('Add ▾',true),'Log mileage, sourcing runs and business spend').replace('class="page-header"','class="page-header rt-inline-header"');
     body=segments(['All time','This year','This month'],'cost-period-row')+'<div class="cost-total-banner"><div class="cost-total-left"><div class="cost-total-label">Deductions</div><div class="cost-total-val">'+value+'</div><div class="cost-total-sub">'+foot+'</div></div>'+button('Tax return ready →')+'</div><div class="cost-list-controls">'+search('trips &amp; expenses')+'<div>'+button('Select')+'</div></div>'+rows();
   }else if(name==='returns'){
     body='<div class="kgrid">'+['Refunds logged','Return rate','Total refunded','Return postage'].map(function(t){return card(t);}).join('')+'</div>'+segments(['All time','This tax year','All','Full','Partial'],'rtn-filters')+rows();
@@ -9895,6 +9896,9 @@ function openListFromSourced(m, id){
   if(_jobLotActionGuard(id))return;
   const i=(DB[m]||[]).find(x=>x.id===id);
   if(!i||i.state!=='sourced'){toast('Item not found or already listed','error');return;}
+  // Previously returned stock needs the relist path to preserve earlier sale
+  // snapshots, stamp the next listing fee and advance the numbered sale cycle.
+  if(_itemHasPriorFullReturn(i))return openRelist(m,id);
   // Track parts cost so updateBPFPreview can include it in profit estimate
   _sourcedPartsCost = calcPartsCost(i);
   _listFromSourcedM = m;
@@ -19218,7 +19222,7 @@ function _lifecycleCan(i,action){
   if(action==='list')return s==='sourced';
   if(action==='markSold')return s==='listed';
   if(action==='return')return s==='sold';
-  if(action==='relist')return s==='returned';
+  if(action==='relist')return s==='returned'||(s==='sourced'&&_itemHasPriorFullReturn(i));
   if(action==='moveUnlisted')return s==='returned';
   return false;
 }
@@ -19666,7 +19670,7 @@ function openRelist(m,id){
   const i=(DB[m]||[]).find(x=>x.id===id);
   if(!i)return;
   if(!_lifecycleCan(i,'relist')){
-    toast('Relist is only available while the item is in Returned stock.','error');
+    toast('Relist is only available for returned or previously returned unlisted stock.','error');
     return;
   }
   const postageMode=i._postageMode||'simple';
@@ -19675,7 +19679,8 @@ function openRelist(m,id){
   // shift if the user changes the asking price in the Relist panel, but
   // confirmRelist re-applies the rate using the final price, so the
   // persisted value is always tier-correct.
-  const sdOpts=_sdOptionsFor(i.salePrice||0,sdIdx);
+  const askingPrice=i.state==='sourced'&&i.estSalePrice!=null?(Number(i.estSalePrice)||0):(Number(i.salePrice)||0);
+  const sdOpts=_sdOptionsFor(askingPrice,sdIdx);
   const html=`
     <div style="margin-bottom:20px">
       <div style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;line-height:1.6">
@@ -19717,7 +19722,7 @@ function openRelist(m,id){
 
       <div class="fg" style="margin-bottom:20px">
         <label>Asking price (£)</label>
-        <input type="number" id="relist-price" step="0.01" value="${i.salePrice||0}" style="font-size:18px;font-weight:700;padding:12px">
+        <input type="number" id="relist-price" step="0.01" value="${askingPrice}" style="font-size:18px;font-weight:700;padding:12px">
       </div>
 
       <div class="fg" style="margin-bottom:20px">
@@ -19790,7 +19795,7 @@ function openRelist(m,id){
 
 function confirmRelist(m,id){
   const i=(DB[m]||[]).find(x=>x.id===id);
-  if(!i)return;
+  if(!i||!_lifecycleCan(i,'relist'))return;
   const price=parseFloat(document.getElementById('relist-price').value)||i.salePrice||0;
   const promoInput=parseFloat(document.getElementById('relist-promo').value)||0;
   // E3 P1 #3 — Capture sale 2 packaging from the relist modal so it isn't
@@ -21717,6 +21722,7 @@ if(_routedAuthPage())window.addEventListener('popstate',function(){
     if(typeof _refreshSideNavUser==='function') _refreshSideNavUser();
 
     if(_initialLoadDone)return true;
+    SUMMARY_PERIOD=DEFAULT_SUMMARY_PERIOD;
     _initialLoadDone=true;
     try{
       if(await initDB()===false||sess.user.id!==_currentUserId){_initialLoadDone=false;return false;}

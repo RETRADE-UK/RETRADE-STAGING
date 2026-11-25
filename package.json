@@ -7,10 +7,11 @@
     "test:monitors": "node --test tests/monitors/*.test.mjs",
     "build": "node scripts/build-site.cjs && node scripts/check-pages.cjs",
     "audit:size": "node scripts/audit-size.cjs",
-    "test:landing": "node tests/landing-scroll-browser.cjs && node tests/landing-scroll-browser.cjs --webkit && node tests/landing-concepts-browser.cjs && node tests/landing-concepts-browser.cjs --webkit"
+    "test:landing": "node tests/landing-showcase-browser.cjs && node tests/landing-showcase-browser.cjs --webkit"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",
+    "esbuild": "0.28.2",
     "playwright": "1.62.1"
   }
 }

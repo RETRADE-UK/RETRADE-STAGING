@@ -33,7 +33,7 @@ const engine=process.argv.includes('--webkit')?webkit:chromium;
     const labels=Array.from(svg.querySelectorAll('.rt-fortnight-date'));
     const boxes=labels.map(e=>e.getBBox()),sw=svg.viewBox.baseVal.width;
     const x=e=>+e.getAttribute('x'),w=e=>+e.getAttribute('width');
-    return {id:svg.id,range:getSummaryDateRange(),previous:_prevPeriodRange(_prevPeriodKey('14d')),comparison:calcSummaryDeltas().label,saved:localStorage.getItem(_SK.sumPer),labels:snap.labels,rev:snap.revData,profit:snap.profitData,gross:calcSummaryGrossStats().revenue,handlers:window.__chartClickHandlers,
+    return {id:svg.id,range:getSummaryDateRange(),previous:_prevPeriodRange(_prevPeriodKey('14d')),comparison:calcSummaryDeltas().label,period:SUMMARY_PERIOD,labels:snap.labels,rev:snap.revData,profit:snap.profitData,gross:calcSummaryGrossStats().revenue,handlers:window.__chartClickHandlers,
       columns:cols.length,bands:cols.map(w),barCount:bars.length,minGap:Math.min(...bars.slice(1).map((b,i)=>x(b)-x(bars[i])-w(bars[i]))),
       widths:bars.map(w),profitInset:Array.from(svg.querySelectorAll('.rt-chart-profit-bar')).every(p=>{const b=bars.find(r=>r.style.getPropertyValue('--bar-i')===p.style.getPropertyValue('--bar-i'));return b&&x(p)>x(b)&&x(p)+w(p)<x(b)+w(b);}),
       labelCount:labels.length,labelDates:labels.map(e=>e.textContent),labelsFit:boxes.every(b=>b.x>=0&&b.x+b.width<=sw+.5),labelsSeparate:boxes.slice(1).every((b,i)=>b.x>=boxes[i].x+boxes[i].width+3),
@@ -41,7 +41,7 @@ const engine=process.argv.includes('--webkit')?webkit:chromium;
    });
    assert.deepEqual(state.range,{from:'2026-10-03',to:'2026-10-16'});
    assert.deepEqual(state.previous,{from:'2026-09-19',to:'2026-10-02'});
-   assert.equal(state.comparison,'vs prev 14 days');assert.equal(state.saved,'14d');
+   assert.equal(state.comparison,'vs prev 14 days');assert.equal(state.period,'14d');
    assert.equal(state.columns,14);assert.equal(state.labels.length,14);
    assert.deepEqual(state.rev,expected,'The boundary days count once; earlier/future sales do not leak in');
    assert.equal(state.gross,expected.reduce((s,v)=>s+v,0),'Chart and revenue KPI reconcile');

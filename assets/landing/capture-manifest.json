@@ -101,6 +101,118 @@
         "totalCosts": 13.53,
         "netProfit": 5.47
       }
+    },
+    "publicReceipts": {
+      "sale-jeans": {
+        "title": "Levi’s 501 jeans",
+        "price": 32,
+        "itemCost": 8.5,
+        "partsCost": 0,
+        "profit": 23.5,
+        "returned": false,
+        "events": [
+          {
+            "saleNo": "Sale 1",
+            "platform": "Vinted",
+            "salePrice": 32,
+            "postage": 0,
+            "bpf": 0,
+            "promoPct": 0,
+            "promoFee": 0,
+            "shipping": 0,
+            "packaging": 0,
+            "itemCost": 8.5,
+            "parts": 0,
+            "listingFee": 0,
+            "returnRefund": 0,
+            "returnPostage": 0,
+            "partialRefund": 0,
+            "partnerSplit": 0,
+            "totalCosts": 8.5,
+            "netProfit": 23.5
+          }
+        ]
+      },
+      "sale-repair": {
+        "title": "Dyson V7 cordless vacuum",
+        "price": 65,
+        "itemCost": 15,
+        "partsCost": 24,
+        "profit": 26,
+        "returned": false,
+        "events": [
+          {
+            "saleNo": "Sale 1",
+            "platform": "FB",
+            "salePrice": 65,
+            "postage": 0,
+            "bpf": 0,
+            "promoPct": 0,
+            "promoFee": 0,
+            "shipping": 0,
+            "packaging": 0,
+            "itemCost": 15,
+            "parts": 24,
+            "listingFee": 0,
+            "returnRefund": 0,
+            "returnPostage": 0,
+            "partialRefund": 0,
+            "partnerSplit": 0,
+            "totalCosts": 39,
+            "netProfit": 26
+          }
+        ]
+      },
+      "sale-return": {
+        "title": "De’Longhi coffee grinder",
+        "price": 30,
+        "itemCost": 8,
+        "partsCost": 0,
+        "profit": -8.34,
+        "returned": true,
+        "events": [
+          {
+            "saleNo": "Sale 1",
+            "platform": "eBay Biz",
+            "salePrice": 30,
+            "postage": 0,
+            "bpf": 4.89,
+            "promoPct": 0,
+            "promoFee": 0,
+            "shipping": 3.5,
+            "packaging": 0.5,
+            "itemCost": 8,
+            "parts": 0,
+            "listingFee": 0.36,
+            "returnRefund": 0,
+            "returnPostage": 0,
+            "partialRefund": 0,
+            "partnerSplit": 0,
+            "totalCosts": 17.25,
+            "netProfit": 12.75
+          },
+          {
+            "saleNo": "Sale 1 return",
+            "platform": "eBay Biz",
+            "salePrice": -30,
+            "postage": 0,
+            "bpf": -4.41,
+            "promoPct": 0,
+            "promoFee": 0,
+            "shipping": 0,
+            "packaging": 0,
+            "itemCost": -8,
+            "parts": 0,
+            "listingFee": 0,
+            "returnRefund": 30,
+            "returnPostage": 3.5,
+            "partialRefund": 0,
+            "partnerSplit": 0,
+            "totalCosts": 21.09,
+            "netProfit": -21.09
+          }
+        ]
+      }
     }
   },
   "captures": [
@@ -1348,7 +1460,7 @@
       "title": "Mario Kart 8 Deluxe, cartridge only",
       "viewport": {
         "width": 1600,
-        "height": 1172
+        "height": 1228
       },
       "deviceScaleFactor": 1.5,
       "scroll": {
@@ -1357,7 +1469,7 @@
       },
       "sourceBounds": {
         "x": 929,
-        "y": 570.546875,
+        "y": 626.546875,
         "width": 587,
         "height": 573.34375
       },
@@ -1374,8 +1486,8 @@
         "height": 1000
       },
       "captureMode": "element",
-      "bytes": 26680,
-      "sha256": "e3f424f8c61c23f7c7ea71202d9c3f041bfc15ab04bb0276c944559e29fbb0d4"
+      "bytes": 22494,
+      "sha256": "70cba77f9c81bb24f59e09fead657c357b541a7a4ed548334a8b277a0a82e51c"
     },
     {
       "file": "sale-preview.webp",
@@ -2278,6 +2390,286 @@
       "captureMode": "viewport",
       "bytes": 126318,
       "sha256": "7889c9c2f52aa3d8e2e8e0efcfdf912bb1f0ffd9af8e36388075267f07fb6b69"
+    },
+    {
+      "file": "sale-detail-phone.webp",
+      "png": "sale-detail-phone.png",
+      "view": "sale",
+      "device": "mobile",
+      "role": "detail",
+      "width": 716,
+      "height": 1034,
+      "title": "Mario Kart 8 Deluxe, cartridge only",
+      "viewport": {
+        "width": 390,
+        "height": 1678
+      },
+      "deviceScaleFactor": 2,
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "sourceBounds": {
+        "x": 16,
+        "y": 1056.515625,
+        "width": 358,
+        "height": 516.375
+      },
+      "proof": {
+        "fullHeading": false,
+        "fullBreakdown": true,
+        "fullViewport": false,
+        "clearOfFloatingControls": true,
+        "text": "Profit breakdown\n£5.47\n▾\nSold on\neBay UK (Private)\neBay UK (Business)\nVinted\nDepop\nFacebook Marketplace\nAmazon UK\nSale price\n£\n+ Buyer postage\n+£\neBay FVF (Biz · 9.9%)\n−£2.82\nListing fee\n−£\nShipping cost (you pay)\n−£\nPackaging\n−£0.25\nItem cost\n−£8.00\nYour profit / loss\n£5.47",
+        "profitText": "Your profit / loss\n£5.47"
+      },
+      "baseViewport": {
+        "width": 390,
+        "height": 900
+      },
+      "captureMode": "element",
+      "bytes": 30980,
+      "sha256": "a32c396d3cdd37d3ca10c8d35fb84f25e93935bde9f08656f8095c9742fd5a6f"
+    },
+    {
+      "file": "sale-jeans.webp",
+      "png": "sale-jeans.png",
+      "view": "sale",
+      "device": "desktop",
+      "role": "detail",
+      "width": 881,
+      "height": 528,
+      "title": "Levi’s 501 jeans",
+      "viewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "deviceScaleFactor": 1.5,
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "sourceBounds": {
+        "x": 929,
+        "y": 403.5625,
+        "width": 587,
+        "height": 351.15625
+      },
+      "proof": {
+        "fullHeading": false,
+        "fullBreakdown": true,
+        "fullViewport": false,
+        "clearOfFloatingControls": true,
+        "text": "Profit breakdown\n£23.50\n▾\nSold on\neBay UK (Private)\neBay UK (Business)\nVinted\nDepop\nFacebook Marketplace\nAmazon UK\nSale price\n£\nBuyer pays postage\n(buyer covered)\nItem cost\n−£8.50\nYour profit / loss\n£23.50",
+        "profitText": "Your profit / loss\n£23.50"
+      },
+      "baseViewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "captureMode": "element",
+      "bytes": 13586,
+      "sha256": "d1aee93288efea23e9978d48063b80daf43be9f94b623a1718311f7c71023383"
+    },
+    {
+      "file": "sale-repair.webp",
+      "png": "sale-repair.png",
+      "view": "sale",
+      "device": "desktop",
+      "role": "detail",
+      "width": 881,
+      "height": 830,
+      "title": "Dyson V7 cordless vacuum",
+      "viewport": {
+        "width": 1600,
+        "height": 1208
+      },
+      "deviceScaleFactor": 1.5,
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "sourceBounds": {
+        "x": 929,
+        "y": 626.546875,
+        "width": 587,
+        "height": 551.53125
+      },
+      "proof": {
+        "fullHeading": false,
+        "fullBreakdown": true,
+        "fullViewport": false,
+        "clearOfFloatingControls": true,
+        "text": "Profit breakdown\n£26.00\n▾\nSold on\neBay UK (Private)\neBay UK (Business)\nVinted\nDepop\nFacebook Marketplace\nAmazon UK\nSale price\n£\n+ Buyer postage\n+£\nShipping cost (you pay)\n−£\nItem cost\n−£15.00\nParts & expenses (2)\n−£24.00\nReplacement battery\n−£18.00\nReplacement filter\n−£6.00\nYour profit / loss\n£26.00",
+        "profitText": "Your profit / loss\n£26.00"
+      },
+      "baseViewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "captureMode": "element",
+      "bytes": 24352,
+      "sha256": "2db0918e40c92de3419737e24e45dad3478618d9f5c44711f606997182209bd7"
+    },
+    {
+      "file": "sale-return.webp",
+      "png": "sale-return.png",
+      "view": "sale",
+      "device": "desktop",
+      "role": "detail",
+      "width": 881,
+      "height": 1196,
+      "title": "De’Longhi coffee grinder",
+      "viewport": {
+        "width": 1600,
+        "height": 1452
+      },
+      "deviceScaleFactor": 1.5,
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "sourceBounds": {
+        "x": 929,
+        "y": 626.546875,
+        "width": 587,
+        "height": 796.09375
+      },
+      "proof": {
+        "fullHeading": false,
+        "fullBreakdown": true,
+        "fullViewport": false,
+        "clearOfFloatingControls": true,
+        "text": "Profit breakdown\n-£8.34\n▾\nSold on\neBay UK (Private)\neBay UK (Business)\nVinted\nDepop\nFacebook Marketplace\nAmazon UK\nSale price\n£\n+ Buyer postage\n+£\neBay FVF (Biz · 11.9%→7.9% over £500)\n−£4.89\nListing fee\n−£\nShipping cost (you pay)\n−£\nPackaging\n−£0.50\nItem cost\n−£8.00\nReturn impact\nFull refund — you handled\n−£30.00\nPlatform fee credit\n+£4.41\nStock cost restored\n+£8.00\nReturn postage\n−£\nYour profit / loss\n-£8.34",
+        "profitText": "Your profit / loss\n-£8.34"
+      },
+      "baseViewport": {
+        "width": 1600,
+        "height": 1000
+      },
+      "captureMode": "element",
+      "bytes": 36624,
+      "sha256": "f175748c2046edfb7b2eed35562fee4d8f419854bce2481101bbff8140f11e96"
+    },
+    {
+      "file": "sale-jeans-phone.webp",
+      "png": "sale-jeans-phone.png",
+      "view": "sale",
+      "device": "mobile",
+      "role": "detail",
+      "width": 716,
+      "height": 644,
+      "title": "Levi’s 501 jeans",
+      "viewport": {
+        "width": 390,
+        "height": 1252
+      },
+      "deviceScaleFactor": 2,
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "sourceBounds": {
+        "x": 16,
+        "y": 825.140625,
+        "width": 358,
+        "height": 321.53125
+      },
+      "proof": {
+        "fullHeading": false,
+        "fullBreakdown": true,
+        "fullViewport": false,
+        "clearOfFloatingControls": true,
+        "text": "Profit breakdown\n£23.50\n▾\nSold on\neBay UK (Private)\neBay UK (Business)\nVinted\nDepop\nFacebook Marketplace\nAmazon UK\nSale price\n£\nBuyer pays postage\n(buyer covered)\nItem cost\n−£8.50\nYour profit / loss\n£23.50",
+        "profitText": "Your profit / loss\n£23.50"
+      },
+      "baseViewport": {
+        "width": 390,
+        "height": 900
+      },
+      "captureMode": "element",
+      "bytes": 18720,
+      "sha256": "0ad58012bef52e8fe6d38dc8f5b3ff0d2f9031824a4e5d133ab84d98c7e27ef2"
+    },
+    {
+      "file": "sale-repair-phone.webp",
+      "png": "sale-repair-phone.png",
+      "view": "sale",
+      "device": "mobile",
+      "role": "detail",
+      "width": 716,
+      "height": 1000,
+      "title": "Dyson V7 cordless vacuum",
+      "viewport": {
+        "width": 390,
+        "height": 1634
+      },
+      "deviceScaleFactor": 2,
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "sourceBounds": {
+        "x": 16,
+        "y": 1030.125,
+        "width": 358,
+        "height": 499.21875
+      },
+      "proof": {
+        "fullHeading": false,
+        "fullBreakdown": true,
+        "fullViewport": false,
+        "clearOfFloatingControls": true,
+        "text": "Profit breakdown\n£26.00\n▾\nSold on\neBay UK (Private)\neBay UK (Business)\nVinted\nDepop\nFacebook Marketplace\nAmazon UK\nSale price\n£\n+ Buyer postage\n+£\nShipping cost (you pay)\n−£\nItem cost\n−£15.00\nParts & expenses (2)\n−£24.00\nReplacement battery\n−£18.00\nReplacement filter\n−£6.00\nYour profit / loss\n£26.00",
+        "profitText": "Your profit / loss\n£26.00"
+      },
+      "baseViewport": {
+        "width": 390,
+        "height": 900
+      },
+      "captureMode": "element",
+      "bytes": 33638,
+      "sha256": "e5b815f73815f63b3d4aae4c640602f11e47ab6164fedc9c0100593fc471275c"
+    },
+    {
+      "file": "sale-return-phone.webp",
+      "png": "sale-return-phone.png",
+      "view": "sale",
+      "device": "mobile",
+      "role": "detail",
+      "width": 716,
+      "height": 1436,
+      "title": "De’Longhi coffee grinder",
+      "viewport": {
+        "width": 390,
+        "height": 1852
+      },
+      "deviceScaleFactor": 2,
+      "scroll": {
+        "x": 0,
+        "y": 0
+      },
+      "sourceBounds": {
+        "x": 16,
+        "y": 1030.125,
+        "width": 358,
+        "height": 717.75
+      },
+      "proof": {
+        "fullHeading": false,
+        "fullBreakdown": true,
+        "fullViewport": false,
+        "clearOfFloatingControls": true,
+        "text": "Profit breakdown\n-£8.34\n▾\nSold on\neBay UK (Private)\neBay UK (Business)\nVinted\nDepop\nFacebook Marketplace\nAmazon UK\nSale price\n£\n+ Buyer postage\n+£\neBay FVF (Biz · 11.9%→7.9% over £500)\n−£4.89\nListing fee\n−£\nShipping cost (you pay)\n−£\nPackaging\n−£0.50\nItem cost\n−£8.00\nReturn impact\nFull refund — you handled\n−£30.00\nPlatform fee credit\n+£4.41\nStock cost restored\n+£8.00\nReturn postage\n−£\nYour profit / loss\n-£8.34",
+        "profitText": "Your profit / loss\n-£8.34"
+      },
+      "baseViewport": {
+        "width": 390,
+        "height": 900
+      },
+      "captureMode": "element",
+      "bytes": 49330,
+      "sha256": "8c96b8666f34f958bec79dff503bce74130f19a98d80aa3942ee348669af00d2"
     }
   ],
   "blockedExternalRequests": [

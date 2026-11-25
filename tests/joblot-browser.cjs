@@ -5,7 +5,7 @@ const {open,settled}=require('./startup-browser.cjs');
 const safari=process.argv.includes('--webkit');
 const saveSource=fs.readFileSync(path.join(__dirname,'../src/core/application.js'),'utf8').match(/function saveDB\(\)\{[\s\S]*?\n\}/)[0];
 (async()=>{
- const browser=await(safari?webkit:chromium).launch({headless:true,...(!safari?{args:['--no-sandbox']}:{} )});
+ const browser=await(safari?webkit:chromium).launch({headless:true,...(!safari?{args:['--no-sandbox'],...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{})}:{} )});
  try{for(const width of [1440,320]){
   const {page,context,errors}=await open(browser,{signedIn:true,mobile:width===320});await settled(page);await page.setViewportSize({width,height:960});
   await page.evaluate(source=>{saveDB=(0,eval)('('+source+')');_previewMode=true;},saveSource);
@@ -56,20 +56,50 @@ const saveSource=fs.readFileSync(path.join(__dirname,'../src/core/application.js
     const bs=DB['NOV-26'].map(i=>_saleBreakdown({item:i,sale:'1'})),sum=k=>+bs.reduce((s,b)=>s+b[k],0).toFixed(2);
     return {fee:sum('bpf'),expected:calcEbayBizBPF(1200,'Digital Cameras & Lenses',1200),promo:sum('promoFee'),adExpected:_calcPromoFee('ebay_biz',1200,0,.023),category:DB['NOV-26'][0].category,history:DB['NOV-26'].every(i=>_rowToItem(_itemToRow(i,'NOV-26')).refreshHistory.some(r=>r.type==='joblot_listing'))};
   });assert.equal(totals.fee,totals.expected);assert.equal(totals.promo,totals.adExpected);assert.equal(totals.category,'Toys & Games');assert(totals.history);
+  await page.evaluate(()=>{closePanel(true);openItemPage('NOV-26','a','p-stock');});
+  assert.match(await page.locator('#p-item').innerText(),/eBay FVF \(Job lot share\)/);
   // Splitting returned stock preserves the previous sale and original purchase.
   await page.evaluate(()=>{closePanel(true);const i=DB['NOV-26'][0];i.returnHistory=[{saleNo:1,type:'full_seller',refundAmount:i.salePrice,loggedAt:'2026-11-22'}];i.isReturned=true;i.state='returned';window.returnLot=_createJobLot('Returned camera',['a']);openJobLotPage(returnLot.id);window.saleBefore=_saleCycleSnapshot(i,1);});
   await page.getByRole('button',{name:'Split into separate items',exact:true}).click();await page.locator('#confirm-ok').click();
   await page.waitForFunction(()=>returnLot.status==='broken_apart');
   assert.deepEqual(await page.evaluate(()=>{const s=_saleCycleSnapshot(DB['NOV-26'][0],1);return [s.date,s.price,s.bundleId];}),await page.evaluate(()=>[saleBefore.date,saleBefore.price,saleBefore.bundleId]));
   assert.equal(await page.evaluate(()=>_itemLifecycleState(DB['NOV-26'][0])),'sourced');
-  // A second returned sale is also archived before its live slot is cleared.
-  assert.deepEqual(await page.evaluate(()=>{
+  // A returned second sale can leave a lot and use the normal individual listing flow.
+  await page.evaluate(()=>{
     const i=DB['NOV-26'][0];_applyJobLotSaleLeg(i,{date:'2026-11-23',salePrice:150,platform:'ebay_biz',category:'Digital Cameras & Lenses',bundleId:'second',bundleRef:'Second',bundleTotal:150,promo:.02});
-    i.returnHistory.push({saleNo:2,type:'full_seller',refundAmount:150,_dateSoldAtReturn:'2026-11-23',_salePriceAtReturn:150,_bundleIdAtReturn:'second'});i.isReturned=true;i.estSalePrice=140;
-    _jobLotUnlistMember(i);const old=_saleCycleSnapshot(i,2);
-    const state=_itemLifecycleState(i);_applyJobLotSaleLeg(i,{date:'2026-11-23',salePrice:140,platform:'ebay_biz',category:'Digital Cameras & Lenses',bundleId:'third',bundleRef:'Third',bundleTotal:140,promo:.02});
-    return [state,old.price,old.bundleId,_currentResaleCycleNo(i),_saleCycleSnapshot(i,3).price];
-  }),['sourced',150,'second',3,140]);
+    i.returnHistory.push({saleNo:2,type:'full_seller',refundAmount:150,_dateSoldAtReturn:'2026-11-23',_salePriceAtReturn:150,_bundleIdAtReturn:'second',_platformAtReturn:'ebay_biz',_listingFeeAtReturn:.36});i.isReturned=true;i.estSalePrice=140;
+    window.secondBefore=_saleCycleSnapshot(i,2);window.firstFee=i.listingFee;
+    window.secondReturnLot=_createJobLot('Second return',['a']);openJobLotPage(secondReturnLot.id);
+  });
+  await page.getByRole('button',{name:'Split into separate items',exact:true}).click();await page.locator('#confirm-ok').click();
+  await page.waitForFunction(()=>secondReturnLot.status==='broken_apart');
+  assert.equal(await page.evaluate(()=>_itemLifecycleState(DB['NOV-26'][0])),'sourced');
+  await page.evaluate(()=>openItemPage('NOV-26','a','p-stock'));
+  await page.getByRole('button',{name:'List this item →',exact:true}).click();
+  await page.locator('#relist-price').waitFor();
+  assert.equal(await page.locator('#relist-price').inputValue(),'140','Relisting uses the unlisted estimate');
+  await page.locator('#relist-platform').selectOption('vinted');await page.locator('#relist-promo').fill('0');
+  await page.locator('#relist-date').fill('2026-11-25');
+  await page.getByRole('button',{name:'Relist item',exact:true}).click();
+  await page.getByRole('button',{name:'Mark Sold',exact:true}).click();
+  assert.match(await page.locator('#resale-modal-sub').innerText(),/Sale 3/);
+  await page.locator('#resale-price').fill('140');await page.locator('#resale-date').fill('2026-11-25');
+  await page.locator('#resale-modal button[onclick="confirmResale()"]').click();
+  assert.deepEqual(await page.evaluate(()=>{
+    const i=DB['NOV-26'][0],third=_saleCycleSnapshot(i,3),second=_saleCycleSnapshot(i,2);
+    return [_itemLifecycleState(i),third&&third.price,third&&third.platformId,third&&third.bundleId,second.price,second.bundleId,second.listingFee,i.listingFee===firstFee];
+  }),['sold',140,'vinted',null,150,'second',.36,true]);
+  const persistedCycles=await page.evaluate(async()=>{
+    const rows={},write=_sbWriteFallback,children=_replaceChildRowsSafe;
+    try{
+      _sbWriteFallback=async(callback,row)=>{rows.item=row;return {error:null};};
+      _replaceChildRowsSafe=async(table,id,data)=>{rows[table]=data;};
+      await saveItemToSupabase('NOV-26',DB['NOV-26'][0]);
+      const restored=_rowToItem(rows.item,rows.item_parts,rows.item_returns),second=_saleCycleSnapshot(restored,2),third=_saleCycleSnapshot(restored,3);
+      return [_saleCycleNumbers(restored),second.price,second.bundleId,second.listingFee,third.price,third.platformId,third.bundleId];
+    }finally{_sbWriteFallback=write;_replaceChildRowsSafe=children;}
+  });
+  assert.deepEqual(persistedCycles,[[1,2,3],150,'second',.36,140,'vinted',null]);
   // Legacy listed lots retain their saved ask on initial hydration.
   assert.deepEqual(await page.evaluate(()=>{
     const l={id:'legacy',status:'listed',salePrice:59.99};_jobLots.push(l);_jobLotItems.push({id:'legacy-member',jobLotId:'legacy',itemId:'b',removedAt:null});

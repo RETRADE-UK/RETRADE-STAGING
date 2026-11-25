@@ -41,4 +41,10 @@ i=item({dateListed:'2026-10-01',dateSold:'2026-10-02',resaleDateSold:'2026-12-20
 const peers=Array.from({length:5},(_,n)=>item({id:'shared'+n,refreshHistory:[{type:'bundle_listing_fee',basis:'shared',bundleId:'synthetic',saleNo:1,totalFee:.36}]}));c.DB['OCT-26']=peers;peers.forEach(x=>c._accrueEbayRenewals(x,'2026-11-30'));assert.equal(Math.round(peers.reduce((v,x)=>v+x.refreshHistory.at(-1)._listingFee,0)*100),36);
 i=item({dateListed:'2026-10-01',listingFee:.72,refreshHistory:[{type:'verified_listing_fees',saleNo:1,through:'2026-10-10',entries:[{date:'2026-10-01',amount:.36,sourceRow:1}]},{type:'relist',date:'2026-10-15',_listingFee:.36,_saleNo:1,_platform:'ebay_biz'}]});c.DB['OCT-26']=[i];assert.equal(JSON.stringify(listingRows()),JSON.stringify([['2026-10-01',.36,'out'],['2026-10-15',.36,'out']]));
 for(const key of ['resaleShippingCost','resalePromoPercent','resalePackagingCost','resalePostage']){assert.equal(c._rowToItem({resale_shipping_cost:0,resale_promo_percent:0,resale_packaging_cost:0,resale_postage:0})[key],0,'Explicit resale zero survives reload: '+key);assert.equal(c._rowToItem({})[key],null,'Unknown resale cost remains unknown: '+key);}
+// A returned/split unit's next estimate uses its own category, even at the old price.
+// Explicit historical reads retain the old job lot category.
+c.EBAY_BIZ_FVF['Fixture lot category']=.05;
+i=item({state:'sourced',category:'Other',salePrice:0,dateSold:null,estSalePrice:140,bundleId:'old-lot',refreshHistory:[{type:'joblot_listing',bundleId:'old-lot',category:'Fixture lot category'}],returnHistory:[{saleNo:1,type:'full_seller',_dateSoldAtReturn:'2026-10-02',_salePriceAtReturn:100,_postageAtReturn:0,_platformAtReturn:'ebay_biz',_bundleIdAtReturn:'old-lot'}]});
+for(const ask of [100,140])assert.equal(c.calcPlatformBPF(i,ask,0,'ebay_biz'),c.calcEbayBizBPF(ask,'Other',ask),'Future estimate ignores prior job lot category');
+assert.equal(c.calcPlatformBPF(i,100,0,'ebay_biz',1),c.calcEbayBizBPF(100,'Fixture lot category',100),'Historical sale keeps its job lot category');
 console.log('PASS evidence, refunds, JSON history, renewals, shared pennies, resale and dated cash');
