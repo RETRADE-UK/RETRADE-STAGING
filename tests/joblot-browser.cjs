@@ -57,7 +57,7 @@ const saveSource=fs.readFileSync(path.join(__dirname,'../src/core/application.js
     return {fee:sum('bpf'),expected:calcEbayBizBPF(1200,'Digital Cameras & Lenses',1200),promo:sum('promoFee'),adExpected:_calcPromoFee('ebay_biz',1200,0,.023),category:DB['NOV-26'][0].category,history:DB['NOV-26'].every(i=>_rowToItem(_itemToRow(i,'NOV-26')).refreshHistory.some(r=>r.type==='joblot_listing'))};
   });assert.equal(totals.fee,totals.expected);assert.equal(totals.promo,totals.adExpected);assert.equal(totals.category,'Toys & Games');assert(totals.history);
   await page.evaluate(()=>{closePanel(true);openItemPage('NOV-26','a','p-stock');});
-  assert.match(await page.locator('#p-item').innerText(),/eBay FVF \(Job lot share\)/);
+  await page.locator('#p-item').getByText('eBay FVF (Job lot share)',{exact:true}).first().waitFor({state:'attached'});
   // Splitting returned stock preserves the previous sale and original purchase.
   await page.evaluate(()=>{closePanel(true);const i=DB['NOV-26'][0];i.returnHistory=[{saleNo:1,type:'full_seller',refundAmount:i.salePrice,loggedAt:'2026-11-22'}];i.isReturned=true;i.state='returned';window.returnLot=_createJobLot('Returned camera',['a']);openJobLotPage(returnLot.id);window.saleBefore=_saleCycleSnapshot(i,1);});
   await page.getByRole('button',{name:'Split into separate items',exact:true}).click();await page.locator('#confirm-ok').click();
