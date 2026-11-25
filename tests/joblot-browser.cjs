@@ -90,11 +90,11 @@ const saveSource=fs.readFileSync(path.join(__dirname,'../src/core/application.js
     return [_itemLifecycleState(i),third&&third.price,third&&third.platformId,third&&third.bundleId,second.price,second.bundleId,second.listingFee,i.listingFee===firstFee];
   }),['sold',140,'vinted',null,150,'second',.36,true]);
   const persistedCycles=await page.evaluate(async()=>{
-    const rows={},client=_sb,call=_sbCall,children=_replaceChildRowsSafe;
+    const rows={},from=_sb.from,call=_sbCall,children=_replaceChildRowsSafe;
     try{
       // Exercise the runtime revision-guarded save with an entirely local client:
       // schema/probe reads are empty; the parent write returns its next revision.
-      _sb={from(table){
+      _sb.from=function(table){
         if(table!=='items')throw new Error('Unexpected persistence table: '+table);
         let payload=null;
         const query={select:()=>query,eq:()=>query,limit:()=>query,
@@ -103,13 +103,13 @@ const saveSource=fs.readFileSync(path.join(__dirname,'../src/core/application.js
           then(resolve,reject){return Promise.resolve({error:null,data:payload?[{revision:(Number(payload.client_base_revision)||0)+1,updated_at:'2026-11-25T12:00:00Z'}]:[]}).then(resolve,reject);}
         };
         return query;
-      }};
+      };
       _sbCall=async makeQuery=>await makeQuery();
       _replaceChildRowsSafe=async(table,id,data)=>{rows[table]=data;};
       await saveItemToSupabase('NOV-26',DB['NOV-26'][0]);
       const restored=_rowToItem(rows.item,rows.item_parts,rows.item_returns),second=_saleCycleSnapshot(restored,2),third=_saleCycleSnapshot(restored,3);
       return [_saleCycleNumbers(restored),second.price,second.bundleId,second.listingFee,third.price,third.platformId,third.bundleId];
-    }finally{_sb=client;_sbCall=call;_replaceChildRowsSafe=children;}
+    }finally{_sb.from=from;_sbCall=call;_replaceChildRowsSafe=children;}
   });
   assert.deepEqual(persistedCycles,[[1,2,3],150,'second',.36,140,'vinted',null]);
   // Legacy listed lots retain their saved ask on initial hydration.
