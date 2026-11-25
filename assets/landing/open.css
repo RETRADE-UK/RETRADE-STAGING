@@ -21,7 +21,7 @@ img { max-width: 100%; }
 .skip-link:not(:focus) { width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 .topbar { background: #0a1019; border-bottom: 1px solid #212b3b; }
-.nav-inner, .header-links, .logo, .finish-inner, .workspace-toolbar, .workspace-footer { display: flex; align-items: center; }
+.nav-inner, .header-links, .logo, .finish-inner { display: flex; align-items: center; }
 .nav-inner { justify-content: space-between; min-height: 4.5rem; gap: 1rem; }
 .logo { gap: .5rem; font-style: italic; font-size: 1.44rem; font-weight: 850; letter-spacing: -.06em; }
 .logo em { color: var(--gold); }
@@ -35,7 +35,7 @@ main { background: radial-gradient(ellipse 75% 29rem at 65% 0%, #192539, transpa
 .hero-content { padding-block: clamp(1.75rem, 3.3vw, 3rem) clamp(1.5rem, 3vw, 2.75rem); }
 .eyebrow { display: flex; align-items: center; gap: .75rem; color: var(--gold); font-size: .75rem; font-weight: 750; text-transform: uppercase; letter-spacing: .14em; }
 .hero .eyebrow { justify-content: center; }
-.eyebrow::before, .hero .eyebrow::after { content: ""; width: 1.4rem; height: 2px; background: var(--gold); }
+.hero .eyebrow::before, .hero .eyebrow::after { content: ""; width: 1.4rem; height: 2px; background: var(--gold); }
 h1, h2 { line-height: 1.03; letter-spacing: -.058em; }
 .hero h1 { margin: .75rem 0 1.2rem; font-weight: 750; font-size: clamp(2.5rem, 6vw, 5.35rem); }
 h1 em, .finish em { font-family: Georgia, serif; font-weight: 500; color: var(--gold); }
@@ -49,13 +49,11 @@ h1 em { font-size: .88em; }
 
 .showcase { max-width: 77rem; padding-bottom: clamp(1.5rem, 4vw, 3.5rem); }
 .workspace-toolbar {
-  justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem;
   padding: .65rem 1rem; border: 1px solid var(--line);
   border-radius: 1rem 1rem 0 0; background: #141e2d;
 }
-.workspace-toolbar h2 { font-size: 1.06rem; letter-spacing: -.02em; }
 .workspace-nav {
-  display: grid; order: -1; grid-auto-flow: column; align-items: stretch; gap: .2rem;
+  display: grid; width: fit-content; grid-auto-flow: column; align-items: stretch; gap: .2rem;
   max-width: 100%; padding: .2rem; border-radius: .65rem; background: #0c1320;
 }
 .workspace-nav a, .workspace-nav button {
@@ -74,7 +72,8 @@ h1 em { font-size: .88em; }
   overflow: hidden; border: 1px solid var(--line); border-top: 0;
   border-radius: 0 0 1rem 1rem; background: #0f1724;
 }
-.preview-status { position: absolute; z-index: 1; inset: 0; padding: 2rem; color: var(--muted); pointer-events: none; }
+.preview-recovery { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: .5rem; color: var(--muted); }
+.preview-recovery button { min-height: 2.75rem; padding: .4rem .9rem; color: var(--gold); border: 1px solid var(--line); border-radius: .5rem; background: transparent; }
 .workspace-frame iframe, .workspace-frame picture, .workspace-frame img { display: block; width: 100%; height: 100%; border: 0; }
 .workspace-frame iframe { position: absolute; inset: 0; }
 .workspace-frame iframe:not([data-active]) { visibility: hidden; pointer-events: none; }
@@ -84,9 +83,6 @@ h1 em { font-size: .88em; }
     linear-gradient(#151f2f, #151f2f) 0 2.5rem / 100% 60% no-repeat;
 }
 .workspace-frame img { object-fit: cover; object-position: top center; }
-.workspace-footer { justify-content: space-between; flex-wrap: wrap; gap: 0 .8rem; padding: .3rem .15rem; min-height: 3rem; color: var(--muted); font-size: .85rem; }
-.workspace-footer button { min-height: 2.75rem; padding: .3rem 0; border: 0; background: transparent; font-size: inherit; text-decoration: underline; text-underline-offset: .2em; }
-.workspace-footer button:hover { color: var(--gold); }
 .finish { background: #141d2a; border-top: 1px solid var(--line); }
 .finish-inner { justify-content: space-between; flex-wrap: wrap; gap: 2rem; max-width: 66rem; padding-block: clamp(3rem, 6vw, 5.5rem); }
 .finish h2 { margin-top: 1rem; font-size: clamp(2.8rem, 5.4vw, 5.5rem); }
@@ -99,13 +95,12 @@ h1 em { font-size: .88em; }
   .logo { font-size: 1.18rem; }
   .logo img { width: 1.55rem; height: auto; }
   .header-cta { padding-inline: .6rem; }
-  .hero h1 { font-size: clamp(1.7rem, 8.6vw, 3.5rem); }
-  .workspace-toolbar { display: block; padding: .65rem .4rem .4rem; }
-  .workspace-toolbar h2 { margin: 0 .5rem .45rem; font-size: .93rem; }
+  .hero-content { padding-bottom: 2rem; }
+  .hero h1 { margin-bottom: 1.6rem; font-size: clamp(1.7rem, 8.6vw, 3.5rem); }
+  .workspace-toolbar { padding: .4rem; }
   .workspace-nav { width: 100%; grid-template-columns: auto auto auto auto auto; gap: 0; }
   .workspace-nav a, .workspace-nav button { padding-inline: .18rem; font-size: clamp(.8125rem, 3.5vw, .92rem); }
   .workspace-frame { height: clamp(21rem, 66svh, 42rem); }
-  .workspace-footer { font-size: .8rem; }
   .finish-inner { align-items: flex-start; flex-direction: column; gap: 1.25rem; }
 }
 @media (max-width: 360px) {

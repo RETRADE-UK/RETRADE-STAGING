@@ -77,6 +77,8 @@ async function waitForExample(page, name) {
   assert.equal(await frame.getAttribute('src'), '/landing1/preview/' + name.toLowerCase() + '/');
   await panel.frameLocator(selector + '[data-active]').locator('.page.on .card, .page.on .page-header').first().waitFor({ state: 'attached' });
   assert.equal(await page.locator('iframe[data-active]').count(), 1);
+  assert.equal(await page.locator('.showcase').getByRole('button', { name: /reset|retry/i }).count(), 0,
+    'Healthy previews have no recovery button');
   assert(await panel.locator('iframe:not([data-active])').evaluateAll(frames => frames.every(frame =>
     frame.getAttribute('aria-hidden') === 'true' && frame.tabIndex < 0 && frame.inert)));
   return (await frame.elementHandle()).contentFrame();
@@ -129,7 +131,9 @@ async function checkPresentation(page, requests, width) {
   assert.equal(await page.locator('a[href*="/landing2/"]').count(), 0);
   assert.doesNotMatch(await page.locator('body').innerText(), /interactive tour|track your flips across|try the dashboard|from the first haul to the books/i);
   await waitForExample(page, 'Dashboard');
-  const tabs = page.getByRole('tablist').getByRole('tab');
+  const demo = page.getByRole('region', { name: 'Interactive demo with sample data' });
+  assert.doesNotMatch(await demo.innerText(), /interactive demo|sample data/i);
+  const tabs = demo.getByRole('tablist', { name: 'Demo pages' }).getByRole('tab');
   assert.deepEqual((await tabs.allTextContents()).slice(0, 4), pageNames);
   assert.equal(await tabs.count(), 5);
   const taxes = tabs.nth(4);
@@ -287,10 +291,13 @@ async function checkFailedSwitch(page, requests, interceptOnce) {
   await page.getByRole('tab', { name: 'Sales', exact: true }).click();
   const error = page.locator('.preview-status');
   await error.waitFor({ state: 'visible' });
-  assert.match(await error.innerText(), /Sales.+load.+Reset/i);
-  await page.getByRole('button', { name: 'Reset Sales example' }).click();
+  assert.match(await error.innerText(), /Sales.+load/i);
+  const retry = page.getByRole('button', { name: 'Retry Sales', exact: true });
+  await retry.focus();
+  await retry.press('Enter');
   await waitForExample(page, 'Sales');
   assert(await error.isHidden());
+  assert(await retry.isHidden());
 }
 
 async function checkWarmSwitch(page, requests) {

@@ -9,8 +9,8 @@
   <title>RETRADE · Stock and profit tracking for UK resellers</title>
   <script src="/assets/landing/entry.js"></script>
   <link rel="icon" href="/assets/icons/app-32.png">
-  <link rel="stylesheet" href="/assets/landing/open.css?v=20261124-marketplaces">
-  <script defer src="/assets/landing/open.js?v=20261124-marketplaces"></script>
+  <link rel="stylesheet" href="/assets/landing/open.css?v=20261125-demo-spacing">
+  <script defer src="/assets/landing/open.js?v=20261125-demo-spacing"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -30,9 +30,8 @@
         <a class="cta" href="/signup/">Sign up for free</a>
       </div>
     </section>
-    <section class="showcase wrap" aria-labelledby="workspace-heading">
+    <section class="showcase wrap" aria-label="Interactive demo with sample data">
       <div class="workspace-toolbar">
-        <h2 id="workspace-heading">Interactive demo</h2>
         <nav class="workspace-nav" aria-label="Demo pages">
           <a id="dashboard" data-page href="/assets/landing/open-dashboard-7d.webp" aria-label="Dashboard screenshot">Dashboard</a>
           <a id="sales" data-page href="/assets/landing/open-sales.webp" aria-label="Sales screenshot">Sales</a>
@@ -49,11 +48,10 @@
               <img src="/assets/landing/open-dashboard-7d.webp" width="1320" height="1578" alt="Sample dashboard with the last 7 days of revenue, profit and sales.">
             </picture>
           </noscript>
-          <p class="preview-status" role="status" hidden></p>
-        </div>
-        <div class="workspace-footer">
-          <span>Sample data</span>
-          <button type="button" data-reset hidden>Reset Dashboard example</button>
+          <div class="preview-recovery" hidden>
+            <p class="preview-status" role="status"></p>
+            <button type="button" data-retry>Try again</button>
+          </div>
         </div>
       </div>
     </section>

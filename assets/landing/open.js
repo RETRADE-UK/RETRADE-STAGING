@@ -3,7 +3,8 @@
   const panel = document.querySelector('#workspace-panel');
   const frameBox = panel.querySelector('.workspace-frame');
   const status = frameBox.querySelector('.preview-status');
-  const resetButton = panel.querySelector('[data-reset]');
+  const recovery = frameBox.querySelector('.preview-recovery');
+  const retryButton = recovery.querySelector('[data-retry]');
   const tabs = Array.from(nav.querySelectorAll('[data-page]'));
   const tabByPage = new Map(tabs.map(tab => [tab.id, tab]));
   const pages = tabs.map(tab => tab.id);
@@ -33,8 +34,6 @@
       option.tabIndex = option === tab ? 0 : -1;
     }
     panel.setAttribute('aria-labelledby', tab.id);
-    resetButton.textContent = 'Reset ' + tab.textContent + ' example';
-    resetButton.hidden = false;
   }
 
   function remove(frame) {
@@ -51,7 +50,6 @@
     frame.dataset.active = '';
     frameBox.dataset.started = '';
     frameBox.setAttribute('aria-busy', 'false');
-    resetButton.disabled = false;
     setSelected(frame.dataset.page);
     updateVisibility();
   }
@@ -66,9 +64,10 @@
       delete frameBox.dataset.started;
       setSelected(page);
       frameBox.setAttribute('aria-busy', 'false');
-      resetButton.disabled = false;
-      status.textContent = tabByPage.get(page).textContent + ' couldn’t load. Use Reset below to try again.';
-      status.hidden = false;
+      const name = tabByPage.get(page).textContent;
+      status.textContent = name + ' couldn’t load.';
+      retryButton.textContent = 'Retry ' + name;
+      recovery.hidden = false;
     }
     scheduleWarm();
   }
@@ -175,9 +174,8 @@
     if (requested === page && !reset && !failed.has(page)) return;
     requested = page;
     failed.delete(page);
-    status.hidden = true;
+    recovery.hidden = true;
     frameBox.setAttribute('aria-busy', 'true');
-    resetButton.disabled = true;
     if (!visible) setSelected(page);
     const singleStandby = standbyLimit() <= 1;
     for (const [key, candidate] of frames) {
@@ -223,7 +221,10 @@
     });
   }
 
-  resetButton.addEventListener('click', () => render(requested, true));
+  retryButton.addEventListener('click', () => {
+    tabByPage.get(requested).focus({ preventScroll: true });
+    render(requested, true);
+  });
   window.addEventListener('message', event => {
     if (event.origin !== 'null') return;
     if (event.data === 'retrade-preview-panel-open') {

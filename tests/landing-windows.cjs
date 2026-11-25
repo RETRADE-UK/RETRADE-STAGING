@@ -97,15 +97,14 @@ module.exports = async function checkWindows(page, width) {
   await expenses.locator('#confirm-ok').click();
   await seedRow.waitFor({ state: 'detached' });
   assert.equal(await costs.count(), 6);
-  await page.getByRole('button', { name: 'Reset Expenses example' }).click();
-  const fresh = page.frameLocator('iframe[data-active][title="Interactive Expenses example"]');
-  await fresh.getByText('Royal Mail parcel labels', { exact: true }).waitFor({ state: 'attached' });
-  assert.equal(await fresh.getByText('Test parcel', { exact: true }).count(), 0);
   assert.equal(await page.evaluate(() => window.localStorage.length + window.sessionStorage.length), 0);
   const initial = await openExample('Stock');
   await initial.locator('[data-stock-state="sourced"]').click();
   await initial.getByText('Longest sitting', { exact: true }).waitFor();
   assert.equal(await initial.locator('[data-stock-item]').count(), 3, 'Reopened Stock starts with the sample workspace');
+  const freshExpenses = await openExample('Expenses');
+  await freshExpenses.getByText('Royal Mail parcel labels', { exact: true }).waitFor({ state: 'attached' });
+  assert.equal(await freshExpenses.getByText('Test parcel', { exact: true }).count(), 0);
   const resetDashboard = await openExample('Dashboard');
   assert.equal(await resetDashboard.getByLabel('Dashboard period').inputValue(), '7d');
 };
