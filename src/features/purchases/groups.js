@@ -86,7 +86,7 @@
     if(!rows.length){closePanel(true);if(onReturn)onReturn();toast('Purchase no longer available');return;}
     var dates=Array.from(new Set(rows.map(function(r){return paid(r.item).date;}))),estimated=rows.some(function(r){return paid(r.item).dateEstimated;});
     var timing=dates.length===1&&dates[0]?'Payment date: '+dates[0]+(estimated?' · includes an estimated date':''):'This purchase has different or missing payment dates. Cashflow keeps those dates separate.';
-    openPanel('Purchase group','<p class="page-subtitle">'+esc(groupName(rows))+'</p><h2>'+fmt(total(rows)/100)+'</h2><p>Allocated across '+rows.length+' separate items. Each item keeps its own listing, sale and profit.</p><p class="fg-hint">'+esc(timing)+'</p><div id="purchase-members"></div><p class="fg-hint">To add stock to this payment, select the other items in Stock and choose Assign to payment.</p><p id="purchase-error" role="alert"></p>'+button('Close','purchase-close'));
+    openPanel('Purchase group','<p class="page-subtitle">'+esc(groupName(rows))+'</p><h2>'+fmt(total(rows)/100)+'</h2><p>Allocated across '+rows.length+' separate items. Each item keeps its own listing, sale and profit.</p><p class="fg-hint">'+esc(timing)+'</p><div id="purchase-members"></div><p class="fg-hint">To add stock to this payment, select a member and the items to add in Stock, then choose Assign to payment.</p><p id="purchase-error" role="alert"></p><div class="purchase-actions">'+button('Edit payment','purchase-edit')+button('Close','purchase-close')+'</div>');
     document.getElementById('slide-panel')._panelMeta={onClose:onReturn};
     var list=document.getElementById('purchase-members');
     rows.forEach(function(r){
@@ -105,15 +105,87 @@
       };
       div.append(unlink);list.append(div);
     });
+    document.getElementById('purchase-edit').onclick=function(){
+      if(owner()!==user||!unchanged(panelReview))return error('This payment changed. Reopen it to review the current items.');
+      editPayment(id,[],onReturn,true);
+    };
     document.getElementById('purchase-close').onclick=function(){closePanel();};
   };
+
+  function editPayment(id, additions, onReturn, fromGroup){
+    var existing=members(id), rows=existing.concat(additions);
+    if(!existing.length)return error('This payment is no longer available.');
+    var reason=rows.map(function(r){return ownReason(r.item);}).find(Boolean);
+    if(reason){toast(reason,'error');return;}
+    var user=owner(), before=groupSnapshot(id), newReview=review(additions);
+    var name=groupName(existing), dates=new Set(existing.map(function(r){return paid(r.item).date;}));
+    var commonDate=dates.size===1?(paid(existing[0].item).date||''):'';
+    var estimatedOnly=commonDate&&existing.every(function(r){return paid(r.item).dateEstimated;});
+    var date=estimatedOnly?'':commonDate;
+    var dateHelp='Changing the date moves the whole payment to that day in Cashflow.';
+    if(estimatedOnly)dateHelp='Cashflow estimates '+commonDate+' from the stock records. Enter the actual date paid to confirm it for the whole payment.';
+    else if(!date)dateHelp='These items have different or missing payment dates. Choose a date to apply it to the whole payment.';
+    var lines=rows.map(function(r,index){
+      var title=r.item.item||'Untitled stock';
+      var heading=index===0?'<h3>Already in this payment</h3>':'';
+      if(index===existing.length)heading='<h3>Adding to this payment</h3>';
+      return heading+field(title,'purchase-allocation-'+index,(itemCost(r.item)/100).toFixed(2),'number');
+    }).join('');
+    var showGroup=function(){openPurchaseGroup(id,onReturn);};
+    openPanel('Edit payment',
+      field('Purchase name','purchase-name',name)+field('Date paid','purchase-paid-date',date,'date')+
+      '<p class="fg-hint">'+dateHelp+'</p><p>Review the purchase cost in pounds for each item.</p>'+
+      '<div id="purchase-allocations">'+lines+'</div>'+
+      '<p id="purchase-link-total" class="purchase-summary" aria-live="polite"></p><p id="purchase-error" role="alert"></p>'+
+      '<div class="purchase-actions">'+button('Cancel','purchase-cancel')+
+      '<button type="button" class="btn btn-primary" id="purchase-link-save">Save payment</button></div>',
+      false,{onClose:fromGroup?showGroup:null});
+    var allocations=document.getElementById('purchase-allocations');
+    var inputs=Array.from(allocations.querySelectorAll('input'));
+    function amounts(){return inputs.map(function(input){return cents(input.value);});}
+    function updateTotal(){
+      var costs=amounts();
+      document.getElementById('purchase-link-total').textContent=costs.includes(null)?'Enter a cost for every item.':
+        'Payment total '+fmt(costs.reduce(function(sum,value){return sum+value;},0)/100)+' · '+rows.length+(rows.length===1?' item':' items');
+    }
+    allocations.oninput=updateTotal;
+    updateTotal();
+    document.getElementById('purchase-cancel').onclick=function(){closePanel();};
+    document.getElementById('purchase-link-save').onclick=function(){
+      if(this.disabled)return;
+      if(owner()!==user||groupSnapshot(id)!==before||!unchanged(newReview))
+        return error('This payment or its items changed. Close and reopen it to review the current amounts.');
+      var fresh=rows.map(function(r){return _findItemRecordById(r.item.id).item;});
+      var reason=fresh.map(ownReason).find(Boolean);
+      if(reason)return error(reason);
+      var nextName=document.getElementById('purchase-name').value.trim();
+      var nextDate=document.getElementById('purchase-paid-date').value, costs=amounts();
+      if(!nextName)return error('Give this purchase a name.');
+      if((additions.length||nextDate!==date)&&!_reportDateValid(nextDate))return error('Choose a valid payment date.');
+      if(costs.includes(null))return error('Enter a purchase cost with up to two decimal places for every item.');
+      var updates=[];
+      fresh.forEach(function(item,index){
+        var adding=index>=existing.length, values={};
+        if(adding)values.purchaseGroupId=id;
+        if(adding||nextName!==name)values.purchaseGroupName=nextName;
+        if(adding||nextDate!==date)values.purchasePaidDate=nextDate;
+        if(costs[index]!==itemCost(item)){
+          values.costPrice=costs[index]/100;
+          if(item.dateSold||item.isReturned||item.resaleSalePrice)
+            values.grossProfit=calcGrossProfit(Object.assign({},item,values));
+        }
+        if(Object.keys(values).length)updates.push({item:item,values:values});
+      });
+      if(!updates.length||commit(updates,[],this))showGroup();
+    };
+  }
 
   function paymentGroups(){
     var ids=Array.from(new Set(records().map(function(r){return r.item.purchaseGroupId;}).filter(Boolean)));
     return ids.map(function(id){
       var rows=members(id),dates=Array.from(new Set(rows.map(function(r){return paid(r.item).date;})));
       if(rows.some(function(r){return ownReason(r.item);})||dates.length!==1||!dates[0])return null;
-      return {id:id,name:groupName(rows),date:dates[0],total:total(rows),before:groupSnapshot(id)};
+      return {id:id,name:groupName(rows),date:dates[0],estimatedOnly:rows.every(function(r){return paid(r.item).dateEstimated;}),total:total(rows),before:groupSnapshot(id)};
     }).filter(Boolean).sort(function(a,b){return b.date.localeCompare(a.date)||a.name.localeCompare(b.name);});
   }
   window.openPurchaseLink=function(ids){
@@ -121,19 +193,27 @@
     var rows=ids.map(_findItemRecordById),user=owner();
     if(!rows.length||rows.some(function(r){return !r;})){toast('Select the stock items from this purchase.','error');return;}
     var reason=rows.map(function(r){return ownReason(r.item);}).find(Boolean);if(reason){toast(reason,'error');return;}
-    var linked=rows.filter(function(r){return r.item.purchaseGroupId;});
-    if(linked.length){
-      if(linked.length===rows.length&&new Set(linked.map(function(r){return r.item.purchaseGroupId;})).size===1)return openPurchaseGroup(linked[0].item.purchaseGroupId);
-      toast('Some items already belong to a purchase. Select only the items you want to add, then choose the existing payment.','error');return;
+    var groupIds=new Set(rows.map(function(r){return r.item.purchaseGroupId;}).filter(Boolean));
+    if(groupIds.size>1){toast('These items belong to different payments. Select items from one payment at a time.','error');return;}
+    if(groupIds.size){
+      var existingId=groupIds.values().next().value;
+      var additions=rows.filter(function(r){return !r.item.purchaseGroupId;});
+      return editPayment(existingId,additions);
     }
     var reviewed=review(rows),groups=paymentGroups(),amount=total(rows);
     var dates=Array.from(new Set(rows.map(function(r){return paid(r.item).date;}))),defaultDate=dates.length===1&&dates[0]?dates[0]:'';
     var summary='<ul class="purchase-review">'+rows.map(function(r){return '<li><span>'+esc(r.item.item||'Untitled stock')+'</span><strong>'+fmt(itemCost(r.item)/100)+'</strong></li>';}).join('')+'</ul>';
-    openPanel('Assign to payment','<p>Join these stock items under one purchase payment. The amount comes from their allocated purchase costs.</p>'+summary+'<div class="fg"><label for="purchase-existing">Payment</label><select id="purchase-existing"><option value="">Create one payment for these items</option>'+groups.map(function(g){return '<option value="'+esc(g.id)+'">'+esc(g.name)+' · '+fmt(g.total/100)+' · '+esc(g.date)+'</option>';}).join('')+'</select></div>'+field('Purchase name','purchase-name',rows[0].item.item+(rows.length>1?' + '+(rows.length-1)+' more':''))+field('Date paid','purchase-paid-date',defaultDate,'date')+'<p class="fg-hint" id="purchase-date-help">Confirm when you paid for this purchase. Each item keeps its original sourced and listed dates.</p><p id="purchase-link-total" class="purchase-summary" aria-live="polite"></p><p id="purchase-error" role="alert"></p><div class="purchase-actions">'+button('Cancel','purchase-cancel')+'<button type="button" class="btn btn-primary" id="purchase-link-save">Assign to payment</button></div>');
+    openPanel('Assign to payment','<p>Join these stock items under one purchase payment. The amount comes from their allocated purchase costs.</p>'+summary+'<div class="fg"><label for="purchase-existing">Payment</label><select id="purchase-existing"><option value="">Create one payment for these items</option>'+groups.map(function(g){return '<option value="'+esc(g.id)+'">'+esc(g.name)+' · '+fmt(g.total/100)+' · '+esc(g.date)+(g.estimatedOnly?' (estimated)':'')+'</option>';}).join('')+'</select></div>'+field('Purchase name','purchase-name',rows[0].item.item+(rows.length>1?' + '+(rows.length-1)+' more':''))+field('Date paid','purchase-paid-date',defaultDate,'date')+'<p class="fg-hint" id="purchase-date-help">Confirm when you paid for this purchase. Each item keeps its original sourced and listed dates.</p><p id="purchase-link-total" class="purchase-summary" aria-live="polite"></p><p id="purchase-error" role="alert"></p><div class="purchase-actions">'+button('Cancel','purchase-cancel')+'<button type="button" class="btn btn-primary" id="purchase-link-save">Assign to payment</button></div>');
     var select=document.getElementById('purchase-existing'),nameEl=document.getElementById('purchase-name'),dateEl=document.getElementById('purchase-paid-date'),newName=nameEl.value;
     function selected(){return groups.find(function(g){return g.id===select.value;});}
     select.onchange=function(){
-      var g=selected();if(!nameEl.readOnly)newName=nameEl.value;
+      var g=selected();
+      if(g&&g.estimatedOnly){
+        if(owner()!==user||!unchanged(reviewed)||groupSnapshot(g.id)!==g.before)
+          return error('This payment or its items changed. Close and reopen this form.');
+        return editPayment(g.id,rows);
+      }
+      if(!nameEl.readOnly)newName=nameEl.value;
       nameEl.readOnly=!!g;dateEl.readOnly=!!g;nameEl.value=g?g.name:newName;dateEl.value=g?g.date:defaultDate;
       document.getElementById('purchase-date-help').textContent=g?'Uses this payment’s existing date. Previously linked items keep their costs and dates.':'Confirm when you paid for this purchase. Each item keeps its original sourced and listed dates.';
       document.getElementById('purchase-link-total').textContent=g?'Add '+fmt(amount/100)+' · payment total '+fmt((g.total+amount)/100):'One payment · '+fmt(amount/100);
@@ -147,7 +227,7 @@
       if(!g&&rows.length<2)return error('Select at least two items for a new payment, or choose an existing purchase.');
       if(!name)return error('Give this purchase a name.');
       if(!_reportDateValid(date))return error('Choose a valid payment date.');
-      if(g&&(groupSnapshot(g.id)!==g.before||date!==g.date))return error('That payment changed. Close and reopen this form.');
+      if(g&&(g.estimatedOnly||groupSnapshot(g.id)!==g.before||date!==g.date))return error('That payment changed. Close and reopen this form.');
       var fresh=ids.map(_findItemRecordById);
       if(fresh.some(function(r){return !r||ownReason(r.item)||r.item.purchaseGroupId;}))return error('These items changed. Close and reopen this form.');
       var id=g?g.id:_newId('purchase');

@@ -135,6 +135,63 @@ async function capture(page,label,width){
       assert.deepEqual(await page.evaluate(()=>_cashEventsAll().filter(e=>e.type==='stock_purchase').map(e=>({amount:e.amount,date:e.date,count:e.itemIds.length}))),[{amount:110,date:'2026-11-09',count:3}]);
       assert.equal(await page.evaluate(()=>DB['NOV-26'][2].dateSourced),'2026-11-15');
 
+      // Selecting one existing member identifies its payment. Include the unselected
+      // member in the review, and charge only the loose item's cost once.
+      const cameraPurchase=[...linked.rows,item('card',{item:'SanDisk memory card',costPrice:10,dateSourced:'2026-11-15'})];
+      await seed(page,cameraPurchase);
+      await select(page,['a','card']);await action(page,'purchase');
+      assert.equal(await page.locator('#purchase-name').inputValue(),'Canon camera & Tamron purchase');
+      assert.equal(await page.locator('#purchase-paid-date').inputValue(),'2026-11-09');
+      assert.match(await page.locator('#purchase-link-total').innerText(),/£113\.50/);
+      assert.equal(Number(await page.getByRole('spinbutton',{name:/Tamron 70–300mm lens/}).inputValue()),23.49);
+      await noOverflow(page);await saveGroup(page,'#purchase-link-save');
+      const appended=await page.evaluate(()=>({
+        rows:DB['NOV-26'],events:_cashEventsAll().filter(e=>e.type==='stock_purchase'),outbox:Object.keys(_outboxRead()),writes:__purchaseWrites
+      }));
+      assert.deepEqual(appended.rows.map(row=>[row.id,row.costPrice,row.purchaseGroupId]),[['a',80.01,group],['b',23.49,group],['card',10,group]]);
+      assert.deepEqual(appended.rows.map(row=>row.dateSourced),cameraPurchase.map(row=>row.dateSourced));
+      assert.deepEqual(appended.events.map(event=>[event.date,event.amount,event.itemIds.slice().sort()]),[['2026-11-09',113.5,['a','b','card']]]);
+      assert.deepEqual(appended.outbox,['item:card']);assert.equal(appended.writes,1);
+
+      await page.locator('#purchase-edit').click();
+      await field(page,'#purchase-name','Revised camera purchase');
+      await field(page,'#purchase-paid-date','2026-11-07');
+      await page.getByRole('spinbutton',{name:/SanDisk memory card/}).fill('11.01');
+      assert.match(await page.locator('#purchase-link-total').innerText(),/£114\.51/);
+      await saveGroup(page,'#purchase-link-save');
+      assert.equal(await page.locator('.purchase-member').count(),3);
+      assert.deepEqual(await page.evaluate(()=>DB['NOV-26'].map(row=>[row.purchaseGroupId,row.purchaseGroupName,row.purchasePaidDate,row.costPrice])),
+        [80.01,23.49,11.01].map(cost=>[group,'Revised camera purchase','2026-11-07',cost]));
+      assert.deepEqual(await page.evaluate(()=>_cashEventsAll().filter(e=>e.type==='stock_purchase').map(e=>[e.date,e.amount])),[['2026-11-07',114.51]]);
+
+      // Re-evaluate unselected members before saving a mixed selection.
+      await seed(page,cameraPurchase);
+      await select(page,['a','card']);await action(page,'purchase');
+      await page.evaluate(()=>{DB['NOV-26'][1].costPrice=25;});
+      const changedPayment=await snapshot(page);
+      await page.locator('#purchase-link-save').click();
+      assert.match(await page.locator('#purchase-error').innerText(),/chang|reopen|review/i);
+      assert.equal(await snapshot(page),changedPayment);assert.equal(await page.evaluate(()=>__purchaseWrites),0);
+
+      const legacyRows=['old-camera','old-lens'].map(id=>item(id,{purchaseGroupId:'old-payment',purchaseGroupName:'Camera purchase'}));
+      await seed(page,[...legacyRows,item('new-card',{costPrice:10})]);
+      await select(page,['old-camera','old-lens','new-card']);await action(page,'purchase');
+      assert.equal(await page.locator('#purchase-paid-date').inputValue(),'','A sourced date alone does not confirm the payment date');
+      const beforeConfirmation=await snapshot(page);
+      await page.locator('#purchase-link-save').click();
+      assert.match(await page.locator('#purchase-error').innerText(),/date/i);
+      assert.equal(await snapshot(page),beforeConfirmation);assert.equal(await page.evaluate(()=>__purchaseWrites),0);
+      await field(page,'#purchase-paid-date','2026-11-10');await saveGroup(page,'#purchase-link-save');
+      assert.deepEqual(await page.evaluate(()=>_cashEventsAll().filter(e=>e.type==='stock_purchase').map(e=>[e.date,e.amount,e.dateEstimated,e.itemIds.length])),
+        [['2026-11-10',110,false,3]],'An explicitly confirmed same-day payment includes each item exactly once');
+
+      await seed(page,[...linked.rows,item('other',{purchaseGroupId:'other-payment',purchaseGroupName:'Cross-town payment',purchasePaidDate:'2026-11-08'}),item('loose')]);
+      const distinctPayments=await snapshot(page);
+      await select(page,['a','other','loose']);await action(page,'purchase');
+      assert.match(await page.locator('#toast').innerText(),/different payments|one payment at a time/i);
+      assert.equal(await page.locator('#slide-panel.on #purchase-link-save').count(),0);
+      assert.equal(await snapshot(page),distinctPayments);assert.equal(await page.evaluate(()=>__purchaseWrites),0);
+
       // An open group view must not unlink an item since reassigned elsewhere.
       await seed(page,linked.rows);await page.evaluate(id=>openPurchaseGroup(id),group);
       await page.evaluate(()=>{DB['NOV-26'][0].purchaseGroupId='replacement-payment';DB['NOV-26'][0].purchaseGroupName='Changed payment';});
