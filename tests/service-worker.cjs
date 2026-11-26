@@ -38,6 +38,18 @@ async function harness(scope='https://test.example/app/'){
  const old=await h.caches.open('retrade-static-previous');await old.put('https://test.example/app/app-core.js?v=old',new Response('previous-core'));
  assert.equal(await (await h.emit('fetch',{request:new Request('https://test.example/app/app-core.js?v=old')})).text(),'previous-core','Open old tabs retain their matching cached source');
  h.offline=true;assert((await (await h.emit('fetch',{request:new Request('https://test.example/app/'+assets.core)})).text()).includes(assets.core),'Offline cached core remains available');
+ const pages=await harness('https://test.example/');
+ const navigate=pathname=>pages.emit('fetch',{request:{url:'https://test.example'+pathname,method:'GET',mode:'navigate'}});
+ await navigate('/');await navigate('/dashboard/');await navigate('/about/');await navigate('/privacy/');
+ const stylesheet=new Request('https://test.example/assets/landing/site.css?v=first');
+ await pages.emit('fetch',{request:stylesheet});
+ pages.offline=true;
+ assert.match(await (await navigate('/about/index.html')).text(),/asset:https:\/\/test.example\/about\//,'An offline story keeps its own document');
+ assert.match(await (await navigate('/privacy')).text(),/asset:https:\/\/test.example\/privacy\//,'The privacy notice uses the same cached document with or without a trailing slash');
+ assert.equal((await navigate('/terms/')).status,503,'An unvisited policy never falls back to the homepage or dashboard');
+ assert.equal(await navigate('/unknown/'),undefined,'Unknown navigations stay with the host');
+ assert((await (await pages.emit('fetch',{request:stylesheet})).text()).includes('?v=first'),'Previously visited marketing styles work offline');
+ assert.equal((await pages.emit('fetch',{request:new Request('https://test.example/assets/landing/site.css?v=second')})).type,'error','Never substitute another stylesheet version');
  const empty=await harness();empty.offline=true;const offline=await empty.emit('fetch',{request:{url:'https://test.example/app/',method:'GET',mode:'navigate'}});assert.equal(offline.status,503);assert((await offline.text()).includes('Try again'),'Offline first visit offers recovery instead of blank screen');
  await h.emit('push',{data:{json:()=>({title:'Camera',listingId:'12345',url:'https://evil.example/'})}});
  await h.emit('notificationclick',{notification:{...h.notifications[0].options,close(){}}});

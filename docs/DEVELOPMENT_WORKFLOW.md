@@ -127,6 +127,17 @@ Direct writes to `main` should be treated as an emergency exception only. Reposi
 
 Edit `marketing/landing/landing1.html` for both `/` and `/landing1/`. On staging, Pages publishes the same search-excluded HTML at each address. On production, the build emits an indexable homepage with its canonical URL. Old `/landing2/` links redirect to `/landing1/`. The asset allowlist in `config/assets.js` controls which screenshots, scripts and styles ship. `npm run test:landing` exercises the public showcase in Chromium and WebKit. Review the result at https://test.retrade-uk.com/ before promoting the landing changes to production.
 
+The shared site layout in `marketing/site/layout.cjs` generates the footer,
+navigation and page metadata. Each page body has its own HTML fragment in that
+directory. Declare any new page in the layout and `config/assets.js` so it
+also has an isolated service-worker cache entry. Add its public files to the
+asset allowlist. The build checks the emitted links, section IDs, assets and
+search visibility. Each page shares its title and description with its social
+preview, using the host for that environment and the branded image in
+`assets/landing/share-card.png`. Production also emits `robots.txt` and a
+sitemap of the eight public pages. On staging, review the footer, signup links and the direct
+page URLs alongside the interactive demo.
+
 ### Production promotion
 
 Production currently serves the workspace at `/` and sends confirmation and recovery callbacks to the current path. Ship the following together in the production landing PR.

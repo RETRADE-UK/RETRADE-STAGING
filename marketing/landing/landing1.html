@@ -5,23 +5,16 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0b111c">
   <meta name="robots" content="noindex,nofollow">
-  <meta name="description" content="Track second-hand stock, sales and selling costs in RETRADE. See what each flip earns, from the first find to the final profit.">
-  <title>RETRADE · Stock and profit tracking for UK resellers</title>
+  {{PAGE_META}}
   <script src="/assets/landing/entry.js"></script>
   <link rel="icon" href="/assets/icons/app-32.png">
-  <link rel="stylesheet" href="/assets/landing/open.css?v=20261124-marketplaces">
-  <script defer src="/assets/landing/open.js?v=20261124-marketplaces"></script>
+  <link rel="stylesheet" href="/assets/landing/open.css?v=20261125-demo-spacing">
+  {{SITE_ASSETS}}
+  <script defer src="/assets/landing/open.js?v=20261125-demo-spacing"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="topbar">
-    <nav class="nav-inner wrap" aria-label="Main navigation">
-      <a class="logo" href="/" aria-label="RETRADE homepage">
-        <img src="/assets/landing/mark.svg" alt="" width="30" height="34"><span>RE<em>TRADE</em></span>
-      </a>
-      <div class="header-links"><a href="/login/">Log in</a><a class="header-cta" href="/signup/">Sign up free</a></div>
-    </nav>
-  </header>
+  {{SITE_HEADER}}
   <main id="main">
     <section class="hero">
       <div class="wrap hero-content">
@@ -30,9 +23,8 @@
         <a class="cta" href="/signup/">Sign up for free</a>
       </div>
     </section>
-    <section class="showcase wrap" aria-labelledby="workspace-heading">
+    <section id="demo" class="showcase wrap" aria-label="Interactive demo with sample data">
       <div class="workspace-toolbar">
-        <h2 id="workspace-heading">Interactive demo</h2>
         <nav class="workspace-nav" aria-label="Demo pages">
           <a id="dashboard" data-page href="/assets/landing/open-dashboard-7d.webp" aria-label="Dashboard screenshot">Dashboard</a>
           <a id="sales" data-page href="/assets/landing/open-sales.webp" aria-label="Sales screenshot">Sales</a>
@@ -49,11 +41,10 @@
               <img src="/assets/landing/open-dashboard-7d.webp" width="1320" height="1578" alt="Sample dashboard with the last 7 days of revenue, profit and sales.">
             </picture>
           </noscript>
-          <p class="preview-status" role="status" hidden></p>
-        </div>
-        <div class="workspace-footer">
-          <span>Sample data</span>
-          <button type="button" data-reset hidden>Reset Dashboard example</button>
+          <div class="preview-recovery" hidden>
+            <p class="preview-status" role="status"></p>
+            <button type="button" data-retry>Try again</button>
+          </div>
         </div>
       </div>
     </section>
@@ -102,6 +93,6 @@
       </div>
     </section>
   </main>
-  <footer class="footer wrap"><span>RETRADE · Made for UK resellers</span></footer>
+  {{SITE_FOOTER}}
 </body>
 </html>

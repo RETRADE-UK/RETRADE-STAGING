@@ -55,9 +55,13 @@ reports a fast connection, they also fetch the other public view files at low
 priority. Save-Data, slow connections and very limited devices load examples
 on selection. Taxes stays disabled. With JavaScript off,
 the navigation opens screenshots. The sample item below the demo has a local, editable ledger. Its eBay sale fee and refund credit come from the accounting engine at build time. The ledger needs no image or network request.
-Public landing assets are declared in `config/assets.js`.
-The app service worker handles landing navigation separately from the
-workspace shell.
+`marketing/site/layout.cjs` owns public navigation, footer and informational
+page metadata. It wraps the homepage and the fragments in `marketing/site/`
+at build time. Each public route works as a direct static URL. The signup form
+links to the same privacy notice and terms. The service worker keeps visited
+public documents and their declared assets available individually when offline.
+`config/assets.js` declares the URLs and assets. An uncached public document
+gets the offline retry page.
 
 `marketing/landing/build-previews.cjs` generates the four live examples under
 `/landing1/preview/` using the app’s renderers, forms, calculations and styles.

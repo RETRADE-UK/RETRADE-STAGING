@@ -166,15 +166,15 @@ html.rt-auth-bridge #auth-screen-login .rt-auth-brand{visibility:hidden}
 <!-- V2 Session 1 — JetBrains Mono (Inter is already loaded above with the full weight range V2 needs) -->
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <!-- V2 Session 4a: Chart.js removed — dashboard chart is hand-rolled SVG -->
-<link rel="stylesheet" href="./assets/styles/application.css?v=20261125-joblot-controls-staging">
-<link rel="stylesheet" href="./assets/styles/tax.css?v=20261125-joblot-controls-staging">
-<link rel="stylesheet" href="./assets/styles/item.css?v=20261125-joblot-controls-staging">
-<link rel="stylesheet" href="./assets/styles/sales.css?v=20261125-joblot-controls-staging">
-<link rel="stylesheet" href="./assets/styles/status.css?v=20261125-joblot-controls-staging">
-<link rel="stylesheet" href="./assets/styles/responsive.css?v=20261125-joblot-controls-staging">
-<link rel="stylesheet" href="./assets/styles/workspaces.css?v=20261125-joblot-controls-staging">
-<link rel="stylesheet" href="./assets/styles/monitors.css?v=20261125-joblot-controls-staging">
-<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./assets/styles/loading.css?v=20261125-joblot-controls-staging">
+<link rel="stylesheet" href="./assets/styles/application.css?v=20261126-joblot-controls-staging">
+<link rel="stylesheet" href="./assets/styles/tax.css?v=20261126-joblot-controls-staging">
+<link rel="stylesheet" href="./assets/styles/item.css?v=20261126-joblot-controls-staging">
+<link rel="stylesheet" href="./assets/styles/sales.css?v=20261126-joblot-controls-staging">
+<link rel="stylesheet" href="./assets/styles/status.css?v=20261126-joblot-controls-staging">
+<link rel="stylesheet" href="./assets/styles/responsive.css?v=20261126-joblot-controls-staging">
+<link rel="stylesheet" href="./assets/styles/workspaces.css?v=20261126-joblot-controls-staging">
+<link rel="stylesheet" href="./assets/styles/monitors.css?v=20261126-joblot-controls-staging">
+<link id="rt-skeleton-motion-polish-1512" rel="stylesheet" href="./assets/styles/loading.css?v=20261126-joblot-controls-staging">
 
 
 
@@ -1005,6 +1005,8 @@ html[data-workspace-routes] #auth-overlay>form{flex-shrink:0;margin-block:auto}
 html[data-workspace-routes] #auth-screen-signup .auth-home{display:block;text-align:center;margin-top:15px;font-size:13px;color:var(--text-secondary)}
 .privacy-contact{display:inline-flex;align-items:center;min-height:44px;max-width:100%;color:var(--text-secondary);font-size:13px;line-height:1.4;text-decoration:underline;text-underline-offset:.18em;overflow-wrap:anywhere}
 .privacy-contact:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.policy-links{display:flex;align-items:center;flex-wrap:wrap;gap:0 1rem}
+#auth-screen-signup .policy-links{justify-content:center}
 #auth-screen-signup .privacy-contact{display:flex;justify-content:center;text-align:center}
 @media(max-width:600px){html[data-workspace-routes] #auth-overlay{padding:14px!important}html[data-workspace-routes] #auth-screen-signup{padding:22px!important}}
 </style>
@@ -1079,6 +1081,7 @@ html[data-workspace-routes] #auth-screen-signup .auth-home{display:block;text-al
       <div style="position:relative"><input id="signup-pass" required name="signup-pass" type="password" autocomplete="new-password" placeholder="••••••••" oninput="_pwMeter('signup-pass','signup-str')"><button type="button" class="auth-reveal" aria-controls="signup-pass" onclick="_pwToggle('signup-pass',this)" aria-label="Show password"><svg aria-hidden="true" width="18" height="18"><use href="#auth-eye"/></svg></button></div><div id="signup-str" style="display:none;margin-top:8px;"><div style="height:5px;border-radius:3px;background:var(--surface2);overflow:hidden;"><div id="signup-str-bar" style="height:100%;width:0%;transition:width .2s ease,background .2s;"></div></div><div id="signup-str-lbl" style="font-size:11px;margin-top:5px;font-weight:600;"></div></div></div>
     <div style="margin-bottom:20px;"><label for="signup-pass2">Confirm password</label>
       <div style="position:relative"><input id="signup-pass2" required name="signup-pass2" type="password" autocomplete="new-password" placeholder="••••••••"><button type="button" class="auth-reveal" aria-controls="signup-pass2" onclick="_pwToggle('signup-pass2',this)" aria-label="Show password"><svg aria-hidden="true" width="18" height="18"><use href="#auth-eye"/></svg></button></div></div>
+    <div class="policy-links"><a class="privacy-contact" href="/terms/">Terms of use</a><a class="privacy-contact" href="/privacy/">Privacy notice</a></div>
     <button type="submit" id="signup-btn" style="width:100%;padding:12px;background:var(--accent);color:#000;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:background 0.15s;">Create free account</button>
     <a class="auth-home" href="/" style="display:block;text-align:center;margin-top:14px;color:var(--text-secondary);font-size:13px">Back to RETRADE</a>
     <a class="privacy-contact" href="mailto:general007store@gmail.com">Email us about privacy or account closure</a>
@@ -1138,13 +1141,13 @@ html[data-workspace-routes] #auth-screen-signup .auth-home{display:block;text-al
 
 </div>
 
-<script src="./config/assets.js?v=20261125-joblot-controls-staging"></script>
-<script src="./src/platform/local-recovery.js?v=20261125-joblot-controls-staging"></script>
-<script src="./src/domain/accounting-engine.js?v=20261125-joblot-controls-staging"></script>
-<script src="./src/domain/report-engine.js?v=20261125-joblot-controls-staging"></script>
-<script src="./src/platform/view-loader.js?v=20261125-joblot-controls-staging"></script>
+<script src="./config/assets.js?v=20261126-joblot-controls-staging"></script>
+<script src="./src/platform/local-recovery.js?v=20261126-joblot-controls-staging"></script>
+<script src="./src/domain/accounting-engine.js?v=20261126-joblot-controls-staging"></script>
+<script src="./src/domain/report-engine.js?v=20261126-joblot-controls-staging"></script>
+<script src="./src/platform/view-loader.js?v=20261126-joblot-controls-staging"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.2/dist/umd/supabase.js" integrity="sha384-OUpie84zd1LdwNlK9uJJQRwab0BLqo3eKYKFh7hSVL58FSk7wPp2l0kfUMIIoaQd" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="./app.js?v=20261125-joblot-controls-staging"></script>
+<script src="./app.js?v=20261126-joblot-controls-staging"></script>
 
 <!-- RETRADE dashboard spacing cleanup: mobile/tablet/narrow-desktop rhythm v3 - 2026-06-29 -->
 <section id="rt-sync-details" aria-label="Cloud sync details" tabindex="-1" hidden>
