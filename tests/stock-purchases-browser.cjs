@@ -139,12 +139,18 @@ async function capture(page,label,width){
       // member in the review, and charge only the loose item's cost once.
       const cameraPurchase=[...linked.rows,item('card',{item:'SanDisk memory card',costPrice:10,dateSourced:'2026-11-15'})];
       await seed(page,cameraPurchase);
+      const lotBefore=await page.evaluate(()=>{
+        _jobLots=[{id:'camera-lot',name:'Camera kit',status:'building'}];
+        _jobLotItems=['a','card'].map(itemId=>({jobLotId:'camera-lot',itemId,removedAt:null}));
+        return JSON.stringify([_jobLots,_jobLotItems]);
+      });
       await select(page,['a','card']);await action(page,'purchase');
       assert.equal(await page.locator('#purchase-name').inputValue(),'Canon camera & Tamron purchase');
       assert.equal(await page.locator('#purchase-paid-date').inputValue(),'2026-11-09');
       assert.match(await page.locator('#purchase-link-total').innerText(),/£113\.50/);
       assert.equal(Number(await page.getByRole('spinbutton',{name:/Tamron 70–300mm lens/}).inputValue()),23.49);
       await noOverflow(page);await saveGroup(page,'#purchase-link-save');
+      assert.equal(await page.evaluate(()=>JSON.stringify([_jobLots,_jobLotItems])),lotBefore);
       const appended=await page.evaluate(()=>({
         rows:DB['NOV-26'],events:_cashEventsAll().filter(e=>e.type==='stock_purchase'),outbox:Object.keys(_outboxRead()),writes:__purchaseWrites
       }));
