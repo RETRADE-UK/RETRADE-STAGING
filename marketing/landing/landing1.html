@@ -10,18 +10,12 @@
   <script src="/assets/landing/entry.js"></script>
   <link rel="icon" href="/assets/icons/app-32.png">
   <link rel="stylesheet" href="/assets/landing/open.css?v=20261125-demo-spacing">
+  {{SITE_ASSETS}}
   <script defer src="/assets/landing/open.js?v=20261125-demo-spacing"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <header class="topbar">
-    <nav class="nav-inner wrap" aria-label="Main navigation">
-      <a class="logo" href="/" aria-label="RETRADE homepage">
-        <img src="/assets/landing/mark.svg" alt="" width="30" height="34"><span>RE<em>TRADE</em></span>
-      </a>
-      <div class="header-links"><a href="/login/">Log in</a><a class="header-cta" href="/signup/">Sign up free</a></div>
-    </nav>
-  </header>
+  {{SITE_HEADER}}
   <main id="main">
     <section class="hero">
       <div class="wrap hero-content">
@@ -30,7 +24,7 @@
         <a class="cta" href="/signup/">Sign up for free</a>
       </div>
     </section>
-    <section class="showcase wrap" aria-label="Interactive demo with sample data">
+    <section id="demo" class="showcase wrap" aria-label="Interactive demo with sample data">
       <div class="workspace-toolbar">
         <nav class="workspace-nav" aria-label="Demo pages">
           <a id="dashboard" data-page href="/assets/landing/open-dashboard-7d.webp" aria-label="Dashboard screenshot">Dashboard</a>
@@ -100,6 +94,6 @@
       </div>
     </section>
   </main>
-  <footer class="footer wrap"><span>RETRADE · Made for UK resellers</span></footer>
+  {{SITE_FOOTER}}
 </body>
 </html>

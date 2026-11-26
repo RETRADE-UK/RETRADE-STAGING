@@ -39,6 +39,25 @@ const types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', 
     const page = await context.newPage();
     page.on('pageerror', error => console.error('Page error:', error.message));
     await page.goto(origin + '/');
+    const mainNav = page.getByRole('navigation', {name: 'Main navigation', exact: true});
+    await mainNav.getByRole('link', {name: 'Our story'}).click();
+    await page.waitForURL('**/about/');
+    await page.setViewportSize({width:320,height:568});
+    const menu = page.locator('details.compact-menu');
+    const toggle = menu.locator('summary');
+    await toggle.click();
+    await page.keyboard.press('Escape');
+    assert.equal(await menu.getAttribute('open'), null);
+    assert(await toggle.evaluate(el => el === document.activeElement));
+    await toggle.click();
+    await menu.getByRole('link', {name:'Help', exact:true}).click();
+    await page.waitForURL('**/help/');
+    const question = page.locator('summary').filter({hasText:'Can I try RETRADE before signing up?'});
+    await question.click();
+    await page.getByRole('link', {name:'Open the interactive demo'}).click();
+    await page.waitForURL('**/#demo');
+    assert(await page.locator('#demo').isVisible());
+    await page.setViewportSize({width:1370,height:850});
     const signupLink = page.getByRole('link', { name: 'Sign up free', exact: true });
     assert.equal(await signupLink.getAttribute('href'), '/signup/');
     await signupLink.click();
@@ -60,6 +79,15 @@ const types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', 
       }), 'Privacy contact is focusable and fits the narrow viewport');
     }
     await checkContact(signup);
+    for (const [name, path] of [['Privacy notice', '/privacy/'], ['Terms of use', '/terms/']]) {
+      const policy = signup.getByRole('link', {name, exact: true});
+      assert.equal(await policy.getAttribute('href'), path);
+      await policy.click();
+      await page.waitForURL(origin + path);
+      await page.getByRole('main').getByRole('heading', {level: 1}).waitFor({state:'visible'});
+      await page.goBack();
+      await signup.waitFor({state:'visible'});
+    }
     await signup.getByRole('button',{name:'Back to sign in'}).click();
     await page.waitForURL('**/login/');
     await page.goBack();
@@ -85,6 +113,7 @@ const types = {'.html':'text/html', '.js':'text/javascript', '.css':'text/css', 
     const reports = page.locator('#p-data.on');
     await reports.getByRole('button',{name:'Download backup',exact:true}).waitFor({state:'visible'});
     await checkContact(reports);
+    assert.equal(await reports.getByRole('link', {name:'Privacy notice', exact:true}).getAttribute('href'), '/privacy/');
     await page.goto(origin+'/?code=synthetic-callback');
     await page.waitForURL('**/login/?code=synthetic-callback');
     await page.goto(origin+'/landing2/?code=retired-path-callback');

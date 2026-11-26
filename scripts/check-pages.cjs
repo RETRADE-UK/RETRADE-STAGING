@@ -4,11 +4,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { root, assets, shipped } = require('./assets.cjs');
+const { routes } = require('../marketing/site/layout.cjs');
 const site = path.join(root, '_site');
 const expected = new Set([...shipped, '.nojekyll']);
 const read = file => fs.readFileSync(path.join(site, file), 'utf8');
 
-for (const route of ['login', 'signup', 'dashboard', 'start', 'landing1', 'landing2']) {
+assert.deepEqual([...assets.publicPages].sort(), [...routes].sort(), 'All generated public pages must have an offline route');
+for (const route of ['login', 'signup', 'dashboard', 'start', 'landing1', 'landing2', ...routes]) {
   expected.add(route + '/index.html');
 }
 const previewRoot = 'landing1/preview/';
@@ -47,8 +49,41 @@ assert(landing.includes('/assets/landing/entry.js'), 'The homepage must handle l
 assert(!landing.includes('/landing2/'), 'The retired comparison must not appear on the public landing');
 assert.match(read('landing2/index.html'), /http-equiv="refresh" content="0;url=\/landing1\/"/,
   'Existing comparison links must reach the new landing with JavaScript disabled');
-for (const match of landing.matchAll(/(?:src|href|srcset)="(\/assets\/[^"\s?#]+)(?:[?#][^"]*)?"/g)) {
-  assert(expected.has(match[1].slice(1)), 'Landing asset missing from Pages: ' + match[1]);
+const publicOrigin = 'https://retrade-uk.com';
+const seenTitles = new Set();
+const siteDocuments = new Map();
+for (const route of ['', ...routes]) {
+  const pathname = route ? '/' + route + '/' : '/';
+  const html = read(pathname.slice(1) + 'index.html');
+  assert(!/\{\{[A-Z_]+\}\}/.test(html), 'Unexpanded page content on ' + pathname);
+  assert.equal([...html.matchAll(/<h1\b/gi)].length, 1, 'Expected one page heading on ' + pathname);
+  const title = html.match(/<title>([^<]+)<\/title>/i)?.[1].trim();
+  assert(title && !seenTitles.has(title), 'Missing or duplicate title on ' + pathname);
+  seenTitles.add(title);
+  assert.match(html, /<meta name="description" content="[^"]+"/, 'Missing description on ' + pathname);
+  if (assets.environment === 'production') {
+    assert(html.includes('rel="canonical" href="' + publicOrigin + pathname + '"'), 'Wrong canonical on ' + pathname);
+  } else {
+    assert.match(html, /<meta name="robots" content="[^"]*noindex/, 'Staging page may be indexed: ' + pathname);
+  }
+  const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map(match => match[1]);
+  assert.equal(ids.length, new Set(ids).size, 'Duplicate element ID on ' + pathname);
+  siteDocuments.set(pathname, {html, ids: new Set(ids)});
+}
+for (const [pathname, document] of siteDocuments) {
+  for (const [, attribute, value] of document.html.matchAll(/\s(href|src|srcset)="([^"]+)"/gi)) {
+    const links = attribute === 'srcset' ? value.split(',').map(part => part.trim().split(/\s+/, 1)[0]) : [value];
+    for (const link of links) {
+      const url = new URL(link, publicOrigin + pathname);
+      if (url.origin !== publicOrigin) continue;
+      const file = url.pathname.slice(1) + (url.pathname.endsWith('/') ? 'index.html' : '');
+      assert(expected.has(file), pathname + ' links to a missing public file: ' + link);
+      if (url.hash) {
+        const id = decodeURIComponent(url.hash.slice(1));
+        assert(siteDocuments.get(url.pathname)?.ids.has(id), pathname + ' links to a missing section: ' + link);
+      }
+    }
+  }
 }
 for (const file of shipped.filter(name => name.startsWith('assets/vendor/') || name === 'CNAME')) {
   assert(fs.readFileSync(path.join(root, file)).equals(fs.readFileSync(path.join(site, file))), 'Packaged bytes differ: ' + file);

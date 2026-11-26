@@ -17469,7 +17469,10 @@ function _dataWorkspaceMarkup(monthOpts,fyOpts,pending){
       <section class="data-card"><h2>Item spreadsheet</h2><p>Move item rows into or out of RETRADE with Excel. Use a full backup to preserve your complete history.</p><div class="data-actions">${button('Export items','exportItemsAsExcel()')}${button('Import items',"document.getElementById('import-excel').click()")}${button('Blank template','downloadExcelTemplate()')}</div><input type="file" id="import-excel" accept=".xlsx" hidden onchange="importExcel(event)"></section>
     </div>
     ${pending?'':_renderRecentlyDeletedSection()}
-    <a class="privacy-contact" href="mailto:general007store@gmail.com">Email us about privacy or account closure</a>
+    <div class="policy-links">
+      <a class="privacy-contact" href="/privacy/">Privacy notice</a>
+      <a class="privacy-contact" href="mailto:general007store@gmail.com">Email us about privacy or account closure</a>
+    </div>
     <details class="data-card data-maintenance"><summary>Data checks &amp; recovery<span>Check records or troubleshoot a sync issue</span></summary><div class="data-maintenance-body">
       <section><h2>Check your records</h2><p>Review missing dates, unusual values, return history and reporting issues. Checks do not change your records.</p>${button('Run data check',"runIntegrityCheck();document.getElementById('data-return-check').innerHTML=_renderDataIntegritySection()",true)}<div id="integrity-check-out"></div><div id="data-return-check"></div></section>
       <section><h2>Retry cloud sync</h2><p>Retry pending records if your sync status stays unresolved.</p>${button('Retry sync','retradeForceResync()')}</section>

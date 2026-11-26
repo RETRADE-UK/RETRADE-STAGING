@@ -1,0 +1,80 @@
+.story-opening {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: clamp(2rem, 5vw, 5rem);
+  padding-block: clamp(3rem, 7vw, 6.5rem);
+}
+.story-intro .page-title { margin: .8rem 0 1.2rem; }
+.story-intro .page-lead { max-width: 39rem; }
+.story-workbench { display: block; width: 100%; height: auto; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 1rem; }
+
+/* A paper stock record keeps the two purchase costs readable at any zoom. */
+.story-slip {
+  width: 100%;
+  max-width: 22rem;
+  justify-self: center;
+  margin: 0;
+  position: relative;
+  color: #22201c;
+  background: #f6e9ca;
+  border-radius: .15rem;
+  padding: clamp(1.3rem, 3vw, 2.25rem);
+  box-shadow: .5rem .6rem 0 #b19862, 0 1.3rem 2.8rem #05090f59;
+  transform: rotate(2deg);
+}
+.story-slip::before {
+  content: "";
+  position: absolute;
+  top: -.6rem;
+  right: 2rem;
+  width: 3.4rem;
+  height: 1.2rem;
+  background: #d3a952d9;
+  transform: rotate(-7deg);
+}
+.story-slip figcaption {
+  font: 650 .79rem/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  color: #5d4e32;
+}
+.story-slip-title { margin: .6rem 0 1.2rem; font: italic 2.15rem/1.1 Georgia, serif; }
+.story-slip dl { margin: 0; font-variant-numeric: tabular-nums; }
+.story-slip dl > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  border-top: 1px solid #a49776;
+  padding-block: .5rem;
+}
+.story-slip dd { margin: 0; white-space: nowrap; }
+.story-slip dl > .story-slip-total { padding-block: .8rem .1rem; border-top: 2px solid #524a36; font-weight: 750; }
+
+.story-chapter {
+  display: grid;
+  grid-template-columns: minmax(12rem, .85fr) minmax(0, 1.15fr);
+  column-gap: clamp(2rem, 6vw, 6rem);
+  row-gap: 1rem;
+  padding-block: clamp(2.2rem, 5vw, 4.5rem);
+  border-top: 1px solid var(--line);
+}
+.story-chapter h2 { font-size: clamp(1.85rem, 3.5vw, 3.4rem); line-height: 1.08; }
+.story-kit { grid-template-columns: minmax(0, 1.1fr) minmax(14rem, .9fr); align-items: center; }
+.story-kit h2 { margin-bottom: 1.2rem; }
+.story-copy { max-width: 59ch; }
+.story-copy p { margin: 0; color: var(--muted); font-size: 1.07rem; line-height: 1.72; }
+.story-copy p + p { margin-top: 1rem; }
+.story-future { background: #131d2c; border-top: 1px solid var(--line); scroll-margin-top: 1rem; }
+.story-future .story-chapter { border: 0; }
+.story-future h2 em { color: var(--gold); font-family: Georgia, serif; font-weight: 500; }
+.story-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem 1.5rem; margin-top: 1.7rem; }
+
+@media (max-width: 48rem) {
+  .story-opening, .story-chapter { grid-template-columns: minmax(0, 1fr); }
+  .story-opening { gap: 2.2rem; }
+  .story-slip { justify-self: start; margin-left: .25rem; width: min(21rem, calc(100% - 1.2rem)); transform: rotate(1deg); }
+  .story-chapter h2 br { display: none; }
+  .story-kit { row-gap: 1.6rem; }
+}
