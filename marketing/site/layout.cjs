@@ -1,6 +1,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+const landingMetadata = {
+  title: 'RETRADE · Stock and profit tracking for UK resellers',
+  description: 'Track second-hand stock, sales and selling costs in RETRADE. See what each flip earns, from the first find to the final profit.'
+};
 const pages = {
   'how-it-works': {
     title: 'How RETRADE works',
@@ -91,20 +95,54 @@ function footer(current) {
   </footer>`;
 }
 
-function renderLanding(html) {
+function siteOrigin(production) {
+  return production ? 'https://retrade-uk.com' : 'https://test.retrade-uk.com';
+}
+
+function escapeHtml(text) {
+  return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+}
+
+function pageMetadata(page, url, origin) {
+  const title = escapeHtml(page.title.includes('RETRADE') ? page.title : page.title + ' · RETRADE');
+  const description = escapeHtml(page.description);
+  const image = origin + '/assets/landing/share-card.png';
+  const imageAlt = 'RETRADE logo and a sample reseller dashboard';
+  return `<title>${title}</title>
+  <meta name="description" content="${description}">
+  <meta property="og:site_name" content="RETRADE">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="en_GB">
+  <meta property="og:title" content="${title}">
+  <meta property="og:description" content="${description}">
+  <meta property="og:url" content="${origin}${url}">
+  <meta property="og:image" content="${image}">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="${imageAlt}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${title}">
+  <meta name="twitter:description" content="${description}">
+  <meta name="twitter:image" content="${image}">
+  <meta name="twitter:image:alt" content="${imageAlt}">`;
+}
+
+function renderLanding(html, production) {
   return html.replace('{{SITE_HEADER}}', header(homepage))
     .replace('{{SITE_FOOTER}}', footer(homepage))
-    .replace('{{SITE_ASSETS}}', siteAssets);
+    .replace('{{SITE_ASSETS}}', siteAssets)
+    .replace('{{PAGE_META}}', pageMetadata(landingMetadata, homepage, siteOrigin(production)));
 }
 
 function renderPage(route, production) {
   const page = pages[route];
   const url = '/' + route + '/';
   const content = fs.readFileSync(path.join(__dirname, (page.file || route) + '.html'), 'utf8');
-  const canonical = 'https://retrade-uk.com' + url;
+  const origin = siteOrigin(production);
+  const canonical = origin + url;
   const robots = production ? `<link rel="canonical" href="${canonical}">` : '<meta name="robots" content="noindex,nofollow">';
   const extraCss = page.style ? `<link rel="stylesheet" href="/assets/landing/${page.style}.css?v=20261126">` : '';
-  const title = page.title.includes('RETRADE') ? page.title : page.title + ' · RETRADE';
   return `<!doctype html>
 <html lang="en-GB">
 <head>
@@ -112,8 +150,7 @@ function renderPage(route, production) {
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0b111c">
   ${robots}
-  <title>${title}</title>
-  <meta name="description" content="${page.description}">
+  ${pageMetadata(page, url, origin)}
   <link rel="icon" href="/assets/icons/app-32.png">
   <link rel="stylesheet" href="/assets/landing/open.css?v=20261125-demo-spacing">
   ${siteAssets}
@@ -129,4 +166,4 @@ function renderPage(route, production) {
 `;
 }
 
-module.exports = { routes, renderLanding, renderPage };
+module.exports = { routes, renderLanding, renderPage, siteOrigin };

@@ -132,7 +132,10 @@ navigation and page metadata. Each page body has its own HTML fragment in that
 directory. Declare any new page in the layout and `config/assets.js` so it
 also has an isolated service-worker cache entry. Add its public files to the
 asset allowlist. The build checks the emitted links, section IDs, assets and
-search visibility. On staging, review the footer, signup links and the direct
+search visibility. Each page shares its title and description with its social
+preview, using the host for that environment and the branded image in
+`assets/landing/share-card.png`. Production also emits `robots.txt` and a
+sitemap of the eight public pages. On staging, review the footer, signup links and the direct
 page URLs alongside the interactive demo.
 
 ### Production promotion

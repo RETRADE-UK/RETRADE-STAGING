@@ -8,6 +8,17 @@ const { routes } = require('../marketing/site/layout.cjs');
 const site = path.join(root, '_site');
 const expected = new Set([...shipped, '.nojekyll']);
 const read = file => fs.readFileSync(path.join(site, file), 'utf8');
+const production = assets.environment === 'production';
+const publicOrigin = production ? 'https://retrade-uk.com' : 'https://test.retrade-uk.com';
+if (production) {
+  expected.add('robots.txt');
+  expected.add('sitemap.xml');
+  const publicURLs = [publicOrigin + '/', ...routes.map(route => publicOrigin + '/' + route + '/')];
+  assert.deepEqual([...read('sitemap.xml').matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]).sort(), publicURLs.sort(),
+    'The sitemap must contain exactly the canonical marketing pages');
+  assert.match(read('robots.txt'), /^Sitemap: https:\/\/retrade-uk\.com\/sitemap\.xml$/m);
+  assert.doesNotMatch(read('robots.txt'), /^Disallow:\s*\//mi, 'Allow search engines to fetch the public site');
+}
 
 assert.deepEqual([...assets.publicPages].sort(), [...routes].sort(), 'All generated public pages must have an offline route');
 for (const route of ['login', 'signup', 'dashboard', 'start', 'landing1', 'landing2', ...routes]) {
@@ -39,7 +50,7 @@ const actual = fs.readdirSync(site, { recursive: true, withFileTypes: true })
 assert.deepEqual(actual.sort(), [...expected].sort(), 'Pages must contain only declared runtime files and public routes');
 const landing = read('index.html');
 assert.match(read('landing1/index.html'), /name="robots" content="noindex,nofollow"/, 'Keep the review route out of search');
-if (assets.environment === 'production') {
+if (production) {
   assert(!landing.includes('noindex'), 'The production homepage must be indexable');
   assert(landing.includes('rel="canonical" href="https://retrade-uk.com/"'), 'Set the production canonical URL');
 } else {
@@ -49,7 +60,10 @@ assert(landing.includes('/assets/landing/entry.js'), 'The homepage must handle l
 assert(!landing.includes('/landing2/'), 'The retired comparison must not appear on the public landing');
 assert.match(read('landing2/index.html'), /http-equiv="refresh" content="0;url=\/landing1\/"/,
   'Existing comparison links must reach the new landing with JavaScript disabled');
-const publicOrigin = 'https://retrade-uk.com';
+// PNG IHDR includes intrinsic dimensions at offsets 16 and 20.
+const shareImage = fs.readFileSync(path.join(site, 'assets/landing/share-card.png'));
+assert(shareImage.readUInt32BE(0) === 0x89504e47 && shareImage.readUInt32BE(16) === 1200 && shareImage.readUInt32BE(20) === 630,
+  'Share card must match its advertised PNG format and dimensions');
 const seenTitles = new Set();
 const siteDocuments = new Map();
 for (const route of ['', ...routes]) {
@@ -60,8 +74,20 @@ for (const route of ['', ...routes]) {
   const title = html.match(/<title>([^<]+)<\/title>/i)?.[1].trim();
   assert(title && !seenTitles.has(title), 'Missing or duplicate title on ' + pathname);
   seenTitles.add(title);
-  assert.match(html, /<meta name="description" content="[^"]+"/, 'Missing description on ' + pathname);
-  if (assets.environment === 'production') {
+  const meta = new Map([...html.matchAll(/<meta (?:property|name)="([^"]+)" content="([^"]*)"/g)].map(([, key, value]) => [key, value]));
+  assert(meta.get('description'), 'Missing description on ' + pathname);
+  for (const prefix of ['og:', 'twitter:']) {
+    assert.equal(meta.get(prefix + 'title'), title, 'Share the page title on ' + pathname);
+    assert.equal(meta.get(prefix + 'description'), meta.get('description'), 'Share the description on ' + pathname);
+    assert.equal(meta.get(prefix + 'image'), publicOrigin + '/assets/landing/share-card.png', 'Share the image from the same host');
+    assert(meta.get(prefix + 'image:alt'), 'Describe the share image');
+  }
+  assert.equal(meta.get('og:url'), publicOrigin + pathname);
+  assert.equal(meta.get('og:site_name'), 'RETRADE');
+  assert.equal(meta.get('og:type'), 'website');
+  assert.equal(meta.get('og:locale'), 'en_GB');
+  assert.equal(meta.get('twitter:card'), 'summary_large_image');
+  if (production) {
     assert(html.includes('rel="canonical" href="' + publicOrigin + pathname + '"'), 'Wrong canonical on ' + pathname);
   } else {
     assert.match(html, /<meta name="robots" content="[^"]*noindex/, 'Staging page may be indexed: ' + pathname);

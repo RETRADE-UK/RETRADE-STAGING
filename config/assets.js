@@ -95,6 +95,7 @@ globalThis.RT_ASSETS = Object.freeze({
     "assets/landing/site.css",
     "assets/landing/story.css",
     "assets/landing/reseller-workbench.webp",
+    "assets/landing/share-card.png",
     "assets/landing/guide.css",
     "assets/landing/site-nav.js",
     "assets/landing/entry.js",
