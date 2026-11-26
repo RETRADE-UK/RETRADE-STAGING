@@ -20,12 +20,12 @@
   function ownReason(i){
     if(!i)return 'This stock item is no longer available.';
     if(i.accountId)return 'Partner stock uses its account payment. Open the partner account to manage that payment.';
-    if(typeof _activeJobLotMembership==='function'&&_activeJobLotMembership(i.id))return 'Manage stock in a Job Lot from its Job Lot page first.';
     if(itemCost(i)===null)return 'Check the item’s purchase cost before assigning a payment.';
     return '';
   }
   function splitReason(i){
     var reason=ownReason(i);if(reason)return reason;
+    if(typeof _activeJobLotMembership==='function'&&_activeJobLotMembership(i.id))return 'Manage stock in a Job Lot from its Job Lot page first.';
     if(!['sourced','listed'].includes(_itemLifecycleState(i))||i.dateSold||i.resaleDateSold||i.resaleSalePrice||i.isReturned||i.scrappedAt||i.state==='sold'||i.state==='returned')return 'Only never-sold active stock can be split. Sale and return history must stay with its original item.';
     if((i.returnHistory||[]).length||_itemHasGroupedSale(i))return 'Items with sale or return history cannot be split. Review the original item or order.';
     if((i.refreshHistory||[]).some(function(h){return h.type==='verified_sale_fees'||h.type==='verified_cash_events'||h.type==='bundle_sale_delivery';}))return 'This item has recorded sale evidence. Review its history before splitting.';
@@ -132,7 +132,7 @@
       return heading+field(title,'purchase-allocation-'+index,(itemCost(r.item)/100).toFixed(2),'number');
     }).join('');
     var showGroup=function(){openPurchaseGroup(id,onReturn);};
-    openPanel('Edit payment',
+    openPanel(additions.length?'Add to existing payment':'Edit existing payment',
       field('Purchase name','purchase-name',name)+field('Date paid','purchase-paid-date',date,'date')+
       '<p class="fg-hint">'+dateHelp+'</p><p>Review the purchase cost in pounds for each item.</p>'+
       '<div id="purchase-allocations">'+lines+'</div>'+
