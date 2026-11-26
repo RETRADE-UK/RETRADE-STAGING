@@ -2,6 +2,7 @@
  * stay in GitHub but never enter this deployment artifact. */
 const fs=require('node:fs'),path=require('node:path');
 const {root,assets,shipped}=require('./assets.cjs');
+const {renderLanding, renderPage, routes, siteOrigin} = require('../marketing/site/layout.cjs');
 const out=path.join(root,'_site');
 fs.rmSync(out,{recursive:true,force:true});fs.mkdirSync(out,{recursive:true});
 for(const file of shipped){const target=path.join(out,file);fs.mkdirSync(path.dirname(target),{recursive:true});fs.copyFileSync(path.join(root,file),target);}
@@ -18,18 +19,33 @@ for (const file of ['report-engine', 'accounting-engine']) {
   require('node:vm').runInContext(fs.readFileSync(path.join(root, 'src/domain', file + '.js'), 'utf8'), feeContext);
 }
 const jacketFee = feeContext._calcEbayBizFeeComponents(32, 'Clothes, Shoes & Accessories', 32);
-const landing = fs.readFileSync(path.join(root, 'marketing/landing/landing1.html'), 'utf8')
+const production = assets.environment === 'production';
+const landing = renderLanding(fs.readFileSync(path.join(root, 'marketing/landing/landing1.html'), 'utf8'), production)
   .replace('{{PRIVATE_FEE}}', Math.round(100 * feeContext.calcEbayBPF(32)))
   .replace('{{DEPOP_FEE}}', Math.round(100 * feeContext.calcDepopBPF({}, 32, 0)))
   .replace('{{EBAY_FEE_PENCE}}', Math.round(100 * jacketFee.total))
   .replace('{{EBAY_CREDIT_PENCE}}', Math.round(100 * jacketFee.eligibleRefundableGross));
 // Keep the review address out of search on both hosts.
-const home = assets.environment === 'production'
-  ? landing.replace('<meta name="robots" content="noindex,nofollow">', '<link rel="canonical" href="https://retrade-uk.com/">')
+const origin = siteOrigin(production);
+const home = production
+  ? landing.replace('<meta name="robots" content="noindex,nofollow">', `<link rel="canonical" href="${origin}/">`)
   : landing;
 fs.writeFileSync(path.join(out, 'index.html'), home);
 fs.mkdirSync(path.join(out, 'landing1'));
 fs.writeFileSync(path.join(out, 'landing1/index.html'), landing);
+for (const route of routes) {
+  const directory = path.join(out, route);
+  fs.mkdirSync(directory);
+  fs.writeFileSync(path.join(directory, 'index.html'), renderPage(route, production));
+}
+if (production) {
+  const urls = [origin + '/', ...routes.map(route => origin + '/' + route + '/')];
+  const sitemap = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+    urls.map(url => '  <url><loc>' + url + '</loc></url>').join('\n') + '\n</urlset>\n';
+  fs.writeFileSync(path.join(out, 'sitemap.xml'), sitemap);
+  fs.writeFileSync(path.join(out, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${origin}/sitemap.xml\n`);
+}
 // GitHub Pages serves static files. Preserve shared links to the retired concept.
 fs.mkdirSync(path.join(out, 'landing2'));
 fs.writeFileSync(path.join(out, 'landing2/index.html'), `<!doctype html>

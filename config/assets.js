@@ -1,7 +1,7 @@
 /* Runtime asset contract. Ordered classic scripts: do not alphabetise.
  * Shared by the browser loader, service worker and validation tools. */
 globalThis.RT_ASSETS = Object.freeze({
-  "build": "20261124-dashboard-week-staging",
+  "build": "20261126-public-site-staging",
   "environment": "staging",
   "entry": [
     "src/platform/local-recovery.js",
@@ -90,7 +90,14 @@ globalThis.RT_ASSETS = Object.freeze({
     "excel": "assets/vendor/sheetjs-0.20.3/xlsx.full.min.js",
     "pdf": "assets/vendor/jspdf-4.2.1/jspdf.umd.min.js"
   },
+  "publicPages": ["about", "how-it-works", "help", "contact", "privacy", "terms", "cookies"],
   "landing": [
+    "assets/landing/site.css",
+    "assets/landing/story.css",
+    "assets/landing/reseller-workbench.webp",
+    "assets/landing/share-card.png",
+    "assets/landing/guide.css",
+    "assets/landing/site-nav.js",
     "assets/landing/entry.js",
     "assets/landing/mark.svg",
     "assets/landing/open-dashboard-7d-phone.webp",
@@ -98,6 +105,7 @@ globalThis.RT_ASSETS = Object.freeze({
     "assets/landing/open-expenses.webp",
     "assets/landing/open-sales.webp",
     "assets/landing/open-stock.webp",
+    "assets/landing/open-stock-phone.webp",
     "assets/landing/open.css",
     "assets/landing/open.js"
   ],
