@@ -1657,18 +1657,34 @@ function _ebayBizRateLabel(category, salePrice, itemPriceOnly){
 // One checkout has one fixed fee. Variable bands remain per item, even when
 // different categories share an order. Allocate rounded totals in pennies, so
 // item P&L, cash events, refunds and the order panel all reconcile.
+function _jobLotSaleSettings(item,cycle){
+  if(!item||!cycle||!cycle.bundleId)return null;
+  return (Array.isArray(item.refreshHistory)?item.refreshHistory:[]).slice().reverse().find(function(r){return r&&r.type==='joblot_listing'&&r.bundleId===cycle.bundleId;})||null;
+}
+function _saleFeeCategory(item,cycle){
+  const listing=_jobLotSaleSettings(item,cycle);
+  return listing&&listing.category||item&&item.category;
+}
 function _ebaySaleFeeComponents(item,price,post,saleNo){
-  const standalone=_calcEbayBizFeeComponents(price+post,item&&item.category,price);
+  const estimating=saleNo==null&&item&&(item.isReturned||(!item.dateSold&&!item.resaleSalePrice));
+  const cycle=item&&!estimating?_saleCycleSnapshot(item,saleNo||((item.resaleSalePrice&&item.resaleDateSold)?_currentResaleCycleNo(item):1)):null;
+  const matching=cycle&&cycle.platformId==='ebay_biz'&&Math.abs(cycle.price-price)<=0.001&&Math.abs(cycle.postage-post)<=0.001;
+  const standalone=_calcEbayBizFeeComponents(price+post,matching?_saleFeeCategory(item,cycle):item&&item.category,price);
   if(!item||typeof _bundleItems!=='function')return standalone;
-  const cycle=_saleCycleSnapshot(item,saleNo||((item.resaleSalePrice&&item.resaleDateSold)?_currentResaleCycleNo(item):1));
   if(!cycle||!cycle.bundleId||cycle.platformId!=='ebay_biz'||Math.abs(cycle.price-price)>0.001||Math.abs(cycle.postage-post)>0.001)return standalone;
   const members=_bundleItems(cycle.bundleId).map(function(i){return {item:i,cycle:_bundleMemberCycle(i,cycle.bundleId)};})
     .filter(function(x){return x.cycle&&x.cycle.platformId==='ebay_biz';}).sort(function(a,b){return String(a.item.id).localeCompare(String(b.item.id));});
   const idx=members.findIndex(function(x){return String(x.item.id)===String(item.id);});
   const itemTotal=members.reduce(function(s,x){return s+x.cycle.price;},0);
   if(idx<0||members.length<2||Math.abs(itemTotal-cycle.bundleTotal)>0.005)return standalone;
-  const components=members.map(function(x){return _calcEbayBizFeeComponents(x.cycle.price+x.cycle.postage,x.item.category,x.cycle.price);});
   const bases=members.map(function(x){return x.cycle.price+x.cycle.postage;});
+  const listing=_jobLotSaleSettings(item,cycle);
+  if(listing&&members.every(function(x){const settings=_jobLotSaleSettings(x.item,x.cycle);return settings&&settings.category===listing.category;})){
+    const totalBase=bases.reduce(function(a,b){return a+b;},0),combined=_calcEbayBizFeeComponents(totalBase,listing.category,itemTotal);
+    const refundable=_bundleSplit(combined.eligibleRefundableGross,bases),fixed=_bundleSplit(+(combined.total-combined.eligibleRefundableGross).toFixed(2),bases),weight=totalBase>0?bases[idx]/totalBase:1/members.length;
+    return {fvf:+(combined.fvf*weight).toFixed(4),reg:+(combined.reg*weight).toFixed(4),perOrder:+(fixed[idx]/1.2).toFixed(4),eligibleRefundableGross:refundable[idx],total:+(refundable[idx]+fixed[idx]).toFixed(2)};
+  }
+  const components=members.map(function(x){return _calcEbayBizFeeComponents(x.cycle.price+x.cycle.postage,_saleFeeCategory(x.item,x.cycle),x.cycle.price);});
   const variable=components.map(function(c){return (c.fvf+c.reg)*1.2;});
   const refundable=_bundleSplit(+variable.reduce(function(a,b){return a+b;},0).toFixed(2),variable);
   const totalBase=bases.reduce(function(a,b){return a+b;},0);
@@ -1691,7 +1707,15 @@ function _verifiedSaleFees(item,saleNo,price,post,platform){
 }
 function _salePromoFee(item,saleNo,platform,price,post,pct){
   const e=_verifiedSaleFees(item,saleNo,price,post,platform);
-  return e&&Math.abs(Number(e.promoPercent||0)-Number(pct||0))<0.000001?Number(e.promoFee):_calcPromoFee(platform,price,post,pct);
+  if(e&&Math.abs(Number(e.promoPercent||0)-Number(pct||0))<0.000001)return Number(e.promoFee);
+  const fallback=_calcPromoFee(platform,price,post,pct),cycle=_saleCycleSnapshot(item,saleNo||1);
+  if(!_jobLotSaleSettings(item,cycle)||cycle.platformId!==platform||Math.abs(cycle.price-price)>0.001||Math.abs(cycle.postage-post)>0.001)return fallback;
+  const members=_bundleItems(cycle.bundleId).map(function(i){return {item:i,cycle:_bundleMemberCycle(i,cycle.bundleId)};}).sort(function(a,b){return String(a.item.id).localeCompare(String(b.item.id));});
+  const idx=members.findIndex(function(x){return String(x.item.id)===String(item.id);});
+  if(idx<0||members.some(function(x){return !x.cycle||!_jobLotSaleSettings(x.item,x.cycle)||x.cycle.platformId!==platform||Math.abs(x.cycle.promoPercent-pct)>0.000001;}))return fallback;
+  const total=members.reduce(function(s,x){return s+x.cycle.price;},0),postage=members.reduce(function(s,x){return s+x.cycle.postage;},0);
+  if(Math.abs(total-cycle.bundleTotal)>0.005)return fallback;
+  return _bundleSplit(_calcPromoFee(platform,total,postage,pct),members.map(function(x){return x.cycle.price+x.cycle.postage;}))[idx];
 }
 function _verifiedRefundCredits(item,r,price,post,platform,pct){
   const e=_verifiedSaleFees(item,r&&r.saleNo,price,post,platform);

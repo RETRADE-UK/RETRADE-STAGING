@@ -1137,3 +1137,9 @@ The isolated fortnight regression runs in Chromium and WebKit at 320, 390, 768
 and 1440px, checking boundaries, totals, blank days, losses, bar gaps, label bounds,
 selection persistence, hover, drill-downs and switching between daily periods.
 Cache generation: `20261016-dashboard-14-days` (staging adds `-staging`).
+
+### Job lot listing controls (2026-11-23)
+
+Core owns job lot category, promotion, linked/fixed asking prices and withdrawal. Linked prices retain a saved adjustment to member asking prices; hydration initializes legacy lots without changing their saved price, and the existing save owner synchronizes later member changes. Withdraw keeps a lot together in Unlisted; only unlisted lots can split, preserving purchase links and sale/return snapshots.
+
+The accounting engine reads the sale-specific category from persisted refresh history (joblot_listing), leaving child categories intact. One job lot uses one set of eBay category bands and one promotion total, allocated in pennies. Ordinary multi-listing bundles retain their existing rules. The additive job_lots migration supplies the listing settings. tests/joblot-browser.cjs covers desktop and narrow mobile flows in Chromium and WebKit. The asset version invalidates cached scripts; script ownership and load order are unchanged.

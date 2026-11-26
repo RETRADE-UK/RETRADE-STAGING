@@ -69,7 +69,7 @@ window.__rtRegisterView("item", {
   const _showPostage=(_plat!=='vinted');
   const _showSimpleDelivery=(_plat==='ebay'); // Simple Delivery: eBay private only; Biz uses postage policies
   const _showFee=(_plat!=='vinted'&&_plat!=='fb');
-  const _feeLabel=_plat==='ebay'?'eBay BPF':_plat==='ebay_biz'?('eBay FVF (Biz · '+_ebayBizRateLabel(i.category,(i.salePrice||0),i.salePrice||0)+')'):_plat==='depop'?'Depop fee':_plat==='amazon_uk'?'Amazon fee':'Platform fee';
+  const _feeLabel=_plat==='ebay'?'eBay BPF':_plat==='ebay_biz'?(_jobLotSaleSettings(i,_saleCycleSnapshot(i,1))?'eBay FVF (Job lot share)':('eBay FVF (Biz · '+_ebayBizRateLabel(i.category,(i.salePrice||0),i.salePrice||0)+')')):_plat==='depop'?'Depop fee':_plat==='amazon_uk'?'Amazon fee':'Platform fee';
   const _promoLabel=_plat==='ebay'?'Promo %':'Boost %';
   const totalRefunded=(i.returnHistory||[]).reduce((s,r)=>s+(r.refundAmount||0),0);
   const totalReturnPostage=(i.returnHistory||[]).reduce((s,r)=>s+(r.returnPostage||0),0);
