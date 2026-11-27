@@ -115,7 +115,23 @@ window.__rtRegisterView("stock", {
   // v2.21.18 — in-list search feeds the same totals engine as selection.
   window.__stockAll=items;                                   // pre-search filtered+sorted
   if(STOCK_SEARCH){items=items.filter(function(i){return _selItemMatchesSearch(i,STOCK_SEARCH);});}
-  window.__stockItems=items;
+  const lotChildren=new Map(visibleLots.map(lot=>[lot.id,_jobLotMembers(lot.id,false)]));
+  const selectableChildren=STOCK_SELECTION_MODE?Array.from(lotChildren.values()).flat().map(row=>row.item):[];
+  window.__stockItems=items.concat(selectableChildren);
+  function stockLotCard(lot){
+    const rows=lotChildren.get(lot.id);
+    const card=renderJobLotCard(lot);
+    if(!rows.length)return card;
+    const children=rows.map(({item})=>{
+      const title=esc(item.item||'Untitled item');
+      const cost=fmt(item.costPrice||0);
+      if(!STOCK_SELECTION_MODE)return '<div class="lot-stock-member"><span>'+title+'</span><strong>'+cost+'</strong></div>';
+      return '<label class="lot-stock-member" data-stock-item="'+esc(item.id)+'"><input type="checkbox" value="'+esc(item.id)+'" onchange="toggleStockSelect(this.value)"><span>'+title+'</span><strong>'+cost+'</strong></label>';
+    }).join('');
+    const count=rows.length+(rows.length===1?' item':' items');
+    return card+(STOCK_SELECTION_MODE?'<div class="lot-stock-children">'+children+'</div>':
+      '<details class="lot-stock-children"><summary>'+count+'</summary>'+children+'</details>');
+  }
   const _useGroup=STOCK_GROUPED&&!STOCK_SEARCH&&isListedOnly;              // search flattens the grouped view
   // Build listing-month groups when grouped mode is on. Iterate FY keys in
   // chronological-newest-first order so users see latest stock first.
@@ -426,10 +442,10 @@ window.__rtRegisterView("stock", {
         ${STOCK_SELECTION_MODE?_stockSelectionToolbarHTML():`<button class="select-toggle" onclick="toggleStockSelection()">Select</button>`}
       </div>
       </div>
-      ${visibleLots.length?`<div class="sl" style="margin-top:14px">${icon('joblot',13)} Job Lots</div><div class="item-table" style="margin-bottom:14px">${visibleLots.map(function(l){return renderJobLotCard(l);}).join('')}</div>`:''}
+      ${visibleLots.length?`<div class="sl" style="margin-top:14px">${icon('joblot',13)} Job Lots</div><div class="item-table" style="margin-bottom:14px">${visibleLots.map(stockLotCard).join('')}</div>`:''}
       ${_useGroup
-        ?`${(()=>{window.__stockItems=items;return groupedHTML;})()}`
-        :`<div class="item-table" id="stock-list">${(()=>{window.__stockItems=items;return items.length?items.map(i=>renderStockRow(i.month,i)).join(''):(STOCK_SEARCH?'<div class="inlist-empty">No stock matches \u201c'+esc(STOCK_SEARCH)+'\u201d</div>':'');})()}</div>`}`}`;
+        ?`${(()=>{return groupedHTML;})()}`
+        :`<div class="item-table" id="stock-list">${(()=>{return items.length?items.map(i=>renderStockRow(i.month,i)).join(''):(STOCK_SEARCH?'<div class="inlist-empty">No stock matches \u201c'+esc(STOCK_SEARCH)+'\u201d</div>':'');})()}</div>`}`}`;
   const stockPage=document.getElementById('p-stock');
   stockPage.innerHTML=html;
   // Keep the existing age distribution immediately below the state filters.

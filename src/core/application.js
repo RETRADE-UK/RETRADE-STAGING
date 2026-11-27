@@ -14449,6 +14449,7 @@ function _stockPurchaseSplitAvailable(item){
 }
 function _stockSelectionCapabilities(){
   const rows=[...STOCK_SELECTED].map(function(id){const r=_findItemRecordById(id);return r&&r.item;}).filter(Boolean);
+  if(rows.some(i=>_activeJobLotMembership(i.id)))return {purchase:true};
   const listed=rows.length>0&&rows.every(function(i){return _canWithdrawStock(i)&&!_itemHasPriorFullReturn(i);});
   return {list:rows.some(function(i){return !_bulkListReason(i);}),sold:listed,bundle:listed&&rows.length>1,platform:rows.length>0&&rows.every(_canWithdrawStock),purchase:rows.length>0,splitPurchase:rows.length===1&&_stockPurchaseSplitAvailable(rows[0]),duplicate:rows.length>0,
     joblot:rows.length>0&&rows.every(function(i){return _canAddToJobLot(i);}),
@@ -15784,6 +15785,7 @@ function _paintSelBar(ctx){
 function _selRefocus(id){requestAnimationFrame(function(){const el=document.getElementById(id);if(el){el.focus();try{const n=el.value.length;el.setSelectionRange(n,n);}catch(e){}}});}
 function _liveStockSearch(q){
   STOCK_SEARCH=q;
+  if(_jobLotSchemaAvailable&&_activeJobLots().length){renderStock();_selRefocus('stock-search-input');return;}
   const el=document.getElementById('stock-list');
   if(!el){ renderStock(); _selRefocus('stock-search-input'); return; } // grouped→flat transition
   const base=window.__stockAll||[];
