@@ -142,7 +142,8 @@ async function capture(page,label,width){
       const lotBefore=await page.evaluate(()=>{
         _jobLotSchemaAvailable=true;
         _jobLots=[{id:'camera-lot',name:'Camera kit',status:'listed',priceMode:'linked',priceAdjustment:0}];
-        _jobLotItems=['a','b'].map(itemId=>({jobLotId:'camera-lot',itemId,removedAt:null}));
+        _jobLotItems=['a','b'].map(itemId=>({id:'member-'+itemId,jobLotId:'camera-lot',itemId,removedAt:null}));
+        _dbSnapshot=_dbFingerprint();
         return JSON.stringify([_jobLots,_jobLotItems]);
       });
       await select(page,['a','card']);
