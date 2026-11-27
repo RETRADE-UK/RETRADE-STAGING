@@ -141,7 +141,7 @@ async function capture(page,label,width){
       await seed(page,cameraPurchase);
       const lotBefore=await page.evaluate(()=>{
         _jobLotSchemaAvailable=true;
-        _jobLots=[{id:'camera-lot',name:'Camera kit',status:'listed'}];
+        _jobLots=[{id:'camera-lot',name:'Camera kit',status:'listed',priceMode:'linked',priceAdjustment:0}];
         _jobLotItems=['a','b'].map(itemId=>({jobLotId:'camera-lot',itemId,removedAt:null}));
         return JSON.stringify([_jobLots,_jobLotItems]);
       });
