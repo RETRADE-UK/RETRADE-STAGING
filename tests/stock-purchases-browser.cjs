@@ -140,11 +140,15 @@ async function capture(page,label,width){
       const cameraPurchase=[...linked.rows,item('card',{item:'SanDisk memory card',costPrice:10,dateSourced:'2026-11-15'})];
       await seed(page,cameraPurchase);
       const lotBefore=await page.evaluate(()=>{
-        _jobLots=[{id:'camera-lot',name:'Camera kit',status:'building'}];
-        _jobLotItems=['a','card'].map(itemId=>({jobLotId:'camera-lot',itemId,removedAt:null}));
+        _jobLotSchemaAvailable=true;
+        _jobLots=[{id:'camera-lot',name:'Camera kit',status:'listed'}];
+        _jobLotItems=['a','b'].map(itemId=>({jobLotId:'camera-lot',itemId,removedAt:null}));
         return JSON.stringify([_jobLots,_jobLotItems]);
       });
-      await select(page,['a','card']);await action(page,'purchase');
+      await select(page,['a','card']);
+      assert.equal(await page.locator('.lot-stock-children [data-stock-item="a"] input').isChecked(),true);
+      assert.equal(await page.locator('.lot-stock-children [data-stock-item="b"] input').isChecked(),false);
+      await action(page,'purchase');
       assert.equal(await page.locator('#purchase-name').inputValue(),'Canon camera & Tamron purchase');
       assert.equal(await page.locator('#purchase-paid-date').inputValue(),'2026-11-09');
       assert.match(await page.locator('#purchase-link-total').innerText(),/£113\.50/);

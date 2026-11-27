@@ -538,3 +538,10 @@ body:has(> #auth-overlay > form:not([inert])) > :is(.skip-nav, #mobile-top-bar, 
 .stock-purchase-choice>span{min-width:0}.stock-purchase-choice strong{display:block;font-size:1rem;color:var(--text);line-height:1.45}.stock-purchase-choice .fg-hint{display:block;margin-top:5px;font-size:.875rem;font-weight:400;line-height:1.5;color:var(--text-secondary)}
 .joblot-editor input,.joblot-editor select,.joblot-editor textarea{font-size:16px;min-width:0;max-width:100%}.joblot-editor .fg-hint{line-height:1.5}.joblot-editor .purchase-actions{display:flex;gap:10px;flex-wrap:wrap}.joblot-editor .purchase-actions button{flex:1;min-height:44px}
 .joblot-summary{font-size:.875rem;color:var(--text-secondary);line-height:1.6;overflow-wrap:anywhere}
+
+.lot-stock-children{padding-inline:1rem;border-bottom:1px solid var(--border)}
+.lot-stock-children summary{cursor:pointer;padding:.65rem 0}
+.lot-stock-member{display:flex;align-items:center;gap:.65rem;min-height:44px;padding:.4rem 0;box-sizing:border-box}
+.lot-stock-member span{flex:1;min-width:0;overflow-wrap:anywhere}
+label.lot-stock-member{cursor:pointer}
+.lot-stock-member input{width:18px;height:18px;flex:none;accent-color:var(--gold)}
