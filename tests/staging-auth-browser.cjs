@@ -60,7 +60,9 @@ function stagingAuthMock(){
    await page.evaluate(async()=>{_previewMode=false;await doSignOut();});
    await button.waitFor({state:'visible'});
    assert.equal(await page.locator('#staging-dev-btn').count(),1,'Restored form receives exactly one working entry');
-   await button.click();await settled(page);
+   await button.click();
+   await page.waitForFunction(previous=>typeof _currentUserId==='string'&&_currentUserId!==previous&&window.__rtLaunchSettled,first.id);
+   await settled(page);
    await page.waitForFunction(()=>document.getElementById('auth-overlay').style.display==='none');
    assert.notEqual(await page.evaluate(()=>_currentUserId),first.id,'A new session gets an independent test account');
    assert.deepEqual(errors,[]);
