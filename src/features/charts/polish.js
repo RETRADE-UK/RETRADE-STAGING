@@ -30,54 +30,53 @@
   function niceStep(raw){
     if(!isFinite(raw)||raw<=0)return 1;
     var exp=Math.floor(Math.log10(raw)),mag=Math.pow(10,exp),f=raw/mag,nf;
-    if(f<1.5)nf=1;else if(f<2.25)nf=2;else if(f<3.75)nf=2.5;else if(f<7.5)nf=5;else nf=10;
+    if(f<1.5)nf=1;else if(f<2.25)nf=2;else if(f<3.75&&exp>=-1)nf=2.5;else if(f<7.5)nf=5;else nf=10;
     return nf*mag;
   }
   function nextNiceStep(step){
     if(!isFinite(step)||step<=0)return 1;
     var exp=Math.floor(Math.log10(step)),mag=Math.pow(10,exp),f=step/mag;
-    if(f<1.5)return 2*mag;if(f<2.25)return 2.5*mag;if(f<3.75)return 5*mag;if(f<7.5)return 10*mag;
+    if(f<1.5)return 2*mag;if(f<2.25&&exp>=-1)return 2.5*mag;if(f<3.75)return 5*mag;if(f<7.5)return 10*mag;
     return 20*mag;
   }
-  function buildScale(revData,profitData,refundData,targetIntervals,forecast){
-    var vals=[0];
-    (revData||[]).forEach(function(v){vals.push(num(v));});
-    (profitData||[]).forEach(function(v){vals.push(num(v));});
-    (refundData||[]).forEach(function(v){vals.push(Math.max(0,num(v)));});
-    if(forecast){vals.push(num(forecast.rev));vals.push(num(forecast.profit));}
-    var rawMax=Math.max.apply(Math,vals);
-    var rawMin=Math.min.apply(Math,[0].concat((revData||[]).map(num),(profitData||[]).map(num),forecast?[num(forecast.profit)]:[]));
-    if(rawMax<=0&&rawMin>=0)return {min:0,max:100,step:50,ticks:[0,50,100]};
-    // Add 5% breathing room, independently of the much coarser grid step.
-    // Prefer round hundreds, but refine the increment when rounding would add
-    // more than 10% above the peak. One penny is the minimum money increment.
-    var target=Math.max(3,targetIntervals||3);
-    var paddedMax=rawMax>0?rawMax*1.05:0;
-    var unit=rawMax>=100?100:rawMax>=10?10:rawMax>=1?1:rawMax>=.1?.1:.01;
-    // Refine through 5/10 increments, not arbitrary pounds (e.g. 70 -> 75).
-    while(unit>.01&&Math.ceil((paddedMax-1e-9)/unit)*unit>rawMax*1.10+1e-9){
+  function paddedMoneyLimit(peak){
+    if(peak<=0)return 0;
+    // Leave 5–10% headroom on this side of zero, rounding up to at least a penny.
+    var padded=peak*1.05;
+    var unit=peak>=100?100:peak>=10?10:peak>=1?1:peak>=.1?.1:.01;
+    while(unit>.01&&Math.ceil((padded-1e-9)/unit)*unit>peak*1.10+1e-9){
       var magnitude=Math.pow(10,Math.floor(Math.log10(unit)+1e-9));
       unit=Math.max(.01,unit/magnitude>2?magnitude:magnitude/2);
     }
-    var yMax=rawMax>0?Math.max(unit,Math.ceil((paddedMax-1e-9)/unit)*unit):0;
-    yMax=Number(yMax.toFixed(2));
-    var paddedMin=rawMin<0?rawMin*1.05:0;
-    var step=niceStep((yMax-paddedMin)/target||1);
-    var yMin=rawMin<0?Math.floor(paddedMin/step)*step:0;
-    if(yMax<=yMin)yMax=yMin+step;
-    if((yMax-yMin)/step>target+1){
-      step=nextNiceStep(step);
-      yMin=rawMin<0?Math.floor(paddedMin/step)*step:0;
-    }
-    // Prefer a regular ceiling when the next nice interval fits it exactly
-    // (75 -> 0,25,50,75), without extending the data domain.
-    var alternate=nextNiceStep(step),ratio=yMax/alternate;
-    if(yMin===0&&ratio>=3&&Math.abs(ratio-Math.round(ratio))<1e-8&&Math.abs(yMax/step-Math.round(yMax/step))>1e-8)step=alternate;
-    var ticks=[],intervals=Math.floor((yMax-yMin)/step+1e-9);
-    for(var i=0;i<=intervals;i++)ticks.push(Number((yMin+i*step).toFixed(8)));
-    // When the next regular tick would waste space, leave the small top gap
-    // unlabelled rather than adding an odd final tick such as £74 or £1.11k.
-    return {min:yMin,max:yMax,step:step,ticks:ticks};
+    return Number(Math.max(unit,Math.ceil((padded-1e-9)/unit)*unit).toFixed(2));
+  }
+  function moneyTickStep(limit,intervals){
+    var step=Math.max(.01,niceStep(limit/intervals));
+    if(limit/step>intervals+1)step=nextNiceStep(step);
+    // Prefer clean quarters (0, 25, 50, 75) when they reach the end exactly.
+    var alternate=nextNiceStep(step),ratio=limit/alternate;
+    if(ratio>=3&&Math.abs(ratio-Math.round(ratio))<1e-8&&Math.abs(limit/step-Math.round(limit/step))>1e-8)return alternate;
+    return step;
+  }
+  function buildScale(revData,profitData,refundData,targetIntervals,forecast){
+    var vals=[0].concat((revData||[]).map(num),(profitData||[]).map(num));
+    (refundData||[]).forEach(function(v){vals.push(Math.max(0,num(v)));});
+    if(forecast)vals.push(num(forecast.rev),num(forecast.profit));
+    var upper=paddedMoneyLimit(Math.max.apply(Math,vals));
+    var lower=paddedMoneyLimit(-Math.min.apply(Math,vals));
+    var range=upper+lower;
+    if(!range)return {min:0,max:100,step:50,ticks:[0,50,100]};
+
+    // Each side chooses its own limit and tick spacing. Bars and gridlines
+    // share one linear scale, so equal pound amounts still have equal heights.
+    var target=Math.max(3,targetIntervals||3);
+    var positiveStep=moneyTickStep(upper,Math.max(1,Math.round(target*upper/range)));
+    var negativeStep=moneyTickStep(lower,Math.max(1,Math.round(target*lower/range)));
+    var ticks=[];
+    for(var i=Math.floor(lower/negativeStep+1e-9);i>0;i--)ticks.push(-Number((i*negativeStep).toFixed(2)));
+    ticks.push(0);
+    for(var j=1;j<=Math.floor(upper/positiveStep+1e-9);j++)ticks.push(Number((j*positiveStep).toFixed(2)));
+    return {min:lower?-lower:0,max:upper,step:upper?positiveStep:negativeStep,ticks:ticks};
   }
   function fmtAxisMoney(v){
     v=num(v);if(Math.abs(v)<.00001)return '£0';
@@ -105,7 +104,11 @@
   function axisMarkup(W,H,pad,fontSize,scale,sy){
     var out='<g class="rt-polished-axis" aria-hidden="true">';
     scale.ticks.forEach(function(v){
-      var y=sy(v).toFixed(1),isZero=Math.abs(v)<Math.abs(scale.step)*.001;
+      var isZero=v===0;
+      // A penny loss can be less than one pixel from £0 on a high-sales day.
+      // Leave the zero label legible when the two ticks would overlap.
+      if(!isZero&&Math.abs(sy(v)-sy(0))<fontSize*1.5)return;
+      var y=sy(v).toFixed(1);
       out+='<line x1="'+pad.l+'" x2="'+(W-pad.r)+'" y1="'+y+'" y2="'+y+'" stroke="var(--border)" stroke-width="1" opacity="'+(isZero?'.52':'.28')+'"/>';
       out+='<text x="'+(pad.l-Math.round(fontSize*.9))+'" y="'+(sy(v)+fontSize*.27).toFixed(1)+'" font-size="'+fontSize+'" fill="var(--text-tertiary)" text-anchor="end" font-family="var(--font-body)" style="font-variant-numeric:tabular-nums">'+fmtAxisMoney(v)+'</text>';
     });
