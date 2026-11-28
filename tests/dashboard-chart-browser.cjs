@@ -38,6 +38,32 @@ const {open,settled}=require('./startup-browser.cjs');
     assert(actual.gap/actual.plotHeight>=.047,'Visible breathing room above the tallest bar');
     assert(actual.gap/actual.plotHeight<=.092,'No excessive empty space from coarse rounding');
    }
+   for(const profit of [-10,-250,10]){
+    const chart=await page.evaluate(profit=>{
+     const svg=Array.from(document.querySelectorAll('#p-summary svg')).find(s=>s.getClientRects().length&&s.__rtPolishedSnapshot);
+     const opts={...svg.__rtPolishedSnapshot.opts,partialLast:false,drawKey:'loss-'+profit,tertiaryData:[0,0],tertiaryCounts:[0,0]};
+     _renderChartInto(svg,['1/1','1/2'],[1000,50],[profit,4],[],opts);
+     const axisLabels=Array.from(svg.querySelectorAll('.rt-polished-axis text'));
+     const zeroLabel=axisLabels.find(el=>el.textContent==='£0');
+     const zero=Number(zeroLabel.previousElementSibling.getAttribute('y1'));
+     const boxes=axisLabels.map(el=>el.getBBox()).sort((a,b)=>a.y-b.y);
+     const mobileHost=svg.id.endsWith('-mobile');
+     const top=mobileHost?14:16,bottom=svg.viewBox.baseVal.height-(mobileHost?32:40);
+     const bar=svg.querySelector('.rt-chart-profit-bar');
+     return {min:Number(svg.dataset.scaleMin),max:Number(svg.dataset.scaleMax),zero,top,bottom,
+      barY:Number(bar.getAttribute('y')),barHeight:Number(bar.getAttribute('height')),
+      labelsFit:boxes.every((box,i)=>box.x>=0&&(!i||box.y>=boxes[i-1].y+boxes[i-1].height))};
+    },profit);
+    const plotHeight=chart.bottom-chart.top,pixelsPerPound=plotHeight/(chart.max-chart.min);
+    assert.equal(chart.max,1100,'The same £1,000 sale keeps the same upper limit');
+    assert(chart.labelsFit,'Axis labels fit without overlap at '+width+'px');
+    assert(Math.abs(chart.bottom-chart.zero+chart.min*pixelsPerPound)<.2,'Zero aligns to the independent bounds');
+    if(profit<0){
+     assert(chart.min<=profit&&chart.min>=profit*1.10-.01,'Only the size of the loss determines the lower bound');
+     assert(Math.abs(chart.barY-chart.zero)<.2,'Loss bar starts at zero');
+     assert(Math.abs(chart.barHeight-Math.abs(profit)*pixelsPerPound)<=1.5,'Loss bar uses the common money scale down to the minimum visible mark');
+    }else assert.equal(chart.min,0,'Switching to a period with gains clears the loss range');
+   }
    const sparse=await page.evaluate(()=>{
     const svg=Array.from(document.querySelectorAll('#p-summary svg')).find(s=>s.getClientRects().length&&s.__rtPolishedSnapshot);
     const options=Object.assign({},svg.__rtPolishedSnapshot.opts,{partialLast:true,drawKey:'current_fy',tertiaryData:[0,0,0,0],tertiaryCounts:[0,0,0,0]});

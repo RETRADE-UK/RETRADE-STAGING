@@ -11,12 +11,13 @@ function check(rev,profit,refunds,target,forecast,expectedMax){
  if(expectedMax!==undefined)assert.equal(s.max,expectedMax,JSON.stringify({rev,profit,refunds,target,forecast}));
  assert(s.min<=0&&s.max>=0&&s.max>s.min);
  assert(Number.isFinite(s.step)&&s.step>0);
- assert.equal(s.ticks[0],s.min);assert(s.ticks.at(-1)<=s.max+1e-7);
+ assert(s.ticks[0]>=s.min-1e-7&&s.ticks.at(-1)<=s.max+1e-7);
  assert(s.ticks.some(v=>Math.abs(v)<1e-8),'Keep zero');
  assert(s.ticks.length<=Math.max(3,target)+3,'Do not overfill the axis');
  for(let i=0;i<s.ticks.length;i++){
   assert(Number.isFinite(s.ticks[i]));
-  if(i)assert(Math.abs(s.ticks[i]-s.ticks[i-1]-s.step)<1e-7,'Every tick has the SAME increment, including the last');
+  if(i)assert(s.ticks[i]>s.ticks[i-1],'Ticks increase from bottom to top');
+  if(i&&s.min===0)assert(Math.abs(s.ticks[i]-s.ticks[i-1]-s.step)<1e-7,'Positive-only charts keep uniform intervals');
  }
  const values=[...rev,...profit,...refunds,...(forecast?[forecast.rev,forecast.profit]:[])].map(Number).filter(Number.isFinite);
  for(const n of values)assert(n<=s.max+1e-7&&n>=s.min-1e-7,'No clipping');
@@ -26,6 +27,11 @@ function check(rev,profit,refunds,target,forecast,expectedMax){
   assert(s.max+1e-7>=peak*1.05);
   assert(s.max<=Math.max(peak*1.10,peak*1.05+.01)+1e-7,'Retain bounded headroom, allowing a penny');
  }
+ const loss=Math.max(0,-Math.min(0,...values));
+ if(loss>0){
+  assert(-s.min+1e-7>=loss*1.05,'Leave room beyond the largest loss');
+  assert(-s.min<=Math.max(loss*1.10,loss*1.05+.01)+1e-7,'Limit the lower range independently of sales');
+ }else assert.equal(s.min,0,'No space below zero without a loss');
  assert.equal(JSON.stringify([rev,profit,refunds,forecast]),before);
  checked++;return s;
 }
@@ -41,8 +47,14 @@ for(const target of [2,3,4]){
  check([50,1950],[5,2500.01],[],target,null,2700);
  check([-150,-50],[-225,-25],[],target,null,0);
  check([50,1950],[5,-40],[],target,{rev:2050,profit:-300},2200);
+ for(const peak of [20,1000,10000]){
+  assert.equal(check([peak],[-10],[],target,null).min,-11,'A larger sale cannot enlarge the loss range');
+  assert.equal(check([peak],[-.01],[],target,null).min,-.02,'Allow penny losses');
+ }
+ assert.equal(check([1000],[-2],[5000],target,{rev:2500,profit:-10}).min,-11,'A forecast loss sets the lower bound');
+ assert.equal(check([-10],[-2],[],target,null).min,-11,'Loss-only periods include negative revenue');
  for(let pence=1;pence<300;pence++)check([pence/100],[],[],target,null);
  for(let peak=5;peak<20000;peak+=37)check([peak],[Math.min(-15,-peak/3)],[],target,null);
 }
 for(const [v,l] of [[2000,'£2k'],[25,'£25'],[50,'£50'],[75,'£75'],[.01,'£0.01'],[-.01,'−£0.01']])assert.equal(api.fmtAxisMoney(v),l);
-console.log('PASS '+checked+' chart scales: uniform nice ticks, bounded headroom, refunds/losses/forecasts and zero');
+console.log('PASS '+checked+' chart scales: independent bounds, readable ticks, refunds/losses/forecasts and zero');
